@@ -25,3 +25,9 @@ Types of changes:
 ### Fixed
 
 ### Dependencies
+
+## [0.0.0] - 2024-10-04
+
+### Added
+- Setup basic project/repo template ([#1](https://github.com/qBraid/pyqasm/pull/1))
+- Configured PyPI workflows ([#2](https://github.com/qBraid/pyqasm/pull/2))
