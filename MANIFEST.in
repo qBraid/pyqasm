@@ -1,0 +1,5 @@
+include *.txt *.md
+recursive-include docs *.rst *.py *.png *.ico *.txt
+recursive-include pyqasm *.py
+include pyqasm/py.typed
+prune docs/build/
