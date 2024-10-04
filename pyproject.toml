@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyqasm"
+version = "0.0.0"
+description = "Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation."
+authors = [{name = "qBraid Development Team"}, {email = "contact@qbraid.com"}]
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["quantum", "openqasm", "symantic-analyzer", "compiler", "qbraid"]
+license = {text = "GNU General Public License v3.0"}
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    'Topic :: Software Development',
+    'Topic :: Scientific/Engineering',
+    "Topic :: Scientific/Engineering :: Physics",
+    'Typing :: Typed',
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: POSIX',
+    'Operating System :: Unix',
+    'Operating System :: MacOS',
+]
+dependencies = ["pyqir>=0.10.0,<0.11.0", "numpy"]
+
+[project.urls]
+source = "https://github.com/qBraid/pyqasm"
+tracker = "https://github.com/qBraid/pyqasm/issues"
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov", "autoqasm>=0.1.0"]
+lint = ["black", "isort", "pylint", "mypy", "qbraid-cli>=0.8.5"]
+docs = ["sphinx>=7.3.7,<8.1.0", "sphinx-autodoc-typehints>=1.24,<2.5", "sphinx-rtd-theme~=2.0.0", "docutils<0.22", "sphinx-copybutton"]
+
+[tool.setuptools_scm]
+write_to = "pyqasm/_version.py"
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 100
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length = 100
+disable = "C0414,C0415,R0914,W0511"
+
+[tool.pylint.MASTER]
+ignore-paths = [
+  "^.*\\_version.py$",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
