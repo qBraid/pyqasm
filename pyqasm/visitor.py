@@ -32,8 +32,8 @@ from .maps import (
     CONSTANTS_MAP,
     MAX_ARRAY_DIMENSIONS,
     SWITCH_BLACKLIST_STMTS,
-    map_qasm_inv_op_to_pyqir_callable,
-    map_qasm_op_to_pyqir_callable,
+    map_qasm_inv_op_to_callable,
+    map_qasm_op_to_callable,
 )
 from .subroutines import Qasm3SubroutineProcessor
 from .transformer import Qasm3Transformer
@@ -576,10 +576,10 @@ class BasicQasmVisitor(ProgramElementVisitor):
         inverse_action = None
         # to update : qir_func is a pyqir callable, need to change this
         if not inverse:
-            qir_func, op_qubit_count = map_qasm_op_to_pyqir_callable(op_name)
+            qasm_func, op_qubit_count = map_qasm_op_to_callable(op_name)
         else:
             # in basic gates, inverse action only affects the rotation gates
-            qir_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_pyqir_callable(op_name)
+            qasm_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_callable(op_name)
         # to update
 
         op_parameters = None
@@ -601,9 +601,10 @@ class BasicQasmVisitor(ProgramElementVisitor):
                 # we apply the gate on the qubit subset linearly
                 qubit_subset = op_qubits[i : i + op_qubit_count]
                 if op_parameters is not None:
-                    qir_func(self._builder, *op_parameters, *qubit_subset)
+                    gate_qasm = qasm_func(op_name, *op_parameters, *qubit_subset)
                 else:
-                    qir_func(self._builder, *qubit_subset)
+                    gate_qasm = qasm_func(op_name, *qubit_subset)
+                self._module.add_qasm_statement(gate_qasm)
             # to update
 
     def _visit_custom_gate_operation(

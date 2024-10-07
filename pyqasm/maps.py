@@ -24,6 +24,7 @@ from openqasm3.ast import (
     ClassicalDeclaration,
     ComplexType,
     FloatType,
+    IndexedIdentifier,
     IntType,
     QuantumGateDefinition,
     QubitDeclaration,
@@ -86,17 +87,12 @@ def qasm3_expression_op_map(op_name: str, *args) -> Union[float, int, bool]:
         raise ValidationError(f"Unsupported / undeclared QASM operator: {op_name}") from exc
 
 
-def id_gate(builder, qubits):
-    pyqir._native.x(builder, qubits)
-    pyqir._native.x(builder, qubits)
-
-
 def u3_gate(
-    builder,
+    name: str,
     theta: Union[int, float],
     phi: Union[int, float],
     lam: Union[int, float],
-    qubits,
+    qubit_id,
 ):
     """
     Implements the U3 gate using the following decomposition:
@@ -113,16 +109,18 @@ def u3_gate(
     Returns:
         None
     """
-    pyqir._native.rz(builder, lam, qubits)
-    pyqir._native.rx(builder, CONSTANTS_MAP["pi"] / 2, qubits)
-    pyqir._native.rz(builder, theta + CONSTANTS_MAP["pi"], qubits)
-    pyqir._native.rx(builder, CONSTANTS_MAP["pi"] / 2, qubits)
-    pyqir._native.rz(builder, phi + CONSTANTS_MAP["pi"], qubits)
+    result = ""
+    result += one_qubit_rotation_op("rz", lam, qubit_id)
+    result += one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit_id)
+    result += one_qubit_rotation_op("rz", theta + CONSTANTS_MAP["pi"], qubit_id)
+    result += one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit_id)
+    result += one_qubit_rotation_op("rz", phi + CONSTANTS_MAP["pi"], qubit_id)
+    return result
     # global phase - e^(i*(phi+lambda)/2) is missing in the above implementation
 
 
 def u3_inv_gate(
-    builder,
+    name: str,
     theta: Union[int, float],
     phi: Union[int, float],
     lam: Union[int, float],
@@ -132,41 +130,36 @@ def u3_inv_gate(
     Implements the inverse of the U3 gate using the decomposition present in
     the u3_gate function.
     """
-    pyqir._native.rz(builder, -1.0 * (phi + CONSTANTS_MAP["pi"]), qubits)
-    pyqir._native.rx(builder, -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits)
-    pyqir._native.rz(builder, -1.0 * (theta + CONSTANTS_MAP["pi"]), qubits)
-    pyqir._native.rx(builder, -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits)
-    pyqir._native.rz(builder, -1.0 * lam, qubits)
+    result = ""
+    result += one_qubit_rotation_op("rz", -1.0 * (phi + CONSTANTS_MAP["pi"]), qubits)
+    result += one_qubit_rotation_op("rx", -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits)
+    result += one_qubit_rotation_op("rz", -1.0 * (theta + CONSTANTS_MAP["pi"]), qubits)
+    result += one_qubit_rotation_op("rx", -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits)
+    result += one_qubit_rotation_op("rz", -1.0 * lam, qubits)
+    return result
 
 
-def u2_gate(builder, phi, lam, qubits):
+def u2_gate(name, phi, lam, qubits):
     """
     Implements the U2 gate using the following decomposition:
         https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.U2Gate
     """
-    u3_gate(builder, CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
+    return u3_gate("u3", CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
 
 
-def u2_inv_gate(builder, phi, lam, qubits):
+def u2_inv_gate(name, phi, lam, qubits):
     """
     Implements the inverse of the U2 gate using the decomposition present in
     the u2_gate function.
     """
-    u3_inv_gate(builder, CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
+    return u3_inv_gate("u3_inv", CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
 
 
-def sx_gate(builder, qubits):
-    """
-    Implements the Sqrt(X) gate as a decomposition of other gates.
-    """
-    pyqir._native.rx(builder, CONSTANTS_MAP["pi"] / 2, qubits)
-
-
-def sxdg_gate(builder, qubits):
+def sxdg_gate_op(name, qubit_id):
     """
     Implements the conjugate transpose of the Sqrt(X) gate as a decomposition of other gates.
     """
-    pyqir._native.rx(builder, -CONSTANTS_MAP["pi"] / 2, qubits)
+    return one_qubit_rotation_op("rx", -CONSTANTS_MAP["pi"] / 2, qubit_id)
 
 
 def cv_gate(builder, qubit0, qubit1):
@@ -368,24 +361,24 @@ def cphaseshift10_gate(builder, theta, qubit0, qubit1):
     pyqir._native.x(builder, qubits[1])
 
 
-def gpi_gate(builder, phi, qubit):
+def gpi_gate(name, phi, qubit_id):
     """
     Implements the gpi gate as a decomposition of other gates.
     """
     theta_0 = CONSTANTS_MAP["pi"]
     phi_0 = phi
     lambda_0 = -phi_0 + CONSTANTS_MAP["pi"]
-    u3_gate(builder, theta_0, phi_0, lambda_0, qubit)
+    return u3_gate("u3", theta_0, phi_0, lambda_0, qubit_id)
 
 
-def gpi2_gate(builder, phi, qubit):
+def gpi2_gate(name, phi, qubit_id):
     """
     Implements the gpi2 gate as a decomposition of other gates.
     """
     theta_0 = CONSTANTS_MAP["pi"] / 2
     phi_0 = phi + 3 * CONSTANTS_MAP["pi"] / 2
     lambda_0 = -phi_0 + CONSTANTS_MAP["pi"] / 2
-    u3_gate(builder, theta_0, phi_0, lambda_0, qubit)
+    return u3_gate("u3", theta_0, phi_0, lambda_0, qubit_id)
 
 
 # pylint: disable-next=too-many-arguments
@@ -450,51 +443,67 @@ def ecr_gate(builder, qubit0, qubit1):
     pyqir._native.x(builder, qubits[0])
 
 
-def prx_gate(builder, theta, phi, qubit):
+def prx_gate(name, theta, phi, qubit_id):
     """
     Implements the PRX gate as a decomposition of other gates.
     """
     theta_0 = theta
     phi_0 = CONSTANTS_MAP["pi"] / 2 - phi
     lambda_0 = -phi_0
-    u3_gate(builder, theta_0, phi_0, lambda_0, qubit)
+    return u3_gate("u3", theta_0, phi_0, lambda_0, qubit_id)
 
 
-# PYQIR_ONE_QUBIT_OP_MAP = {
-#     "i": id_gate,
-#     "id": id_gate,
-#     "h": pyqir._native.h,
-#     "x": pyqir._native.x,
-#     "y": pyqir._native.y,
-#     "z": pyqir._native.z,
-#     "s": pyqir._native.s,
-#     "t": pyqir._native.t,
-#     "sdg": pyqir._native.s_adj,
-#     "si": pyqir._native.s_adj,
-#     "tdg": pyqir._native.t_adj,
-#     "ti": pyqir._native.t_adj,
-#     "v": sx_gate,
-#     "sx": sx_gate,
-#     "vi": sxdg_gate,
-#     "sxdg": sxdg_gate,
-# }
+def one_qubit_gate_op(gate_name: str, qubit_id: IndexedIdentifier) -> str:
+    qubit_name = qubit_id.name.name
+    qubit_idx = qubit_id.indices[0][0].value
+    return f"{gate_name} {qubit_name}[{qubit_idx}];\n"
 
-# PYQIR_ONE_QUBIT_ROTATION_MAP = {
-#     "rx": pyqir._native.rx,
-#     "ry": pyqir._native.ry,
-#     "rz": pyqir._native.rz,
-#     "u": u3_gate,
-#     "U": u3_gate,
-#     "u3": u3_gate,
-#     "U3": u3_gate,
-#     "U2": u2_gate,
-#     "u2": u2_gate,
-#     "prx": prx_gate,
-#     "phaseshift": phaseshift_gate,
-#     "p": phaseshift_gate,
-#     "gpi": gpi_gate,
-#     "gpi2": gpi2_gate,
-# }
+
+def one_qubit_rotation_op(gate_name: str, rotation: float, qubit_id: IndexedIdentifier) -> str:
+    qubit_name = qubit_id.name.name
+    qubit_idx = qubit_id.indices[0][0].value
+    return f"{gate_name}({rotation}) {qubit_name}[{qubit_idx}];\n"
+
+
+def two_qubit_gate_op(gate_name, qubit_name1, qubit_id1, qubit_name2, qubit_id2):
+    return f"{gate_name} {qubit_name1}[{qubit_id1}], {qubit_name2}[{qubit_id2}];\n"
+
+
+PYQIR_ONE_QUBIT_OP_MAP = {
+    "id": one_qubit_gate_op,
+    "h": one_qubit_gate_op,
+    "x": one_qubit_gate_op,
+    "y": one_qubit_gate_op,
+    "z": one_qubit_gate_op,
+    "s": one_qubit_gate_op,
+    "t": one_qubit_gate_op,
+    "sdg": one_qubit_gate_op,
+    "si": one_qubit_gate_op,
+    "tdg": one_qubit_gate_op,
+    "ti": one_qubit_gate_op,
+    "v": one_qubit_gate_op,
+    "sx": one_qubit_gate_op,
+    "vi": sxdg_gate_op,
+    "sxdg": sxdg_gate_op,
+}
+
+
+PYQIR_ONE_QUBIT_ROTATION_MAP = {
+    "rx": one_qubit_rotation_op,
+    "ry": one_qubit_rotation_op,
+    "rz": one_qubit_rotation_op,
+    "u": u3_gate,
+    "U": u3_gate,
+    "u3": u3_gate,
+    "U3": u3_gate,
+    "U2": u2_gate,
+    "u2": u2_gate,
+    "prx": prx_gate,
+    "phaseshift": phaseshift_gate,
+    "p": phaseshift_gate,
+    "gpi": gpi_gate,
+    "gpi2": gpi2_gate,
+}
 
 # PYQIR_TWO_QUBIT_OP_MAP = {
 #     "cx": pyqir._native.cx,
@@ -528,7 +537,7 @@ def prx_gate(builder, theta, phi, qubit):
 # }
 
 
-def map_qasm_op_to_pyqir_callable(op_name: str):
+def map_qasm_op_to_callable(op_name: str):
     """
     Map a QASM operation to a PyQIR callable.
 
@@ -573,7 +582,7 @@ PYQIR_U_INV_ROTATION_MAP = {
 }
 
 
-def map_qasm_inv_op_to_pyqir_callable(op_name: str):
+def map_qasm_inv_op_to_callable(op_name: str):
     """
     Map a QASM operation to a PyQIR callable.
 
