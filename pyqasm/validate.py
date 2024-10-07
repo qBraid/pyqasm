@@ -1,12 +1,12 @@
 # Copyright (C) 2024 qBraid
 #
-# This file is part of the qBraid-SDK
+# This file is part of the pyqasm
 #
-# The qBraid-SDK is free software released under the GNU General Public License v3
+# The pyqasm is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for the qBraid-SDK, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for the pyqasm, as per Section 15 of the GPL v3.
 
 """
 Module for performing semantic analysis of OpenQASM 3 programs.
@@ -16,9 +16,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from openqasm3.parser import QASM3ParsingError
+import openqasm3
 
+from .elements import Qasm3Module
 from .exceptions import ValidationError
+from .visitor import BasicQasmVisitor
 
 if TYPE_CHECKING:
     import openqasm3.ast
@@ -37,9 +39,14 @@ def validate(program: Union[openqasm3.ast.Program, str]) -> None:
     if isinstance(program, str):
         try:
             program = openqasm3.parse(program)
-        except QASM3ParsingError as err:
+        except openqasm3.parser.QASM3ParsingError as err:
             raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
 
-    raise NotImplementedError("Semantic validation is not yet implemented.")
+    module = Qasm3Module.from_program(program)
+    try:
+        visitor = BasicQasmVisitor(module, check_only=True)
+        module.accept(visitor)
+    except (ValidationError, TypeError, ValueError) as err:
+        raise ValidationError(f"Semantic validation failed: {err}") from err
