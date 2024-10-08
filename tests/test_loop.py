@@ -12,173 +12,116 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 
 """
 
-# import pytest
-# from qbraid_qir.qasm3 import qasm3_to_qir
-# from qbraid_qir.qasm3.visitor import Qasm3ConversionError
+import pytest
 
-# from tests.qir_utils import (
-#     check_attributes,
-#     check_single_qubit_gate_op,
-#     check_single_qubit_rotation_op,
-# )
+from pyqasm.exceptions import ValidationError
+from pyqasm.unroller import unroll
+from pyqasm.validate import validate
+from tests.utils import (
+    check_single_qubit_gate_op,
+    check_single_qubit_rotation_op,
+    check_two_qubit_gate_op,
+)
 
-# EXAMPLE_WITHOUT_LOOP = """
-# OPENQASM 3.0;
-# include "stdgates.inc";
+EXAMPLE_WITHOUT_LOOP = """
+OPENQASM 3.0;
+include "stdgates.inc";
 
-# qubit[4] q;
-# bit[4] c;
+qubit[4] q;
+bit[4] c;
 
-# h q;
+h q;
 
-# cx q[0], q[1];
-# cx q[1], q[2];
-# cx q[2], q[3];
+cx q[0], q[1];
+cx q[1], q[2];
+cx q[2], q[3];
 
-# measure q->c;
-# """
-
-
-# def test_convert_qasm3_for_loop():
-#     """Test converting a QASM3 program that contains a for loop."""
-#     qir_expected = qasm3_to_qir(EXAMPLE_WITHOUT_LOOP, name="test")
-#     qir_from_loop = qasm3_to_qir(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
-
-#         qubit[4] q;
-#         bit[4] c;
-
-#         h q;
-#         for int i in [0:2]{
-#             cx q[i], q[i+1];
-#         }
-#         measure q->c;
-#         """,
-#         name="test",
-#     )
-#     assert str(qir_expected) == str(qir_from_loop)
-#     assert str(qir_from_loop) == EXAMPLE_QIR_OUTPUT
+measure q->c;
+"""
 
 
-# def test_convert_qasm3_for_loop_shadow():
-#     """Test for loop where loop variable shadows variable from global scope."""
-#     qir_expected = qasm3_to_qir(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+def test_convert_qasm3_for_loop():
+    """Test converting a QASM3 program that contains a for loop."""
+    result = unroll(
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
 
-#         qubit[4] q;
-#         bit[4] c;
+        qubit[4] q;
+        bit[4] c;
 
-#         int i = 3;
+        h q;
+        for int i in [0:2]{
+            cx q[i], q[i+1];
+        }
+        measure q->c;
+        """,
+    )
+    assert result.num_qubits == 4
+    assert result.num_clbits == 4
 
-#         h q;
-#         cx q[0], q[1];
-#         cx q[1], q[2];
-#         cx q[2], q[3];
-#         h q[i];
-#         measure q->c;
-#         """,
-#         name="test",
-#     )
-#     qir_from_loop = qasm3_to_qir(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
-
-#         qubit[4] q;
-#         bit[4] c;
-
-#         int i = 3;
-
-#         h q;
-#         for int i in [0:2]{
-#             cx q[i], q[i+1];
-#         }
-#         h q[i];
-#         measure q->c;
-#         """,
-#         name="test",
-#     )
-#     assert str(qir_expected) == str(qir_from_loop)
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 2, 3], "h")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
-# def test_convert_qasm3_for_loop_enclosing():
-#     """Test for loop where variable from outer loop is accessed from inside the loop."""
-#     qir_expected = qasm3_to_qir(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+def test_convert_qasm3_for_loop_shadow():
+    """Test for loop where loop variable shadows variable from global scope."""
+    result = unroll(
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
 
-#         qubit[4] q;
-#         bit[4] c;
+        qubit[4] q;
+        bit[4] c;
 
-#         int j = 3;
+        int i = 3;
 
-#         h q;
-#         cx q[0], q[1];
-#         h q[j];
-#         cx q[1], q[2];
-#         h q[j];
-#         cx q[2], q[3];
-#         h q[j];
-#         measure q->c;
-#         """,
-#         name="test",
-#     )
-#     qir_from_loop = qasm3_to_qir(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+        h q;
+        for int i in [0:2]{
+            cx q[i], q[i+1];
+        }
+        h q[i];
+        measure q->c;
+        """,
+    )
+    assert result.num_clbits == 4
+    assert result.num_qubits == 4
 
-#         qubit[4] q;
-#         bit[4] c;
+    check_single_qubit_gate_op(result.unrolled_ast, 5, [0, 1, 2, 3, 3], "h")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
-#         int j = 3;
 
-#         h q;
-#         for int i in [0:2]{
-#             cx q[i], q[i+1];
-#             h q[j];
-#         }
-#         measure q->c;
-#         """,
-#         name="test",
-#     )
-#     assert str(qir_expected) == str(qir_from_loop)
+def test_convert_qasm3_for_loop_enclosing():
+    """Test for loop where variable from outer loop is accessed from inside the loop."""
+    result = unroll(
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[4] q;
+        bit[4] c;
+
+        int j = 3;
+
+        h q;
+        for int i in [0:2]{
+            cx q[i], q[i+1];
+            h q[j];
+        }
+        measure q->c;
+        """,
+    )
+
+    assert result.num_clbits == 4
+    assert result.num_qubits == 4
+
+    check_single_qubit_gate_op(result.unrolled_ast, 7, [0, 1, 2, 3, 3, 3, 3], "h")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
 # def test_convert_qasm3_for_loop_enclosing_modifying():
 #     """Test for loop where variable from outer loop is modified from inside the loop."""
-#     qir_expected = qasm3_to_qir(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
-
-#         qubit[4] q;
-#         bit[4] c;
-
-#         int j = 0;
-
-#         h q;
-#         cx q[0], q[1];
-#         h q[j];
-#         j += 1;
-#         cx q[1], q[2];
-#         h q[j];
-#         j += 1;
-#         cx q[2], q[3];
-#         h q[j];
-#         j += 1;
-
-#         h q[j];
-#         measure q->c;
-#         """,
-#         name="test",
-#     )
-#     qir_from_loop = qasm3_to_qir(
+#     result = unroll(
 #         """
 #         OPENQASM 3.0;
 #         include "stdgates.inc";
@@ -197,80 +140,87 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 #         h q[j];
 #         measure q->c;
 #         """,
-#         name="test",
 #     )
-#     assert str(qir_expected) == str(qir_from_loop)
+#     assert result.num_clbits == 4
+#     assert result.num_qubits == 4
+
+#     check_single_qubit_gate_op(result.unrolled_ast, 7, [0, 1, 2, 3, 0, 1, 2], "h")
+#     check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
-# def test_convert_qasm3_for_loop_discrete_set():
-#     """Test converting a QASM3 program that contains a for loop initialized from a DiscreteSet."""
-#     qir_expected = qasm3_to_qir(EXAMPLE_WITHOUT_LOOP, name="test")
-#     qir_from_loop = qasm3_to_qir(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+def test_convert_qasm3_for_loop_discrete_set():
+    """Test converting a QASM3 program that contains a for loop initialized from a DiscreteSet."""
+    result = unroll(
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
 
-#         qubit[4] q;
-#         bit[4] c;
+        qubit[4] q;
+        bit[4] c;
 
-#         h q;
-#         for int i in {0, 1, 2} {
-#             cx q[i], q[i+1];
-#         }
-#         measure q->c;
-#         """,
-#         name="test",
-#     )
-#     assert str(qir_expected) == str(qir_from_loop)
-#     assert str(qir_from_loop) == EXAMPLE_QIR_OUTPUT
+        h q;
+        for int i in {0, 1, 2} {
+            cx q[i], q[i+1];
+        }
+        measure q->c;
+        """,
+    )
+    assert result.num_clbits == 4
+    assert result.num_qubits == 4
 
-
-# def test_function_executed_in_loop():
-#     """Test that a function executed in a loop is correctly parsed."""
-#     qasm_str = """OPENQASM 3;
-#     include "stdgates.inc";
-
-#     def my_function(qubit q_arg, float[32] b) {
-#         rx(b) q_arg;
-#         return;
-#     }
-#     qubit[5] q;
-
-#     int[32] n = 2;
-#     float[32] b = 3.14;
-
-#     for int i in [0:n] {
-#         my_function(q[i], i*b);
-#     }
-#     """
-
-#     result = qasm3_to_qir(qasm_str)
-#     generated_qir = str(result).splitlines()
-
-#     check_attributes(generated_qir, 5, 0)
-#     check_single_qubit_rotation_op(generated_qir, 3, list(range(3)), [0, 3.14, 2 * 3.14], "rx")
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 2, 3], "h")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
-# def test_loop_inside_function():
-#     """Test that a function with a loop is correctly parsed."""
-#     qasm_str = """OPENQASM 3;
-#     include "stdgates.inc";
+def test_function_executed_in_loop():
+    """Test that a function executed in a loop is correctly parsed."""
+    qasm_str = """OPENQASM 3;
+    include "stdgates.inc";
 
-#     def my_function(qubit[3] q2) {
-#         for int[32] i in [0:2] {
-#             h q2[i];
-#         }
-#         return;
-#     }
-#     qubit[3] q1;
-#     my_function(q1);
-#     """
+    def my_function(qubit q_arg, float[32] b) {
+        rx(b) q_arg;
+        return;
+    }
+    qubit[5] q;
 
-#     result = qasm3_to_qir(qasm_str)
-#     generated_qir = str(result).splitlines()
+    int[32] n = 2;
+    float[32] b = 3.14;
 
-#     check_attributes(generated_qir, 3, 0)
-#     check_single_qubit_gate_op(generated_qir, 3, [0, 1, 2], "h")
+    for int i in [0:n] {
+        my_function(q[i], i*b);
+    }
+    """
+
+    result = unroll(qasm_str)
+    assert result.num_qubits == 5
+    assert result.num_clbits == 0
+
+    check_single_qubit_rotation_op(
+        result.unrolled_ast, 3, list(range(3)), [0, 3.14, 2 * 3.14], "rx"
+    )
+
+
+def test_loop_inside_function():
+    """Test that a function with a loop is correctly parsed."""
+    qasm_str = """OPENQASM 3;
+    include "stdgates.inc";
+
+    def my_function(qubit[3] q2) {
+        for int[32] i in [0:2] {
+            h q2[i];
+        }
+        return;
+    }
+    qubit[3] q1;
+    my_function(q1);
+    """
+
+    result = unroll(qasm_str)
+
+    assert result.num_qubits == 3
+    assert result.num_clbits == 0
+
+    check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 1, 2], "h")
 
 
 # def test_function_in_nested_loop():
@@ -296,12 +246,13 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 #     my_function(q[0], 2*b);
 #     """
 
-#     result = qasm3_to_qir(qasm_str)
-#     generated_qir = str(result).splitlines()
+#     result = unroll(qasm_str)
 
-#     check_attributes(generated_qir, 5, 0)
+#     assert result.num_qubits == 5
+#     assert result.num_clbits == 0
+
 #     check_single_qubit_rotation_op(
-#         generated_qir,
+#         result.unrolled_ast,
 #         9,
 #         [0, 0, 0, 1, 1, 1, 2, 2, 2, 0],
 #         [0, 3.14, 2 * 3.14, 0, 3.14, 2 * 3.14, 0, 3.14, 2 * 3.14, 2 * 3.14],
@@ -309,54 +260,54 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 #     )
 
 
-# @pytest.mark.skip(reason="Not implemented nested functions yet")
-# def test_loop_in_nested_function_call():
-#     qasm3_string = """
-#     OPENQASM 3;
-#     include "stdgates.inc";
-#     def my_function_1(qubit q1, int[32] a){
-#         for int[32] i in [0:2]{
-#             rx(a*i) q1;
-#         }
-#     }
+@pytest.mark.skip(reason="Not implemented nested functions yet")
+def test_loop_in_nested_function_call():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    def my_function_1(qubit q1, int[32] a){
+        for int[32] i in [0:2]{
+            rx(a*i) q1;
+        }
+    }
 
-#     def my_function_2(qubit q2, int[32] b){
-#         my_function_1(q2, b);
-#     }
+    def my_function_2(qubit q2, int[32] b){
+        my_function_1(q2, b);
+    }
 
-#     qubit q;
-#     my_function_2(q, 3);
-#     """
-#     result = qasm3_to_qir(qasm3_string)
-#     generated_qir = str(result).splitlines()
+    qubit q;
+    my_function_2(q, 3);
+    """
+    result = unroll(qasm3_string)
 
-#     check_attributes(generated_qir, 1, 0)
-#     check_single_qubit_rotation_op(generated_qir, 3, [0, 0, 0], [0, 3, 6], "rx")
+    assert result.num_clbits == 0
+    assert result.num_qubits == 1
+
+    check_single_qubit_rotation_op(result.unrolled_ast, 3, [0, 0, 0], [0, 3, 6], "rx")
 
 
-# def test_convert_qasm3_for_loop_unsupported_type():
-#     """Test correct error when converting a QASM3 program that contains a for loop initialized from
-#     an unsupported type."""
-#     with pytest.raises(
-#         Qasm3ConversionError,
-#         match=(
-#             "Unexpected type <class 'openqasm3.ast.BitstringLiteral'>"
-#             " of set_declaration in loop."
-#         ),
-#     ):
-#         _ = qasm3_to_qir(
-#             """
-#             OPENQASM 3.0;
-#             include "stdgates.inc";
+def test_convert_qasm3_for_loop_unsupported_type():
+    """Test correct error when converting a QASM3 program that contains a for loop initialized from
+    an unsupported type."""
+    with pytest.raises(
+        ValidationError,
+        match=(
+            "Unexpected type <class 'openqasm3.ast.BitstringLiteral'>"
+            " of set_declaration in loop."
+        ),
+    ):
+        _ = validate(
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
 
-#             qubit[4] q;
-#             bit[4] c;
+            qubit[4] q;
+            bit[4] c;
 
-#             h q;
-#             for bit b in "001" {
-#                 x q[b];
-#             }
-#             measure q->c;
-#             """,
-#             name="test",
-#         )
+            h q;
+            for bit b in "001" {
+                x q[b];
+            }
+            measure q->c;
+            """,
+        )
