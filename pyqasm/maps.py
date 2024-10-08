@@ -9,23 +9,24 @@
 # THERE IS NO WARRANTY for the qBraid-SDK, as per Section 15 of the GPL v3.
 
 """
-Module mapping supported QASM gates/operations to pyqir functions.
+Module mapping supported QASM gates/operations to lower level gate operations.
 
 """
 from typing import Callable, Union
 
 import numpy as np
-
-# import pyqir
 from openqasm3.ast import (
     AngleType,
     BitType,
     BoolType,
     ClassicalDeclaration,
     ComplexType,
+    FloatLiteral,
     FloatType,
+    Identifier,
     IndexedIdentifier,
     IntType,
+    QuantumGate,
     QuantumGateDefinition,
     QubitDeclaration,
     SubroutineDefinition,
@@ -88,301 +89,334 @@ def qasm3_expression_op_map(op_name: str, *args) -> Union[float, int, bool]:
 
 
 def u3_gate(
-    name: str,
     theta: Union[int, float],
     phi: Union[int, float],
     lam: Union[int, float],
     qubit_id,
-):
+) -> list[QuantumGate]:
     """
     Implements the U3 gate using the following decomposition:
          https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.UGate
          https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.PhaseGate
 
     Args:
-        builder (pyqir._native.QirBuilder): The QIR builder.
-        theta (Union[int, float]): The theta angle.
-        phi (Union[int, float]): The phi angle.
-        lam (Union[int, float]): The lambda angle.
-        qubits: The qubits on which the gate is applied.
+        name (str): The name of the gate.
+        theta (Union[int, float]): The theta parameter.
+        phi (Union[int, float]): The phi parameter.
+        lam (Union[int, float]): The lambda parameter.
+        qubit_id (IndexedIdentifier): The qubit on which to apply the gate.
 
     Returns:
-        None
+        list: A list of QuantumGate objects representing the decomposition of the U3 gate.
     """
-    result = ""
-    result += one_qubit_rotation_op("rz", lam, qubit_id)
-    result += one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit_id)
-    result += one_qubit_rotation_op("rz", theta + CONSTANTS_MAP["pi"], qubit_id)
-    result += one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit_id)
-    result += one_qubit_rotation_op("rz", phi + CONSTANTS_MAP["pi"], qubit_id)
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_rotation_op("rz", lam, qubit_id))
+    result.extend(one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit_id))
+    result.extend(one_qubit_rotation_op("rz", theta + CONSTANTS_MAP["pi"], qubit_id))
+    result.extend(one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit_id))
+    result.extend(one_qubit_rotation_op("rz", phi + CONSTANTS_MAP["pi"], qubit_id))
     return result
     # global phase - e^(i*(phi+lambda)/2) is missing in the above implementation
 
 
 def u3_inv_gate(
-    name: str,
     theta: Union[int, float],
     phi: Union[int, float],
     lam: Union[int, float],
     qubits,
-):
+) -> list[QuantumGate]:
     """
     Implements the inverse of the U3 gate using the decomposition present in
     the u3_gate function.
     """
-    result = ""
-    result += one_qubit_rotation_op("rz", -1.0 * (phi + CONSTANTS_MAP["pi"]), qubits)
-    result += one_qubit_rotation_op("rx", -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits)
-    result += one_qubit_rotation_op("rz", -1.0 * (theta + CONSTANTS_MAP["pi"]), qubits)
-    result += one_qubit_rotation_op("rx", -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits)
-    result += one_qubit_rotation_op("rz", -1.0 * lam, qubits)
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_rotation_op("rz", -1.0 * (phi + CONSTANTS_MAP["pi"]), qubits))
+    result.extend(one_qubit_rotation_op("rx", -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits))
+    result.extend(one_qubit_rotation_op("rz", -1.0 * (theta + CONSTANTS_MAP["pi"]), qubits))
+    result.extend(one_qubit_rotation_op("rx", -1.0 * (CONSTANTS_MAP["pi"] / 2), qubits))
+    result.extend(one_qubit_rotation_op("rz", -1.0 * lam, qubits))
     return result
 
 
-def u2_gate(name, phi, lam, qubits):
+def u2_gate(phi, lam, qubits) -> list[QuantumGate]:
     """
     Implements the U2 gate using the following decomposition:
         https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.U2Gate
     """
-    return u3_gate("u3", CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
+    return u3_gate(CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
 
 
-def u2_inv_gate(name, phi, lam, qubits):
+def u2_inv_gate(phi, lam, qubits) -> list[QuantumGate]:
     """
     Implements the inverse of the U2 gate using the decomposition present in
     the u2_gate function.
     """
-    return u3_inv_gate("u3_inv", CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
+    return u3_inv_gate(CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
 
 
-def sxdg_gate_op(name, qubit_id):
+def sxdg_gate_op(qubit_id) -> list[QuantumGate]:
     """
     Implements the conjugate transpose of the Sqrt(X) gate as a decomposition of other gates.
     """
     return one_qubit_rotation_op("rx", -CONSTANTS_MAP["pi"] / 2, qubit_id)
 
 
-def cv_gate(builder, qubit0, qubit1):
+def cv_gate(
+    qubit0: IndexedIdentifier,
+    qubit1: IndexedIdentifier,
+) -> list[QuantumGate]:
     """
     Implements the controlled V gate as a decomposition of other gates.
     """
-    pyqir._native.x(builder, qubit0)
-    pyqir._native.h(builder, qubit1)
-    pyqir._native.cx(builder, qubit0, qubit1)
-    pyqir._native.h(builder, qubit1)
-    pyqir._native.rx(builder, CONSTANTS_MAP["pi"] / 4, qubit1)
-    pyqir._native.h(builder, qubit1)
-    pyqir._native.cx(builder, qubit0, qubit1)
-    pyqir._native.t_adj(builder, qubit0)
-    pyqir._native.h(builder, qubit1)
-    pyqir._native.x(builder, qubit0)
-    pyqir._native.rz(builder, -CONSTANTS_MAP["pi"] / 4, qubit1)
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("x", qubit0))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 4, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("tdg", qubit0))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(one_qubit_gate_op("x", qubit0))
+    result.extend(one_qubit_rotation_op("rz", -CONSTANTS_MAP["pi"] / 4, qubit1))
+    return result
 
 
-def cy_gate(builder, qubit0, qubit1):
+def cy_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[QuantumGate]:
     """
     Implements the CY gate as a decomposition of other gates.
     """
-    pyqir._native.s_adj(builder, qubit1)
-    pyqir._native.cx(builder, qubit0, qubit1)
-    pyqir._native.s(builder, qubit1)
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("sdg", qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("s", qubit1))
+    return result
 
 
-def xx_gate(builder, theta, qubit0, qubit1):
+def xx_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the XX gate as a decomposition of other gates.
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.h(builder, qubits[0])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.cz(builder, qubits[0], qubits[1])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.rx(builder, theta, qubits[0])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.cz(builder, qubits[0], qubits[1])
-    pyqir._native.h(builder, qubits[0])
-    pyqir._native.h(builder, qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit0))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(one_qubit_rotation_op("rx", theta, qubit0))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit0))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    return result
 
 
-def xy_gate(builder, theta, qubit0, qubit1):
+def xy_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the XY gate as a decomposition of other gates.
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.rx(builder, -theta / 2, qubits[0])
-    pyqir._native.ry(builder, theta / 2, qubits[1])
-    pyqir._native.ry(builder, theta / 2, qubits[0])
-    pyqir._native.rx(builder, theta / 2, qubits[0])
-    pyqir._native.cx(builder, qubits[1], qubits[0])
-    pyqir._native.ry(builder, -theta / 2, qubits[0])
-    pyqir._native.ry(builder, -theta / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[1], qubits[0])
-    pyqir._native.rx(builder, theta / 2, qubits[0])
-    pyqir._native.ry(builder, -theta / 2, qubits[1])
-    pyqir._native.ry(builder, theta / 2, qubits[1])
-    pyqir._native.rx(builder, -theta / 2, qubits[0])
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_rotation_op("rx", -theta / 2, qubit0))
+    result.extend(one_qubit_rotation_op("ry", theta / 2, qubit1))
+    result.extend(one_qubit_rotation_op("ry", theta / 2, qubit0))
+    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit0))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit0))
+    result.extend(one_qubit_rotation_op("ry", -theta / 2, qubit0))
+    result.extend(one_qubit_rotation_op("ry", -theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit0))
+    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit0))
+    result.extend(one_qubit_rotation_op("ry", -theta / 2, qubit1))
+    result.extend(one_qubit_rotation_op("ry", theta / 2, qubit1))
+    result.extend(one_qubit_rotation_op("rx", -theta / 2, qubit0))
+    return result
 
 
-def yy_gate(builder, theta, qubit0, qubit1):
+def yy_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the YY gate as a decomposition of other gates.
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.rx(builder, theta / 2, qubits[0])
-    pyqir._native.rx(builder, theta / 2, qubits[1])
-    pyqir._native.cz(builder, qubits[0], qubits[1])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.rx(builder, theta, qubits[1])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.cz(builder, qubits[0], qubits[1])
-    pyqir._native.rx(builder, -theta / 2, qubits[0])
-    pyqir._native.rx(builder, -theta / 2, qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit0))
+    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(one_qubit_rotation_op("rx", theta, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
+    result.extend(one_qubit_rotation_op("rx", -theta / 2, qubit0))
+    result.extend(one_qubit_rotation_op("rx", -theta / 2, qubit1))
+    return result
 
 
-def zz_gate(builder, theta, qubit0, qubit1):
+def zz_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the ZZ gate as a decomposition of other gates.
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.cz(builder, qubits[0], qubits[1])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.rz(builder, theta, qubits[1])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.cz(builder, qubits[0], qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(one_qubit_rotation_op("rz", theta, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
+    return result
 
 
-def phaseshift_gate(builder, theta, qubit):
+def phaseshift_gate(theta: Union[int, float], qubit: IndexedIdentifier) -> list[QuantumGate]:
     """
     Implements the phase shift gate as a decomposition of other gates.
     """
-    pyqir._native.h(builder, qubit)
-    pyqir._native.rx(builder, theta, qubit)
-    pyqir._native.h(builder, qubit)
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit))
+    result.extend(one_qubit_rotation_op("rx", theta, qubit))
+    result.extend(one_qubit_gate_op("h", qubit))
+    return result
 
 
-def cswap_gate(builder, qubit0, qubit1, qubit2):
+def cswap_gate(
+    qubit0: IndexedIdentifier, qubit1: IndexedIdentifier, qubit2: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the CSWAP gate as a decomposition of other gates.
     """
-    qubits = [qubit0, qubit1, qubit2]
-    pyqir._native.cx(builder, qubits[2], qubits[1])
-    pyqir._native.h(builder, qubits[2])
-    pyqir._native.cx(builder, qubits[1], qubits[2])
-    pyqir._native.t_adj(builder, qubits[2])
-    pyqir._native.cx(builder, qubits[0], qubits[2])
-    pyqir._native.t(builder, qubits[2])
-    pyqir._native.cx(builder, qubits[1], qubits[2])
-    pyqir._native.t(builder, qubits[1])
-    pyqir._native.t_adj(builder, qubits[2])
-    pyqir._native.cx(builder, qubits[0], qubits[2])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.t(builder, qubits[2])
-    pyqir._native.t(builder, qubits[0])
-    pyqir._native.t_adj(builder, qubits[1])
-    pyqir._native.h(builder, qubits[2])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.cx(builder, qubits[2], qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit2))
+    result.extend(one_qubit_gate_op("tdg", qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit2))
+    result.extend(one_qubit_gate_op("t", qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit2))
+    result.extend(one_qubit_gate_op("t", qubit1))
+    result.extend(one_qubit_gate_op("tdg", qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("t", qubit2))
+    result.extend(one_qubit_gate_op("t", qubit0))
+    result.extend(one_qubit_gate_op("tdg", qubit1))
+    result.extend(one_qubit_gate_op("h", qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit1))
+    return result
 
 
-def pswap_gate(builder, theta, qubit0, qubit1):
+def pswap_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the PSWAP gate as a decomposition of other gates.
-
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.swap(builder, qubits[0], qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    u3_gate(builder, 0, 0, theta, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(two_qubit_gate_op("swap", qubit0, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(0, 0, theta, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    return result
 
 
-def cphaseshift_gate(builder, theta, qubit0, qubit1):
+def cphaseshift_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the controlled phase shift gate as a decomposition of other gates.
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.h(builder, qubits[0])
-    pyqir._native.rx(builder, theta / 2, qubits[0])
-    pyqir._native.h(builder, qubits[0])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.rx(builder, -theta / 2, qubits[0])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.h(builder, qubits[1])
-    pyqir._native.rx(builder, theta / 2, qubits[1])
-    pyqir._native.h(builder, qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit0))
+    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit0))
+    result.extend(one_qubit_gate_op("h", qubit0))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(one_qubit_rotation_op("rx", -theta / 2, qubit0))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit1))
+    result.extend(one_qubit_gate_op("h", qubit1))
+    return result
 
 
-def cphaseshift00_gate(builder, theta, qubit0, qubit1):
+def cphaseshift00_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 00 gate as a decomposition of other gates.
-
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.x(builder, qubits[0])
-    pyqir._native.x(builder, qubits[1])
-    u3_gate(builder, 0, 0, theta / 2, qubits[0])
-    u3_gate(builder, 0, 0, theta / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    u3_gate(builder, 0, 0, -theta / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.x(builder, qubits[0])
-    pyqir._native.x(builder, qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("x", qubit0))
+    result.extend(one_qubit_gate_op("x", qubit1))
+    result.extend(u3_gate(0, 0, theta / 2, qubit0))
+    result.extend(u3_gate(0, 0, theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("x", qubit0))
+    result.extend(one_qubit_gate_op("x", qubit1))
+    return result
 
 
-def cphaseshift01_gate(builder, theta, qubit0, qubit1):
+def cphaseshift01_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 01 gate as a decomposition of other gates.
-
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.x(builder, qubits[0])
-    u3_gate(builder, 0, 0, theta / 2, qubits[1])
-    u3_gate(builder, 0, 0, theta / 2, qubits[0])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    u3_gate(builder, 0, 0, -theta / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.x(builder, qubits[0])
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("x", qubit0))
+    result.extend(u3_gate(0, 0, theta / 2, qubit1))
+    result.extend(u3_gate(0, 0, theta / 2, qubit0))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("x", qubit0))
+    return result
 
 
-def cphaseshift10_gate(builder, theta, qubit0, qubit1):
+def cphaseshift10_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 10 gate as a decomposition of other gates.
-
     """
-    qubits = [qubit0, qubit1]
-    u3_gate(builder, 0, 0, theta / 2, qubits[0])
-    pyqir._native.x(builder, qubits[1])
-    u3_gate(builder, 0, 0, theta / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    u3_gate(builder, 0, 0, -theta / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.x(builder, qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(u3_gate(0, 0, theta / 2, qubit0))
+    result.extend(one_qubit_gate_op("x", qubit1))
+    result.extend(u3_gate(0, 0, theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("x", qubit1))
+    return result
 
 
-def gpi_gate(name, phi, qubit_id):
+def gpi_gate(phi, qubit_id) -> list[QuantumGate]:
     """
     Implements the gpi gate as a decomposition of other gates.
     """
     theta_0 = CONSTANTS_MAP["pi"]
     phi_0 = phi
     lambda_0 = -phi_0 + CONSTANTS_MAP["pi"]
-    return u3_gate("u3", theta_0, phi_0, lambda_0, qubit_id)
+    return u3_gate(theta_0, phi_0, lambda_0, qubit_id)
 
 
-def gpi2_gate(name, phi, qubit_id):
+def gpi2_gate(phi, qubit_id) -> list[QuantumGate]:
     """
     Implements the gpi2 gate as a decomposition of other gates.
     """
     theta_0 = CONSTANTS_MAP["pi"] / 2
     phi_0 = phi + 3 * CONSTANTS_MAP["pi"] / 2
     lambda_0 = -phi_0 + CONSTANTS_MAP["pi"] / 2
-    return u3_gate("u3", theta_0, phi_0, lambda_0, qubit_id)
+    return u3_gate(theta_0, phi_0, lambda_0, qubit_id)
 
 
 # pylint: disable-next=too-many-arguments
-def ms_gate(builder, phi0, phi1, theta, qubit0, qubit1):
+def ms_gate(phi0, phi1, theta, qubit0, qubit1) -> list[QuantumGate]:
     """
     Implements the Molmer Sorenson gate as a decomposition of other gates.
     """
@@ -417,81 +451,119 @@ def ms_gate(builder, phi0, phi1, theta, qubit0, qubit1):
     angles = kak_decomposition_angles(mat)
     qubits = [qubit0, qubit1]
 
-    u3_gate(builder, angles[0][0], angles[0][1], angles[0][2], qubits[0])
-    u3_gate(builder, angles[1][0], angles[1][1], angles[1][2], qubits[1])
-    sx_gate(builder, qubits[0])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.rx(builder, ((1 / 2) - 2 * theta) * CONSTANTS_MAP["pi"], qubits[0])
-    pyqir._native.rx(builder, CONSTANTS_MAP["pi"] / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[1], qubits[0])
-    sxdg_gate(builder, qubits[1])
-    pyqir._native.s(builder, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    u3_gate(builder, angles[2][0], angles[2][1], angles[2][2], qubits[0])
-    u3_gate(builder, angles[3][0], angles[3][1], angles[3][2], qubits[1])
+    result: list[QuantumGate] = []
+    result.extend(u3_gate(angles[0][0], angles[0][1], angles[0][2], qubits[0]))
+    result.extend(u3_gate(angles[1][0], angles[1][1], angles[1][2], qubits[1]))
+    result.extend(one_qubit_gate_op("sx", qubits[0]))
+    result.extend(two_qubit_gate_op("cx", qubits[0], qubits[1]))
+    result.extend(
+        one_qubit_rotation_op("rx", ((1 / 2) - 2 * theta) * CONSTANTS_MAP["pi"], qubits[0])
+    )
+    result.extend(one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubits[1]))
+    result.extend(two_qubit_gate_op("cx", qubits[1], qubits[0]))
+    result.extend(sxdg_gate_op(qubits[1]))
+    result.extend(one_qubit_gate_op("s", qubits[1]))
+    result.extend(two_qubit_gate_op("cx", qubits[0], qubits[1]))
+    result.extend(u3_gate(angles[2][0], angles[2][1], angles[2][2], qubits[0]))
+    result.extend(u3_gate(angles[3][0], angles[3][1], angles[3][2], qubits[1]))
+    return result
 
 
-def ecr_gate(builder, qubit0, qubit1):
+def ccx_gate_op(
+    qubit0: IndexedIdentifier, qubit1: IndexedIdentifier, qubit2: IndexedIdentifier
+) -> list[QuantumGate]:
+    return [
+        QuantumGate(
+            modifiers=[],
+            name=Identifier(name="ccx"),
+            arguments=[],
+            qubits=[qubit0, qubit1, qubit2],
+        )
+    ]
+
+
+def ecr_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[QuantumGate]:
     """
     Implements the ECR gate as a decomposition of other gates.
-
     """
-    qubits = [qubit0, qubit1]
-    pyqir._native.s(builder, qubits[0])
-    pyqir._native.rx(builder, CONSTANTS_MAP["pi"] / 2, qubits[1])
-    pyqir._native.cx(builder, qubits[0], qubits[1])
-    pyqir._native.x(builder, qubits[0])
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("s", qubit0))
+    result.extend(one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_gate_op("x", qubit0))
+    return result
 
 
-def prx_gate(name, theta, phi, qubit_id):
+def prx_gate(theta, phi, qubit_id) -> list[QuantumGate]:
     """
     Implements the PRX gate as a decomposition of other gates.
     """
     theta_0 = theta
     phi_0 = CONSTANTS_MAP["pi"] / 2 - phi
     lambda_0 = -phi_0
-    return u3_gate("u3", theta_0, phi_0, lambda_0, qubit_id)
+    return u3_gate(theta_0, phi_0, lambda_0, qubit_id)
 
 
-def one_qubit_gate_op(gate_name: str, qubit_id: IndexedIdentifier) -> str:
-    qubit_name = qubit_id.name.name
-    qubit_idx = qubit_id.indices[0][0].value
-    return f"{gate_name} {qubit_name}[{qubit_idx}];\n"
+def one_qubit_gate_op(gate_name: str, qubit_id: IndexedIdentifier) -> list[QuantumGate]:
+    return [
+        QuantumGate(
+            modifiers=[],
+            name=Identifier(name=gate_name),
+            arguments=[],
+            qubits=[qubit_id],
+        )
+    ]
 
 
-def one_qubit_rotation_op(gate_name: str, rotation: float, qubit_id: IndexedIdentifier) -> str:
-    qubit_name = qubit_id.name.name
-    qubit_idx = qubit_id.indices[0][0].value
-    return f"{gate_name}({rotation}) {qubit_name}[{qubit_idx}];\n"
+def one_qubit_rotation_op(
+    gate_name: str, rotation: float, qubit_id: IndexedIdentifier
+) -> list[QuantumGate]:
+    return [
+        QuantumGate(
+            modifiers=[],
+            name=Identifier(name=gate_name),
+            arguments=[FloatLiteral(value=rotation)],
+            qubits=[qubit_id],
+        )
+    ]
 
 
-def two_qubit_gate_op(gate_name, qubit_name1, qubit_id1, qubit_name2, qubit_id2):
-    return f"{gate_name} {qubit_name1}[{qubit_id1}], {qubit_name2}[{qubit_id2}];\n"
+def two_qubit_gate_op(
+    gate_name: str, qubit_id1: IndexedIdentifier, qubit_id2: IndexedIdentifier
+) -> list[QuantumGate]:
+    return [
+        QuantumGate(
+            modifiers=[],
+            name=Identifier(name=gate_name.lower()),
+            arguments=[],
+            qubits=[qubit_id1, qubit_id2],
+        )
+    ]
 
 
-PYQIR_ONE_QUBIT_OP_MAP = {
-    "id": one_qubit_gate_op,
-    "h": one_qubit_gate_op,
-    "x": one_qubit_gate_op,
-    "y": one_qubit_gate_op,
-    "z": one_qubit_gate_op,
-    "s": one_qubit_gate_op,
-    "t": one_qubit_gate_op,
-    "sdg": one_qubit_gate_op,
-    "si": one_qubit_gate_op,
-    "tdg": one_qubit_gate_op,
-    "ti": one_qubit_gate_op,
-    "v": one_qubit_gate_op,
-    "sx": one_qubit_gate_op,
+ONE_QUBIT_OP_MAP = {
+    "id": lambda qubit_id: one_qubit_gate_op("id", qubit_id),
+    "h": lambda qubit_id: one_qubit_gate_op("h", qubit_id),
+    "x": lambda qubit_id: one_qubit_gate_op("x", qubit_id),
+    "y": lambda qubit_id: one_qubit_gate_op("y", qubit_id),
+    "z": lambda qubit_id: one_qubit_gate_op("z", qubit_id),
+    "s": lambda qubit_id: one_qubit_gate_op("s", qubit_id),
+    "t": lambda qubit_id: one_qubit_gate_op("t", qubit_id),
+    "sdg": lambda qubit_id: one_qubit_gate_op("sdg", qubit_id),
+    "si": lambda qubit_id: one_qubit_gate_op("sdg", qubit_id),
+    "tdg": lambda qubit_id: one_qubit_gate_op("tdg", qubit_id),
+    "ti": lambda qubit_id: one_qubit_gate_op("tdg", qubit_id),
+    "v": lambda qubit_id: one_qubit_gate_op("sx", qubit_id),
+    "sx": lambda qubit_id: one_qubit_gate_op("sx", qubit_id),
     "vi": sxdg_gate_op,
     "sxdg": sxdg_gate_op,
 }
 
 
-PYQIR_ONE_QUBIT_ROTATION_MAP = {
-    "rx": one_qubit_rotation_op,
-    "ry": one_qubit_rotation_op,
-    "rz": one_qubit_rotation_op,
+ONE_QUBIT_ROTATION_MAP = {
+    "rx": lambda rotation, qubit_id: one_qubit_rotation_op("rx", rotation, qubit_id),
+    "ry": lambda rotation, qubit_id: one_qubit_rotation_op("ry", rotation, qubit_id),
+    "rz": lambda rotation, qubit_id: one_qubit_rotation_op("rz", rotation, qubit_id),
     "u": u3_gate,
     "U": u3_gate,
     "u3": u3_gate,
@@ -505,36 +577,36 @@ PYQIR_ONE_QUBIT_ROTATION_MAP = {
     "gpi2": gpi2_gate,
 }
 
-# PYQIR_TWO_QUBIT_OP_MAP = {
-#     "cx": pyqir._native.cx,
-#     "CX": pyqir._native.cx,
-#     "cnot": pyqir._native.cx,
-#     "cz": pyqir._native.cz,
-#     "swap": pyqir._native.swap,
-#     "cv": cv_gate,
-#     "cy": cy_gate,
-#     "xx": xx_gate,
-#     "xy": xy_gate,
-#     "yy": yy_gate,
-#     "zz": zz_gate,
-#     "pswap": pswap_gate,
-#     "cp": cphaseshift_gate,
-#     "cphaseshift": cphaseshift_gate,
-#     "cp00": cphaseshift00_gate,
-#     "cphaseshift00": cphaseshift00_gate,
-#     "cp01": cphaseshift01_gate,
-#     "cphaseshift01": cphaseshift01_gate,
-#     "cp10": cphaseshift10_gate,
-#     "cphaseshift10": cphaseshift10_gate,
-#     "ecr": ecr_gate,
-#     "ms": ms_gate,
-# }
+TWO_QUBIT_OP_MAP = {
+    "cx": lambda qubit_id1, qubit_id2: two_qubit_gate_op("cx", qubit_id1, qubit_id2),
+    "CX": lambda qubit_id1, qubit_id2: two_qubit_gate_op("cx", qubit_id1, qubit_id2),
+    "cnot": lambda qubit_id1, qubit_id2: two_qubit_gate_op("cx", qubit_id1, qubit_id2),
+    "cz": lambda qubit_id1, qubit_id2: two_qubit_gate_op("cz", qubit_id1, qubit_id2),
+    "swap": lambda qubit_id1, qubit_id2: two_qubit_gate_op("swap", qubit_id1, qubit_id2),
+    "cv": cv_gate,
+    "cy": cy_gate,
+    "xx": xx_gate,
+    "xy": xy_gate,
+    "yy": yy_gate,
+    "zz": zz_gate,
+    "pswap": pswap_gate,
+    "cp": cphaseshift_gate,
+    "cphaseshift": cphaseshift_gate,
+    "cp00": cphaseshift00_gate,
+    "cphaseshift00": cphaseshift00_gate,
+    "cp01": cphaseshift01_gate,
+    "cphaseshift01": cphaseshift01_gate,
+    "cp10": cphaseshift10_gate,
+    "cphaseshift10": cphaseshift10_gate,
+    "ecr": ecr_gate,
+    "ms": ms_gate,
+}
 
-# PYQIR_THREE_QUBIT_OP_MAP = {
-#     "ccx": pyqir._native.ccx,
-#     "ccnot": pyqir._native.ccx,
-#     "cswap": cswap_gate,
-# }
+THREE_QUBIT_OP_MAP = {
+    "ccx": ccx_gate_op,
+    "ccnot": ccx_gate_op,
+    "cswap": cswap_gate,
+}
 
 
 def map_qasm_op_to_callable(op_name: str):
@@ -548,32 +620,32 @@ def map_qasm_op_to_callable(op_name: str):
         tuple: A tuple containing the PyQIR callable and the number of qubits the operation acts on.
     """
     try:
-        return PYQIR_ONE_QUBIT_OP_MAP[op_name], 1
+        return ONE_QUBIT_OP_MAP[op_name], 1
     except KeyError:
         pass
     try:
-        return PYQIR_ONE_QUBIT_ROTATION_MAP[op_name], 1
+        return ONE_QUBIT_ROTATION_MAP[op_name], 1
     except KeyError:
         pass
     try:
-        return PYQIR_TWO_QUBIT_OP_MAP[op_name], 2
+        return TWO_QUBIT_OP_MAP[op_name], 2
     except KeyError:
         pass
     try:
-        return PYQIR_THREE_QUBIT_OP_MAP[op_name], 3
+        return THREE_QUBIT_OP_MAP[op_name], 3
     except KeyError as exc:
         raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}") from exc
 
 
-PYQIR_SELF_INVERTING_ONE_QUBIT_OP_SET = {"id", "h", "x", "y", "z"}
-PYQIR_ST_GATE_INV_MAP = {
+SELF_INVERTING_ONE_QUBIT_OP_SET = {"id", "h", "x", "y", "z"}
+ST_GATE_INV_MAP = {
     "s": "sdg",
     "t": "tdg",
     "sdg": "s",
     "tdg": "t",
 }
-PYQIR_ROTATION_INVERSION_ONE_QUBIT_OP_MAP = {"rx", "ry", "rz"}
-PYQIR_U_INV_ROTATION_MAP = {
+ROTATION_INVERSION_ONE_QUBIT_OP_MAP = {"rx", "ry", "rz"}
+U_INV_ROTATION_MAP = {
     "U": u3_inv_gate,
     "u3": u3_inv_gate,
     "U3": u3_inv_gate,
@@ -593,22 +665,22 @@ def map_qasm_inv_op_to_callable(op_name: str):
         tuple: A tuple containing the PyQIR callable, the number of qubits the operation acts on,
         and what is to be done with the basic gate which we are trying to invert.
     """
-    if op_name in PYQIR_SELF_INVERTING_ONE_QUBIT_OP_SET:
-        return PYQIR_ONE_QUBIT_OP_MAP[op_name], 1, InversionOp.NO_OP
-    if op_name in PYQIR_ST_GATE_INV_MAP:
-        inv_gate_name = PYQIR_ST_GATE_INV_MAP[op_name]
-        return PYQIR_ONE_QUBIT_OP_MAP[inv_gate_name], 1, InversionOp.NO_OP
-    if op_name in PYQIR_TWO_QUBIT_OP_MAP:
-        return PYQIR_TWO_QUBIT_OP_MAP[op_name], 2, InversionOp.NO_OP
-    if op_name in PYQIR_THREE_QUBIT_OP_MAP:
-        return PYQIR_THREE_QUBIT_OP_MAP[op_name], 3, InversionOp.NO_OP
-    if op_name in PYQIR_U_INV_ROTATION_MAP:
+    if op_name in SELF_INVERTING_ONE_QUBIT_OP_SET:
+        return ONE_QUBIT_OP_MAP[op_name], 1, InversionOp.NO_OP
+    if op_name in ST_GATE_INV_MAP:
+        inv_gate_name = ST_GATE_INV_MAP[op_name]
+        return ONE_QUBIT_OP_MAP[inv_gate_name], 1, InversionOp.NO_OP
+    if op_name in TWO_QUBIT_OP_MAP:
+        return TWO_QUBIT_OP_MAP[op_name], 2, InversionOp.NO_OP
+    if op_name in THREE_QUBIT_OP_MAP:
+        return THREE_QUBIT_OP_MAP[op_name], 3, InversionOp.NO_OP
+    if op_name in U_INV_ROTATION_MAP:
         # Special handling for U gate as it is composed of multiple
         # basic gates and we need to invert each of them
-        return PYQIR_U_INV_ROTATION_MAP[op_name], 1, InversionOp.NO_OP
-    if op_name in PYQIR_ROTATION_INVERSION_ONE_QUBIT_OP_MAP:
+        return U_INV_ROTATION_MAP[op_name], 1, InversionOp.NO_OP
+    if op_name in ROTATION_INVERSION_ONE_QUBIT_OP_MAP:
         return (
-            PYQIR_ONE_QUBIT_ROTATION_MAP[op_name],
+            ONE_QUBIT_ROTATION_MAP[op_name],
             1,
             InversionOp.INVERT_ROTATION,
         )

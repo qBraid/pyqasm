@@ -38,10 +38,8 @@ def test_barrier():
     barrier q1, q2[0:2], q3[:];
     """
 
-    expected_qasm = """OPENQASM 3.0;
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
-    // Total number of qubits: 6
-    // Total number of clbits: 0
     qubit[2] q1;
     qubit[3] q2;
     qubit[1] q3;
@@ -80,10 +78,8 @@ def test_barrier_in_function():
     my_function(q);
     """
 
-    expected_qasm = """OPENQASM 3.0;
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
-    // Total number of qubits: 4
-    // Total number of clbits: 0
     qubit[4] q;
     barrier q[0];
     barrier q[1];

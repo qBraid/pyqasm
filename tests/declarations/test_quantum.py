@@ -27,10 +27,8 @@ def test_qubit_declarations():
     qubit[1] q4;
     """
 
-    expected_qasm = """OPENQASM 3.0;
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
-    // Total number of qubits: 7
-    // Total number of clbits: 0
     qubit[1] q1;
     qubit[2] q2;
     qubit[3] q3;
@@ -53,10 +51,8 @@ def test_clbit_declarations():
     bit[1] c4;
     """
 
-    expected_qasm = """OPENQASM 3.0;
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
-    // Total number of qubits: 0
-    // Total number of clbits: 7
     bit[1] c1;
     bit[2] c2;
     bit[3] c3;
@@ -87,10 +83,8 @@ def test_qubit_clbit_declarations():
     bit[1] c4;
     """
 
-    expected_qasm = """OPENQASM 3.0;
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
-    // Total number of qubits: 7
-    // Total number of clbits: 7
     qubit[1] q1;
     qubit[2] q2;
     qubit[3] q3;

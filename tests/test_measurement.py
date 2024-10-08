@@ -40,23 +40,21 @@ def test_measure():
 
     """
 
-    expected_qasm = """OPENQASM 3.0;
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
-    // Total number of qubits: 8
-    // Total number of clbits: 3
     qubit[2] q1;
     qubit[5] q2;
     qubit[1] q3;
     bit[2] c1;
     bit[1] c2;
-    measure q1[0] -> c1[0];
-    measure q1[1] -> c1[1];
-    measure q1[0] -> c1[0];
-    measure q1[1] -> c1[1];
-    measure q3[0] -> c2[0];
-    measure q1[0] -> c1[1];
-    measure q2[0] -> c1[1];
-    measure q2[1] -> c1[0];
+    c1[0] = measure q1[0]; 
+    c1[1] = measure q1[1]; 
+    c1[0] = measure q1[0]; 
+    c1[1] = measure q1[1]; 
+    c2[0] = measure q3[0]; 
+    c1[1] = measure q1[0]; 
+    c1[1] = measure q2[0]; 
+    c1[0] = measure q2[1]; 
     """
 
     unrolled_qasm = unroll(qasm3_string).unrolled_qasm

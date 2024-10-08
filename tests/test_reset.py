@@ -38,10 +38,8 @@ def test_reset_operations():
     reset q3[:2];
     """
 
-    expected_qasm = """OPENQASM 3.0;
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
-    // Total number of qubits: 6
-    // Total number of clbits: 0
     qubit[1] q1;
     qubit[2] q2;
     qubit[3] q3;
@@ -69,10 +67,8 @@ def test_reset_inside_function():
     my_function(q[1]);
     """
 
-    expected_qasm = """OPENQASM 3.0;    
+    expected_qasm = """OPENQASM 3;    
     include "stdgates.inc";
-    // Total number of qubits: 3
-    // Total number of clbits: 0
     qubit[3] q;
     reset q[1];
     """

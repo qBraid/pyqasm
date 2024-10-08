@@ -19,7 +19,15 @@ from enum import Enum
 from typing import Any, Optional, Union
 
 import numpy as np
-from openqasm3.ast import BitType, ClassicalDeclaration, Program, QubitDeclaration, Statement
+from openqasm3.ast import (
+    BitType,
+    ClassicalDeclaration,
+    Include,
+    Program,
+    QubitDeclaration,
+    Statement,
+)
+from openqasm3.printer import dumps
 
 
 class InversionOp(Enum):
@@ -139,6 +147,7 @@ class Qasm3Module:
         self._num_clbits = num_clbits
         self._elements = elements
         self._unrolled_qasm = ""
+        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3")
         self._original_program = program
 
     @property
@@ -164,6 +173,8 @@ class Qasm3Module:
     @property
     def unrolled_qasm(self) -> str:
         """Returns the unrolled qasm for the given module"""
+        if self._unrolled_qasm == "":
+            self._unrolled_qasm = dumps(self._unrolled_ast)
         return self._unrolled_qasm
 
     @unrolled_qasm.setter
@@ -171,28 +182,30 @@ class Qasm3Module:
         """Setter for the unrolled qasm"""
         self._unrolled_qasm = value
 
+    @property
+    def unrolled_ast(self) -> Program:
+        """Returns the unrolled AST for the given module"""
+        return self._unrolled_ast
+
+    @unrolled_ast.setter
+    def unrolled_ast(self, value: Program):
+        """Setter for the unrolled AST"""
+        self._unrolled_ast = value
+
     def unrolled_qasm_as_list(self):
         """Returns the unrolled qasm as a list of lines"""
         return self.unrolled_qasm.split("\n")
 
-    def add_qasm_statement(self, statement: str):
-        """Add a qasm statement to the unrolled qasm
+    def add_qasm_statement(self, statement: Statement):
+        """Add a qasm statement to the unrolled ast
 
         Args:
-            statement (str): The qasm statement to add to the unrolled qasm
+            statement (str): The qasm statement to add to the unrolled ast
 
         Returns:
             None
         """
-
-        if len(self.unrolled_qasm) == 0:
-            self.unrolled_qasm = "OPENQASM 3.0;\n"
-            self.unrolled_qasm += 'include "stdgates.inc";\n'
-            # add comments about total number of qubits and clbits
-            self.unrolled_qasm += f"// Total number of qubits: {self.num_qubits}\n"
-            self.unrolled_qasm += f"// Total number of clbits: {self.num_clbits}\n"
-
-        self.unrolled_qasm += statement
+        self._unrolled_ast.statements.append(statement)
 
     @classmethod
     def from_program(cls, program: Program):

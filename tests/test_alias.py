@@ -14,17 +14,18 @@ with alias statements.
 
 """
 
-# import re
+import re
 
-# import pytest
-# from qbraid_qir.qasm3 import Qasm3ConversionError, qasm3_to_qir
+import pytest
 
-# from tests.qir_utils import (
-#     check_attributes,
-#     check_single_qubit_gate_op,
-#     check_three_qubit_gate_op,
-#     check_two_qubit_gate_op,
-# )
+from pyqasm.exceptions import ValidationError
+from pyqasm.unroller import unroll
+from pyqasm.validate import validate
+from tests.utils import (
+    check_single_qubit_gate_op,
+    check_three_qubit_gate_op,
+    check_two_qubit_gate_op,
+)
 
 # from .test_if import compare_reference_ir, resources_file
 
@@ -54,17 +55,16 @@ with alias statements.
 #     swap myqreg5[0], myqreg5[1];
 #     cz myqreg6;
 #     """
-#     result = qasm3_to_qir(qasm3_alias_program, name="test")
-#     generated_qir = str(result).splitlines()
-
-#     check_attributes(generated_qir, 5)
-
-#     check_single_qubit_gate_op(generated_qir, 1, [0], "x")
-#     check_single_qubit_gate_op(generated_qir, 1, [1], "h")
-#     check_two_qubit_gate_op(generated_qir, 2, [[1, 2], [2, 3]], "cx")
-#     check_three_qubit_gate_op(generated_qir, 1, [[1, 2, 3]], "ccx")
-#     check_two_qubit_gate_op(generated_qir, 1, [[1, 3]], "swap")
-#     check_two_qubit_gate_op(generated_qir, 1, [[0, 1]], "cz")
+#     result = unroll(qasm3_alias_program)
+#     assert result.num_qubits == 5
+#     assert result.num_clbits == 0
+#     print(result.unrolled_qasm)
+#     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "x")
+#     check_single_qubit_gate_op(result.unrolled_ast, 1, [1], "h")
+#     check_two_qubit_gate_op(result.unrolled_ast, 2, [[1, 2], [2, 3]], "cx")
+#     check_three_qubit_gate_op(result.unrolled_ast, 1, [[1, 2, 3]], "ccx")
+#     check_two_qubit_gate_op(result.unrolled_ast, 1, [[1, 3]], "swap")
+#     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
 
 
 # def test_alias_update():
@@ -81,12 +81,10 @@ with alias statements.
 
 #     x alias[1];
 #     """
-#     result = qasm3_to_qir(qasm3_alias_program, name="test")
-#     generated_qir = str(result).splitlines()
-
-#     check_attributes(generated_qir, 4)
-
-#     check_single_qubit_gate_op(generated_qir, 1, [3], "x")
+#     result = unroll(qasm3_alias_program)
+#     assert result.num_qubits == 4
+#     assert result.num_clbits == 0
+#     check_single_qubit_gate_op(result.unrolled_ast, 1, [3], "x")
 
 
 # def test_valid_alias_redefinition():
@@ -108,106 +106,106 @@ with alias statements.
 #     let alias = q[2];
 #     x alias;
 #     """
-#     result = qasm3_to_qir(qasm3_alias_program, name="test")
-#     generated_qir = str(result).splitlines()
+#     result = unroll(qasm3_alias_program)
+#     assert result.num_qubits == 5
+#     assert result.num_clbits == 5
 
-#     check_attributes(generated_qir, 5, 5)
-#     check_single_qubit_gate_op(generated_qir, 1, [2], "x")
-
-
-# def test_alias_wrong_indexing():
-#     """Test converting OpenQASM 3 program with wrong alias indexing."""
-#     with pytest.raises(
-#         Qasm3ConversionError,
-#         match=re.escape(
-#             r"An index set can be specified by a single integer (signed or unsigned), "
-#             "a comma-separated list of integers contained in braces {a,b,c,…}, or a range"
-#         ),
-#     ):
-#         qasm3_alias_program = """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
-
-#         qubit[5] q;
-
-#         let myqreg = q[1,2];
-
-#         x myqreg[0];
-#         """
-#         _ = qasm3_to_qir(qasm3_alias_program, name="test")
+#     check_single_qubit_gate_op(result.unrolled_ast, 1, [2], "x")
 
 
-# def test_alias_invalid_discrete_indexing():
-#     """Test converting OpenQASM 3 program with invalid alias discrete indexing."""
-#     with pytest.raises(
-#         Qasm3ConversionError,
-#         match=r"Unsupported discrete set value .*",
-#     ):
-#         qasm3_alias_program = """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+def test_alias_wrong_indexing():
+    """Test converting OpenQASM 3 program with wrong alias indexing."""
+    with pytest.raises(
+        ValidationError,
+        match=re.escape(
+            r"An index set can be specified by a single integer (signed or unsigned), "
+            "a comma-separated list of integers contained in braces {a,b,c,…}, or a range"
+        ),
+    ):
+        qasm3_alias_program = """
+        OPENQASM 3.0;
+        include "stdgates.inc";
 
-#         qubit[5] q;
+        qubit[5] q;
 
-#         let myqreg = q[{0.1}];
+        let myqreg = q[1,2];
 
-#         x myqreg[0];
-#         """
-#         _ = qasm3_to_qir(qasm3_alias_program, name="test")
-
-
-# def test_invalid_alias_redefinition():
-#     """Test converting OpenQASM 3 program with redefined alias."""
-#     with pytest.raises(
-#         Qasm3ConversionError,
-#         match=re.escape(r"Re-declaration of variable 'alias'"),
-#     ):
-#         qasm3_alias_program = """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
-
-#         qubit[5] q;
-#         float[32] alias = 4.2;
-
-#         let alias = q[2];
-
-#         x alias;
-#         """
-#         _ = qasm3_to_qir(qasm3_alias_program, name="test")
+        x myqreg[0];
+        """
+        _ = validate(qasm3_alias_program)
 
 
-# def test_alias_defined_before():
-#     """Test converting OpenQASM 3 program with alias defined before the qubit register."""
-#     with pytest.raises(
-#         Qasm3ConversionError,
-#         match=re.escape(r"Qubit register q2 not found for aliasing"),
-#     ):
-#         qasm3_alias_program = """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+def test_alias_invalid_discrete_indexing():
+    """Test converting OpenQASM 3 program with invalid alias discrete indexing."""
+    with pytest.raises(
+        ValidationError,
+        match=r"Unsupported discrete set value .*",
+    ):
+        qasm3_alias_program = """
+        OPENQASM 3.0;
+        include "stdgates.inc";
 
-#         qubit[5] q1;
+        qubit[5] q;
 
-#         let myqreg = q2[1];
-#         """
-#         _ = qasm3_to_qir(qasm3_alias_program, name="test")
+        let myqreg = q[{0.1}];
+
+        x myqreg[0];
+        """
+        _ = validate(qasm3_alias_program)
 
 
-# def test_unsupported_alias():
-#     """Test converting OpenQASM 3 program with unsupported alias."""
-#     with pytest.raises(
-#         Qasm3ConversionError,
-#         match=r"Unsupported aliasing .*",
-#     ):
-#         qasm3_alias_program = """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+def test_invalid_alias_redefinition():
+    """Test converting OpenQASM 3 program with redefined alias."""
+    with pytest.raises(
+        ValidationError,
+        match=re.escape(r"Re-declaration of variable 'alias'"),
+    ):
+        qasm3_alias_program = """
+        OPENQASM 3.0;
+        include "stdgates.inc";
 
-#         qubit[5] q;
+        qubit[5] q;
+        float[32] alias = 4.2;
 
-#         let myqreg = q[0] ++ q[1];
-#         """
-#         _ = qasm3_to_qir(qasm3_alias_program, name="test")
+        let alias = q[2];
+
+        x alias;
+        """
+        _ = validate(qasm3_alias_program)
+
+
+def test_alias_defined_before():
+    """Test converting OpenQASM 3 program with alias defined before the qubit register."""
+    with pytest.raises(
+        ValidationError,
+        match=re.escape(r"Qubit register q2 not found for aliasing"),
+    ):
+        qasm3_alias_program = """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[5] q1;
+
+        let myqreg = q2[1];
+        """
+        _ = validate(qasm3_alias_program)
+
+
+def test_unsupported_alias():
+    """Test converting OpenQASM 3 program with unsupported alias."""
+    with pytest.raises(
+        ValidationError,
+        match=r"Unsupported aliasing .*",
+    ):
+        qasm3_alias_program = """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[5] q;
+
+        let myqreg = q[0] ++ q[1];
+        """
+        _ = validate(qasm3_alias_program)
 
 
 # def test_alias_in_scope_1():
@@ -234,10 +232,10 @@ with alias statements.
 #         h q[2];
 #     }
 #     """
-#     result = qasm3_to_qir(qasm)
-#     generated_qir = str(result).splitlines()
+#     result = validate(qasm)
+#     result.unrolled_ast = str(result).splitlines()
 
-#     check_attributes(generated_qir, 4, 4)
+#     check_attributes(result.unrolled_ast, 4, 4)
 #     simple_file = resources_file("simple_if.ll")
 #     compare_reference_ir(result.bitcode, simple_file)
 
@@ -267,10 +265,10 @@ with alias statements.
 #         h q[2];
 #     }
 #     """
-#     result = qasm3_to_qir(qasm)
-#     generated_qir = str(result).splitlines()
+#     result = validate(qasm)
+#     result.unrolled_ast = str(result).splitlines()
 
-#     check_attributes(generated_qir, 4, 4)
+#     check_attributes(result.unrolled_ast, 4, 4)
 #     simple_file = resources_file("simple_if.ll")
 #     compare_reference_ir(result.bitcode, simple_file)
 
@@ -278,7 +276,7 @@ with alias statements.
 # def test_alias_out_of_scope():
 #     """Test converting OpenQASM 3 program with alias out of scope."""
 #     with pytest.raises(
-#         Qasm3ConversionError,
+#         ValidationError,
 #         match=r"Variable alias not in scope for operation .*",
 #     ):
 #         qasm = """
@@ -303,4 +301,4 @@ with alias statements.
 #             h q[2];
 #         }
 #         """
-#         _ = qasm3_to_qir(qasm)
+#         _ = validate(qasm)

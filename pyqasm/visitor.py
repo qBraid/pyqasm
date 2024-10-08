@@ -271,12 +271,16 @@ class BasicQasmVisitor(ProgramElementVisitor):
             register_size = (
                 1 if register.size is None else register.size.value  # type: ignore[union-attr]
             )
+            if register.size is None:
+                register.size = qasm3_ast.IntegerLiteral(register_size)
         else:
             register_size = (
                 1
                 if register.type.size is None  # type: ignore[union-attr]
                 else register.type.size.value  # type: ignore[union-attr]
             )
+            if register.type.size is None:
+                register.type.size = qasm3_ast.IntegerLiteral(register_size)
         register_name = (
             register.qubit.name  # type: ignore[union-attr]
             if is_qubit
@@ -302,8 +306,7 @@ class BasicQasmVisitor(ProgramElementVisitor):
                     False,
                 )
             )
-        qasm_stmt = f"{'qubit' if is_qubit else 'bit'}[{register_size}] {register_name};\n"
-        self._module.add_qasm_statement(qasm_stmt)
+        self._module.add_qasm_statement(register)
 
         for i in range(register_size):
             # required if indices are not used while applying a gate or measurement
@@ -454,10 +457,10 @@ class BasicQasmVisitor(ProgramElementVisitor):
             )
         if not self._check_only:
             for src_id, tgt_id in zip(source_ids, target_ids):
-                src_name, src_bit = src_id.name.name, src_id.indices[0][0].value
-                tgt_name, tgt_bit = tgt_id.name.name, tgt_id.indices[0][0].value
-                qasm_stmt = f"measure {src_name}[{src_bit}] -> {tgt_name}[{tgt_bit}];\n"
-                self._module.add_qasm_statement(qasm_stmt)
+                unrolled_measure = qasm3_ast.QuantumMeasurementStatement(
+                    measure=qasm3_ast.QuantumMeasurement(qubit=src_id), target=tgt_id
+                )
+                self._module.add_qasm_statement(unrolled_measure)
 
     def _visit_reset(self, statement: qasm3_ast.QuantumReset) -> None:
         """Visit a reset statement element.
@@ -482,9 +485,8 @@ class BasicQasmVisitor(ProgramElementVisitor):
 
         if not self._check_only:
             for qid in qubit_ids:
-                name, bit_id = qid.name.name, qid.indices[0][0].value
-                qasm_stmt = f"reset {name}[{bit_id}];\n"
-                self._module.add_qasm_statement(qasm_stmt)
+                unrolled_reset = qasm3_ast.QuantumReset(qubits=qid)
+                self._module.add_qasm_statement(unrolled_reset)
 
     def _visit_barrier(self, barrier: qasm3_ast.QuantumBarrier) -> None:
         """Visit a barrier statement element.
@@ -511,8 +513,8 @@ class BasicQasmVisitor(ProgramElementVisitor):
         barrier_qubits = self._get_op_bits(barrier, self._global_qreg_size_map)
         if not self._check_only:
             for qubit in barrier_qubits:
-                qasm_stmt = f"barrier {qubit.name.name}[{qubit.indices[0][0].value}];\n"
-                self._module.add_qasm_statement(qasm_stmt)
+                unrolled_barrier = qasm3_ast.QuantumBarrier(qubits=[qubit])
+                self._module.add_qasm_statement(unrolled_barrier)
 
     def _get_op_parameters(self, operation: qasm3_ast.QuantumGate) -> list[float]:
         """Get the parameters for the operation.
@@ -574,13 +576,11 @@ class BasicQasmVisitor(ProgramElementVisitor):
         op_name: str = operation.name.name
         op_qubits = self._get_op_bits(operation, self._global_qreg_size_map)
         inverse_action = None
-        # to update : qir_func is a pyqir callable, need to change this
         if not inverse:
             qasm_func, op_qubit_count = map_qasm_op_to_callable(op_name)
         else:
             # in basic gates, inverse action only affects the rotation gates
             qasm_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_callable(op_name)
-        # to update
 
         op_parameters = None
 
@@ -596,16 +596,15 @@ class BasicQasmVisitor(ProgramElementVisitor):
                 op_parameters = [-1 * param for param in op_parameters]
 
         if not self._check_only:
-            # to update
             for i in range(0, len(op_qubits), op_qubit_count):
                 # we apply the gate on the qubit subset linearly
                 qubit_subset = op_qubits[i : i + op_qubit_count]
                 if op_parameters is not None:
-                    gate_qasm = qasm_func(op_name, *op_parameters, *qubit_subset)
+                    unrolled_gate = qasm_func(*op_parameters, *qubit_subset)
                 else:
-                    gate_qasm = qasm_func(op_name, *qubit_subset)
-                self._module.add_qasm_statement(gate_qasm)
-            # to update
+                    unrolled_gate = qasm_func(*qubit_subset)
+                for gate in unrolled_gate:
+                    self._module.add_qasm_statement(gate)
 
     def _visit_custom_gate_operation(
         self, operation: qasm3_ast.QuantumGate, inverse: bool = False
@@ -1210,6 +1209,7 @@ class BasicQasmVisitor(ProgramElementVisitor):
     def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> None:
         pass
 
+    # to edit...
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> None:
         """Visit an alias statement element.
 
