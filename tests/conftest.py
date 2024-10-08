@@ -9,3 +9,4 @@
 # THERE IS NO WARRANTY for the pyqasm, as per Section 15 of the GPL v3.
 
 from .resources.gates import *
+from .resources.subroutines import *
