@@ -114,6 +114,7 @@ def check_single_qubit_rotation_op(unrolled_ast, num_gates, qubit_list, param_li
             qubit_id += 1
             param_id += 1
             gate_count += 1
+    print(gate_count, num_gates)
     assert gate_count == num_gates
 
 
