@@ -30,61 +30,60 @@ from tests.utils import (
 # from .test_if import compare_reference_ir, resources_file
 
 
-# def test_alias():
-#     """Test converting OpenQASM 3 program with openqasm3.ast.AliasStatement."""
+def test_alias():
+    """Test converting OpenQASM 3 program with openqasm3.ast.AliasStatement."""
 
-#     qasm3_alias_program = """
-#     OPENQASM 3.0;
-#     include "stdgates.inc";
+    qasm3_alias_program = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
 
-#     qubit[5] q;
+    qubit[5] q;
 
-#     let myqreg0 = q;
-#     let myqreg1 = q[1];
-#     let myqreg2 = q[1:];
-#     let myqreg3 = q[:4];
-#     let myqreg4 = q[1:4];
-#     let myqreg5 = q[1:2:4];
-#     let myqreg6 = q[{0, 1}];
+    let myqreg0 = q;
+    let myqreg1 = q[1];
+    let myqreg2 = q[1:];
+    let myqreg3 = q[:4];
+    let myqreg4 = q[1:4];
+    let myqreg5 = q[1:2:4];
+    let myqreg6 = q[{0, 1}];
 
-#     x myqreg0[0];
-#     h myqreg1;
-#     cx myqreg2[0], myqreg2[1];
-#     cx myqreg3[2], myqreg3[3];
-#     ccx myqreg4;
-#     swap myqreg5[0], myqreg5[1];
-#     cz myqreg6;
-#     """
-#     result = unroll(qasm3_alias_program)
-#     assert result.num_qubits == 5
-#     assert result.num_clbits == 0
-#     print(result.unrolled_qasm)
-#     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "x")
-#     check_single_qubit_gate_op(result.unrolled_ast, 1, [1], "h")
-#     check_two_qubit_gate_op(result.unrolled_ast, 2, [[1, 2], [2, 3]], "cx")
-#     check_three_qubit_gate_op(result.unrolled_ast, 1, [[1, 2, 3]], "ccx")
-#     check_two_qubit_gate_op(result.unrolled_ast, 1, [[1, 3]], "swap")
-#     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
+    x myqreg0[0];
+    h myqreg1;
+    cx myqreg2[0], myqreg2[1];
+    cx myqreg3[2], myqreg3[3];
+    ccx myqreg4;
+    swap myqreg5[0], myqreg5[1];
+    cz myqreg6;
+    """
+    result = unroll(qasm3_alias_program)
+    assert result.num_qubits == 5
+    assert result.num_clbits == 0
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "x")
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [1], "h")
+    check_two_qubit_gate_op(result.unrolled_ast, 2, [[1, 2], [2, 3]], "cx")
+    check_three_qubit_gate_op(result.unrolled_ast, 1, [[1, 2, 3]], "ccx")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[1, 3]], "swap")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
 
 
-# def test_alias_update():
-#     """Test converting OpenQASM 3 program with alias update."""
+def test_alias_update():
+    """Test converting OpenQASM 3 program with alias update."""
 
-#     qasm3_alias_program = """
-#     OPENQASM 3.0;
-#     include "stdgates.inc";
+    qasm3_alias_program = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
 
-#     qubit[4] q;
+    qubit[4] q;
 
-#     let alias = q[1:];
-#     let alias = q[2:];
+    let alias = q[1:];
+    let alias = q[2:];
 
-#     x alias[1];
-#     """
-#     result = unroll(qasm3_alias_program)
-#     assert result.num_qubits == 4
-#     assert result.num_clbits == 0
-#     check_single_qubit_gate_op(result.unrolled_ast, 1, [3], "x")
+    x alias[1];
+    """
+    result = unroll(qasm3_alias_program)
+    assert result.num_qubits == 4
+    assert result.num_clbits == 0
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [3], "x")
 
 
 # def test_valid_alias_redefinition():
@@ -132,7 +131,7 @@ def test_alias_wrong_indexing():
 
         x myqreg[0];
         """
-        _ = validate(qasm3_alias_program)
+        validate(qasm3_alias_program)
 
 
 def test_alias_invalid_discrete_indexing():
@@ -151,7 +150,7 @@ def test_alias_invalid_discrete_indexing():
 
         x myqreg[0];
         """
-        _ = validate(qasm3_alias_program)
+        validate(qasm3_alias_program)
 
 
 def test_invalid_alias_redefinition():
@@ -171,7 +170,7 @@ def test_invalid_alias_redefinition():
 
         x alias;
         """
-        _ = validate(qasm3_alias_program)
+        validate(qasm3_alias_program)
 
 
 def test_alias_defined_before():
@@ -188,7 +187,7 @@ def test_alias_defined_before():
 
         let myqreg = q2[1];
         """
-        _ = validate(qasm3_alias_program)
+        validate(qasm3_alias_program)
 
 
 def test_unsupported_alias():
@@ -205,7 +204,7 @@ def test_unsupported_alias():
 
         let myqreg = q[0] ++ q[1];
         """
-        _ = validate(qasm3_alias_program)
+        validate(qasm3_alias_program)
 
 
 # def test_alias_in_scope_1():
@@ -301,4 +300,4 @@ def test_unsupported_alias():
 #             h q[2];
 #         }
 #         """
-#         _ = validate(qasm)
+#         validate(qasm)

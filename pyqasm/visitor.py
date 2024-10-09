@@ -68,7 +68,9 @@ class BasicQasmVisitor(ProgramElementVisitor):
         self._context: deque = deque([Context.GLOBAL])
         self._qubit_labels: dict[str, int] = {}
         self._clbit_labels: dict[str, int] = {}
+        self._alias_qubit_labels: dict[tuple(str, int), tuple(str, int)] = {}
         self._global_qreg_size_map: dict[str, int] = {}
+        self._global_alias_size_map: dict[str, int] = {}
         self._function_qreg_size_map: deque = deque([])  # for nested functions
         self._function_qreg_transform_map: deque = deque([])  # for nested functions
         self._global_creg_size_map: dict[str, int] = {}
@@ -348,6 +350,8 @@ class BasicQasmVisitor(ProgramElementVisitor):
         openqasm_bits = []
         visited_bits = set()
         bit_list = []
+        replace_alias = False
+
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
             assert operation.target is not None
             bit_list = [operation.measure.qubit] if qubits else [operation.target]
@@ -363,10 +367,15 @@ class BasicQasmVisitor(ProgramElementVisitor):
                 reg_name = bit.name
 
             if reg_name not in reg_size_map:
-                raise_qasm3_error(
-                    f"Missing register declaration for {reg_name} in operation {operation}",
-                    span=operation.span,
-                )
+                # check for aliasing
+                if qubits and reg_name in self._global_alias_size_map:
+                    replace_alias = True
+                    reg_size_map = self._global_alias_size_map
+                else:
+                    raise_qasm3_error(
+                        f"Missing register declaration for {reg_name} in operation {operation}",
+                        span=operation.span,
+                    )
             self._check_if_name_in_scope(reg_name, operation)
 
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
@@ -384,6 +393,14 @@ class BasicQasmVisitor(ProgramElementVisitor):
                     bit_ids = [bit_id]
             else:
                 bit_ids = list(range(reg_size_map[reg_name]))
+
+            if replace_alias:
+                original_reg_name, _ = self._alias_qubit_labels[(reg_name, bit_ids[0])]
+                bit_ids = [
+                    self._alias_qubit_labels[(reg_name, bit_id)][1]  # gives (original_reg, index)
+                    for bit_id in bit_ids
+                ]
+                reg_name = original_reg_name
 
             new_bits = [
                 qasm3_ast.IndexedIdentifier(
@@ -1235,6 +1252,14 @@ class BasicQasmVisitor(ProgramElementVisitor):
         aliased_reg_name: str = ""
         aliased_reg_size: int = 0
 
+        # this will only build a global alias map
+
+        # whenever we are referring to qubits , we will first check in the global map of registers
+        # if the register is present, we will use the global map to get the qubit labels
+        # if not, we will check the alias map for the labels
+
+        # see self._get_op_bits for details
+
         # Alias should not be redeclared earlier as a variable or a constant
         if self._check_in_scope(alias_reg_name):
             raise_qasm3_error(f"Re-declaration of variable '{alias_reg_name}'", span=statement.span)
@@ -1256,9 +1281,7 @@ class BasicQasmVisitor(ProgramElementVisitor):
         aliased_reg_size = self._global_qreg_size_map[aliased_reg_name]
         if isinstance(value, qasm3_ast.Identifier):  # "let alias = q;"
             for i in range(aliased_reg_size):
-                self._qubit_labels[f"{alias_reg_name}_{i}"] = self._qubit_labels[
-                    f"{aliased_reg_name}_{i}"
-                ]
+                self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, i)
             alias_reg_size = aliased_reg_size
         elif isinstance(value, qasm3_ast.IndexExpression):
             if isinstance(value.index, qasm3_ast.DiscreteSet):  # "let alias = q[{0,1}];"
@@ -1267,9 +1290,7 @@ class BasicQasmVisitor(ProgramElementVisitor):
                     Qasm3Validator.validate_register_index(
                         qid, self._global_qreg_size_map[aliased_reg_name], qubit=True
                     )
-                    self._qubit_labels[f"{alias_reg_name}_{i}"] = self._qubit_labels[
-                        f"{aliased_reg_name}_{qid}"
-                    ]
+                    self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, qid)
                 alias_reg_size = len(qids)
             elif len(value.index) != 1:  # like "let alias = q[0,1];"?
                 raise_qasm3_error(
@@ -1283,7 +1304,10 @@ class BasicQasmVisitor(ProgramElementVisitor):
                 Qasm3Validator.validate_register_index(
                     qid, self._global_qreg_size_map[aliased_reg_name], qubit=True
                 )
-                self._qubit_labels[f"{alias_reg_name}_0"] = value.index[0].value
+                self._alias_qubit_labels[(alias_reg_name, 0)] = (
+                    aliased_reg_name,
+                    value.index[0].value,
+                )
                 alias_reg_size = 1
             elif isinstance(value.index[0], qasm3_ast.RangeDefinition):  # "let alias = q[0:1:2];"
                 qids = Qasm3Transformer.get_qubits_from_range_definition(
@@ -1292,10 +1316,10 @@ class BasicQasmVisitor(ProgramElementVisitor):
                     is_qubit_reg=True,
                 )
                 for i, qid in enumerate(qids):
-                    self._qubit_labels[f"{alias_reg_name}_{i}"] = qid
+                    self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, qid)
                 alias_reg_size = len(qids)
 
-        self._global_qreg_size_map[alias_reg_name] = alias_reg_size
+        self._global_alias_size_map[alias_reg_name] = alias_reg_size
 
         logger.debug("Added labels for aliasing '%s'", target)
 

@@ -231,6 +231,7 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         include "stdgates.inc";
 
         qubit[2] q1;
+        ms(0,0,0) q1;
         u_abc(0.5, 0.5, 0.5) q1[0], q1[1];  // unsupported gate
         """,
         "Unsupported / undeclared QASM operation: u_abc",
