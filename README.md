@@ -1,5 +1,7 @@
 # pyqasm
 
+<img align="right" width="100" src="https://qbraid-static.s3.amazonaws.com/pyqasm.svg"/>
+
 [![PyPI version](https://img.shields.io/pypi/v/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
 [![Python verions](https://img.shields.io/pypi/pyversions/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
 [![GitHub](https://img.shields.io/badge/issue_tracking-github-black?logo=github)](https://github.com/qBraid/pyqasm/issues)
