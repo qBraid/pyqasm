@@ -49,8 +49,10 @@ def test_correct_expressions():
 def test_incorrect_expressions():
     with pytest.raises(ValidationError, match=r"Unsupported expression type .*"):
         validate("OPENQASM 3; qubit q; rz(1 - 2 + 32im) q;")
+
     with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
         validate("OPENQASM 3; qubit q; rx(~1.3) q;")
+
     with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
         validate("OPENQASM 3; qubit q; rx(~1.3+5im) q;")
 

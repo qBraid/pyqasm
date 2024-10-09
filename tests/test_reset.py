@@ -88,7 +88,7 @@ def test_incorrect_resets():
     reset q2[0];
     """
     with pytest.raises(ValidationError):
-        _ = validate(undeclared)
+        validate(undeclared)
 
     index_error = """
     OPENQASM 3;
@@ -100,4 +100,4 @@ def test_incorrect_resets():
     reset q1[4];
     """
     with pytest.raises(ValidationError):
-        _ = validate(index_error)
+        validate(index_error)

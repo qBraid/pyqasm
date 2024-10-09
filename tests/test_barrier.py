@@ -101,7 +101,7 @@ def test_incorrect_barrier():
     """
 
     with pytest.raises(ValidationError, match=r"Missing register declaration for q2 .*"):
-        _ = validate(undeclared)
+        validate(undeclared)
 
     out_of_bounds = """
     OPENQASM 3;
@@ -114,7 +114,7 @@ def test_incorrect_barrier():
     with pytest.raises(
         ValidationError, match="Index 3 out of range for register of size 2 in qubit"
     ):
-        _ = validate(out_of_bounds)
+        validate(out_of_bounds)
 
     duplicate = """
     OPENQASM 3;
@@ -125,4 +125,4 @@ def test_incorrect_barrier():
     """
 
     with pytest.raises(ValidationError, match=r"Duplicate qubit .*argument"):
-        _ = validate(duplicate)
+        validate(duplicate)

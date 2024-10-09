@@ -193,7 +193,7 @@ class BasicQasmVisitor(ProgramElementVisitor):
                     return scope.get(var_name, None)
                 if var_name in scope:
                     return scope[var_name]
-                    # keep on checking
+                    # keep on checking otherwise
         return None
 
     def _add_var_in_scope(self, variable: Variable) -> None:
@@ -904,18 +904,25 @@ class BasicQasmVisitor(ProgramElementVisitor):
             raise_qasm3_error(
                 f"Assignment to constant variable {lvar_name} not allowed", span=statement.span
             )
+        binary_op = None
+        if statement.op != qasm3_ast.AssignmentOperator["="]:
+            # eg. j += 1 -> broken down to j = j + 1
+            binary_op = statement.op.name.removesuffix("=")
+            binary_op = qasm3_ast.BinaryOperator[binary_op]
 
         # rvalue will be an evaluated value (scalar, list)
         # if rvalue is a list, we want a copy of it
         rvalue = statement.rvalue
+        if binary_op is not None:
+            rvalue = qasm3_ast.BinaryExpression(lhs=lvalue, op=binary_op, rhs=rvalue)
         rvalue_raw = Qasm3ExprEvaluator.evaluate_expression(
             rvalue
         )  # consists of scope check and index validation
 
         # cast + validation
-        # rhs is a scalar
         rvalue_eval = None
         if not isinstance(rvalue_raw, np.ndarray):
+            # rhs is a scalar
             rvalue_eval = Qasm3Validator.validate_variable_assignment_value(
                 lvar, rvalue_raw  # type: ignore[arg-type]
             )
@@ -932,7 +939,7 @@ class BasicQasmVisitor(ProgramElementVisitor):
 
         if lvar.readonly:  # type: ignore[union-attr]
             raise_qasm3_error(
-                f"Assignment to readonly variable '{lvar_name}' not allowed" " in function call",
+                f"Assignment to readonly variable '{lvar_name}' not allowed in function call",
                 span=statement.span,
             )
 

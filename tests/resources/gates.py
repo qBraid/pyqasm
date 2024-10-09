@@ -8,6 +8,10 @@
 #
 # THERE IS NO WARRANTY for the pyqasm, as per Section 15 of the GPL v3.
 
+"""
+Module defining QASM3 gate tests.
+
+"""
 import os
 
 import pytest

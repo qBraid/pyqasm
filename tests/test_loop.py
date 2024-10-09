@@ -119,33 +119,35 @@ def test_convert_qasm3_for_loop_enclosing():
     check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
-# def test_convert_qasm3_for_loop_enclosing_modifying():
-#     """Test for loop where variable from outer loop is modified from inside the loop."""
-#     result = unroll(
-#         """
-#         OPENQASM 3.0;
-#         include "stdgates.inc";
+def test_convert_qasm3_for_loop_enclosing_modifying():
+    """Test for loop where variable from outer loop is modified from inside the loop."""
+    result = unroll(
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
 
-#         qubit[4] q;
-#         bit[4] c;
+        qubit[4] q;
+        bit[4] c;
 
-#         int j = 0;
+        int j = 0;
 
-#         h q;
-#         for int i in [0:2]{
-#             cx q[i], q[i+1];
-#             h q[j];
-#             j += 1;
-#         }
-#         h q[j];
-#         measure q->c;
-#         """,
-#     )
-#     assert result.num_clbits == 4
-#     assert result.num_qubits == 4
+        h q;
+        for int i in [0:2]{
+            cx q[i], q[i+1];
+            h q[j];
+            j += i;
+        }
+        h q[j];
+        measure q->c;
+        """,
+    )
+    print(result.unrolled_qasm)
 
-#     check_single_qubit_gate_op(result.unrolled_ast, 7, [0, 1, 2, 3, 0, 1, 2], "h")
-#     check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
+    assert result.num_clbits == 4
+    assert result.num_qubits == 4
+
+    check_single_qubit_gate_op(result.unrolled_ast, 8, [0, 1, 2, 3, 0, 0, 1, 3], "h")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
 def test_convert_qasm3_for_loop_discrete_set():
@@ -223,41 +225,40 @@ def test_loop_inside_function():
     check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 1, 2], "h")
 
 
-# def test_function_in_nested_loop():
-#     """Test that a function executed in a nested loop is correctly parsed."""
-#     qasm_str = """OPENQASM 3;
-#     include "stdgates.inc";
+def test_function_in_nested_loop():
+    """Test that a function executed in a nested loop is correctly parsed."""
+    qasm_str = """OPENQASM 3;
+    include "stdgates.inc";
 
-#     def my_function(qubit q_arg, float[32] b) {
-#         rx(b) q_arg;
-#         return;
-#     }
-#     qubit[5] q;
+    def my_function(qubit q_arg, float[32] b) {
+        rx(b) q_arg;
+        return;
+    }
+    qubit[5] q;
 
-#     int[32] n = 2;
-#     float[32] b = 3.14;
+    int[32] n = 2;
+    float[32] b = 3.14;
 
-#     for int i in [0:n] {
-#         for int j in [0:n] {
-#             my_function(q[i], j*b);
-#         }
-#     }
+    for int i in [0:n] {
+        for int j in [0:n] {
+            my_function(q[i], j*b);
+        }
+    }
 
-#     my_function(q[0], 2*b);
-#     """
+    my_function(q[0], 2*b);
+    """
 
-#     result = unroll(qasm_str)
+    result = unroll(qasm_str)
+    assert result.num_qubits == 5
+    assert result.num_clbits == 0
 
-#     assert result.num_qubits == 5
-#     assert result.num_clbits == 0
-
-#     check_single_qubit_rotation_op(
-#         result.unrolled_ast,
-#         9,
-#         [0, 0, 0, 1, 1, 1, 2, 2, 2, 0],
-#         [0, 3.14, 2 * 3.14, 0, 3.14, 2 * 3.14, 0, 3.14, 2 * 3.14, 2 * 3.14],
-#         "rx",
-#     )
+    check_single_qubit_rotation_op(
+        result.unrolled_ast,
+        10,
+        [0, 0, 0, 1, 1, 1, 2, 2, 2, 0],
+        [0, 3.14, 2 * 3.14, 0, 3.14, 2 * 3.14, 0, 3.14, 2 * 3.14, 2 * 3.14],
+        "rx",
+    )
 
 
 @pytest.mark.skip(reason="Not implemented nested functions yet")

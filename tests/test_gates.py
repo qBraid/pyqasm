@@ -234,7 +234,7 @@ def test_unsupported_modifiers():
             NotImplementedError,
             match=r"Controlled modifier gates not yet supported .*",
         ):
-            _ = validate(
+            validate(
                 f"""
                 OPENQASM 3;
                 include "stdgates.inc";
@@ -248,4 +248,4 @@ def test_unsupported_modifiers():
 def test_incorrect_custom_ops(test_name):
     qasm_input, error_message = CUSTOM_GATE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        _ = validate(qasm_input)
+        validate(qasm_input)

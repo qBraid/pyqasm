@@ -64,7 +64,7 @@ def test_measure():
 def test_incorrect_measure():
     def run_test(qasm3_code, error_message):
         with pytest.raises(ValidationError, match=error_message):
-            _ = validate(qasm3_code)
+            validate(qasm3_code)
 
     # Test for undeclared register q2
     run_test(
