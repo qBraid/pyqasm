@@ -14,7 +14,6 @@
 Module defining Qasm3 Converter elements.
 
 """
-from abc import ABCMeta, abstractmethod
 from enum import Enum
 from typing import Any, Optional, Union
 
@@ -84,43 +83,6 @@ class Variable:
         self.readonly = readonly
 
 
-class _ProgramElement(metaclass=ABCMeta):
-    """Abstract class for program elements"""
-
-    @classmethod
-    def from_element_list(cls, elements):
-        """Create a list of elements from a list of elements"""
-        return [cls(elem) for elem in elements]
-
-    @abstractmethod
-    def accept(self, visitor):
-        """Accept a visitor for the element"""
-
-
-class _Register(_ProgramElement):
-
-    def __init__(self, register: Union[QubitDeclaration, ClassicalDeclaration]):
-        self._register: Union[QubitDeclaration, ClassicalDeclaration] = register
-
-    def accept(self, visitor):
-        visitor.visit_register(self._register)
-
-    def __str__(self) -> str:
-        return f"Register({self._register})"
-
-
-class _Statement(_ProgramElement):
-
-    def __init__(self, statement: Statement):
-        self._statement = statement
-
-    def accept(self, visitor):
-        visitor.visit_statement(self._statement)
-
-    def __str__(self) -> str:
-        return f"Statement({self._statement})"
-
-
 class Qasm3Module:
     """
     A module representing an unrolled openqasm quantum program.
@@ -140,12 +102,12 @@ class Qasm3Module:
         num_qubits: int,
         num_clbits: int,
         program: Program,
-        elements,
+        statements,
     ):
         self._name = name
         self._num_qubits = num_qubits
         self._num_clbits = num_clbits
-        self._elements = elements
+        self._statements = statements
         self._unrolled_qasm = ""
         self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3")
         self._original_program = program
@@ -212,7 +174,7 @@ class Qasm3Module:
         """
         Construct a Qasm3Module from a given openqasm3.ast.Program object
         """
-        elements: list[Union[_Register, _Statement]] = []
+        statements: list[Statement] = []
 
         num_qubits = 0
         num_clbits = 0
@@ -222,8 +184,6 @@ class Qasm3Module:
                 if statement.size:
                     size = statement.size.value  # type: ignore[attr-defined]
                 num_qubits += size
-                elements.append(_Register(statement))
-
             elif isinstance(statement, ClassicalDeclaration) and isinstance(
                 statement.type, BitType
             ):
@@ -231,20 +191,14 @@ class Qasm3Module:
                 if statement.type.size:
                     size = statement.type.size.value  # type: ignore[attr-defined]
                 num_clbits += size
-                elements.append(_Register(statement))
-                # as bit arrays are just 0 / 1 values, we can treat them as
-                # classical variables too. Thus, need to add them to normal
-                # statements too.
-                elements.append(_Statement(statement))
-            else:
-                elements.append(_Statement(statement))
+            statements.append(statement)
 
         return cls(
             name="main",
             num_qubits=num_qubits,
             num_clbits=num_clbits,
             program=program,
-            elements=elements,
+            statements=statements,
         )
 
     def accept(self, visitor):
@@ -253,7 +207,5 @@ class Qasm3Module:
         Args:
             visitor (BasicQasmVisitor): The visitor to accept
         """
-        for element in self._elements:
-            element.accept(visitor)
-
+        self.unrolled_ast.statements.extend(visitor.visit_basic_block(self._statements))
         # TODO: some finalizing method here probably

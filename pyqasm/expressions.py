@@ -15,7 +15,14 @@ Module containing the class for evaluating QASM3 expressions.
 
 """
 
-from openqasm3.ast import BinaryExpression, BooleanLiteral, BoolType, DurationLiteral, FloatLiteral
+from openqasm3.ast import (
+    BinaryExpression,
+    BooleanLiteral,
+    BoolType,
+    DurationLiteral,
+    Expression,
+    FloatLiteral,
+)
 from openqasm3.ast import FloatType as Qasm3FloatType
 from openqasm3.ast import (
     FunctionCall,
@@ -149,7 +156,9 @@ class Qasm3ExprEvaluator:
 
     @classmethod
     # pylint: disable-next=too-many-return-statements, too-many-branches
-    def evaluate_expression(cls, expression, const_expr: bool = False, reqd_type=None):
+    def evaluate_expression(
+        cls, expression, const_expr: bool = False, reqd_type=None, validate_only: bool = False
+    ):
         """Evaluate an expression. Scalar types are assigned by value.
 
         Args:
@@ -173,19 +182,24 @@ class Qasm3ExprEvaluator:
                 expression.span,
             )
 
+        def _check_and_return_value(value):
+            if validate_only:
+                return None
+            return value
+
         def _process_variable(var_name: str, indices=None):
             cls._check_var_in_scope(var_name, expression)
             cls._check_var_constant(var_name, const_expr, expression)
             cls._check_var_type(var_name, reqd_type, expression)
             var_value = cls._get_var_value(var_name, indices, expression)
             Qasm3ExprEvaluator._check_var_initialized(var_name, var_value, expression)
-            return var_value
+            return _check_and_return_value(var_value)
 
         if isinstance(expression, Identifier):
             var_name = expression.name
             if var_name in CONSTANTS_MAP:
                 if not reqd_type or reqd_type == Qasm3FloatType:
-                    return CONSTANTS_MAP[var_name]
+                    return _check_and_return_value(CONSTANTS_MAP[var_name])
                 raise_qasm3_error(
                     f"Constant {var_name} not allowed in non-float expression",
                     ValidationError,
@@ -224,7 +238,7 @@ class Qasm3ExprEvaluator:
 
             if index is None:
                 # get the first dimension of the array
-                return dimensions[0]
+                return _check_and_return_value(dimensions[0])
 
             index = cls.evaluate_expression(index, const_expr, reqd_type=Qasm3IntType)
             assert index is not None and isinstance(index, int)
@@ -235,24 +249,24 @@ class Qasm3ExprEvaluator:
                     ValidationError,
                     expression.span,
                 )
-
-            return dimensions[index]
+            return _check_and_return_value(dimensions[index])
 
         if isinstance(expression, (BooleanLiteral, IntegerLiteral, FloatLiteral)):
             if reqd_type:
+
                 if reqd_type == BoolType and isinstance(expression, BooleanLiteral):
-                    return expression.value
+                    return _check_and_return_value(expression.value)
                 if reqd_type == Qasm3IntType and isinstance(expression, IntegerLiteral):
-                    return expression.value
+                    return _check_and_return_value(expression.value)
                 if reqd_type == Qasm3FloatType and isinstance(expression, FloatLiteral):
-                    return expression.value
+                    return _check_and_return_value(expression.value)
                 raise_qasm3_error(
                     f"Invalid value {expression.value} with type {type(expression)} "
                     f"for required type {reqd_type}",
                     ValidationError,
                     expression.span,
                 )
-            return expression.value
+            return _check_and_return_value(expression.value)
 
         if isinstance(expression, UnaryExpression):
             operand = cls.evaluate_expression(expression.expression, const_expr, reqd_type)
@@ -262,20 +276,43 @@ class Qasm3ExprEvaluator:
                     ValidationError,
                     expression.span,
                 )
-            return qasm3_expression_op_map(
-                "UMINUS" if expression.op.name == "-" else expression.op.name, operand
-            )
+            op_name = "UMINUS" if expression.op.name == "-" else expression.op.name
+            return _check_and_return_value(qasm3_expression_op_map(op_name, operand))
         if isinstance(expression, BinaryExpression):
             lhs = cls.evaluate_expression(expression.lhs, const_expr, reqd_type)
             rhs = cls.evaluate_expression(expression.rhs, const_expr, reqd_type)
-            return qasm3_expression_op_map(expression.op.name, lhs, rhs)
+            return _check_and_return_value(qasm3_expression_op_map(expression.op.name, lhs, rhs))
 
         if isinstance(expression, FunctionCall):
             # function will not return a reqd / const type
             # Reference : https://openqasm.com/language/types.html#compile-time-constants
             # para      : 5
-            return cls.visitor_obj._visit_function_call(expression)  # type: ignore[union-attr]
+            return _check_and_return_value(cls.visitor_obj._visit_function_call(expression))  # type: ignore[union-attr]
 
         raise_qasm3_error(
             f"Unsupported expression type {type(expression)}", ValidationError, expression.span
         )
+
+    @classmethod
+    def classical_register_in_expr(cls, expr: Expression) -> bool:
+        """
+        Check if a classical register is present in the expression
+
+        Args:
+            expr (Expression): The expression to check
+
+        Returns:
+            bool: True if a classical register is present, False otherwise
+        """
+        if isinstance(expr, Identifier):
+            return expr.name in cls.visitor_obj._global_creg_size_map
+        if isinstance(expr, IndexExpression):
+            var_name, _ = Qasm3Analyzer.analyze_index_expression(expr)
+            return var_name in cls.visitor_obj._global_creg_size_map
+        if isinstance(expr, BinaryExpression):
+            return Qasm3Analyzer.classical_register_in_expr(
+                expr.lhs
+            ) or Qasm3Analyzer.classical_register_in_expr(expr.rhs)
+        if isinstance(expr, UnaryExpression):
+            return Qasm3Analyzer.classical_register_in_expr(expr.expression)
+        return False

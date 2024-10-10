@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
 from openqasm3.ast import (
-    BinaryExpression,
     DiscreteSet,
     Expression,
     Identifier,
@@ -28,7 +27,6 @@ from openqasm3.ast import (
     IntegerLiteral,
     IntType,
     RangeDefinition,
-    UnaryExpression,
 )
 
 from .exceptions import ValidationError, raise_qasm3_error
@@ -186,48 +184,3 @@ class Qasm3Analyzer:
             slice(start, end + 1, step) if start != end else start for start, end, step in indices
         )
         return multi_dim_arr[slicing]  # type: ignore[index]
-
-    @staticmethod
-    def analyse_branch_condition(condition: Any) -> bool:
-        """
-        analyze the branching condition to determine the branch to take
-
-        Args:
-            condition (Any): The condition to analyze
-
-        Returns:
-            bool: The branch to take
-        """
-
-        if isinstance(condition, UnaryExpression):
-            if condition.op.name != "!":
-                raise_qasm3_error(
-                    message=f"Unsupported unary expression '{condition.op.name}' in if condition",
-                    err_type=ValidationError,
-                    span=condition.span,
-                )
-            return False
-        if isinstance(condition, BinaryExpression):
-            if condition.op.name != "==":
-                raise_qasm3_error(
-                    message=f"Unsupported binary expression '{condition.op.name}' in if condition",
-                    err_type=ValidationError,
-                    span=condition.span,
-                )
-            if not isinstance(condition.lhs, IndexExpression):
-                raise_qasm3_error(
-                    message=f"Unsupported expression type '{type(condition.rhs)}' in if condition",
-                    err_type=ValidationError,
-                    span=condition.span,
-                )
-            return condition.rhs.value != 0  # type: ignore[attr-defined]
-        if not isinstance(condition, IndexExpression):
-            raise_qasm3_error(
-                message=(
-                    f"Unsupported expression type '{type(condition)}' in if condition. "
-                    "Can only be a simple comparison"
-                ),
-                err_type=ValidationError,
-                span=condition.span,
-            )
-        return True

@@ -218,17 +218,15 @@ class Qasm3Transformer:
             condition (Any): The condition to analyze
 
         Returns:
-            tuple[int, str]: The branch parameters
+            tuple[int, str, Any]: register_idx, register_name, value of RHS
         """
         if isinstance(condition, UnaryExpression):
-            return (
-                condition.expression.index[0].value,
-                condition.expression.collection.name,
-            )
+            return (condition.expression.index[0].value, condition.expression.collection.name, None)
         if isinstance(condition, BinaryExpression):
             return (
                 condition.lhs.index[0].value,
                 condition.lhs.collection.name,
+                Qasm3ExprEvaluator.evaluate_expression(condition.rhs) != 0,
             )
         if isinstance(condition, IndexExpression):
             if isinstance(condition.index, DiscreteSet):
@@ -242,10 +240,7 @@ class Qasm3Transformer:
                         message="RangeDefinition not supported in branching condition",
                         span=condition.span,
                     )
-                return (
-                    condition.index[0].value,
-                    condition.collection.name,
-                )
+                return (condition.index[0].value, condition.collection.name, None)
         # default case
         return -1, ""
 
