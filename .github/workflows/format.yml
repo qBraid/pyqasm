@@ -1,0 +1,24 @@
+name: Format
+
+on:
+  pull_request:
+      branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install tox>=4.2.0
+      - name: Check isort, black, mypy, headers
+        run: |
+          tox -e format-check
