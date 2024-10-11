@@ -1,12 +1,12 @@
 # Copyright (C) 2024 qBraid
 #
-# This file is part of the pyqasm
+# This file is part of pyqasm
 #
-# The pyqasm is free software released under the GNU General Public License v3
+# Pyqasm is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for the pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
 Module containing unit tests for QASM3 to QIR conversion functions.
@@ -121,7 +121,6 @@ def test_scalar_type_casts():
     int[32] a = 5.1;
     float[32] r = 245;
     uint[4] b = -4; // -4 % 16 = 12
-    bit bit_var = 0;
     bool f = 0;
     bool g = 1;
 

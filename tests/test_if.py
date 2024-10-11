@@ -1,12 +1,13 @@
 # Copyright (C) 2024 qBraid
 #
-# This file is part of the pyqasm
+# This file is part of pyqasm
 #
-# The pyqasm is free software released under the GNU General Public License v3
+# Pyqasm is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for the pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+
 """
 Module containing unit tests for the if statements.
 
@@ -153,9 +154,7 @@ def test_incorrect_if():
            """
         )
 
-    with pytest.raises(
-        ValidationError, match=r"Semantic validation failed: Undefined identifier c2 in expression"
-    ):
+    with pytest.raises(ValidationError, match=r"Undefined identifier c2 in expression"):
         validate(
             """
             OPENQASM 3;
@@ -172,7 +171,7 @@ def test_incorrect_if():
            """
         )
 
-    with pytest.raises(ValidationError, match=r"Semantic validation failed: Only '!' supported .*"):
+    with pytest.raises(ValidationError, match=r"Only '!' supported .*"):
         validate(
             """
             OPENQASM 3;
@@ -188,9 +187,7 @@ def test_incorrect_if():
            }
            """
         )
-    with pytest.raises(
-        ValidationError, match=r"Semantic validation failed: Only '==' supported .*"
-    ):
+    with pytest.raises(ValidationError, match=r"Only '==' supported .*"):
         validate(
             """
             OPENQASM 3;
@@ -208,7 +205,7 @@ def test_incorrect_if():
         )
     with pytest.raises(
         ValidationError,
-        match=r"Semantic validation failed: Only simple comparison supported .*",
+        match=r"Only simple comparison supported .*",
     ):
         validate(
             """
