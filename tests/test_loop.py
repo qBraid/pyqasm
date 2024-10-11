@@ -300,7 +300,7 @@ def test_convert_qasm3_for_loop_unsupported_type():
             " of set_declaration in loop."
         ),
     ):
-        _ = validate(
+        validate(
             """
             OPENQASM 3.0;
             include "stdgates.inc";

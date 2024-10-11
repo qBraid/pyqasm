@@ -611,13 +611,13 @@ THREE_QUBIT_OP_MAP = {
 
 def map_qasm_op_to_callable(op_name: str):
     """
-    Map a QASM operation to a PyQIR callable.
+    Map a QASM operation to a callable.
 
     Args:
         op_name (str): The QASM operation name.
 
     Returns:
-        tuple: A tuple containing the PyQIR callable and the number of qubits the operation acts on.
+        tuple: A tuple containing the callable and the number of qubits the operation acts on.
     """
     try:
         return ONE_QUBIT_OP_MAP[op_name], 1
@@ -656,13 +656,13 @@ U_INV_ROTATION_MAP = {
 
 def map_qasm_inv_op_to_callable(op_name: str):
     """
-    Map a QASM operation to a PyQIR callable.
+    Map a QASM operation to a callable.
 
     Args:
         op_name (str): The QASM operation name.
 
     Returns:
-        tuple: A tuple containing the PyQIR callable, the number of qubits the operation acts on,
+        tuple: A tuple containing the callable, the number of qubits the operation acts on,
         and what is to be done with the basic gate which we are trying to invert.
     """
     if op_name in SELF_INVERTING_ONE_QUBIT_OP_SET:

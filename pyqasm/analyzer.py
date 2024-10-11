@@ -109,15 +109,15 @@ class Qasm3Analyzer:
 
                 start_id = 0
                 if index.start is not None:
-                    start_id = expr_evaluator.evaluate_expression(index.start, reqd_type=IntType)
+                    start_id = expr_evaluator.evaluate_expression(index.start, reqd_type=IntType)[0]
 
                 end_id = var_dimensions[i] - 1
                 if index.end is not None:
-                    end_id = expr_evaluator.evaluate_expression(index.end, reqd_type=IntType)
+                    end_id = expr_evaluator.evaluate_expression(index.end, reqd_type=IntType)[0]
 
                 step = 1
                 if index.step is not None:
-                    step = expr_evaluator.evaluate_expression(index.step, reqd_type=IntType)
+                    step = expr_evaluator.evaluate_expression(index.step, reqd_type=IntType)[0]
 
                 _validate_index(start_id, var_dimensions[i], var.name, index.span, i)
                 _validate_index(end_id, var_dimensions[i], var.name, index.span, i)
@@ -126,7 +126,7 @@ class Qasm3Analyzer:
                 indices_list.append((start_id, end_id, step))
 
             if isinstance(index, (Identifier, IntegerLiteral, Expression)):
-                index_value = expr_evaluator.evaluate_expression(index, reqd_type=IntType)
+                index_value = expr_evaluator.evaluate_expression(index, reqd_type=IntType)[0]
                 curr_dimension = var_dimensions[i]  # type: ignore[index]
                 _validate_index(index_value, curr_dimension, var.name, index.span, i)
 

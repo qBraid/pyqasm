@@ -131,13 +131,13 @@ class Qasm3SubroutineProcessor:
                     f" for function call '{fn_name}'",
                     span=span,
                 )
-        actual_arg_value = Qasm3ExprEvaluator.evaluate_expression(actual_arg)
+        actual_arg_value = Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]
 
         # save this value to be updated later in scope
         return Variable(
             name=formal_arg.name.name,
             base_type=formal_arg.type,
-            base_size=Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size),
+            base_size=Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0],
             dims=None,
             value=actual_arg_value,
             is_constant=False,
@@ -168,7 +168,7 @@ class Qasm3SubroutineProcessor:
 
         formal_arg_base_size = Qasm3ExprEvaluator.evaluate_expression(
             formal_arg.type.base_type.size
-        )
+        )[0]
         array_expected_type_msg = (
             "Expecting type 'array["
             f"{formal_arg.type.base_type.__class__.__name__.lower().removesuffix('type')}"
@@ -179,7 +179,7 @@ class Qasm3SubroutineProcessor:
         if actual_arg_name is None:
             raise_qasm3_error(
                 array_expected_type_msg
-                + f"Literal {Qasm3ExprEvaluator.evaluate_expression(actual_arg)} "
+                + f"Literal {Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]} "
                 + "found in function call",
                 span=span,
             )
@@ -230,7 +230,7 @@ class Qasm3SubroutineProcessor:
         if not isinstance(formal_dimensions_raw, list):
             num_formal_dimensions = Qasm3ExprEvaluator.evaluate_expression(
                 formal_dimensions_raw, reqd_type=IntType, const_expr=True
-            )
+            )[0]
         # 2. or we will have a list of the dimensions in the formal arg
         else:
             num_formal_dimensions = len(formal_dimensions_raw)
@@ -261,7 +261,7 @@ class Qasm3SubroutineProcessor:
             ):
                 formal_dim = Qasm3ExprEvaluator.evaluate_expression(
                     formal_dim, reqd_type=IntType, const_expr=True
-                )
+                )[0]
                 if formal_dim <= 0:
                     raise_qasm3_error(
                         f"Invalid dimension size {formal_dim} for '{formal_arg.name.name}'"
@@ -332,7 +332,7 @@ class Qasm3SubroutineProcessor:
         formal_reg_name = formal_arg.name.name
         formal_qubit_size = Qasm3ExprEvaluator.evaluate_expression(
             formal_arg.size, reqd_type=IntType, const_expr=True
-        )
+        )[0]
         if formal_qubit_size is None:
             formal_qubit_size = 1
         if formal_qubit_size <= 0:

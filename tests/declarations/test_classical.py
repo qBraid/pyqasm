@@ -286,7 +286,6 @@ def test_array_expressions():
     b = 3
     c = 4.5
     d = 6.7
-    f = True
     result = unroll(qasm3_string)
     assert result.num_clbits == 0
     assert result.num_qubits == 1

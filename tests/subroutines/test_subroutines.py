@@ -8,6 +8,11 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
+"""
+Module containing unit tests for parsing and unrolling programs that contain subroutines.
+
+"""
+
 import pytest
 
 from pyqasm.exceptions import ValidationError
@@ -107,24 +112,53 @@ def test_function_call_in_expression():
     qasm_str = """OPENQASM 3;
     include "stdgates.inc";
 
-    def my_function(qubit q) -> bool{
+    def my_function(qubit[4] q) -> bool{
         h q;
         return true;
     }
-    qubit q;
-    // do I only care about the return value? 
-    // or we also need to add the gate to the unrolled_ast? 
-
-    // how to do this?
+    qubit[4] q;
+    
+    // this is to be explained
     bool b = my_function(q);
     """
 
     result = unroll(qasm_str)
     assert result.num_clbits == 0
-    assert result.num_qubits == 1
+    assert result.num_qubits == 4
 
     print(result.unrolled_qasm)
-    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
+    check_single_qubit_gate_op(result.unrolled_ast, 4, list(range(4)), "h")
+
+
+def test_classical_quantum_function():
+    """Test that a function with classical and quantum instructions is correctly unrolled"""
+    qasm_str = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    def my_function(qubit q, int[32] iter) -> int[32]{
+        h q;
+        if(iter>2)
+            x q;
+        if (iter>3)
+            y q;
+        return iter + 1;
+    }
+    qubit[4] q;
+    int[32] new_var ;
+    for int i in [0:3]
+    { 
+        new_var = my_function(q[i] , i);
+    }
+
+    if(new_var>2)
+        h q[0];
+    """
+    result = unroll(qasm_str)
+    assert result.num_clbits == 0
+    assert result.num_qubits == 4
+
+    check_single_qubit_gate_op(result.unrolled_ast, 5, list(range(4)) + [0], "h")
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [3], "x")
 
 
 def test_multiple_function_calls():

@@ -358,7 +358,7 @@ class BasicQasmVisitor:
                         bit.indices[0][0], reg_size_map[reg_name], is_qubit_reg=qubits
                     )
                 else:
-                    bit_id = Qasm3ExprEvaluator.evaluate_expression(bit.indices[0][0])
+                    bit_id = Qasm3ExprEvaluator.evaluate_expression(bit.indices[0][0])[0]
                     Qasm3Validator.validate_register_index(
                         bit_id, reg_size_map[reg_name], qubit=qubits
                     )
@@ -526,7 +526,7 @@ class BasicQasmVisitor:
         """
         param_list = []
         for param in operation.arguments:
-            param_value = Qasm3ExprEvaluator.evaluate_expression(param)
+            param_value = Qasm3ExprEvaluator.evaluate_expression(param)[0]
             param_list.append(param_value)
 
         return param_list
@@ -653,7 +653,7 @@ class BasicQasmVisitor:
             for formal_arg, actual_arg in zip(gate_definition.qubits, op_qubits)
         }
         param_map = {
-            formal_arg.name: Qasm3ExprEvaluator.evaluate_expression(actual_arg)
+            formal_arg.name: Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]
             for formal_arg, actual_arg in zip(gate_definition.arguments, operation.arguments)
         }
 
@@ -710,7 +710,7 @@ class BasicQasmVisitor:
         for modifier in operation.modifiers:
             modifier_name = modifier.modifier
             if modifier_name == qasm3_ast.GateModifierName.pow and modifier.argument is not None:
-                current_power = Qasm3ExprEvaluator.evaluate_expression(modifier.argument)
+                current_power = Qasm3ExprEvaluator.evaluate_expression(modifier.argument)[0]
                 if current_power < 0:
                     inverse_value = not inverse_value
                 power_value = power_value * abs(current_power)
@@ -774,7 +774,7 @@ class BasicQasmVisitor:
         Returns:
             None
         """
-
+        statements = []
         var_name = statement.identifier.name
 
         if var_name in CONSTANTS_MAP:
@@ -783,9 +783,10 @@ class BasicQasmVisitor:
             )
         if self._check_in_scope(var_name):
             raise_qasm3_error(f"Re-declaration of variable {var_name}", span=statement.span)
-        init_value = Qasm3ExprEvaluator.evaluate_expression(
+        init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
             statement.init_expression, const_expr=True
         )
+        statements.extend(stmts)
 
         base_type = statement.type
         if isinstance(base_type, qasm3_ast.BoolType):
@@ -794,7 +795,9 @@ class BasicQasmVisitor:
             if base_type.size is None:
                 base_size = 32  # default for now
             else:
-                base_size = Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)
+                base_size = Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[
+                    0
+                ]
                 if not isinstance(base_size, int) or base_size <= 0:
                     raise_qasm3_error(
                         f"Invalid base size {base_size} for variable {var_name}",
@@ -808,7 +811,7 @@ class BasicQasmVisitor:
 
         self._add_var_in_scope(variable)
 
-        return []
+        return statements
 
     # pylint: disable=too-many-branches
     def _visit_classical_declaration(
@@ -822,6 +825,7 @@ class BasicQasmVisitor:
         Returns:
             None
         """
+        statements = []
         var_name = statement.identifier.name
         if var_name in CONSTANTS_MAP:
             raise_qasm3_error(
@@ -854,7 +858,7 @@ class BasicQasmVisitor:
             base_type = base_type.base_type
             num_elements = 1
             for dim in dimensions:
-                dim_value = Qasm3ExprEvaluator.evaluate_expression(dim)
+                dim_value = Qasm3ExprEvaluator.evaluate_expression(dim)[0]
                 if not isinstance(dim_value, int) or dim_value <= 0:
                     raise_qasm3_error(
                         f"Invalid dimension size {dim_value} in array declaration for {var_name}",
@@ -871,13 +875,16 @@ class BasicQasmVisitor:
                     statement.init_expression, final_dimensions, base_type
                 )
             else:
-                init_value = Qasm3ExprEvaluator.evaluate_expression(statement.init_expression)
+                init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
+                    statement.init_expression
+                )
+                statements.extend(stmts)
         base_size = 1
         if not isinstance(base_type, qasm3_ast.BoolType):
             base_size = (
                 32
                 if not hasattr(base_type, "size") or base_type.size is None
-                else Qasm3ExprEvaluator.evaluate_expression(base_type.size)
+                else Qasm3ExprEvaluator.evaluate_expression(base_type.size)[0]
             )
 
         if not isinstance(base_size, int) or base_size <= 0:
@@ -916,9 +923,9 @@ class BasicQasmVisitor:
                     if statement.type.size is None
                     else qasm3_ast.IntegerLiteral(base_size)
                 )
-            return [statement]
+            statements.append(statement)
 
-        return []
+        return statements
 
     def _visit_classical_assignment(self, statement: qasm3_ast.ClassicalAssignment) -> None:
         """Visit a classical assignment element.
@@ -929,6 +936,7 @@ class BasicQasmVisitor:
         Returns:
             None
         """
+        statements = []
         lvalue = statement.lvalue
         lvar_name = lvalue.name
         if isinstance(lvar_name, qasm3_ast.Identifier):
@@ -952,9 +960,10 @@ class BasicQasmVisitor:
         rvalue = statement.rvalue
         if binary_op is not None:
             rvalue = qasm3_ast.BinaryExpression(lhs=lvalue, op=binary_op, rhs=rvalue)
-        rvalue_raw = Qasm3ExprEvaluator.evaluate_expression(
+        rvalue_raw, rhs_stmts = Qasm3ExprEvaluator.evaluate_expression(
             rvalue
         )  # consists of scope check and index validation
+        statements.extend(rhs_stmts)
 
         # cast + validation
         rvalue_eval = None
@@ -1000,7 +1009,7 @@ class BasicQasmVisitor:
             lvar.value = rvalue_eval  # type: ignore[union-attr]
         self._update_var_in_scope(lvar)  # type: ignore[arg-type]
 
-        return []
+        return statements
 
     def _evaluate_array_initialization(
         self, array_literal: qasm3_ast.ArrayLiteral, dimensions: list[int], base_type: Any
@@ -1021,7 +1030,7 @@ class BasicQasmVisitor:
                 nested_array = self._evaluate_array_initialization(value, dimensions[1:], base_type)
                 init_values.append(nested_array)
             else:
-                eval_value = Qasm3ExprEvaluator.evaluate_expression(value)
+                eval_value = Qasm3ExprEvaluator.evaluate_expression(value)[0]
                 init_values.append(eval_value)
 
         return np.array(init_values, dtype=ARRAY_TYPE_MAP[base_type.__class__])
@@ -1092,7 +1101,7 @@ class BasicQasmVisitor:
 
         else:
             # here we can unroll the block depending on the condition
-            positive_branching = Qasm3ExprEvaluator.evaluate_expression(condition) != 0
+            positive_branching = Qasm3ExprEvaluator.evaluate_expression(condition)[0] != 0
             block_to_visit = statement.if_block if positive_branching else statement.else_block
 
             result.extend(self.visit_basic_block(block_to_visit))
@@ -1111,19 +1120,19 @@ class BasicQasmVisitor:
         # Compute loop variable values
         if isinstance(statement.set_declaration, qasm3_ast.RangeDefinition):
             init_exp = statement.set_declaration.start
-            startval = Qasm3ExprEvaluator.evaluate_expression(init_exp)
+            startval = Qasm3ExprEvaluator.evaluate_expression(init_exp)[0]
             range_def = statement.set_declaration
             stepval = (
                 1
                 if range_def.step is None
-                else Qasm3ExprEvaluator.evaluate_expression(range_def.step)
+                else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
             )
-            endval = Qasm3ExprEvaluator.evaluate_expression(range_def.end)
+            endval = Qasm3ExprEvaluator.evaluate_expression(range_def.end)[0]
             irange = list(range(startval, endval + stepval, stepval))
         elif isinstance(statement.set_declaration, qasm3_ast.DiscreteSet):
             init_exp = statement.set_declaration.values[0]
             irange = [
-                Qasm3ExprEvaluator.evaluate_expression(exp)
+                Qasm3ExprEvaluator.evaluate_expression(exp)[0]
                 for exp in statement.set_declaration.values
             ]
         else:
@@ -1141,8 +1150,10 @@ class BasicQasmVisitor:
             # Initialize loop variable in loop scope
             # need to re-declare as we discard the block scope in subsequent
             # iterations of the loop
-            self._visit_classical_declaration(
-                qasm3_ast.ClassicalDeclaration(statement.type, statement.identifier, init_exp)
+            result.extend(
+                self._visit_classical_declaration(
+                    qasm3_ast.ClassicalDeclaration(statement.type, statement.identifier, init_exp)
+                )
             )
             i = self._get_from_visible_scope(statement.identifier.name)
 
@@ -1266,10 +1277,13 @@ class BasicQasmVisitor:
             result.extend(self.visit_statement(copy.deepcopy(function_op)))
 
         if return_statement:
-            return_value = Qasm3ExprEvaluator.evaluate_expression(return_statement.expression)
+            return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
+                return_statement.expression
+            )
             return_value = Qasm3Validator.validate_return_statement(
                 subroutine_def, return_statement, return_value
             )
+            result.extend(stmts)
 
         # remove qubit transformation map
         self._function_qreg_transform_map.pop()
@@ -1280,7 +1294,7 @@ class BasicQasmVisitor:
         self._curr_scope -= 1
         self._pop_scope()
 
-        return return_value if subroutine_def.return_type is not None else result
+        return return_value, result
 
     def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> None:
         pass
@@ -1403,7 +1417,7 @@ class BasicQasmVisitor:
                 f"Switch target {switch_target_name} must be of type int", span=statement.span
             )
 
-        switch_target_val = Qasm3ExprEvaluator.evaluate_expression(switch_target)
+        switch_target_val = Qasm3ExprEvaluator.evaluate_expression(switch_target)[0]
 
         if len(statement.cases) == 0:
             raise_qasm3_error("Switch statement must have at least one case", span=statement.span)
@@ -1438,7 +1452,7 @@ class BasicQasmVisitor:
                 # literal OR type int
                 case_val = Qasm3ExprEvaluator.evaluate_expression(
                     case_expr, const_expr=True, reqd_type=qasm3_ast.IntType
-                )
+                )[0]
 
                 if case_val in seen_values:
                     raise_qasm3_error(
@@ -1492,7 +1506,12 @@ class BasicQasmVisitor:
         visitor_function = visit_map.get(type(statement))
 
         if visitor_function:
-            result.extend(visitor_function(statement))  # type: ignore[operator]
+            # these are special, they return a tuple of return value and list of statements
+            if isinstance(statement, qasm3_ast.ExpressionStatement):
+                _, ret_stmts = visitor_function(statement)
+                result.extend(ret_stmts)
+            else:
+                result.extend(visitor_function(statement))  # type: ignore[operator]
         else:
             raise_qasm3_error(
                 f"Unsupported statement of type {type(statement)}", span=statement.span

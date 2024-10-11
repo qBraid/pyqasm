@@ -115,15 +115,17 @@ class Qasm3Transformer:
         start_qid = (
             0
             if range_def.start is None
-            else Qasm3ExprEvaluator.evaluate_expression(range_def.start)
+            else Qasm3ExprEvaluator.evaluate_expression(range_def.start)[0]
         )
         end_qid = (
             qreg_size
             if range_def.end is None
-            else Qasm3ExprEvaluator.evaluate_expression(range_def.end)
+            else Qasm3ExprEvaluator.evaluate_expression(range_def.end)[0]
         )
         step = (
-            1 if range_def.step is None else Qasm3ExprEvaluator.evaluate_expression(range_def.step)
+            1
+            if range_def.step is None
+            else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
         )
         Qasm3Validator.validate_register_index(start_qid, qreg_size, qubit=is_qubit_reg)
         Qasm3Validator.validate_register_index(end_qid - 1, qreg_size, qubit=is_qubit_reg)
@@ -256,13 +258,15 @@ class Qasm3Transformer:
                     None,
                     condition.lhs.name,
                     # do not evaluate to bool
-                    Qasm3ExprEvaluator.evaluate_expression(condition.rhs, reqd_type=Qasm3IntType),
+                    Qasm3ExprEvaluator.evaluate_expression(condition.rhs, reqd_type=Qasm3IntType)[
+                        0
+                    ],
                 )
             return (
                 condition.lhs.index[0].value,
                 condition.lhs.collection.name,
                 # evaluate to bool
-                Qasm3ExprEvaluator.evaluate_expression(condition.rhs) != 0,
+                Qasm3ExprEvaluator.evaluate_expression(condition.rhs)[0] != 0,
             )
         if isinstance(condition, IndexExpression):
             if isinstance(condition.index, DiscreteSet):
@@ -349,7 +353,7 @@ class Qasm3Transformer:
                     )
                 target_qubits_size = len(target_qids)
             elif isinstance(target.index[0], (IntegerLiteral, Identifier)):  # "(q[0]); OR (q[i]);"
-                target_qids = [Qasm3ExprEvaluator.evaluate_expression(target.index[0])]
+                target_qids = [Qasm3ExprEvaluator.evaluate_expression(target.index[0])[0]]
                 Qasm3Validator.validate_register_index(
                     target_qids[0], qreg_size_map[target_name], qubit=True
                 )

@@ -158,7 +158,7 @@ class Qasm3ExprEvaluator:
     # pylint: disable-next=too-many-return-statements, too-many-branches
     def evaluate_expression(
         cls, expression, const_expr: bool = False, reqd_type=None, validate_only: bool = False
-    ):
+    ) -> tuple:
         """Evaluate an expression. Scalar types are assigned by value.
 
         Args:
@@ -167,13 +167,14 @@ class Qasm3ExprEvaluator:
             reqd_type (Any): The required type of the expression. Defaults to None.
 
         Returns:
-            Any : The result of the evaluation.
+            tuple[Any, list[Statement]] : The result of the evaluation.
 
         Raises:
             ValidationError: If the expression is not supported.
         """
+        statements = []
         if expression is None:
-            return None
+            return None, []
 
         if isinstance(expression, (ImaginaryLiteral, DurationLiteral)):
             raise_qasm3_error(
@@ -184,8 +185,8 @@ class Qasm3ExprEvaluator:
 
         def _check_and_return_value(value):
             if validate_only:
-                return None
-            return value
+                return None, statements
+            return value, statements
 
         def _process_variable(var_name: str, indices=None):
             cls._check_var_in_scope(var_name, expression)
@@ -240,7 +241,9 @@ class Qasm3ExprEvaluator:
                 # get the first dimension of the array
                 return _check_and_return_value(dimensions[0])
 
-            index = cls.evaluate_expression(index, const_expr, reqd_type=Qasm3IntType)
+            index, stmts = cls.evaluate_expression(index, const_expr, reqd_type=Qasm3IntType)
+            statements.extend(stmts)
+
             assert index is not None and isinstance(index, int)
             if index < 0 or index >= len(dimensions):
                 raise_qasm3_error(
@@ -253,7 +256,6 @@ class Qasm3ExprEvaluator:
 
         if isinstance(expression, (BooleanLiteral, IntegerLiteral, FloatLiteral)):
             if reqd_type:
-
                 if reqd_type == BoolType and isinstance(expression, BooleanLiteral):
                     return _check_and_return_value(expression.value)
                 if reqd_type == Qasm3IntType and isinstance(expression, IntegerLiteral):
@@ -269,7 +271,9 @@ class Qasm3ExprEvaluator:
             return _check_and_return_value(expression.value)
 
         if isinstance(expression, UnaryExpression):
-            operand = cls.evaluate_expression(expression.expression, const_expr, reqd_type)
+            operand, returned_stats = cls.evaluate_expression(
+                expression.expression, const_expr, reqd_type
+            )
             if expression.op.name == "~" and not isinstance(operand, int):
                 raise_qasm3_error(
                     f"Unsupported expression type {type(operand)} in ~ operation",
@@ -277,19 +281,30 @@ class Qasm3ExprEvaluator:
                     expression.span,
                 )
             op_name = "UMINUS" if expression.op.name == "-" else expression.op.name
+            statements.extend(returned_stats)
             return _check_and_return_value(qasm3_expression_op_map(op_name, operand))
+
         if isinstance(expression, BinaryExpression):
-            lhs = cls.evaluate_expression(expression.lhs, const_expr, reqd_type)
-            rhs = cls.evaluate_expression(expression.rhs, const_expr, reqd_type)
-            return _check_and_return_value(qasm3_expression_op_map(expression.op.name, lhs, rhs))
+            lhs_value, lhs_statements = cls.evaluate_expression(
+                expression.lhs, const_expr, reqd_type
+            )
+            statements.extend(lhs_statements)
+            rhs_value, rhs_statements = cls.evaluate_expression(
+                expression.rhs, const_expr, reqd_type
+            )
+            statements.extend(rhs_statements)
+            return _check_and_return_value(
+                qasm3_expression_op_map(expression.op.name, lhs_value, rhs_value)
+            )
 
         if isinstance(expression, FunctionCall):
             # function will not return a reqd / const type
             # Reference : https://openqasm.com/language/types.html#compile-time-constants
             # para      : 5
-            return _check_and_return_value(
-                cls.visitor_obj._visit_function_call(expression)  # type: ignore[union-attr]
-            )
+            ret_value, ret_stmts = cls.visitor_obj._visit_function_call(expression)
+            statements.extend(ret_stmts)
+            return _check_and_return_value(ret_value)
+
         raise_qasm3_error(
             f"Unsupported expression type {type(expression)}", ValidationError, expression.span
         )
