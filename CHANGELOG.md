@@ -31,3 +31,4 @@ Types of changes:
 ### Added
 - Setup basic project/repo template ([#1](https://github.com/qBraid/pyqasm/pull/1))
 - Configured PyPI workflows ([#2](https://github.com/qBraid/pyqasm/pull/2))
+- Add initial implementation ([#3](https://github.com/qBraid/pyqasm/pull/3))
