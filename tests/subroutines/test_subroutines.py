@@ -361,4 +361,4 @@ def test_qubit_size_arg_mismatch(qubit_params):
 def test_incorrect_custom_ops(test_name):
     qasm_input, error_message = SUBROUTINE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        _ = validate(qasm_input)
+        validate(qasm_input)

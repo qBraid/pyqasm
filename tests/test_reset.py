@@ -68,7 +68,7 @@ def test_reset_inside_function():
     my_function(q[1]);
     """
 
-    expected_qasm = """OPENQASM 3;    
+    expected_qasm = """OPENQASM 3;
     include "stdgates.inc";
     qubit[3] q;
     reset q[1];

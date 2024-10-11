@@ -11,5 +11,6 @@
 """Module containing imports for unit test resources
 """
 
+# pylint: disable=wildcard-import, unused-wildcard-import
+
 from .resources.gates import *
-from .resources.subroutines import *

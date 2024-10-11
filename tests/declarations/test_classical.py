@@ -357,11 +357,11 @@ def test_array_range_assignment():
 def test_incorrect_declarations(test_name):
     qasm_input, error_message = DECLARATION_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        _ = validate(qasm_input)
+        validate(qasm_input)
 
 
 @pytest.mark.parametrize("test_name", ASSIGNMENT_TESTS.keys())
 def test_incorrect_assignments(test_name):
     qasm_input, error_message = ASSIGNMENT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        _ = validate(qasm_input)
+        validate(qasm_input)

@@ -8,6 +8,11 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
+"""
+Module containing unit tests for parsing and unrolling programs that contain quantum
+declarations.
+
+"""
 import pytest
 
 from pyqasm.exceptions import ValidationError

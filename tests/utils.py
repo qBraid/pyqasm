@@ -8,6 +8,10 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
+"""
+Module containing utility functions for unit tests.
+
+"""
 import openqasm3.ast as qasm3_ast
 
 from pyqasm.maps import CONSTANTS_MAP
@@ -102,7 +106,7 @@ def check_single_qubit_rotation_op(unrolled_ast, num_gates, qubit_list, param_li
     if gate_name == "u3":
         check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list)
         return
-    elif gate_name == "u2":
+    if gate_name == "u2":
         param_list = [CONSTANTS_MAP["pi"] / 2, param_list[0], param_list[1]]
         check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list)
         return

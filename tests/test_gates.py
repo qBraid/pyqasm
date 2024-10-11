@@ -150,7 +150,7 @@ def test_qasm_u2_gates():
 def test_incorrect_single_qubit_gates(test_name):
     qasm_input, error_message = SINGLE_QUBIT_GATE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        _ = validate(qasm_input)
+        validate(qasm_input)
 
 
 @pytest.mark.parametrize("test_name", custom_op_tests)

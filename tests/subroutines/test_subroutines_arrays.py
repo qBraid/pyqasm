@@ -154,4 +154,4 @@ def test_pass_multiple_arrays_to_function():
 def test_incorrect_custom_ops_with_arrays(test_name):
     qasm_input, error_message = SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        _ = validate(qasm_input)
+        validate(qasm_input)

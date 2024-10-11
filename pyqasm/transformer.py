@@ -12,7 +12,7 @@
 Module with transformation functions for QASM3 visitor
 
 """
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 from openqasm3.ast import (
@@ -217,7 +217,7 @@ class Qasm3Transformer:
             gate_op.arguments[i] = Qasm3Transformer.transform_expression(actual_arg, param_map)
 
     @staticmethod
-    def get_branch_params(condition: Any) -> tuple[int, str]:
+    def get_branch_params(condition: Any) -> tuple[Optional[int], str, Optional[bool]]:
         """
         Get the branch parameters from the branching condition
 

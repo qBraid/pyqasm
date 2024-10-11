@@ -243,7 +243,9 @@ class BasicQasmVisitor:
     def _in_block_scope(self) -> bool:  # block scope is for if/else/for/while constructs
         return len(self._scope) > 1 and self._get_curr_context() == Context.BLOCK
 
-    def _visit_qubit_register(self, register: qasm3_ast.QubitDeclaration) -> None:
+    def _visit_qubit_register(
+        self, register: qasm3_ast.QubitDeclaration
+    ) -> list[qasm3_ast.QubitDeclaration]:
         """Visit a Qubit / Classical declaration statement.
 
         Args:
@@ -256,7 +258,7 @@ class BasicQasmVisitor:
 
         current_size = len(self._qubit_labels)
         register_size = (
-            1 if register.size is None else register.size.value  # type: ignore[union-attr]
+            1 if register.size is None else register.size.value  # type: ignore[attr-defined]
         )
         if register.size is None:
             register.size = qasm3_ast.IntegerLiteral(register_size)
@@ -307,6 +309,7 @@ class BasicQasmVisitor:
             f"Variable {name} not in scope for operation {operation}", span=operation.span
         )
 
+    # pylint: disable=too-many-locals
     def _get_op_bits(
         self, operation: Any, reg_size_map: dict, qubits: bool = True
     ) -> list[qasm3_ast.IndexedIdentifier]:
@@ -452,7 +455,6 @@ class BasicQasmVisitor:
                 unrolled_measure = qasm3_ast.QuantumMeasurementStatement(
                     measure=qasm3_ast.QuantumMeasurement(qubit=src_id), target=tgt_id
                 )
-                # self._module.add_qasm_statement(unrolled_measure)
                 unrolled_measurements.append(unrolled_measure)
         return unrolled_measurements
 
@@ -507,13 +509,14 @@ class BasicQasmVisitor:
                 )
             )
         barrier_qubits = self._get_op_bits(barrier, self._global_qreg_size_map)
+        unrolled_barriers = []
         if not self._check_only:
-            unrolled_barriers = []
             for qubit in barrier_qubits:
-                unrolled_barrier = qasm3_ast.QuantumBarrier(qubits=[qubit])
-                # self._module.add_qasm_statement(unrolled_barrier)
+                unrolled_barrier = qasm3_ast.QuantumBarrier(
+                    qubits=[qubit]  # type: ignore[list-item]
+                )
                 unrolled_barriers.append(unrolled_barrier)
-            return unrolled_barriers
+        return unrolled_barriers
 
     def _get_op_parameters(self, operation: qasm3_ast.QuantumGate) -> list[float]:
         """Get the parameters for the operation.
@@ -531,7 +534,7 @@ class BasicQasmVisitor:
 
         return param_list
 
-    def _visit_gate_definition(self, definition: qasm3_ast.QuantumGateDefinition) -> None:
+    def _visit_gate_definition(self, definition: qasm3_ast.QuantumGateDefinition) -> list[None]:
         """Visit a gate definition element.
 
         Args:
@@ -549,7 +552,7 @@ class BasicQasmVisitor:
 
     def _visit_basic_gate_operation(
         self, operation: qasm3_ast.QuantumGate, inverse: bool = False
-    ) -> None:
+    ) -> list[qasm3_ast.QuantumGate]:
         """Visit a gate operation element.
 
         Args:
@@ -607,7 +610,6 @@ class BasicQasmVisitor:
                 unrolled_gate = qasm_func(*qubit_subset)
             unrolled_gates = []
             for gate in unrolled_gate:
-                # self._module.add_qasm_statement(gate)
                 unrolled_gates.append(gate)
             result.extend(unrolled_gates)
 
@@ -617,7 +619,7 @@ class BasicQasmVisitor:
 
     def _visit_custom_gate_operation(
         self, operation: qasm3_ast.QuantumGate, inverse: bool = False
-    ) -> None:
+    ) -> list[qasm3_ast.QuantumGate]:
         """Visit a custom gate operation element recursively.
 
         Args:
@@ -727,7 +729,9 @@ class BasicQasmVisitor:
                 )
         return (power_value, inverse_value)
 
-    def _visit_generic_gate_operation(self, operation: qasm3_ast.QuantumGate) -> None:
+    def _visit_generic_gate_operation(
+        self, operation: qasm3_ast.QuantumGate
+    ) -> list[qasm3_ast.QuantumGate]:
         """Visit a gate operation element.
 
         Args:
@@ -763,7 +767,9 @@ class BasicQasmVisitor:
 
         return result
 
-    def _visit_constant_declaration(self, statement: qasm3_ast.ConstantDeclaration) -> None:
+    def _visit_constant_declaration(
+        self, statement: qasm3_ast.ConstantDeclaration
+    ) -> list[qasm3_ast.Statement]:
         """
         Visit a constant declaration element. Const can only be declared for scalar
         type variables and not arrays. Assignment is mandatory in constant declaration.
@@ -813,10 +819,10 @@ class BasicQasmVisitor:
 
         return statements
 
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches, too-many-statements, too-many-locals
     def _visit_classical_declaration(
         self, statement: qasm3_ast.ClassicalDeclaration
-    ) -> Optional[qasm3_ast.Statement]:
+    ) -> list[qasm3_ast.Statement]:
         """Visit a classical operation element.
 
         Args:
@@ -927,14 +933,16 @@ class BasicQasmVisitor:
 
         return statements
 
-    def _visit_classical_assignment(self, statement: qasm3_ast.ClassicalAssignment) -> None:
+    def _visit_classical_assignment(
+        self, statement: qasm3_ast.ClassicalAssignment
+    ) -> list[qasm3_ast.Statement]:
         """Visit a classical assignment element.
 
         Args:
             statement (qasm3_ast.ClassicalAssignment): The classical assignment to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list of statements generated by the assignment.
         """
         statements = []
         lvalue = statement.lvalue
@@ -949,7 +957,7 @@ class BasicQasmVisitor:
             raise_qasm3_error(
                 f"Assignment to constant variable {lvar_name} not allowed", span=statement.span
             )
-        binary_op = None
+        binary_op: Union[str, None, qasm3_ast.BinaryOperator] = None
         if statement.op != qasm3_ast.AssignmentOperator["="]:
             # eg. j += 1 -> broken down to j = j + 1
             binary_op = statement.op.name.removesuffix("=")
@@ -959,7 +967,9 @@ class BasicQasmVisitor:
         # if rvalue is a list, we want a copy of it
         rvalue = statement.rvalue
         if binary_op is not None:
-            rvalue = qasm3_ast.BinaryExpression(lhs=lvalue, op=binary_op, rhs=rvalue)
+            rvalue = qasm3_ast.BinaryExpression(
+                lhs=lvalue, op=binary_op, rhs=rvalue  # type: ignore[arg-type]
+            )
         rvalue_raw, rhs_stmts = Qasm3ExprEvaluator.evaluate_expression(
             rvalue
         )  # consists of scope check and index validation
@@ -1035,7 +1045,9 @@ class BasicQasmVisitor:
 
         return np.array(init_values, dtype=ARRAY_TYPE_MAP[base_type.__class__])
 
-    def _visit_branching_statement(self, statement: qasm3_ast.BranchingStatement) -> None:
+    def _visit_branching_statement(
+        self, statement: qasm3_ast.BranchingStatement
+    ) -> list[qasm3_ast.Statement]:
         """Visit a branching statement element.
 
         Args:
@@ -1081,7 +1093,7 @@ class BasicQasmVisitor:
                 if reg_id is not None
                 else qasm3_ast.Identifier(name=reg_name)
             )
-
+            assert isinstance(rhs_value, (bool, int))
             new_rhs = (
                 qasm3_ast.BooleanLiteral(rhs_value)
                 if isinstance(rhs_value, bool)
@@ -1104,7 +1116,7 @@ class BasicQasmVisitor:
             positive_branching = Qasm3ExprEvaluator.evaluate_expression(condition)[0] != 0
             block_to_visit = statement.if_block if positive_branching else statement.else_block
 
-            result.extend(self.visit_basic_block(block_to_visit))
+            result.extend(self.visit_basic_block(block_to_visit))  # type: ignore[arg-type]
 
         del self._label_scope_level[self._curr_scope]
         self._curr_scope -= 1
@@ -1114,7 +1126,7 @@ class BasicQasmVisitor:
         if self._check_only:
             return []
 
-        return result
+        return result  # type: ignore[return-value]
 
     def _visit_forin_loop(self, statement: qasm3_ast.ForInLoop) -> list[qasm3_ast.Statement]:
         # Compute loop variable values
@@ -1174,7 +1186,7 @@ class BasicQasmVisitor:
                 return []
         return result
 
-    def _visit_subroutine_definition(self, statement: qasm3_ast.SubroutineDefinition) -> None:
+    def _visit_subroutine_definition(self, statement: qasm3_ast.SubroutineDefinition) -> list[None]:
         """Visit a subroutine definition element.
            Reference: https://openqasm.com/language/subroutines.html#subroutines
 
@@ -1206,7 +1218,9 @@ class BasicQasmVisitor:
         return []
 
     # pylint: disable=too-many-locals, too-many-statements
-    def _visit_function_call(self, statement: qasm3_ast.FunctionCall) -> None:
+    def _visit_function_call(
+        self, statement: qasm3_ast.FunctionCall
+    ) -> tuple[Any, list[qasm3_ast.Statement]]:
         """Visit a function call element.
 
         Args:
@@ -1299,7 +1313,7 @@ class BasicQasmVisitor:
     def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> None:
         pass
 
-    def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> None:
+    def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
 
         Args:
@@ -1390,7 +1404,7 @@ class BasicQasmVisitor:
 
         return []
 
-    def _visit_switch_statement(
+    def _visit_switch_statement(  # type: ignore[return]
         self, statement: qasm3_ast.SwitchStatement
     ) -> list[qasm3_ast.Statement]:
         """Visit a switch statement element.
@@ -1399,7 +1413,7 @@ class BasicQasmVisitor:
             statement (qasm3_ast.SwitchStatement): The switch statement to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list of statements generated by the switch statement.
         """
         # 1. analyze the target - it should ONLY be int, not casted
         switch_target = statement.target
@@ -1508,7 +1522,7 @@ class BasicQasmVisitor:
         if visitor_function:
             # these are special, they return a tuple of return value and list of statements
             if isinstance(statement, qasm3_ast.ExpressionStatement):
-                _, ret_stmts = visitor_function(statement)
+                _, ret_stmts = visitor_function(statement)  # type: ignore[operator]
                 result.extend(ret_stmts)
             else:
                 result.extend(visitor_function(statement))  # type: ignore[operator]

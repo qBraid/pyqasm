@@ -32,7 +32,7 @@ from openqasm3.ast import (
     IntegerLiteral,
 )
 from openqasm3.ast import IntType as Qasm3IntType
-from openqasm3.ast import SizeOf, UnaryExpression
+from openqasm3.ast import SizeOf, Statement, UnaryExpression
 
 from .analyzer import Qasm3Analyzer
 from .exceptions import ValidationError, raise_qasm3_error
@@ -155,8 +155,8 @@ class Qasm3ExprEvaluator:
         return var_value
 
     @classmethod
-    # pylint: disable-next=too-many-return-statements, too-many-branches
-    def evaluate_expression(
+    # pylint: disable-next=too-many-return-statements, too-many-branches, too-many-statements
+    def evaluate_expression(  # type: ignore[return]
         cls, expression, const_expr: bool = False, reqd_type=None, validate_only: bool = False
     ) -> tuple:
         """Evaluate an expression. Scalar types are assigned by value.
@@ -172,7 +172,7 @@ class Qasm3ExprEvaluator:
         Raises:
             ValidationError: If the expression is not supported.
         """
-        statements = []
+        statements: list[Statement] = []
         if expression is None:
             return None, []
 
@@ -213,7 +213,6 @@ class Qasm3ExprEvaluator:
             return _process_variable(var_name, indices)
 
         if isinstance(expression, SizeOf):
-            # has 2 elements - target and index
             target = expression.target
             index = expression.index
 
@@ -238,8 +237,7 @@ class Qasm3ExprEvaluator:
                 )
 
             if index is None:
-                # get the first dimension of the array
-                return _check_and_return_value(dimensions[0])
+                return _check_and_return_value(dimensions[0])  # return first dimension
 
             index, stmts = cls.evaluate_expression(index, const_expr, reqd_type=Qasm3IntType)
             statements.extend(stmts)
@@ -299,9 +297,8 @@ class Qasm3ExprEvaluator:
 
         if isinstance(expression, FunctionCall):
             # function will not return a reqd / const type
-            # Reference : https://openqasm.com/language/types.html#compile-time-constants
-            # para      : 5
-            ret_value, ret_stmts = cls.visitor_obj._visit_function_call(expression)
+            # Reference : https://openqasm.com/language/types.html#compile-time-constants, para: 5
+            ret_value, ret_stmts = cls.visitor_obj._visit_function_call(expression)  # type: ignore
             statements.extend(ret_stmts)
             return _check_and_return_value(ret_value)
 
@@ -321,10 +318,10 @@ class Qasm3ExprEvaluator:
             bool: True if a classical register is present, False otherwise
         """
         if isinstance(expr, Identifier):
-            return expr.name in cls.visitor_obj._global_creg_size_map
+            return expr.name in cls.visitor_obj._global_creg_size_map  # type: ignore
         if isinstance(expr, IndexExpression):
             var_name, _ = Qasm3Analyzer.analyze_index_expression(expr)
-            return var_name in cls.visitor_obj._global_creg_size_map
+            return var_name in cls.visitor_obj._global_creg_size_map  # type: ignore
         if isinstance(expr, BinaryExpression):
             return cls.classical_register_in_expr(expr.lhs) or cls.classical_register_in_expr(
                 expr.rhs
