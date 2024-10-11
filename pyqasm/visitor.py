@@ -477,13 +477,12 @@ class BasicQasmVisitor:
             )
         qubit_ids = self._get_op_bits(statement, self._global_qreg_size_map, True)
 
+        unrolled_resets = []
         if not self._check_only:
-            unrolled_resets = []
             for qid in qubit_ids:
                 unrolled_reset = qasm3_ast.QuantumReset(qubits=qid)
-                # self._module.add_qasm_statement(unrolled_reset)
                 unrolled_resets.append(unrolled_reset)
-            return unrolled_resets
+        return unrolled_resets
 
     def _visit_barrier(self, barrier: qasm3_ast.QuantumBarrier) -> list[qasm3_ast.QuantumBarrier]:
         """Visit a barrier statement element.
@@ -598,7 +597,7 @@ class BasicQasmVisitor:
                 op_parameters = [-1 * param for param in op_parameters]
         if self._check_only:
             return []
-
+        result = []
         for i in range(0, len(op_qubits), op_qubit_count):
             # we apply the gate on the qubit subset linearly
             qubit_subset = op_qubits[i : i + op_qubit_count]
@@ -610,7 +609,11 @@ class BasicQasmVisitor:
             for gate in unrolled_gate:
                 # self._module.add_qasm_statement(gate)
                 unrolled_gates.append(gate)
-            return unrolled_gates
+            result.extend(unrolled_gates)
+
+        if self._check_only:
+            return []
+        return result
 
     def _visit_custom_gate_operation(
         self, operation: qasm3_ast.QuantumGate, inverse: bool = False
@@ -828,10 +831,8 @@ class BasicQasmVisitor:
             if self._in_block_scope() and var_name not in self._get_curr_scope():
                 # we can re-declare variables once in block scope even if they are
                 # present in the parent scope
-                # Eg.
-                # int a = 10;
-                # { int a = 20; // valid
-                # }
+                # Eg. int a = 10;
+                #     { int a = 20;} // is valid
                 pass
             else:
                 raise_qasm3_error(f"Re-declaration of variable {var_name}", span=statement.span)
@@ -899,11 +900,9 @@ class BasicQasmVisitor:
                 variable.value = Qasm3Validator.validate_variable_assignment_value(
                     variable, init_value
                 )
-
         self._add_var_in_scope(variable)
 
         if isinstance(base_type, qasm3_ast.BitType):
-
             # handle classical register declaration
             self._global_creg_size_map[var_name] = base_size
             current_classical_size = len(self._clbit_labels)
@@ -911,6 +910,12 @@ class BasicQasmVisitor:
                 self._clbit_labels[f"{var_name}_{i}"] = current_classical_size + i
             self._label_scope_level[self._curr_scope].add(var_name)
 
+            if hasattr(statement.type, "size"):
+                statement.type.size = (
+                    qasm3_ast.IntegerLiteral(1)
+                    if statement.type.size is None
+                    else qasm3_ast.IntegerLiteral(base_size)
+                )
             return [statement]
 
         return []
@@ -1037,6 +1042,10 @@ class BasicQasmVisitor:
 
         result = []
         condition = statement.condition
+
+        if not statement.if_block:
+            raise_qasm3_error("Missing if block", span=statement.span)
+
         if Qasm3ExprEvaluator.classical_register_in_expr(condition):
             # leave this condition as is, and start unrolling the block
 
@@ -1050,34 +1059,41 @@ class BasicQasmVisitor:
                     f"Missing register declaration for {reg_name} in {condition}",
                     span=statement.span,
                 )
-            Qasm3Validator.validate_register_index(
-                reg_id, self._global_creg_size_map[reg_name], qubit=False
+            if reg_id is not None:
+                Qasm3Validator.validate_register_index(
+                    reg_id, self._global_creg_size_map[reg_name], qubit=False
+                )
+
+            new_lhs = (
+                qasm3_ast.IndexExpression(
+                    collection=qasm3_ast.Identifier(name=reg_name),
+                    index=[qasm3_ast.IntegerLiteral(reg_id)],
+                )
+                if reg_id is not None
+                else qasm3_ast.Identifier(name=reg_name)
+            )
+
+            new_rhs = (
+                qasm3_ast.BooleanLiteral(rhs_value)
+                if isinstance(rhs_value, bool)
+                else qasm3_ast.IntegerLiteral(rhs_value)
             )
 
             new_if_block = qasm3_ast.BranchingStatement(
                 condition=qasm3_ast.BinaryExpression(
                     op=qasm3_ast.BinaryOperator["=="],
-                    lhs=qasm3_ast.IndexExpression(
-                        collection=qasm3_ast.Identifier(name=reg_name),
-                        index=[qasm3_ast.IntegerLiteral(reg_id)],
-                    ),
-                    rhs=qasm3_ast.BooleanLiteral(rhs_value),
+                    lhs=new_lhs,
+                    rhs=new_rhs,
                 ),
                 if_block=self.visit_basic_block(statement.if_block),
                 else_block=self.visit_basic_block(statement.else_block),
             )
-            result.extend(new_if_block)
+            result.append(new_if_block)
 
         else:
             # here we can unroll the block depending on the condition
             positive_branching = Qasm3ExprEvaluator.evaluate_expression(condition) != 0
-
-            if_block = statement.if_block
-            if not statement.if_block:
-                raise_qasm3_error("Missing if block", span=statement.span)
-            else_block = statement.else_block
-
-            block_to_visit = if_block if positive_branching else else_block
+            block_to_visit = statement.if_block if positive_branching else statement.else_block
 
             result.extend(self.visit_basic_block(block_to_visit))
 

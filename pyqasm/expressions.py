@@ -287,8 +287,9 @@ class Qasm3ExprEvaluator:
             # function will not return a reqd / const type
             # Reference : https://openqasm.com/language/types.html#compile-time-constants
             # para      : 5
-            return _check_and_return_value(cls.visitor_obj._visit_function_call(expression))  # type: ignore[union-attr]
-
+            return _check_and_return_value(
+                cls.visitor_obj._visit_function_call(expression)  # type: ignore[union-attr]
+            )
         raise_qasm3_error(
             f"Unsupported expression type {type(expression)}", ValidationError, expression.span
         )
@@ -310,9 +311,9 @@ class Qasm3ExprEvaluator:
             var_name, _ = Qasm3Analyzer.analyze_index_expression(expr)
             return var_name in cls.visitor_obj._global_creg_size_map
         if isinstance(expr, BinaryExpression):
-            return Qasm3Analyzer.classical_register_in_expr(
-                expr.lhs
-            ) or Qasm3Analyzer.classical_register_in_expr(expr.rhs)
+            return cls.classical_register_in_expr(expr.lhs) or cls.classical_register_in_expr(
+                expr.rhs
+            )
         if isinstance(expr, UnaryExpression):
-            return Qasm3Analyzer.classical_register_in_expr(expr.expression)
+            return cls.classical_register_in_expr(expr.expression)
         return False

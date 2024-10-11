@@ -17,6 +17,7 @@ from typing import Any, Union
 import numpy as np
 from openqasm3.ast import (
     BinaryExpression,
+    BinaryOperator,
     BooleanLiteral,
     DiscreteSet,
     FloatLiteral,
@@ -24,12 +25,16 @@ from openqasm3.ast import (
     IndexedIdentifier,
     IndexExpression,
     IntegerLiteral,
+)
+from openqasm3.ast import IntType as Qasm3IntType
+from openqasm3.ast import (
     QuantumBarrier,
     QuantumGate,
     QuantumReset,
     RangeDefinition,
     UintType,
     UnaryExpression,
+    UnaryOperator,
 )
 
 from .elements import Variable
@@ -218,14 +223,45 @@ class Qasm3Transformer:
             condition (Any): The condition to analyze
 
         Returns:
-            tuple[int, str, Any]: register_idx, register_name, value of RHS
+            tuple[Optional[int], str, Any]: register_idx, register_name, value of RHS
         """
+        if isinstance(condition, Identifier):
+            raise_qasm3_error(
+                message="Only simple comparison supported in branching condition with "
+                "classical register",
+                span=condition.span,
+            )
         if isinstance(condition, UnaryExpression):
-            return (condition.expression.index[0].value, condition.expression.collection.name, None)
+            print(condition)
+            if condition.op != UnaryOperator["!"]:
+                raise_qasm3_error(
+                    message="Only '!' supported in branching condition with classical register",
+                    span=condition.span,
+                )
+            return (
+                condition.expression.index[0].value,
+                condition.expression.collection.name,
+                False,
+            )
         if isinstance(condition, BinaryExpression):
+            if condition.op != BinaryOperator["=="]:
+                raise_qasm3_error(
+                    message="Only '==' supported in branching condition with classical register",
+                    span=condition.span,
+                )
+
+            if isinstance(condition.lhs, Identifier):
+                # full register eg. if(c == 5)
+                return (
+                    None,
+                    condition.lhs.name,
+                    # do not evaluate to bool
+                    Qasm3ExprEvaluator.evaluate_expression(condition.rhs, reqd_type=Qasm3IntType),
+                )
             return (
                 condition.lhs.index[0].value,
                 condition.lhs.collection.name,
+                # evaluate to bool
                 Qasm3ExprEvaluator.evaluate_expression(condition.rhs) != 0,
             )
         if isinstance(condition, IndexExpression):
@@ -240,9 +276,9 @@ class Qasm3Transformer:
                         message="RangeDefinition not supported in branching condition",
                         span=condition.span,
                     )
-                return (condition.index[0].value, condition.collection.name, None)
+                return (condition.index[0].value, condition.collection.name, True)  # eg. if(c[0])
         # default case
-        return -1, ""
+        return None, "", None
 
     @classmethod
     def transform_function_qubits(

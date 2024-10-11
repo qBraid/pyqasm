@@ -113,7 +113,9 @@ def test_qubit_redeclaration_error():
 
 def test_clbit_redeclaration_error():
     """Test redeclaration of clbit"""
-    with pytest.raises(ValidationError, match="Invalid declaration of register with name 'c1'"):
+    with pytest.raises(
+        ValidationError, match="Semantic validation failed: Re-declaration of variable c1"
+    ):
         qasm3_string = """
         OPENQASM 3;
         include "stdgates.inc";

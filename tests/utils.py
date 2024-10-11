@@ -24,8 +24,9 @@ def check_unrolled_qasm(unrolled_qasm, expected_qasm):
         AssertionError: If the unrolled qasm does not match the expected qasm.
     """
     # check line by line
-    unrolled_qasm = unrolled_qasm.split("\n")
-    expected_qasm = expected_qasm.split("\n")
+    unrolled_qasm = [line for line in unrolled_qasm.split("\n") if line.strip()]
+    expected_qasm = [line for line in expected_qasm.split("\n") if line.strip()]
+
     assert len(unrolled_qasm) == len(expected_qasm)
 
     for unrolled_line, expected_line in zip(unrolled_qasm, expected_qasm):

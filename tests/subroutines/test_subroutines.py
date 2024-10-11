@@ -112,6 +112,10 @@ def test_function_call_in_expression():
         return true;
     }
     qubit q;
+    // do I only care about the return value? 
+    // or we also need to add the gate to the unrolled_ast? 
+
+    // how to do this?
     bool b = my_function(q);
     """
 
@@ -119,6 +123,7 @@ def test_function_call_in_expression():
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
+    print(result.unrolled_qasm)
     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
 
 
