@@ -19,14 +19,16 @@
 | ClassicalAssignment            | ✅          | Completed              |
 | AliasStatement                 | ✅          | Completed              |
 | SwitchStatement                | ✅          | Completed              |
-| BranchingStatement             | 🔜          | In progress            |
-| SubroutineDefinition           | 🔜          | In progress            |
-| Looping statements(eg. for)    | 🔜          | In progress            |
-| RangeDefinition                | 🔜          | In progress            |
+| BranchingStatement             | ✅          | Completed              |
+| SubroutineDefinition           | ✅          | Completed              |
+| Looping statements(eg. for)    | ✅          | Completed              |
+| RangeDefinition                | ✅          | Completed              |
+| QuantumGate                    | ✅          | Complete               |
+| QuantumGateModifier (ctrl)     | 📋          | Planned                |
 | IODeclaration                  | 📋          | Planned                |
-| Pragma                         | ❓          | Unsure                 |
-| Annotations                    | ❓          | Unsure                 |
-| Pulse-level ops (e.g. delay)   | ❌          | Not supported by QIR   |
-| Calibration ops                | ❌          | Not supported by QIR   |
-| Duration literals              | ❌          | Not supported by QIR   |
-| ComplexType                    | ❌          | Not supported by QIR   |
+| Pragma                         | 📋          | Planned                |
+| Annotations                    | 📋          | Planned                |
+| Pulse-level ops (e.g. delay)   | 📋          | Planned                |
+| Calibration ops                | 📋          | Planned                |
+| Duration literals              | 📋          | Planned                |
+| ComplexType                    | 📋          | Planned                |
