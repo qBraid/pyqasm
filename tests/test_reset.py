@@ -20,7 +20,7 @@ from pyqasm.validate import validate
 from tests.utils import check_unrolled_qasm
 
 
-# 4. Test reset operations in different ways
+# Test reset operations in different ways
 def test_reset_operations():
     """Test reset operations in different ways"""
     qasm3_string = """

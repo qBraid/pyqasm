@@ -1,0 +1,25 @@
+name: Feature request 💡
+description: Suggest an idea for this project
+title: "[FEATURE] "
+labels: [enhancement]
+
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you for taking the time to suggest a feature. Please fill out the details below to help us understand your idea better."
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+      description: "Describe the feature you'd like and the problem it solves. Include any specific use cases that illustrate its benefits."
+      placeholder: "Please describe the feature in detail."
+    validations:
+      required: true
+  
+  - type: textarea
+    attributes:
+      label: Implementation (Optional)
+      description: "Do you have an idea for how this could be implemented? Please include those details here."
+    validations:
+      required: false

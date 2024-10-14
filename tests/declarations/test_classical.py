@@ -20,8 +20,6 @@ from pyqasm.validate import validate
 from tests.resources.variables import ASSIGNMENT_TESTS, DECLARATION_TESTS
 from tests.utils import check_single_qubit_rotation_op
 
-# from qbraid_qir.qasm3.convert import qasm3_to_qir
-
 
 # 1. Test scalar declarations in different ways
 def test_scalar_declarations():

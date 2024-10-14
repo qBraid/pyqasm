@@ -20,7 +20,7 @@ from pyqasm.validate import validate
 from tests.utils import check_unrolled_qasm
 
 
-# 6. Test measurement operations in different ways
+# Test measurement operations in different ways
 def test_measure():
     qasm3_string = """
     OPENQASM 3;
