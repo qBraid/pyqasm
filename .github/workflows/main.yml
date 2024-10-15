@@ -59,7 +59,7 @@ jobs:
       - name: Install package wheel with extras
         run: |
           pip install setuptools
-          tools/install_wheel_extras.sh dist 
+          bin/install_wheel_extras.sh dist 
       - name: Run tests with coverage
         run: |
           pip install pytest pytest-cov
