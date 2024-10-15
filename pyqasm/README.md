@@ -1,15 +1,17 @@
-# OpenQASM 3 to QIR
+# pyqasm
 
-## Supported conversions status table
+Source code for OpenQASM 3 program validator and semantic analyzer
 
-| openqasm3.ast Object Type      | Supported   | Comment                |
+## Supported Operations
+
+| `openqasm3.ast` Object Type    | Supported   | Comment                |
 | -------------------------------| ----------- | ---------------------- |
-| QuantumMeasurementStatement    | ✅          | Complete               |
-| QuantumReset                   | ✅          | Complete               |
-| QuantumBarrier                 | ✅          | Complete               |
-| QuantumGateDefinition          | ✅          | Complete               |
-| QuantumGate                    | ✅          | Complete               |
-| QuantumGateModifier            | ✅          | Complete (pow, inv)    |
+| QuantumMeasurementStatement    | ✅          | Completed              |
+| QuantumReset                   | ✅          | Completed              |
+| QuantumBarrier                 | ✅          | Completed              |
+| QuantumGateDefinition          | ✅          | Completed              |
+| QuantumGate                    | ✅          | Completed              |
+| QuantumGateModifier            | ✅          | Completed (pow, inv)   |
 | QubitDeclaration               | ✅          | Completed              |
 | Clbit Declarations             | ✅          | Completed              |
 | BinaryExpression               | ✅          | Completed              | 
@@ -23,7 +25,7 @@
 | SubroutineDefinition           | ✅          | Completed              |
 | Looping statements(eg. for)    | ✅          | Completed              |
 | RangeDefinition                | ✅          | Completed              |
-| QuantumGate                    | ✅          | Complete               |
+| QuantumGate                    | ✅          | Completed              |
 | QuantumGateModifier (ctrl)     | 📋          | Planned                |
 | IODeclaration                  | 📋          | Planned                |
 | Pragma                         | 📋          | Planned                |

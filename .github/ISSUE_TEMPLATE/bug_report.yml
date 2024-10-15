@@ -12,7 +12,7 @@ body:
     attributes:
       label: Environment
       value: |
-        - **pyqasm version**:
+        - **PyQASM version**:
         - **Python version**:
         - **Operating system**:
     validations:

@@ -8,8 +8,6 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-# pylint: disable=import-outside-toplevel,cyclic-import
-
 """
 Module with analysis functions for QASM3 visitor
 

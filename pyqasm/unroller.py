@@ -31,8 +31,8 @@ def unroll(
         program (openqasm3.ast.Program or str): The OpenQASM 3 program to convert.
 
     Returns:
-        Qasm3Module: An object containing unrolled qasm representation along with some useful
-                      metadata and methods
+        Qasm3Module: An object containing unrolled qasm representation along with
+            some useful metadata and methods
 
     Raises:
         TypeError: If the input is not a valid OpenQASM 3 program.
