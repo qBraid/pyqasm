@@ -14,7 +14,7 @@ Module for performing semantic analysis of OpenQASM 3 programs.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 import openqasm3
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     import openqasm3.ast
 
 
-def validate(program: Union[openqasm3.ast.Program, str]) -> None:
+def validate(program: openqasm3.ast.Program | str) -> None:
     """Validates a given OpenQASM 3 program for semantic correctness.
 
     Args:

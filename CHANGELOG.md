@@ -17,6 +17,7 @@ Types of changes:
 ### Added
 
 ### Improved / Modified
+- Housekeeping updates involving codeowners, workflows, pyproject, and readme ([#16](https://github.com/qBraid/pyqasm/pull/16))
 
 ### Deprecated
 
