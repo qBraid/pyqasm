@@ -325,7 +325,7 @@ class BasicQasmVisitor:
         openqasm_bits = []
         visited_bits = set()
         bit_list = []
-        replace_alias = False
+        original_size_map = reg_size_map
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
             assert operation.target is not None
@@ -336,6 +336,9 @@ class BasicQasmVisitor:
             )
 
         for bit in bit_list:
+            # required for each bit
+            replace_alias = False
+            reg_size_map = original_size_map
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
                 reg_name = bit.name.name
             else:
