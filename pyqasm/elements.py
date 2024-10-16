@@ -18,14 +18,7 @@ from enum import Enum
 from typing import Any, Optional, Union
 
 import numpy as np
-from openqasm3.ast import (
-    BitType,
-    ClassicalDeclaration,
-    Include,
-    Program,
-    QubitDeclaration,
-    Statement,
-)
+from openqasm3.ast import Include, Program, Statement
 from openqasm3.printer import dumps
 
 
@@ -99,18 +92,16 @@ class Qasm3Module:
     def __init__(
         self,
         name: str,
-        num_qubits: int,
-        num_clbits: int,
         program: Program,
         statements,
     ):
         self._name = name
-        self._num_qubits = num_qubits
-        self._num_clbits = num_clbits
+        self._original_program = program
         self._statements = statements
+        self._num_qubits = 0
+        self._num_clbits = 0
         self._unrolled_qasm = ""
         self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3")
-        self._original_program = program
 
     @property
     def name(self) -> str:
@@ -122,10 +113,32 @@ class Qasm3Module:
         """Returns the number of qubits in the circuit."""
         return self._num_qubits
 
+    def add_qubits(self, num_qubits: int):
+        """Add qubits to the module
+
+        Args:
+            num_qubits (int): The number of qubits to add to the module
+
+        Returns:
+            None
+        """
+        self._num_qubits += num_qubits
+
     @property
     def num_clbits(self) -> int:
         """Returns the number of classical bits in the circuit."""
         return self._num_clbits
+
+    def add_classical_bits(self, num_clbits: int):
+        """Add classical bits to the module
+
+        Args:
+            num_clbits (int): The number of classical bits to add to the module
+
+        Returns:
+            None
+        """
+        self._num_clbits += num_clbits
 
     @property
     def original_program(self) -> Program:
@@ -176,27 +189,11 @@ class Qasm3Module:
         """
         statements: list[Statement] = []
 
-        num_qubits = 0
-        num_clbits = 0
         for statement in program.statements:
-            if isinstance(statement, QubitDeclaration):
-                size = 1
-                if statement.size:
-                    size = statement.size.value  # type: ignore[attr-defined]
-                num_qubits += size
-            elif isinstance(statement, ClassicalDeclaration) and isinstance(
-                statement.type, BitType
-            ):
-                size = 1
-                if statement.type.size:
-                    size = statement.type.size.value  # type: ignore[attr-defined]
-                num_clbits += size
             statements.append(statement)
 
         return cls(
             name="main",
-            num_qubits=num_qubits,
-            num_clbits=num_clbits,
             program=program,
             statements=statements,
         )
@@ -207,5 +204,6 @@ class Qasm3Module:
         Args:
             visitor (BasicQasmVisitor): The visitor to accept
         """
-        self.unrolled_ast.statements.extend(visitor.visit_basic_block(self._statements))
+        unrolled_stmt_list = visitor.visit_basic_block(self._statements)
+        self.unrolled_ast.statements.extend(unrolled_stmt_list)
         # TODO: some finalizing method here probably
