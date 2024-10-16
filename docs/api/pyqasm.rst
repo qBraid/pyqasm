@@ -1,0 +1,4 @@
+pyqasm
+===========
+
+.. automodule:: pyqasm
