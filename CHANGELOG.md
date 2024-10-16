@@ -18,6 +18,7 @@ Types of changes:
 
 ### Improved / Modified
 - Housekeeping updates involving codeowners, workflows, pyproject, and readme ([#16](https://github.com/qBraid/pyqasm/pull/16))
+- Updated sphinx docs page ([#26](https://github.com/qBraid/pyqasm/pull/26))
 
 ### Deprecated
 
