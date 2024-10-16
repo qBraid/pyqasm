@@ -3,10 +3,12 @@ name: Docs
 on:
   pull_request:
     branches: ['main']
+    types: [opened, reopened, ready_for_review, synchronize]
   workflow_dispatch:
 
 jobs:
   build:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
     steps:
