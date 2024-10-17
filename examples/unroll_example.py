@@ -1,4 +1,4 @@
-from pyqasm import unroll
+import pyqasm
 
 example_qasm_program = """
 // A program containing the Deutsch-Josza algorithm in OpenQASM 3
@@ -50,7 +50,9 @@ deutsch_jozsa(q, ancilla);
 
 // Measure the results 
 bit[4] result;
-measure q -> result;
+result = measure q;
 """
 
-print(unroll(example_qasm_program).unrolled_qasm)
+qasm_module = pyqasm.unroll(example_qasm_program)
+unrolled_qasm = qasm_module.unrolled_qasm
+print(unrolled_qasm)
