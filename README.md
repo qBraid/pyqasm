@@ -32,7 +32,7 @@ pip install pyqasm
 You can also install from source by cloning this repository and running a pip install command
 in the root directory of the repository:
 
-```shell
+```bash
 git clone https://github.com/qBraid/pyqasm.git
 cd pyqasm
 pip install .
@@ -52,7 +52,7 @@ print(pyqasm.__version__)
 ### Unrolling OpenQASM 3 program 
 
 ```python
-from pyqasm.unroller import unroll
+import pyqasm 
 
 program = """
 OPENQASM 3;
@@ -64,10 +64,10 @@ bit[2] c;
 h q[0];
 cx q[0], q[1];
 
-measure q->c;
+c = measure q;
 """
 
-unrolled_qasm = unroll(program).unrolled_qasm
+unrolled_qasm = pyqasm.unroll(program)
 print(unrolled_qasm)
 ```
 
@@ -76,7 +76,7 @@ For a more complex example, see the [Deutsch Josza program unrolling](examples/u
 ### Validating OpenQASM 3 program 
 
 ```python
-from pyqasm.validate import validate
+import pyqasm
 
 program = """
 OPENQASM 3;
@@ -91,7 +91,7 @@ cx q[0], q[1];
 measure q -> c;
 """
 
-assert validate(program) is None
+pyqasm.validate(program)
 ```
 `validate` returns None if the program is semantically valid, otherwise raises an Exception. See the [validation example](examples/validate_example.py) for more insight into the capabilities of our analyser.
 

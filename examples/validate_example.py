@@ -1,4 +1,4 @@
-from pyqasm.validate import validate
+import pyqasm
 
 qasm_program = """
 OPENQASM 3;
@@ -64,7 +64,7 @@ for int i in [0:N-1] {
 }
 
 // Measure the qubits
-measure q -> c;
+c = measure q;
 """
 
-assert validate(qasm_program) is None
+pyqasm.validate(qasm_program)
