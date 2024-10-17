@@ -258,10 +258,13 @@ class BasicQasmVisitor:
 
         current_size = len(self._qubit_labels)
         register_size = (
-            1 if register.size is None else register.size.value  # type: ignore[attr-defined]
+            1
+            if register.size is None
+            else Qasm3ExprEvaluator.evaluate_expression(register.size, const_expr=True)[
+                0
+            ]  # type: ignore[attr-defined]
         )
-        if register.size is None:
-            register.size = qasm3_ast.IntegerLiteral(register_size)
+        register.size = qasm3_ast.IntegerLiteral(register_size)
         register_name = register.qubit.name  # type: ignore[union-attr]
 
         size_map = self._global_qreg_size_map
@@ -289,6 +292,8 @@ class BasicQasmVisitor:
             label_map[f"{register_name}_{i}"] = current_size + i
 
         self._label_scope_level[self._curr_scope].add(register_name)
+
+        self._module.add_qubits(register_size)
         logger.debug("Added labels for register '%s'", str(register))
 
         return [register]
@@ -867,7 +872,7 @@ class BasicQasmVisitor:
             base_type = base_type.base_type
             num_elements = 1
             for dim in dimensions:
-                dim_value = Qasm3ExprEvaluator.evaluate_expression(dim)[0]
+                dim_value = Qasm3ExprEvaluator.evaluate_expression(dim, const_expr=True)[0]
                 if not isinstance(dim_value, int) or dim_value <= 0:
                     raise_qasm3_error(
                         f"Invalid dimension size {dim_value} in array declaration for {var_name}",
@@ -893,7 +898,7 @@ class BasicQasmVisitor:
             base_size = (
                 32
                 if not hasattr(base_type, "size") or base_type.size is None
-                else Qasm3ExprEvaluator.evaluate_expression(base_type.size)[0]
+                else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
             )
 
         if not isinstance(base_size, int) or base_size <= 0:
@@ -933,6 +938,7 @@ class BasicQasmVisitor:
                     else qasm3_ast.IntegerLiteral(base_size)
                 )
             statements.append(statement)
+            self._module.add_classical_bits(base_size)
 
         return statements
 
@@ -1293,6 +1299,7 @@ class BasicQasmVisitor:
                 break
             result.extend(self.visit_statement(copy.deepcopy(function_op)))
 
+        return_value = None
         if return_statement:
             return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
                 return_statement.expression

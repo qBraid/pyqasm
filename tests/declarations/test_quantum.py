@@ -31,6 +31,9 @@ def test_qubit_declarations():
     qubit[2] q2;
     qreg q3[3];
     qubit[1] q4;
+
+    const int[32] N = 10;
+    qubit[N] q5;
     """
 
     expected_qasm = """OPENQASM 3;
@@ -39,6 +42,7 @@ def test_qubit_declarations():
     qubit[2] q2;
     qubit[3] q3;
     qubit[1] q4;
+    qubit[10] q5;
     """
 
     unrolled_qasm = unroll(qasm3_string).unrolled_qasm
@@ -55,6 +59,9 @@ def test_clbit_declarations():
     bit[2] c2;
     creg c3[3];
     bit[1] c4;
+
+    const int[32] size = 10;
+    bit[size] c5;
     """
 
     expected_qasm = """OPENQASM 3;
@@ -63,6 +70,7 @@ def test_clbit_declarations():
     bit[2] c2;
     bit[3] c3;
     bit[1] c4;
+    bit[10] c5;
     """
 
     unrolled_qasm = unroll(qasm3_string).unrolled_qasm
@@ -119,13 +127,36 @@ def test_qubit_redeclaration_error():
 
 def test_clbit_redeclaration_error():
     """Test redeclaration of clbit"""
-    with pytest.raises(
-        ValidationError, match="Semantic validation failed: Re-declaration of variable c1"
-    ):
+    with pytest.raises(ValidationError, match=r"Re-declaration of variable c1"):
         qasm3_string = """
         OPENQASM 3;
         include "stdgates.inc";
         bit c1;
         bit[4] c1;
+        """
+        validate(qasm3_string)
+
+
+def test_non_constant_size():
+    """Test non-constant size in qubit and clbit declarations"""
+    with pytest.raises(
+        ValidationError, match=r"Variable 'N' is not a constant in given expression"
+    ):
+        qasm3_string = """
+        OPENQASM 3;
+        include "stdgates.inc";
+        int[32] N = 10;
+        qubit[N] q;
+        """
+        validate(qasm3_string)
+
+    with pytest.raises(
+        ValidationError, match=r"Variable 'size' is not a constant in given expression"
+    ):
+        qasm3_string = """
+        OPENQASM 3;
+        include "stdgates.inc";
+        int[32] size = 10;
+        bit[size] c;
         """
         validate(qasm3_string)
