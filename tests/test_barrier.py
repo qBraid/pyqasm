@@ -22,7 +22,7 @@ from tests.utils import check_unrolled_qasm
 
 # 1. Test barrier operations in different ways
 def test_barrier():
-    qasm3_string = """
+    qasm_str = """
     OPENQASM 3;
     include "stdgates.inc";
 
@@ -61,7 +61,7 @@ def test_barrier():
     barrier q2[1];
     barrier q3[0];
     """
-    unrolled_qasm = unroll(qasm3_string).unrolled_qasm
+    unrolled_qasm = unroll(qasm_str)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -86,7 +86,7 @@ def test_barrier_in_function():
     barrier q[2];
     barrier q[3];
     """
-    unrolled_qasm = unroll(qasm_str).unrolled_qasm
+    unrolled_qasm = unroll(qasm_str)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 

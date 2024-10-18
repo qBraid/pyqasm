@@ -55,7 +55,7 @@ def test_alias():
     swap myqreg5[0], myqreg5[1];
     cz myqreg6;
     """
-    result = unroll(qasm3_alias_program)
+    result = unroll(qasm3_alias_program, as_module=True)
     assert result.num_qubits == 5
     assert result.num_clbits == 0
     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "x")
@@ -80,36 +80,36 @@ def test_alias_update():
 
     x alias[1];
     """
-    result = unroll(qasm3_alias_program)
+    result = unroll(qasm3_alias_program, as_module=True)
     assert result.num_qubits == 4
     assert result.num_clbits == 0
     check_single_qubit_gate_op(result.unrolled_ast, 1, [3], "x")
 
 
-# def test_valid_alias_redefinition():
-#     """Test converting OpenQASM 3 program with redefined alias in scope."""
+def test_valid_alias_redefinition():
+    """Test converting OpenQASM 3 program with redefined alias in scope."""
 
-#     qasm3_alias_program = """
-#     OPENQASM 3.0;
-#     include "stdgates.inc";
+    qasm3_alias_program = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
 
-#     qubit[5] q;
-#     bit[5] c;
-#     h q;
-#     measure q -> c;
+    qubit[5] q;
+    bit[5] c;
+    h q;
+    measure q -> c;
 
-#     if (c[0] == 1) {
-#         float[32] alias = 4.3;
-#     }
-#     // valid alias
-#     let alias = q[2];
-#     x alias;
-#     """
-#     result = unroll(qasm3_alias_program)
-#     assert result.num_qubits == 5
-#     assert result.num_clbits == 5
+    if (c[0] == 1) {
+        float[32] alias = 4.3;
+    }
+    // valid alias
+    let alias = q[2];
+    x alias;
+    """
+    result = unroll(qasm3_alias_program, as_module=True)
+    assert result.num_qubits == 5
+    assert result.num_clbits == 5
 
-#     check_single_qubit_gate_op(result.unrolled_ast, 1, [2], "x")
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [2], "x")
 
 
 def test_alias_wrong_indexing():

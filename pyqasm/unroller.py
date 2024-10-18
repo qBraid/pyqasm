@@ -23,6 +23,7 @@ from .visitor import BasicQasmVisitor
 
 def unroll(
     program: Union[openqasm3.ast.Program, str],
+    as_module: bool = False,
     **kwargs,
 ) -> Qasm3Module:
     """Converts an OpenQASM 3 program to an unrolled qasm program
@@ -52,4 +53,7 @@ def unroll(
     visitor = BasicQasmVisitor(module=module, **kwargs)
     module.accept(visitor)
 
-    return module
+    if as_module:
+        return module
+
+    return module.unrolled_qasm

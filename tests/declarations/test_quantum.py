@@ -45,7 +45,7 @@ def test_qubit_declarations():
     qubit[10] q5;
     """
 
-    unrolled_qasm = unroll(qasm3_string).unrolled_qasm
+    unrolled_qasm = unroll(qasm3_string)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -73,7 +73,7 @@ def test_clbit_declarations():
     bit[10] c5;
     """
 
-    unrolled_qasm = unroll(qasm3_string).unrolled_qasm
+    unrolled_qasm = unroll(qasm3_string)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -109,7 +109,7 @@ def test_qubit_clbit_declarations():
     bit[1] c4;
     """
 
-    unrolled_qasm = unroll(qasm3_string).unrolled_qasm
+    unrolled_qasm = unroll(qasm3_string)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 

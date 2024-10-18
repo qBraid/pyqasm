@@ -51,7 +51,7 @@ def test_reset_operations():
     reset q3[1];
     """
 
-    unrolled_qasm = unroll(qasm3_string).unrolled_qasm
+    unrolled_qasm = unroll(qasm3_string)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -74,7 +74,7 @@ def test_reset_inside_function():
     reset q[1];
     """
 
-    unrolled_qasm = unroll(qasm_str).unrolled_qasm
+    unrolled_qasm = unroll(qasm_str)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 

@@ -63,7 +63,7 @@ def test_simple_if():
     }
     """
 
-    result = unroll(qasm)
+    result = unroll(qasm, as_module=True)
     assert result.num_clbits == 4
     assert result.num_qubits == 4
 
@@ -129,7 +129,7 @@ def test_complex_if():
     h q[0];
     h q[1];
     """
-    result = unroll(qasm)
+    result = unroll(qasm, as_module=True)
     assert result.num_clbits == 8
     assert result.num_qubits == 4
     print(result.unrolled_qasm)

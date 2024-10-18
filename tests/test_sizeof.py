@@ -43,7 +43,7 @@ def test_simple_sizeof():
     rx(size3) q[1];
     """
 
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_qubits == 2
 
     check_single_qubit_rotation_op(result.unrolled_ast, 4, [0, 0, 1, 1], [3, 3, 2, 3], "rx")
@@ -71,7 +71,7 @@ def test_sizeof_multiple_types():
     rx(size3) q[1];
     """
 
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_qubits == 2
     check_single_qubit_rotation_op(result.unrolled_ast, 3, [0, 1, 1], [3, 2, 3], "rx")
 

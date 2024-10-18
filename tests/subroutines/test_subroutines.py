@@ -34,7 +34,7 @@ def test_function_declaration():
     my_function(q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -57,7 +57,7 @@ def test_simple_function_call():
     my_function(q, r);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -78,7 +78,7 @@ def test_const_visible_in_function_call():
     my_function(q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -100,7 +100,7 @@ def test_update_variable_in_function():
     my_function(q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -122,7 +122,7 @@ def test_function_call_in_expression():
     bool b = my_function(q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 4
 
@@ -153,7 +153,7 @@ def test_classical_quantum_function():
     if(new_var>2)
         h q[0];
     """
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 4
 
@@ -177,7 +177,7 @@ def test_multiple_function_calls():
     my_function(0, q[0]);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 3
 
@@ -198,7 +198,7 @@ def test_function_call_with_return():
     float[32] r = my_function(q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -227,7 +227,7 @@ def test_return_values_from_function():
 
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 2
 
@@ -255,7 +255,7 @@ def test_function_call_with_custom_gate():
     my_function(q, r);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -281,7 +281,7 @@ def test_function_call_from_within_fn():
     my_function_2(q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 2
 
