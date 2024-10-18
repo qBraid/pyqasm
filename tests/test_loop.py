@@ -57,6 +57,7 @@ def test_convert_qasm3_for_loop():
         }
         measure q->c;
         """,
+        as_module=True,
     )
     assert result.num_qubits == 4
     assert result.num_clbits == 4
@@ -86,6 +87,7 @@ def test_convert_qasm3_for_loop_shadow():
         h q[i];
         measure q->c;
         """,
+        as_module=True,
     )
     assert result.num_clbits == 4
     assert result.num_qubits == 4
@@ -113,6 +115,7 @@ def test_convert_qasm3_for_loop_enclosing():
         }
         measure q->c;
         """,
+        as_module=True,
     )
 
     assert result.num_clbits == 4
@@ -143,6 +146,7 @@ def test_convert_qasm3_for_loop_enclosing_modifying():
         h q[j];
         measure q->c;
         """,
+        as_module=True,
     )
     print(result.unrolled_qasm)
 
@@ -169,6 +173,7 @@ def test_convert_qasm3_for_loop_discrete_set():
         }
         measure q->c;
         """,
+        as_module=True,
     )
     assert result.num_clbits == 4
     assert result.num_qubits == 4
@@ -196,7 +201,7 @@ def test_function_executed_in_loop():
     }
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_qubits == 5
     assert result.num_clbits == 0
 
@@ -220,7 +225,7 @@ def test_loop_inside_function():
     my_function(q1);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
 
     assert result.num_qubits == 3
     assert result.num_clbits == 0
@@ -251,7 +256,7 @@ def test_function_in_nested_loop():
     my_function(q[0], 2*b);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_qubits == 5
     assert result.num_clbits == 0
 
@@ -282,7 +287,7 @@ def test_loop_in_nested_function_call():
     qubit q;
     my_function_2(q, 3);
     """
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
 
     assert result.num_clbits == 0
     assert result.num_qubits == 1

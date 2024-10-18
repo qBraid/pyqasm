@@ -53,4 +53,4 @@ bit[4] result;
 measure q -> result;
 """
 
-print(unroll(example_qasm_program).unrolled_qasm)
+print(unroll(example_qasm_program))

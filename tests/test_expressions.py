@@ -38,7 +38,7 @@ def test_correct_expressions():
     c[1] = c[0] + 2;
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_qubits == 1
     assert result.num_clbits == 0
     rx_expression_values = [1.57, -1.57, 0]

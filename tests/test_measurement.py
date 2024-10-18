@@ -58,7 +58,7 @@ def test_measure():
     c1[0] = measure q2[1]; 
     """
 
-    unrolled_qasm = unroll(qasm3_string).unrolled_qasm
+    unrolled_qasm = unroll(qasm3_string)
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 

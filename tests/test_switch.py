@@ -46,7 +46,7 @@ def test_switch():
     }
     """
 
-    result = unroll(qasm3_switch_program)
+    result = unroll(qasm3_switch_program, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -76,7 +76,7 @@ def test_switch_default():
     }
     """
 
-    result = unroll(qasm3_switch_program)
+    result = unroll(qasm3_switch_program, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "z")
@@ -103,7 +103,7 @@ def test_switch_identifier_case():
     }
     """
 
-    result = unroll(qasm3_switch_program)
+    result = unroll(qasm3_switch_program, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -131,7 +131,7 @@ def test_switch_const_int():
     }
     """
 
-    result = unroll(qasm3_switch_program)
+    result = unroll(qasm3_switch_program, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -222,7 +222,7 @@ def test_nested_switch():
     }
     """
 
-    result = unroll(qasm3_switch_program)
+    result = unroll(qasm3_switch_program, as_module=True)
 
     assert result.num_clbits == 0
     assert result.num_qubits == 1
@@ -254,7 +254,7 @@ def test_subroutine_inside_switch():
     }
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 2
 

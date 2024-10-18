@@ -104,7 +104,7 @@ def test_scalar_value_assignment():
     b = 5.0
     r = 0.23
     f = 0.5
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -136,7 +136,7 @@ def test_scalar_type_casts():
     f = 0
     g = 1
 
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -165,7 +165,7 @@ def test_array_type_casts():
     arr_bool_val = 1
     arr_float32_val = 6.0
 
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -241,7 +241,7 @@ def test_array_assignments():
     c = 4.5
     d = 6.7
     f = True
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
     check_single_qubit_rotation_op(
@@ -284,7 +284,7 @@ def test_array_expressions():
     b = 3
     c = 4.5
     d = 6.7
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
     check_single_qubit_rotation_op(
@@ -313,7 +313,7 @@ def test_array_initializations():
     rx(arr_bool[0][1]) q;
     """
 
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -344,7 +344,7 @@ def test_array_range_assignment():
 
     """
 
-    result = unroll(qasm3_string)
+    result = unroll(qasm3_string, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 

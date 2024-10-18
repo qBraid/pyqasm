@@ -37,7 +37,7 @@ def test_simple_function_call():
 
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -60,7 +60,7 @@ def test_passing_array_to_function():
     my_function(arr, my_q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -87,7 +87,7 @@ def test_passing_subarray_to_function():
 
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -111,7 +111,7 @@ def test_passing_array_with_dim_identifier():
     my_function(arr[0, :, :], my_q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -141,7 +141,7 @@ def test_pass_multiple_arrays_to_function():
     my_function(arr_1, arr_2, my_q);
     """
 
-    result = unroll(qasm_str)
+    result = unroll(qasm_str, as_module=True)
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
