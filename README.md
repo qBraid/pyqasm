@@ -12,6 +12,13 @@
 
 Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation.
 
+
+>[!WARNING]
+> **This project is "pre-alpha", and is not yet stable or fully realized. Use with caution, as the API and functionality are subject to significant changes.**
+
+## Motivation 
+The current [OpenQASM 3 standard](https://openqasm.com/index.html) is a powerful language for expressing hybrid quantum-classical programs, but it lacks a comprehensive tool supporting the full capabilities of the language. Pyqasm aims to fill this gap by building upon the [openqasm parser](https://github.com/openqasm/openqasm/tree/main/source/openqasm), and providing support for semantic analysis and utilities for program compilation.
+
 ## Installation
 
 pyqasm requires Python 3.10 or greater, and can be installed with pip as follows:
@@ -20,5 +27,87 @@ pyqasm requires Python 3.10 or greater, and can be installed with pip as follows
 pip install pyqasm
 ```
 
->[!WARNING]
-> **This project is "pre-alpha", and is not yet stable or fully realized. Use with caution, as the API and functionality are subject to significant changes.**
+## Install from source 
+
+You can also install from source by cloning this repository and running a pip install command
+in the root directory of the repository:
+
+```bash
+git clone https://github.com/qBraid/pyqasm.git
+cd pyqasm
+pip install .
+```
+
+## Check version
+
+You can view the version of pyqasm you have installed within a Python shell as follows:
+
+```python
+import pyqasm
+print(pyqasm.__version__)
+```
+
+## Usage Examples
+
+### Unrolling OpenQASM 3 program 
+
+```python
+import pyqasm 
+
+program = """
+OPENQASM 3;
+include "stdgates.inc";
+
+qubit[2] q;
+bit[2] c;
+
+h q[0];
+cx q[0], q[1];
+
+c = measure q;
+"""
+
+unrolled_qasm = pyqasm.unroll(program)
+print(unrolled_qasm)
+```
+
+For a more complex example, see the [Deutsch Josza program unrolling](examples/unroll_example.py) 
+
+### Validating OpenQASM 3 program 
+
+```python
+import pyqasm
+
+program = """
+OPENQASM 3;
+include "stdgates.inc";
+qubit[2] q;
+bit[2] c;
+// create a Bell state
+h q[0];
+cx q[0], q[1];
+
+// measure the qubits
+measure q -> c;
+"""
+
+pyqasm.validate(program)
+```
+`validate` returns None if the program is semantically valid, otherwise raises an Exception. See the [validation example](examples/validate_example.py) for more insight into the capabilities of our analyser.
+
+
+
+## Contributing 
+
+- Interested in contributing code, or making a PR? See
+  [CONTRIBUTING.md](CONTRIBUTING.md)
+- For feature requests and bug reports:
+  [Submit an issue](https://github.com/qBraid/pyqasm/issues)
+- For discussions, and specific questions about pyqasm, or
+  other topics, [join our discord community](https://discord.gg/TPBU2sa8Et)
+- For questions that are more suited for a forum, post to
+  [QCSE](https://quantumcomputing.stackexchange.com/)
+  with the [`qbraid`](https://quantumcomputing.stackexchange.com/questions/tagged/qbraid) tag.
+- By participating, you are expected to uphold our [code of conduct](CODE_OF_CONDUCT).
+
+
