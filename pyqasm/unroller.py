@@ -25,15 +25,15 @@ def unroll(
     program: Union[openqasm3.ast.Program, str],
     as_module: bool = False,
     **kwargs,
-) -> Qasm3Module:
+) -> Union[Qasm3Module, str]:
     """Converts an OpenQASM 3 program to an unrolled qasm program
 
     Args:
         program (openqasm3.ast.Program or str): The OpenQASM 3 program to convert.
 
     Returns:
-        Qasm3Module: An object containing unrolled qasm representation along with
-            some useful metadata and methods
+        Qasm3Module or str: An object containing unrolled qasm representation along with
+            some useful metadata and methods, or raw OpenQASM string output
 
     Raises:
         TypeError: If the input is not a valid OpenQASM 3 program.
