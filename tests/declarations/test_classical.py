@@ -121,6 +121,7 @@ def test_scalar_type_casts():
     uint[4] b = -4; // -4 % 16 = 12
     bool f = 0;
     bool g = 1;
+    bit h = 1;
 
     qubit q;
     rx(a) q;
@@ -137,7 +138,7 @@ def test_scalar_type_casts():
     g = 1
 
     result = unroll(qasm3_string, as_module=True)
-    assert result.num_clbits == 0
+    assert result.num_clbits == 1
     assert result.num_qubits == 1
 
     check_single_qubit_rotation_op(result.unrolled_ast, 5, [0, 0, 0, 0, 0], [a, r, b, f, g], "rx")

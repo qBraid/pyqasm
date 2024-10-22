@@ -895,8 +895,9 @@ class BasicQasmVisitor:
                 statements.extend(stmts)
         base_size = 1
         if not isinstance(base_type, qasm3_ast.BoolType):
+            initial_size = 1 if isinstance(base_type, qasm3_ast.BitType) else 32
             base_size = (
-                32
+                initial_size
                 if not hasattr(base_type, "size") or base_type.size is None
                 else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
             )
