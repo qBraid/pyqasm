@@ -14,9 +14,8 @@ Module containing unit tests for QASM3 to QIR conversion functions.
 """
 import pytest
 
+from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from pyqasm.unroller import unroll
-from pyqasm.validate import validate
 from tests.resources.variables import ASSIGNMENT_TESTS, DECLARATION_TESTS
 from tests.utils import check_single_qubit_rotation_op
 

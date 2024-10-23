@@ -8,7 +8,7 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-# pylint: disable=too-many-instance-attributes,too-many-lines,too-many-branches
+# pylint: disable=too-many-lines
 
 """
 Module defining Qasm3 Visitor.
@@ -41,6 +41,7 @@ from .validator import Qasm3Validator
 logger = logging.getLogger(__name__)
 
 
+# pylint: disable-next=too-many-instance-attributes
 class BasicQasmVisitor:
     """A visitor for basic OpenQASM program elements.
 
@@ -316,7 +317,7 @@ class BasicQasmVisitor:
             f"Variable {name} not in scope for operation {operation}", span=operation.span
         )
 
-    # pylint: disable=too-many-locals
+    # pylint: disable-next=too-many-locals,too-many-branches
     def _get_op_bits(
         self, operation: Any, reg_size_map: dict, qubits: bool = True
     ) -> list[qasm3_ast.IndexedIdentifier]:

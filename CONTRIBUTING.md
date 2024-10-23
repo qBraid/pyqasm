@@ -97,19 +97,19 @@ Workflow: [`format.yml`](.github/workflows/format.yml)
 - [ ] Formatting/linters checks pass
 - [ ] All files have appropriate licensing header
 
-For code style, our project uses a combination of [isort](https://github.com/PyCQA/isort), [pylint](https://github.com/pylint-dev/pylint),
-and [black](https://github.com/psf/black). Specific configurations for these tools should be added to [`pyproject.toml`](pyproject.toml).
+For code style, our project uses a combination of [isort](https://github.com/PyCQA/isort), [pylint](https://github.com/pylint-dev/pylint), [black](https://github.com/psf/black), and [mypy](https://github.com/python/mypy). Specific configurations for these tools should be added to [`pyproject.toml`](pyproject.toml).
 
 Install linters:
 
 ```shell
-pip install 'black[jupyter]' isort pylint
+pip install black isort pylint mypy
 ```
 
 Run the following and make changes as needed to satisfy format checks:
 
 ```shell
 black pyqasm tests examples
-isort pyqasm tests
-pylint pyqasm tests
+isort pyqasm tests examples
+pylint pyqasm tests examples
+mypy pyqasm examples
 ```

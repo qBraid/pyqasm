@@ -21,6 +21,15 @@ Functions
 
    validate
    unroll
+   load
+
+Classes
+---------
+
+.. autosummary::
+   :toctree: ../stubs/
+
+   Qasm3Module
 
 Exceptions
 -----------
@@ -37,18 +46,20 @@ import warnings
 try:
     # Injected in _version.py during the build process.
     from ._version import __version__  # type: ignore
-except ImportError:
+except ImportError:  # pragma: no cover
     warnings.warn("Importing 'pyqasm' outside a proper installation.")
     __version__ = "dev"
 
+from .elements import Qasm3Module
+from .entrypoint import load, unroll, validate
 from .exceptions import PyQasmError, ValidationError
-from .unroller import unroll
-from .validate import validate
 
 __all__ = [
     "PyQasmError",
     "ValidationError",
     "validate",
     "unroll",
+    "load",
+    "Qasm3Module",
     "__version__",
 ]

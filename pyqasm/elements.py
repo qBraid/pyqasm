@@ -8,8 +8,6 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-# pylint: disable=too-many-arguments, too-many-instance-attributes
-
 """
 Module defining Qasm3 Converter elements.
 
@@ -42,6 +40,7 @@ class Context(Enum):
     GATE = "gate"
 
 
+# pylint: disable-next=too-many-instance-attributes
 class Variable:
     """
     Class representing an openqasm variable.
@@ -58,6 +57,7 @@ class Variable:
 
     """
 
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         name: str,

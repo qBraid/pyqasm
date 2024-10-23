@@ -14,9 +14,8 @@ Module containing unit tests for unrolling quantum gates.
 """
 import pytest
 
+from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from pyqasm.unroller import unroll
-from pyqasm.validate import validate
 from tests.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
     SINGLE_QUBIT_GATE_INCORRECT_TESTS,
