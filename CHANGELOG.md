@@ -15,52 +15,29 @@ Types of changes:
 ## [Unreleased]
 
 ### Added
-- Sphinx docs and examples added for pyqasm ([#20](https://github.com/qBraid/pyqasm/pull/20))
-- qBraid header check enabled in format action([#29](https://github.com/qBraid/pyqasm/pull/29))
-- Integrated code coverage with codecov ([#30](https://github.com/qBraid/pyqasm/pull/30))
+
+- Dependabot configuration file [#37](https://github.com/qBraid/pyqasm/pull/37)
 
 ### Improved / Modified
-- Housekeeping updates involving codeowners, workflows, pyproject, and readme ([#16](https://github.com/qBraid/pyqasm/pull/16))
-- Fixed parsing of compile-time constants for register sizes. Statements like `const int[32] N = 3; qubit[N] q;` are now supported ([#21](https://github.com/qBraid/pyqasm/pull/21)).
-- Update project `README.md` ([#22](https://github.com/qBraid/pyqasm/pull/22))
-- Updated sphinx docs page ([#26](https://github.com/qBraid/pyqasm/pull/26))
-- **Major Change**: The default type for `pyqasm.unroller.unroll` has been changed from `pyqasm.elements.Qasm3Module` to `str`. This change is backward-incompatible and will require users to update their code. The following code snippet demonstrates the change - 
 
-```python
-from pyqasm.unroller import unroll
-qasm_str = """
-OPENQASM 3;
-qubit[3] q;
-h q;
-"""
-
-# Old way : The default type for unroll was pyqasm.elements.Qasm3Module
-program = unroll(qasm_str, as_module=True)
-unrolled_qasm_old = program.unrolled_qasm
-
-# New way : The default type for unroll is now str
-unrolled_qasm_new = unroll(qasm_str)
-```
-To force the return type to be `pyqasm.elements.Qasm3Module`, users can set the `as_module` parameter to `True` as shown above to update their code.
+- Improved qubit declaration semantics by adding check for quantum registers being declared as predefined constants [#44](https://github.com/qBraid/pyqasm/pull/44)
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Issue with aliasing of qubits was fixed where aliased qubits were referenced with non-aliased qubits in a quantum gate ([#14](https://github.com/qBraid/pyqasm/pull/14)). The following program is now supported - 
 
-```python
-OPENQASM 3;
-include "stdgates.inc";
-qubit[4] q;
-let alias = q[0:2];
-cx alias[1], q[2];
-```
+- Bug in initial sizes of classical registers. `bit c;` was being initialized with size `32` instead of `1` [#43](https://github.com/qBraid/pyqasm/pull/43)
+- Fixed bug in the handling of classical register type. Whenever a `bit` was referenced in an expression, it was treated as a scalar when it should be treated as an element of a 1D array with type `bit` [#44](https://github.com/qBraid/pyqasm/pull/44)
 
-- Issue with subroutines, when `return` keyword was absent, was fixed in ([#21](https://github.com/qBraid/pyqasm/pull/21))
 
 ### Dependencies
+
+- Update sphinx-autodoc-typehints requirement from <2.5,>=1.24 to >=1.24,<2.6 [#38](https://github.com/qBraid/pyqasm/pull/38)
+- Update sphinx requirement from <8.1.0,>=7.3.7 to >=7.3.7,<8.2.0 [#39](https://github.com/qBraid/pyqasm/pull/39)
+- Update sphinx-rtd-theme requirement from <3.0.0,>=2.0.0 to >=2.0.0,<4.0.0 [#40](https://github.com/qBraid/pyqasm/pull/40)
+
 
 ## References
 [Changelog for release v0.0.1](https://github.com/qBraid/pyqasm/releases/tag/v0.0.1)
