@@ -47,7 +47,7 @@ DECLARATION_TESTS = {
         int x;
         qubit x;
         """,
-        "Invalid declaration of register with name 'x'",
+        "Re-declaration of quantum register with name 'x'",
     ),
     "variable_redeclaration_with_qubits_2": (
         """

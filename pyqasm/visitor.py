@@ -243,13 +243,13 @@ class BasicQasmVisitor:
     def _in_block_scope(self) -> bool:  # block scope is for if/else/for/while constructs
         return len(self._scope) > 1 and self._get_curr_context() == Context.BLOCK
 
-    def _visit_qubit_register(
+    def _visit_quantum_register(
         self, register: qasm3_ast.QubitDeclaration
     ) -> list[qasm3_ast.QubitDeclaration]:
-        """Visit a Qubit / Classical declaration statement.
+        """Visit a Qubit declaration statement.
 
         Args:
-            register (QubitDeclaration|ClassicalDeclaration): The register name and size.
+            register (QubitDeclaration): The register name and size.
 
         Returns:
             None
@@ -272,12 +272,14 @@ class BasicQasmVisitor:
 
         if self._check_in_scope(register_name):
             raise_qasm3_error(
-                f"Invalid declaration of register with name '{register_name}'", span=register.span
+                f"Re-declaration of quantum register with name '{register_name}'",
+                span=register.span,
             )
 
         if register_name in CONSTANTS_MAP:
             raise_qasm3_error(
-                f"Can not declare variable with keyword name {register_name}", span=register.span
+                f"Can not declare quantum register with keyword name '{register_name}'",
+                span=register.span,
             )
 
         self._add_var_in_scope(
@@ -1523,7 +1525,7 @@ class BasicQasmVisitor:
             qasm3_ast.QuantumMeasurementStatement: self._visit_measurement,
             qasm3_ast.QuantumReset: self._visit_reset,
             qasm3_ast.QuantumBarrier: self._visit_barrier,
-            qasm3_ast.QubitDeclaration: self._visit_qubit_register,
+            qasm3_ast.QubitDeclaration: self._visit_quantum_register,
             qasm3_ast.QuantumGateDefinition: self._visit_gate_definition,
             qasm3_ast.QuantumGate: self._visit_generic_gate_operation,
             qasm3_ast.ClassicalDeclaration: self._visit_classical_declaration,
