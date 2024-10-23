@@ -115,12 +115,25 @@ def test_qubit_clbit_declarations():
 
 def test_qubit_redeclaration_error():
     """Test redeclaration of qubit"""
-    with pytest.raises(ValidationError, match="Invalid declaration of register with name 'q1'"):
+    with pytest.raises(ValidationError, match="Re-declaration of quantum register with name 'q1'"):
         qasm3_string = """
         OPENQASM 3;
         include "stdgates.inc";
         qubit q1;
         qubit q1;
+        """
+        validate(qasm3_string)
+
+
+def test_invalid_qubit_name():
+    """Test that qubit name can not be one of constants"""
+    with pytest.raises(
+        ValidationError, match="Can not declare quantum register with keyword name 'pi'"
+    ):
+        qasm3_string = """
+        OPENQASM 3;
+        include "stdgates.inc";
+        qubit pi;
         """
         validate(qasm3_string)
 

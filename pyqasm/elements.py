@@ -8,7 +8,7 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments, too-many-instance-attributes
 
 """
 Module defining Qasm3 Converter elements.
@@ -53,6 +53,7 @@ class Variable:
         dims (list[int]): Dimensions of the variable.
         value (Optional[Union[int, float, list]]): Value of the variable.
         is_constant (bool): Flag indicating if the variable is constant.
+        is_register (bool): Flag indicating if the variable is a register.
         readonly(bool): Flag indicating if the variable is readonly.
 
     """
@@ -65,6 +66,7 @@ class Variable:
         dims: Optional[list[int]] = None,
         value: Optional[Union[int, float, np.ndarray]] = None,
         is_constant: bool = False,
+        is_register: bool = False,
         readonly: bool = False,
     ):
         self.name = name
@@ -73,7 +75,16 @@ class Variable:
         self.dims = dims
         self.value = value
         self.is_constant = is_constant
+        self.is_register = is_register
         self.readonly = readonly
+
+    def __repr__(self) -> str:
+        return (
+            f"Variable(name = {self.name}, base_type = {self.base_type}, "
+            f"base_size = {self.base_size}, dimensions = {self.dims}, "
+            f"value = {self.value}, is_constant = {self.is_constant}, "
+            f"readonly = {self.readonly}, is_register = {self.is_register})"
+        )
 
 
 class Qasm3Module:
