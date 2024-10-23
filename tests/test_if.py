@@ -15,9 +15,8 @@ Module containing unit tests for the if statements.
 
 import pytest
 
+from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from pyqasm.unroller import unroll
-from pyqasm.validate import validate
 from tests.utils import check_unrolled_qasm
 
 

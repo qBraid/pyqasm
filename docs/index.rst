@@ -97,41 +97,25 @@ Example
    OPENQASM 3;
    include "stdgates.inc";
 
-   gate hgate q {
-      h q;
-   }
-
-   gate xgate q {
-      x q;
-   }
+   gate hgate q { h q; }
+   gate xgate q { x q; }
 
    const int[32] N = 4;
    qubit[4] q;
    qubit ancilla;
 
    def deutsch_jozsa(qubit[N] q_func, qubit[1] ancilla_q) {
-
       xgate ancilla_q;
-
-      for int i in [0:N-1] {
-         hgate q_func[i];
-      }
-
+      for int i in [0:N-1] { hgate q_func[i]; }
       hgate ancilla_q;
-
-      for int i in [0:N-1] {
-         cx q_func[i], ancilla_q;
-      }
-
-      for int i in [0:N-1] {
-         hgate q_func[i];
-      }
+      for int i in [0:N-1] { cx q_func[i], ancilla_q; }
+      for int i in [0:N-1] { hgate q_func[i]; }
    }
 
    deutsch_jozsa(q, ancilla);
 
    bit[4] result;
-   measure q -> result;
+   result = measure q;
    """
 
    unrolled = pyqasm.unroll(qasm)

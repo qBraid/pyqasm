@@ -16,9 +16,8 @@ converting OpenQASM3 programs that contain arrays in subroutines.
 
 import pytest
 
+from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from pyqasm.unroller import unroll
-from pyqasm.validate import validate
 from tests.resources.subroutines import SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS
 from tests.utils import check_single_qubit_rotation_op
 

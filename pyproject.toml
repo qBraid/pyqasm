@@ -61,3 +61,24 @@ line_length = 100
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["pyqasm"]
+omit = ["**/pyqasm/_version.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "raise NotImplementedError",
+  "return NotImplemented",
+  "def __repr__",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "logger.debug",
+  "logger.info",
+  "__all__",
+  "def __getattr__",
+  "def __dir__",
+  "# pragma: no cover"
+]

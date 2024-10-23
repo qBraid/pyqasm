@@ -1,6 +1,23 @@
+# Copyright (C) 2024 qBraid
+#
+# This file is part of pyqasm
+#
+# Pyqasm is free software released under the GNU General Public License v3
+# or later. You can redistribute and/or modify it under the terms of the GPL v3.
+# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#
+# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+
+# pylint: disable=invalid-name
+
+"""
+Script demonstrating how to unroll a QASM 3 program using the `pyqasm.unrolll` function.
+
+"""
+
 import pyqasm
 
-example_qasm_program = """
+qasm_program = """
 // A program containing the Deutsch-Josza algorithm in OpenQASM 3
 OPENQASM 3;
 include "stdgates.inc";
@@ -53,5 +70,6 @@ bit[4] result;
 result = measure q;
 """
 
-unrolled_qasm = pyqasm.unroll(example_qasm_program)
-print(unrolled_qasm)
+qasm_unrolled = pyqasm.unroll(qasm_program)
+
+print(qasm_unrolled)
