@@ -8,8 +8,6 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-# pylint: disable=too-many-arguments,too-many-locals,too-many-branches
-
 """
 Module containing the class for validating QASM3 subroutines.
 
@@ -93,7 +91,7 @@ class Qasm3SubroutineProcessor:
             formal_arg, actual_arg, actual_arg_name, fn_name, span
         )
 
-    @classmethod
+    @classmethod  # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     def _process_classical_arg_by_value(
         cls, formal_arg, actual_arg, actual_arg_name, fn_name, span
     ):
@@ -143,7 +141,7 @@ class Qasm3SubroutineProcessor:
             is_constant=False,
         )
 
-    @classmethod
+    @classmethod  # pylint: disable-next=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches
     def _process_classical_arg_by_reference(
         cls, formal_arg, actual_arg, actual_arg_name, fn_name, span
     ):
@@ -297,7 +295,7 @@ class Qasm3SubroutineProcessor:
             readonly=readonly_arr,
         )
 
-    @classmethod
+    @classmethod  # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     def process_quantum_arg(
         cls,
         formal_arg,

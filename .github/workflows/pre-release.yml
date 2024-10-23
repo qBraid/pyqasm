@@ -24,10 +24,10 @@ jobs:
       - name: Build binary wheel + source tarball
         id: build-dev
         run: |
-            export PRE_RELEASE_VERSION=$(python tools/stamp_pre_release.py pyqasm)
+            export PRE_RELEASE_VERSION=$(python bin/stamp_pre_release.py pyqasm)
             [[ "$PRE_RELEASE_VERSION" =~ .*(-a\.|-b\.|-rc\.).* ]] && echo "Deploying pre-release version '$PRE_RELEASE_VERSION'" || (echo "not pre-release version"; exit 0)
             out_dir="${PWD}/dist"
-            tools/create_dev_build.sh $PRE_RELEASE_VERSION "${out_dir}"
+            bin/create_dev_build.sh $PRE_RELEASE_VERSION "${out_dir}"
             echo "dir=$out_dir" >> $GITHUB_OUTPUT
 
       - name: Publish pre-release package to PyPI

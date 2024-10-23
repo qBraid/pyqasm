@@ -8,8 +8,6 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-# pylint: disable=too-many-locals
-
 """
 Module containing the class for evaluating QASM3 expressions.
 
@@ -155,7 +153,7 @@ class Qasm3ExprEvaluator:
         return var_value
 
     @classmethod
-    # pylint: disable-next=too-many-return-statements, too-many-branches, too-many-statements
+    # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals
     def evaluate_expression(  # type: ignore[return]
         cls, expression, const_expr: bool = False, reqd_type=None, validate_only: bool = False
     ) -> tuple:

@@ -8,31 +8,26 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-# pylint: disable=too-many-locals
-
 """
 Module for linear algebra functions necessary for gate decomposition.
 
 """
+from __future__ import annotations
 
 import cmath
 import functools
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-MAGIC = np.array([[1, 0, 0, 1j], [0, 1j, 1, 0], [0, 1j, -1, 0], [1, 0, 0, -1j]]) * np.sqrt(0.5)
-
-MAGIC_CONJ_T = np.conj(MAGIC.T)
-
-KAK_MAGIC = np.array([[1, 0, 0, 1j], [0, 1j, 1, 0], [0, 1j, -1, 0], [1, 0, 0, -1j]]) * np.sqrt(0.5)
-
-KAK_MAGIC_DAG = np.conjugate(np.transpose(KAK_MAGIC))
-
-KAK_GAMMA = np.array([[1, 1, 1, 1], [1, 1, -1, -1], [-1, 1, -1, 1], [1, -1, -1, 1]]) * 0.25
+if TYPE_CHECKING:
+    from numpy.typing import DTypeLike, NDArray
 
 
-def _helper_svd(mat):
+def _helper_svd(
+    mat: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
     Helper function to perform SVD on a matrix.
     """
@@ -41,11 +36,11 @@ def _helper_svd(mat):
     return np.linalg.svd(mat)
 
 
-def _merge_dtypes(dtype1, dtype2):
-    return (np.zeros(0, dtype1) + np.zeros(0, dtype2)).dtype
+def _merge_dtypes(dtype1: DTypeLike, dtype2: DTypeLike) -> np.dtype:
+    return (np.zeros(0, dtype=dtype1) + np.zeros(0, dtype=dtype2)).dtype
 
 
-def _block_diag(*blocks):
+def _block_diag(*blocks: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Helper function to perform block diagonalization.
     """
@@ -62,12 +57,14 @@ def _block_diag(*blocks):
     return result
 
 
-def _orthogonal_diagonalize(symmetric_matrix, diagonal_matrix):
+def _orthogonal_diagonalize(
+    symmetric_matrix: NDArray[np.float64], diagonal_matrix: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """
-    Find orthogonal matrix that diagonalize mat1 and mat2.
+    Find orthogonal matrix that diagonalizes symmetric_matrix and diagonal_matrix.
     """
 
-    def similar_singular(i, j):
+    def similar_singular(i: int, j: int) -> bool:
         return np.allclose(diagonal_matrix[i, i], diagonal_matrix[j, j])
 
     ranges = []
@@ -88,7 +85,10 @@ def _orthogonal_diagonalize(symmetric_matrix, diagonal_matrix):
     return p
 
 
-def orthogonal_bidiagonalize(mat1, mat2):
+# pylint: disable-next=too-many-locals
+def orthogonal_bidiagonalize(
+    mat1: NDArray[np.float64], mat2: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Find orthogonal matrices that diagonalize mat1 and mat2.
     """
@@ -117,7 +117,9 @@ def orthogonal_bidiagonalize(mat1, mat2):
     return left, right
 
 
-def _kronecker_fator(mat):
+def _kronecker_fator(
+    mat: NDArray[np.complex128],
+) -> tuple[float, NDArray[np.complex128], NDArray[np.complex128]]:
     """
     Split U = kron(A, B) to A and B.
     """
@@ -142,23 +144,31 @@ def _kronecker_fator(mat):
     return g, f1, f2
 
 
-def _so4_to_su2(mat):
+def _so4_to_su2(
+    mat: NDArray[np.floating | np.complexfloating],
+) -> tuple[NDArray[np.floating | np.complexfloating], NDArray[np.floating | np.complexfloating]]:
     """
     Decompose SO(4) matrix to SU(2) matrices.
     """
-    ab = np.dot(np.dot(MAGIC, mat), MAGIC_CONJ_T)
+    magic = np.array([[1, 0, 0, 1j], [0, 1j, 1, 0], [0, 1j, -1, 0], [1, 0, 0, -1j]]) * np.sqrt(0.5)
+
+    magic_conj_t = np.conj(magic.T)
+
+    ab = np.dot(np.dot(magic, mat), magic_conj_t)
     _, a, b = _kronecker_fator(ab)
 
     return a, b
 
 
-def _kak_canonicalize_vector(x, y, z):
+def _kak_canonicalize_vector(
+    x: float, y: float, z: float
+) -> dict[str, tuple[NDArray[np.complex128], NDArray[np.complex128]]]:
     """
     Canonicalize vector for KAK decomposition.
     """
     phase = [complex(1)]
-    left = [np.eye(2)] * 2
-    right = [np.eye(2)] * 2
+    left = [np.eye(2, dtype=np.complex128)] * 2
+    right = [np.eye(2, dtype=np.complex128)] * 2
     v = [x, y, z]
 
     flippers = [
@@ -173,13 +183,13 @@ def _kak_canonicalize_vector(x, y, z):
         np.array([[0, 1 - 1j], [1 + 1j, 0]]) * 1j * np.sqrt(0.5),
     ]
 
-    def shift(k, step):
+    def shift(k: int, step: int) -> None:
         v[k] += step * np.pi / 2
         phase[0] *= 1j**step
         right[0] = np.dot(flippers[k] ** (step % 4), right[0])
         right[1] = np.dot(flippers[k] ** (step % 4), right[1])
 
-    def negate(k1, k2):
+    def negate(k1: int, k2: int) -> None:
         v[k1] *= -1
         v[k2] *= -1
         phase[0] *= -1
@@ -187,7 +197,7 @@ def _kak_canonicalize_vector(x, y, z):
         left[1] = np.dot(left[1], s)
         right[1] = np.dot(s, right[1])
 
-    def swap(k1, k2):
+    def swap(k1: int, k2: int) -> None:
         v[k1], v[k2] = v[k2], v[k1]
         s = swappers[3 - k1 - k2]
         left[0] = np.dot(left[0], s)
@@ -195,13 +205,13 @@ def _kak_canonicalize_vector(x, y, z):
         right[0] = np.dot(s, right[0])
         right[1] = np.dot(s, right[1])
 
-    def canonical_shift(k):
+    def canonical_shift(k: int) -> None:
         while v[k] <= -np.pi / 4:
             shift(k, +1)
         while v[k] > np.pi / 4:
             shift(k, -1)
 
-    def sort():
+    def sort() -> None:
         if abs(v[0]) < abs(v[1]):
             swap(0, 1)
         if abs(v[1]) < abs(v[2]):
@@ -231,15 +241,17 @@ def _kak_canonicalize_vector(x, y, z):
     }
 
 
-def _deconstruct_matrix_to_angles(mat):
+def _deconstruct_matrix_to_angles(
+    mat: NDArray[np.floating | np.complexfloating],
+) -> tuple[float, float, float]:
     """
     Decompose matrix into angles.
     """
 
-    def _phase_matrix(angle):
+    def _phase_matrix(angle: float) -> NDArray[np.complex128]:
         return np.diag([1, np.exp(1j * angle)])
 
-    def _rotation_matrix(angle):
+    def _rotation_matrix(angle: float) -> NDArray[np.float64]:
         c, s = np.cos(angle), np.sin(angle)
         return np.array([[c, -s], [s, c]])
 
@@ -257,7 +269,9 @@ def _deconstruct_matrix_to_angles(mat):
     return right_phase + diagonal_phase, rotation * 2, bottom_phase
 
 
-def so_bidiagonalize(mat):
+def so_bidiagonalize(
+    mat: NDArray[np.complex128],
+) -> tuple[NDArray[np.float64], NDArray[np.complex128], NDArray[np.float64]]:
     """
     Find special orthogonal L and R so that L @ mat @ R is diagonal.
     """
@@ -273,15 +287,25 @@ def so_bidiagonalize(mat):
     return left, np.diag(diag), right
 
 
-def kak_decomposition_angles(mat):
+# pylint: disable-next=too-many-locals
+def kak_decomposition_angles(mat: NDArray[np.complex128]) -> list[list[float]]:
     """
     Decompose matrix into KAK decomposition, return all angles.
     """
-    left, d, right = so_bidiagonalize(KAK_MAGIC_DAG @ mat @ KAK_MAGIC)
+    kak_magic = np.array([[1, 0, 0, 1j], [0, 1j, 1, 0], [0, 1j, -1, 0], [1, 0, 0, -1j]]) * np.sqrt(
+        0.5
+    )
+
+    kak_magic_dag = np.conjugate(np.transpose(kak_magic))
+
+    left, d, right = so_bidiagonalize(kak_magic_dag @ mat @ kak_magic)
 
     a1, a0 = _so4_to_su2(left.T)
     b1, b0 = _so4_to_su2(right.T)
-    _, x, y, z = (KAK_GAMMA @ np.angle(d).reshape(-1, 1)).flatten()
+
+    kak_gama = np.array([[1, 1, 1, 1], [1, 1, -1, -1], [-1, 1, -1, 1], [1, -1, -1, 1]]) * 0.25
+
+    _, x, y, z = (kak_gama @ np.angle(d).reshape(-1, 1)).flatten()
 
     inner_cannon = _kak_canonicalize_vector(x, y, z)
     b1 = np.dot(inner_cannon["single_qubit_operations_before"][0], b1)
