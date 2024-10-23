@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: >-
+  PyQASM: Python toolkit for OpenQASM program analysis and compilation.
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Harshit
+    family-names: Gupta
+    affiliation: qBraid Co.
+  - given-names: Ryan James
+    family-names: Hill
+    affiliation: qBraid Co.
+    orcid: https://orcid.org/0009-0006-9222-0810
+repository-code: 'https://github.com/qBraid/pyqasm'
+url: 'https://sdk.qbraid.com/projects/pyqasm/en/stable/'
+repository-artifact: 'https://github.com/qBraid/pyqasm/releases/tag/v0.0.2'
+keywords:
+  - python
+  - quantum-computing
+  - openqasm
+  - qbraid
+license: GPL-3.0
+version: 0.0.2
+date-released: '2024-10-21'
