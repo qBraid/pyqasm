@@ -69,7 +69,7 @@ def test_sizeof_multiple_types():
 
     result = unroll(qasm3_string, as_module=True)
     assert result.num_qubits == 2
-    check_single_qubit_rotation_op(result.unrolled_ast, 2, [ 1, 1], [ 2, 3], "rx")
+    check_single_qubit_rotation_op(result.unrolled_ast, 2, [1, 1], [2, 3], "rx")
 
 
 def test_unsupported_target():

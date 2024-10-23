@@ -101,13 +101,15 @@ def check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
 
     assert op_count == num_gates
 
+
 def check_measure_op(unrolled_ast, num_ops, meas_pairs):
     """Check that the unrolled ast contains the correct number of measurements.
 
     Args:
         unrolled_ast (qasm3_ast.Program): The unrolled ast to check.
         num_ops (int): The number of measurements to check for.
-        meas_pairs (list[tuple[(str, int), (str, int)]]): The list of measurement pairs to check for.
+        meas_pairs (list[tuple[(str, int), (str, int)]]): The list of measurement
+                                                          pairs to check for.
     """
 
     meas_count = 0
@@ -118,12 +120,13 @@ def check_measure_op(unrolled_ast, num_ops, meas_pairs):
             target_name = stmt.target.name.name
             target_index = stmt.target.indices[0][0].value
 
-            # preserve order of measurement pairs 
+            # preserve order of measurement pairs
             assert (source_name, source_index) == meas_pairs[meas_count][0]
             assert (target_name, target_index) == meas_pairs[meas_count][1]
             meas_count += 1
-            
+
     assert meas_count == num_ops
+
 
 def check_single_qubit_rotation_op(unrolled_ast, num_gates, qubit_list, param_list, gate_name):
     if gate_name == "u3":
