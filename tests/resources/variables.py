@@ -164,6 +164,24 @@ DECLARATION_TESTS = {
         """,
         "Invalid dimensions for array assignment to variable x. Expected 3 but got 1",
     ),
+    "invalid_bit_type_array_1": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        array[bit, 3] x;
+        """,
+        "Can not declare array x with type 'bit'",
+    ),
+    "invalid_bit_type_array_2": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        array[bit[32], 3] x;
+        """,
+        "Can not declare array x with type 'bit'",
+    ),
 }
 
 ASSIGNMENT_TESTS = {

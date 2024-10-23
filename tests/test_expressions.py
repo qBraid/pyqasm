@@ -17,7 +17,7 @@ import pytest
 from pyqasm.exceptions import ValidationError
 from pyqasm.unroller import unroll
 from pyqasm.validate import validate
-from tests.utils import check_single_qubit_rotation_op
+from tests.utils import check_measure_op, check_single_qubit_gate_op, check_single_qubit_rotation_op
 
 
 def test_correct_expressions():
@@ -46,6 +46,25 @@ def test_correct_expressions():
     check_single_qubit_rotation_op(result.unrolled_ast, 3, [0] * 3, rx_expression_values, "rx")
     check_single_qubit_rotation_op(result.unrolled_ast, 2, [0] * 2, rz_expression_values, "rz")
 
+def test_bit_in_expression():
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    bit[1] c3;
+    qubit[1] q3;
+    int dummy_int;
+    h q3[0];
+    c3[0] = measure q3[0];
+    dummy_int = c3[0];
+    """
+
+    result = unroll(qasm_str, as_module=True)
+    assert result.num_qubits == 1
+    assert result.num_clbits == 1
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
+    meas_pairs = [(('q3',0),('c3',0))]
+    check_measure_op(result.unrolled_ast, 1, meas_pairs)
 
 def test_incorrect_expressions():
     with pytest.raises(ValidationError, match=r"Unsupported expression type .*"):

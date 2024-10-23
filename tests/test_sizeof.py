@@ -55,25 +55,21 @@ def test_sizeof_multiple_types():
     OPENQASM 3;
     include "stdgates.inc";
 
-    array[bit, 3, 2] my_bits;
     array[int[32], 3, 2] my_ints;
     array[float[64], 3, 2] my_floats;
 
-    int[32] size1 = sizeof(my_bits); // this is 3
+    int[32] size1 = sizeof(my_ints, 1); // this is 2
 
-    int[32] size2 = sizeof(my_ints, 1); // this is 2
-
-    int[32] size3 = sizeof(my_floats, 0); // this is 3 too
+    int[32] size2 = sizeof(my_floats, 0); // this is 3 
     qubit[2] q;
 
-    rx(size1) q[0];
+    rx(size1) q[1];
     rx(size2) q[1];
-    rx(size3) q[1];
     """
 
     result = unroll(qasm3_string, as_module=True)
     assert result.num_qubits == 2
-    check_single_qubit_rotation_op(result.unrolled_ast, 3, [0, 1, 1], [3, 2, 3], "rx")
+    check_single_qubit_rotation_op(result.unrolled_ast, 2, [ 1, 1], [ 2, 3], "rx")
 
 
 def test_unsupported_target():

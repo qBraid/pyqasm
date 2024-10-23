@@ -275,14 +275,14 @@ class BasicQasmVisitor:
                 f"Invalid declaration of register with name '{register_name}'", span=register.span
             )
 
+        if register_name in CONSTANTS_MAP:
+            raise_qasm3_error(
+                f"Can not declare variable with keyword name {register_name}", span=register.span
+            )
+
         self._add_var_in_scope(
             Variable(
-                register_name,
-                qasm3_ast.QubitDeclaration,
-                register_size,
-                None,
-                None,
-                False,
+                register_name, qasm3_ast.QubitDeclaration, register_size, None, None, False, True
             )
         )
         size_map[f"{register_name}"] = register_size
@@ -857,11 +857,34 @@ class BasicQasmVisitor:
 
         init_value = None
         base_type = statement.type
+        dimensions = []
         final_dimensions = []
 
         if isinstance(base_type, qasm3_ast.ArrayType):
             dimensions = base_type.dimensions
+            base_type = base_type.base_type
 
+        base_size = 1
+        if not isinstance(base_type, qasm3_ast.BoolType):
+            initial_size = 1 if isinstance(base_type, qasm3_ast.BitType) else 32
+            base_size = (
+                initial_size
+                if not hasattr(base_type, "size") or base_type.size is None
+                else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
+            )
+        Qasm3Validator.validate_classical_type(base_type, base_size, var_name, statement.span)
+
+        # initialize the bit register
+        if isinstance(base_type, qasm3_ast.BitType):
+            final_dimensions = [base_size]
+            init_value = np.full(final_dimensions, 0)
+
+        if len(dimensions) > 0:
+            # bit type arrays are not allowed
+            if isinstance(base_type, qasm3_ast.BitType):
+                raise_qasm3_error(
+                    f"Can not declare array {var_name} with type 'bit'", span=statement.span
+                )
             if len(dimensions) > MAX_ARRAY_DIMENSIONS:
                 raise_qasm3_error(
                     f"Invalid dimensions {len(dimensions)} for array declaration for {var_name}. "
@@ -869,8 +892,6 @@ class BasicQasmVisitor:
                     span=statement.span,
                 )
 
-            base_type = base_type.base_type
-            num_elements = 1
             for dim in dimensions:
                 dim_value = Qasm3ExprEvaluator.evaluate_expression(dim, const_expr=True)[0]
                 if not isinstance(dim_value, int) or dim_value <= 0:
@@ -879,10 +900,10 @@ class BasicQasmVisitor:
                         span=statement.span,
                     )
                 final_dimensions.append(dim_value)
-                num_elements *= dim_value
 
             init_value = np.full(final_dimensions, None)
 
+        # populate the variable
         if statement.init_expression:
             if isinstance(statement.init_expression, qasm3_ast.ArrayLiteral):
                 init_value = self._evaluate_array_initialization(
@@ -893,27 +914,17 @@ class BasicQasmVisitor:
                     statement.init_expression
                 )
                 statements.extend(stmts)
-        base_size = 1
-        if not isinstance(base_type, qasm3_ast.BoolType):
-            initial_size = 1 if isinstance(base_type, qasm3_ast.BitType) else 32
-            base_size = (
-                initial_size
-                if not hasattr(base_type, "size") or base_type.size is None
-                else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
-            )
 
-        if not isinstance(base_size, int) or base_size <= 0:
-            raise_qasm3_error(
-                f"Invalid base size {base_size} for variable {var_name}", span=statement.span
-            )
+        variable = Variable(
+            var_name,
+            base_type,
+            base_size,
+            final_dimensions,
+            init_value,
+            is_register=isinstance(base_type, qasm3_ast.BitType),
+        )
 
-        if isinstance(base_type, qasm3_ast.FloatType) and base_size not in [32, 64]:
-            raise_qasm3_error(
-                f"Invalid base size {base_size} for float variable {var_name}", span=statement.span
-            )
-
-        variable = Variable(var_name, base_type, base_size, final_dimensions, init_value)
-
+        # validate the assignment
         if statement.init_expression:
             if isinstance(init_value, np.ndarray):
                 assert variable.dims is not None
@@ -925,7 +936,6 @@ class BasicQasmVisitor:
         self._add_var_in_scope(variable)
 
         if isinstance(base_type, qasm3_ast.BitType):
-            # handle classical register declaration
             self._global_creg_size_map[var_name] = base_size
             current_classical_size = len(self._clbit_labels)
             for i in range(base_size):

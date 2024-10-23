@@ -721,7 +721,7 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     # not sure if we wanna hande array bit assignments too.
     # For now, we only cater to single bit assignment.
     if openqasm_type == BitType:
-        return bool(rhs_value)
+        return rhs_value != 0
     if openqasm_type == AngleType:
         return rhs_value  # not sure
 

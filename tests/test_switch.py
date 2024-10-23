@@ -291,7 +291,7 @@ def test_invalid_scalar_switch_target(invalid_type):
         validate(qasm3_switch_program)
 
 
-@pytest.mark.parametrize("invalid_type", ["float", "bool", "bit"])
+@pytest.mark.parametrize("invalid_type", ["float", "bool"])
 def test_invalid_array_switch_target(invalid_type):
     """Test that switch raises error if target is array element and not an integer."""
 
