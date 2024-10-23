@@ -49,7 +49,7 @@ You can view the version of pyqasm you have installed within a Python shell as f
 
 - [API Reference](https://sdk.qbraid.com/projects/pyqasm/en/stable/): Developer documentation.
 - [Usage Examples](examples): Scripts and Markdown examples demonstrating core functionality.
-- [Supported Operations](pyqasm/README.md#supported-operations): List of OpenQASM language features currently supported, in progress, and planned for future support.
+- [Supported Operations](pyqasm/README.md#supported-operations): OpenQASM language features supported, in progress, and planned for future support.
 
 ## Contributing
 
@@ -68,4 +68,6 @@ You can view the version of pyqasm you have installed within a Python shell as f
   with the [`pyqasm`](https://quantumcomputing.stackexchange.com/questions/tagged/pyqasm) tag.
 - By participating, you are expected to uphold our [code of conduct](CODE_OF_CONDUCT).
 
+## License
 
+[GNU General Public License v3.0](LICENSE)
