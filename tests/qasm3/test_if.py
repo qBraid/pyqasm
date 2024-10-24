@@ -21,7 +21,7 @@ from tests.utils import check_unrolled_qasm
 
 
 def test_simple_if():
-    qasm = """OPENQASM 3;
+    qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[4] q;
     bit[4] c;
@@ -38,7 +38,7 @@ def test_simple_if():
         x q[3];
     }
     """
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[4] q;
     bit[4] c;
@@ -70,7 +70,7 @@ def test_simple_if():
 
 
 def test_complex_if():
-    qasm = """OPENQASM 3;
+    qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     gate custom a, b{
         cx a, b;
@@ -101,7 +101,7 @@ def test_complex_if():
         h q[1];
     }
     """
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[4] q;
     bit[4] c;
@@ -140,7 +140,7 @@ def test_incorrect_if():
     with pytest.raises(ValidationError, match=r"Missing if block"):
         validate(
             """
-            OPENQASM 3;
+            OPENQASM 3.0;
            include "stdgates.inc";
            qubit[2] q;
            bit[2] c;
@@ -156,7 +156,7 @@ def test_incorrect_if():
     with pytest.raises(ValidationError, match=r"Undefined identifier c2 in expression"):
         validate(
             """
-            OPENQASM 3;
+            OPENQASM 3.0;
            include "stdgates.inc";
            qubit[2] q;
            bit[2] c;
@@ -173,7 +173,7 @@ def test_incorrect_if():
     with pytest.raises(ValidationError, match=r"Only '!' supported .*"):
         validate(
             """
-            OPENQASM 3;
+            OPENQASM 3.0;
            include "stdgates.inc";
            qubit[2] q;
            bit[2] c;
@@ -189,7 +189,7 @@ def test_incorrect_if():
     with pytest.raises(ValidationError, match=r"Only '==' supported .*"):
         validate(
             """
-            OPENQASM 3;
+            OPENQASM 3.0;
            include "stdgates.inc";
            qubit[2] q;
            bit[2] c;
@@ -208,7 +208,7 @@ def test_incorrect_if():
     ):
         validate(
             """
-            OPENQASM 3;
+            OPENQASM 3.0;
            include "stdgates.inc";
            qubit[2] q;
            bit[2] c;
@@ -227,7 +227,7 @@ def test_incorrect_if():
     ):
         validate(
             """
-            OPENQASM 3;
+            OPENQASM 3.0;
            include "stdgates.inc";
            qubit[2] q;
            bit[2] c;
@@ -247,7 +247,7 @@ def test_incorrect_if():
     ):
         validate(
             """
-            OPENQASM 3;
+            OPENQASM 3.0;
            include "stdgates.inc";
            qubit[2] q;
            bit[2] c;

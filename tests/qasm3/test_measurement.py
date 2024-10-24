@@ -22,7 +22,7 @@ from tests.utils import check_unrolled_qasm
 # Test measurement operations in different ways
 def test_measure():
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
 
     qubit[2] q1;
     qubit[5] q2;
@@ -40,7 +40,7 @@ def test_measure():
 
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q1;
     qubit[5] q2;
@@ -69,7 +69,7 @@ def test_incorrect_measure():
     # Test for undeclared register q2
     run_test(
         """
-        OPENQASM 3;
+        OPENQASM 3.0;
         qubit[2] q1;
         bit[2] c1;
         c1[0] = measure q2[0];  // undeclared register
@@ -80,7 +80,7 @@ def test_incorrect_measure():
     # Test for undeclared register c2
     run_test(
         """
-        OPENQASM 3;
+        OPENQASM 3.0;
         qubit[2] q1;
         bit[2] c1;
         measure q1 -> c2;  // undeclared register
@@ -91,7 +91,7 @@ def test_incorrect_measure():
     # Test for size mismatch between q1 and c2
     run_test(
         """
-        OPENQASM 3;
+        OPENQASM 3.0;
         qubit[2] q1;
         bit[2] c1;
         bit[1] c2;
@@ -103,7 +103,7 @@ def test_incorrect_measure():
     # Test for size mismatch between q1 and c2 in ranges
     run_test(
         """
-        OPENQASM 3;
+        OPENQASM 3.0;
         qubit[5] q1;
         bit[4] c1;
         bit[1] c2;
@@ -115,7 +115,7 @@ def test_incorrect_measure():
     # Test for out of bounds index for q1
     run_test(
         """
-        OPENQASM 3;
+        OPENQASM 3.0;
         qubit[2] q1;
         bit[2] c1;
         measure q1[3] -> c1[0];  // out of bounds
@@ -126,7 +126,7 @@ def test_incorrect_measure():
     # Test for out of bounds index for c1
     run_test(
         """
-        OPENQASM 3;
+        OPENQASM 3.0;
         qubit[2] q1;
         bit[2] c1;
         measure q1 -> c1[3];  // out of bounds

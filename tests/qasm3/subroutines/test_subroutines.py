@@ -23,7 +23,7 @@ from tests.utils import check_single_qubit_gate_op, check_single_qubit_rotation_
 
 def test_function_declaration():
     """Test that a function declaration is correctly parsed."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
     def my_function(qubit q) {
         h q;
@@ -65,7 +65,7 @@ def test_simple_function_call():
 
 def test_const_visible_in_function_call():
     """Test that a constant is visible in a function call."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
     const float[32] pi2 = 3.14;
 
@@ -86,7 +86,7 @@ def test_const_visible_in_function_call():
 
 def test_update_variable_in_function():
     """Test that variable update works correctly in a function."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit q) {
@@ -108,7 +108,7 @@ def test_update_variable_in_function():
 
 def test_function_call_in_expression():
     """Test that a function call in an expression is correctly parsed."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit[4] q) -> bool{
@@ -132,7 +132,7 @@ def test_function_call_in_expression():
 def test_classical_quantum_function():
     """Test that a function with classical and quantum instructions is correctly unrolled"""
     qasm_str = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     def my_function(qubit q, int[32] iter) -> int[32]{
         h q;
@@ -162,7 +162,7 @@ def test_classical_quantum_function():
 
 def test_multiple_function_calls():
     """Test that multiple function calls are correctly parsed."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(int[32] a, qubit q_arg) {
@@ -186,7 +186,7 @@ def test_multiple_function_calls():
 
 def test_function_call_with_return():
     """Test that a function call with a return value is correctly parsed."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit q) -> float[32] {
@@ -206,7 +206,7 @@ def test_function_call_with_return():
 
 def test_return_values_from_function():
     """Test that the values returned from a function are used correctly in other function."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit q) -> float[32] {
@@ -264,7 +264,7 @@ def test_function_call_with_custom_gate():
 @pytest.mark.skip(reason="Not implemented nested functions yet")
 def test_function_call_from_within_fn():
     """Test that a function call from within another function is correctly converted."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit q1) {
@@ -291,7 +291,7 @@ def test_function_call_from_within_fn():
 def test_return_value_mismatch(data_type):
     """Test that returning a value of incorrect type raises error."""
     qasm_str = (
-        """OPENQASM 3;
+        """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit q) {
@@ -315,7 +315,7 @@ def test_return_value_mismatch(data_type):
 @pytest.mark.parametrize("keyword", ["pi", "euler", "tau"])
 def test_subroutine_keyword_naming(keyword):
     """Test that using a keyword as a subroutine name raises error."""
-    qasm_str = f"""OPENQASM 3;
+    qasm_str = f"""OPENQASM 3.0;
     include "stdgates.inc";
 
     def {keyword}(qubit q) {{
@@ -334,7 +334,7 @@ def test_subroutine_keyword_naming(keyword):
 def test_qubit_size_arg_mismatch(qubit_params):
     """Test that passing a qubit of different size raises error."""
     qasm_str = (
-        """OPENQASM 3;
+        """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit[3] q) {

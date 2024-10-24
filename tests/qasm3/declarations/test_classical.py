@@ -24,7 +24,7 @@ from tests.utils import check_single_qubit_rotation_op
 def test_scalar_declarations():
     """Test scalar declarations in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     int a;
     uint b;
@@ -43,7 +43,7 @@ def test_scalar_declarations():
 def test_const_declarations():
     """Test const declarations in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     const int a = 5;
     const uint b = 10;
@@ -68,7 +68,7 @@ def test_const_declarations():
 def test_scalar_assignments():
     """Test scalar assignments in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     int a = 5;
     uint b;
@@ -88,7 +88,7 @@ def test_scalar_assignments():
 def test_scalar_value_assignment():
     """Test assigning variable values from other variables"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     int a = 5;
     float[32] r;
@@ -113,7 +113,7 @@ def test_scalar_value_assignment():
 def test_scalar_type_casts():
     """Test type casts on scalar variables"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     int[32] a = 5.1;
     float[32] r = 245;
@@ -146,7 +146,7 @@ def test_scalar_type_casts():
 def test_array_type_casts():
     """Test type casts on array variables"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     array[int[32], 3, 2] arr_int = { {1, 2}, {3, 4}, {5, 6.2} };
     array[uint[32], 3, 2] arr_uint = { {1, 2}, {3, 4}, {5, 6.2} };
@@ -182,7 +182,7 @@ def test_array_type_casts():
 def test_array_declarations():
     """Test array declarations in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     array[int[32], 3, 2] arr_int;
     array[uint[32-9], 3, 2] arr_uint;
@@ -198,7 +198,7 @@ def test_array_assignments():
     """Test array assignments"""
 
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     array[int[32], 3, 2] arr_int;
@@ -253,7 +253,7 @@ def test_array_assignments():
 def test_array_expressions():
     """Test array expressions"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     array[int[32], 3, 2] arr_int;
@@ -296,7 +296,7 @@ def test_array_initializations():
     """Test array initializations"""
 
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     array[int[32], 3, 2] arr_int = { {1, 2}, {3, 4}, {5, 6} };
@@ -326,7 +326,7 @@ def test_array_range_assignment():
     """Test array range assignment"""
 
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     array[int[32], 3, 2] arr_int = { {1, 2}, {3, 4}, {5, 6} };

@@ -21,13 +21,13 @@ from tests.utils import check_unrolled_qasm
 def test_qubit_declarations():
     """Test qubit declarations in different ways"""
     qasm2_string = """
-    OPENQASM 2;
+    OPENQASM 2.0;
     qreg q3[3];
     qreg q;
     
     """
 
-    expected_qasm = """OPENQASM 2;
+    expected_qasm = """OPENQASM 2.0;
     include "stdgates.inc";
     qreg q3[3];
     qreg q[1];
@@ -41,14 +41,14 @@ def test_qubit_declarations():
 def test_clbit_declarations():
     """Test clbit declarations in different ways"""
     qasm2_string = """
-    OPENQASM 2;
+    OPENQASM 2.0;
     include "stdgates.inc";
     
     creg c3[3];
     creg c;
     """
 
-    expected_qasm = """OPENQASM 2;
+    expected_qasm = """OPENQASM 2.0;
     include "stdgates.inc";
     creg c3[3];
     creg c[1];
@@ -62,7 +62,7 @@ def test_clbit_declarations():
 def test_qubit_clbit_declarations():
     """Test qubit and clbit declarations in different ways"""
     qasm2_string = """
-    OPENQASM 2;
+    OPENQASM 2.0;
     include "stdgates.inc";
 
     // qubit declarations
@@ -74,7 +74,7 @@ def test_qubit_clbit_declarations():
     creg c2[2];
     """
 
-    expected_qasm = """OPENQASM 2;
+    expected_qasm = """OPENQASM 2.0;
     include "stdgates.inc";
     qreg q1[1];
     qreg q2[2];
