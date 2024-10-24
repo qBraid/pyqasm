@@ -13,7 +13,7 @@ Module containing unit tests for parsing and unrolling programs that contain qua
 declarations.
 
 """
-from pyqasm.unroller import unroll
+from pyqasm.entrypoint import unroll
 from tests.utils import check_unrolled_qasm
 
 

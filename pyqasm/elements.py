@@ -93,6 +93,14 @@ class Variable:
 
 
 class QasmModule(ABC):
+    """Abstract class for a Qasm module
+
+    Args:
+        name (str): Name of the module.
+        program (Program): The original openqasm3 program.
+        statements (list[Statement]): list of openqasm3 Statements.
+    """
+
     def __init__(self, name: str, program: Program, statements: list):
         self._name = name
         self._original_program = program
@@ -100,7 +108,7 @@ class QasmModule(ABC):
         self._num_qubits = 0
         self._num_clbits = 0
         self._unrolled_qasm = ""
-        self._unrolled_ast = None
+        self._unrolled_ast = Program(statements=[])
 
     @property
     def name(self) -> str:
@@ -191,12 +199,12 @@ class QasmModule(ABC):
 
 class Qasm2Module(QasmModule):
     """
-    A module representing an unrolled openqasm quantum program.
+    A module representing an unrolled openqasm2 quantum program.
 
     Args:
         name (str): Name of the module.
-        program (Program): The original openqasm3 program.
-        statements (list[Statement]): list of openqasm3 Statements.
+        program (Program): The original openqasm2 program.
+        statements (list[Statement]): list of openqasm2 Statements.
     """
 
     def __init__(
@@ -265,7 +273,7 @@ class Qasm2Module(QasmModule):
 
 class Qasm3Module(QasmModule):
     """
-    A module representing an unrolled openqasm quantum program.
+    A module representing an unrolled openqasm3 quantum program.
 
     Args:
         name (str): Name of the module.
