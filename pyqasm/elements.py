@@ -214,7 +214,7 @@ class Qasm2Module(QasmModule):
         statements: list,
     ):
         super().__init__(name, program, statements)
-        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="2.0")
+        self._unrolled_ast = Program(statements=[Include('qelib1.inc')], version="2.0")
         self._whitelist_statements = {
             qasm3_ast.BranchingStatement,
             qasm3_ast.QubitDeclaration,
@@ -288,7 +288,7 @@ class Qasm3Module(QasmModule):
         statements: list,
     ):
         super().__init__(name, program, statements)
-        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3.0")
+        self._unrolled_ast = Program(statements=[Include('stdgates.inc')], version="3.0")
 
     @property
     def unrolled_qasm(self) -> str:
