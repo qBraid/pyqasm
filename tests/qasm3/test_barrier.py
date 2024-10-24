@@ -22,7 +22,7 @@ from tests.utils import check_unrolled_qasm
 # 1. Test barrier operations in different ways
 def test_barrier():
     qasm_str = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     qubit[2] q1;
@@ -37,7 +37,7 @@ def test_barrier():
     barrier q1, q2[0:2], q3[:];
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q1;
     qubit[3] q2;
@@ -66,7 +66,7 @@ def test_barrier():
 
 def test_barrier_in_function():
     """Test that a barrier in a function is correctly parsed."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit[4] a) {
@@ -77,7 +77,7 @@ def test_barrier_in_function():
     my_function(q);
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[4] q;
     barrier q[0];
@@ -92,7 +92,7 @@ def test_barrier_in_function():
 def test_incorrect_barrier():
 
     undeclared = """
-    OPENQASM 3;
+    OPENQASM 3.0;
 
     qubit[3] q1;
 
@@ -103,7 +103,7 @@ def test_incorrect_barrier():
         validate(undeclared)
 
     out_of_bounds = """
-    OPENQASM 3;
+    OPENQASM 3.0;
 
     qubit[2] q1;
 
@@ -116,7 +116,7 @@ def test_incorrect_barrier():
         validate(out_of_bounds)
 
     duplicate = """
-    OPENQASM 3;
+    OPENQASM 3.0;
 
     qubit[2] q1;
 

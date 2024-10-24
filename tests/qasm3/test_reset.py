@@ -23,7 +23,7 @@ from tests.utils import check_unrolled_qasm
 def test_reset_operations():
     """Test reset operations in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     // qubit declarations
@@ -38,7 +38,7 @@ def test_reset_operations():
     reset q3[:2];
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[1] q1;
     qubit[2] q2;
@@ -56,7 +56,7 @@ def test_reset_operations():
 
 def test_reset_inside_function():
     """Test that a qubit reset inside a function is correctly parsed."""
-    qasm_str = """OPENQASM 3;
+    qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit a) {
@@ -67,7 +67,7 @@ def test_reset_inside_function():
     my_function(q[1]);
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[3] q;
     reset q[1];
@@ -79,7 +79,7 @@ def test_reset_inside_function():
 
 def test_incorrect_resets():
     undeclared = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     qubit[3] q1;
@@ -91,7 +91,7 @@ def test_incorrect_resets():
         validate(undeclared)
 
     index_error = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     qubit[2] q1;

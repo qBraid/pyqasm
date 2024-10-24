@@ -24,7 +24,7 @@ from tests.utils import check_unrolled_qasm
 def test_qubit_declarations():
     """Test qubit declarations in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     qubit q1;
     qubit[2] q2;
@@ -35,7 +35,7 @@ def test_qubit_declarations():
     qubit[N] q5;
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[1] q1;
     qubit[2] q2;
@@ -52,7 +52,7 @@ def test_qubit_declarations():
 def test_clbit_declarations():
     """Test clbit declarations in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
     bit c1;
     bit[2] c2;
@@ -63,7 +63,7 @@ def test_clbit_declarations():
     bit[size] c5;
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     bit[1] c1;
     bit[2] c2;
@@ -80,7 +80,7 @@ def test_clbit_declarations():
 def test_qubit_clbit_declarations():
     """Test qubit and clbit declarations in different ways"""
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
     include "stdgates.inc";
 
     // qubit declarations
@@ -96,7 +96,7 @@ def test_qubit_clbit_declarations():
     bit[1] c4;
     """
 
-    expected_qasm = """OPENQASM 3;
+    expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[1] q1;
     qubit[2] q2;
@@ -116,7 +116,7 @@ def test_qubit_redeclaration_error():
     """Test redeclaration of qubit"""
     with pytest.raises(ValidationError, match="Re-declaration of quantum register with name 'q1'"):
         qasm3_string = """
-        OPENQASM 3;
+        OPENQASM 3.0;
         include "stdgates.inc";
         qubit q1;
         qubit q1;
@@ -130,7 +130,7 @@ def test_invalid_qubit_name():
         ValidationError, match="Can not declare quantum register with keyword name 'pi'"
     ):
         qasm3_string = """
-        OPENQASM 3;
+        OPENQASM 3.0;
         include "stdgates.inc";
         qubit pi;
         """
@@ -141,7 +141,7 @@ def test_clbit_redeclaration_error():
     """Test redeclaration of clbit"""
     with pytest.raises(ValidationError, match=r"Re-declaration of variable c1"):
         qasm3_string = """
-        OPENQASM 3;
+        OPENQASM 3.0;
         include "stdgates.inc";
         bit c1;
         bit[4] c1;
@@ -155,7 +155,7 @@ def test_non_constant_size():
         ValidationError, match=r"Variable 'N' is not a constant in given expression"
     ):
         qasm3_string = """
-        OPENQASM 3;
+        OPENQASM 3.0;
         include "stdgates.inc";
         int[32] N = 10;
         qubit[N] q;
@@ -166,7 +166,7 @@ def test_non_constant_size():
         ValidationError, match=r"Variable 'size' is not a constant in given expression"
     ):
         qasm3_string = """
-        OPENQASM 3;
+        OPENQASM 3.0;
         include "stdgates.inc";
         int[32] size = 10;
         bit[size] c;

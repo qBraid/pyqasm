@@ -24,7 +24,7 @@ from tests.utils import check_unrolled_qasm
 def test_whitelisted_ops():
     """Test qubit declarations in different ways"""
     qasm2_string = """
-    OPENQASM 2;
+    OPENQASM 2.0;
     include "stdgates.inc";
     gate custom_gate a, b {
         cx a, b;
@@ -42,7 +42,7 @@ def test_whitelisted_ops():
     """
 
     expected_qasm = """
-    OPENQASM 2;
+    OPENQASM 2.0;
     include "stdgates.inc";
     qreg q[2];
     creg c[2];
@@ -68,7 +68,7 @@ def test_subroutine_blacklist():
     with pytest.raises(ValidationError):
         validate(
             """
-            OPENQASM 2;
+            OPENQASM 2.0;
             include "stdgates.inc";
             qreg q[2];
             creg c[2];
@@ -85,7 +85,7 @@ def test_switch_blacklist():
     with pytest.raises(ValidationError):
         validate(
             """
-            OPENQASM 2;
+            OPENQASM 2.0;
             include "stdgates.inc";
             qreg q[2];
             creg c[2];
@@ -105,7 +105,7 @@ def test_for_blacklist():
     with pytest.raises(ValidationError):
         validate(
             """
-            OPENQASM 2;
+            OPENQASM 2.0;
             include "stdgates.inc";
             qreg q[2];
             creg c[2];
@@ -122,7 +122,7 @@ def test_while_blacklist():
     with pytest.raises(ValidationError):
         validate(
             """
-            OPENQASM 2;
+            OPENQASM 2.0;
             include "stdgates.inc";
             qreg q[2];
             creg c[2];
