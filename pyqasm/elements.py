@@ -92,7 +92,7 @@ class Variable:
         )
 
 
-class QasmModule(ABC):
+class QasmModule(ABC): # pylint: disable=too-many-instance-attributes
     """Abstract class for a Qasm module
 
     Args:
@@ -107,6 +107,7 @@ class QasmModule(ABC):
         self._statements = statements
         self._num_qubits = 0
         self._num_clbits = 0
+        self._has_measurements = None
         self._unrolled_qasm = ""
         self._unrolled_ast = Program(statements=[])
 
@@ -187,6 +188,23 @@ class QasmModule(ABC):
             program=program,
             statements=statements,
         )
+
+    def has_measurements(self):
+        """Check if the module has any measurement operations."""
+        if self._has_measurements is None:
+            self._has_measurements = False
+            # try to check in the unrolled version as that will a better indicator of
+            # the presence of measurements
+            stmts_to_check = (
+                self._unrolled_ast.statements
+                if len(self._unrolled_ast.statements) > 0
+                else self._statements
+            )
+            for stmt in stmts_to_check:
+                if isinstance(stmt, qasm3_ast.QuantumMeasurementStatement):
+                    self._has_measurements = True
+                    break
+        return self._has_measurements
 
     @abstractmethod
     def accept(self, visitor):

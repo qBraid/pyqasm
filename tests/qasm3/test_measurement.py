@@ -61,6 +61,37 @@ def test_measure():
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
+def test_has_measurements():
+    qasm3_string_with_measure = """
+    OPENQASM 3.0;
+
+    qubit[2] q1;
+    qubit[5] q2;
+    qubit q3;
+
+    bit[2] c1;
+    bit c2;
+
+    c1 = measure q1;
+    measure q1 -> c1;
+    c2[0] = measure q3[0];
+    measure q1[:1] -> c1[1];
+    measure q2[{0, 1}] -> c1[{1, 0}];
+
+    """
+    qasm_module = unroll(qasm3_string_with_measure, as_module=True)
+    assert qasm_module.has_measurements()
+
+    qasm3_string_without_measure = """
+    OPENQASM 3.0;
+
+    qubit[2] q1;
+    qubit[5] q2;
+    """
+    qasm_module = unroll(qasm3_string_without_measure, as_module=True)
+    assert not qasm_module.has_measurements()
+
+
 def test_incorrect_measure():
     def run_test(qasm3_code, error_message):
         with pytest.raises(ValidationError, match=error_message):
