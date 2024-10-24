@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
+from openqasm3 import parse
 from openqasm3.ast import (
     DiscreteSet,
     Expression,
@@ -26,8 +27,9 @@ from openqasm3.ast import (
     IntType,
     RangeDefinition,
 )
+from openqasm3.parser import QASM3ParsingError
 
-from .exceptions import ValidationError, raise_qasm3_error
+from .exceptions import QasmParsingError, ValidationError, raise_qasm3_error
 
 if TYPE_CHECKING:
     from .elements import Variable
@@ -182,3 +184,27 @@ class Qasm3Analyzer:
             slice(start, end + 1, step) if start != end else start for start, end, step in indices
         )
         return multi_dim_arr[slicing]  # type: ignore[index]
+
+    @staticmethod
+    def extract_qasm_version(qasm: str) -> int:
+        """
+        Parses an OpenQASM program string to determine its major version, either 2 or 3.
+
+        Args:
+            qasm (str): The OpenQASM program string.
+
+        Returns:
+            int: The OpenQASM version as an integer.
+
+        Raises:
+            QasmError: If the string does not represent a valid OpenQASM program.
+        """
+        try:
+            # TODO: optimize this to just check the start of the program for version
+            parsed_program = parse(qasm)
+            version = int(float(parsed_program.version))
+            return version
+        except (QASM3ParsingError, ValueError, TypeError) as err:
+            raise_qasm3_error(
+                "Could not determine the OpenQASM version.", err_type=QasmParsingError
+            )

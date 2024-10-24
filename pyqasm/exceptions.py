@@ -17,6 +17,7 @@ import logging
 from typing import Optional, Type
 
 from openqasm3.ast import Span
+from openqasm3.parser import QASM3ParsingError
 
 
 class PyQasmError(Exception):
@@ -29,6 +30,11 @@ class ValidationError(PyQasmError):
 
 class UnrollError(PyQasmError):
     """Exception raised when a OpenQASM program fails unrolling."""
+
+
+class QasmParsingError(QASM3ParsingError):
+    """An error raised by the AST visitor during the AST-generation phase.  This is raised in cases where the
+    given program could not be correctly parsed."""
 
 
 def raise_qasm3_error(
