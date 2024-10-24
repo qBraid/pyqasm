@@ -28,7 +28,7 @@ def test_qubit_declarations():
     """
 
     expected_qasm = """OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     qreg q3[3];
     qreg q[1];
     """
@@ -42,14 +42,14 @@ def test_clbit_declarations():
     """Test clbit declarations in different ways"""
     qasm2_string = """
     OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     
     creg c3[3];
     creg c;
     """
 
     expected_qasm = """OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     creg c3[3];
     creg c[1];
     """
@@ -63,7 +63,7 @@ def test_qubit_clbit_declarations():
     """Test qubit and clbit declarations in different ways"""
     qasm2_string = """
     OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
 
     // qubit declarations
     qreg q1[1];
@@ -75,7 +75,7 @@ def test_qubit_clbit_declarations():
     """
 
     expected_qasm = """OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     qreg q1[1];
     qreg q2[2];
     creg c1[1];
