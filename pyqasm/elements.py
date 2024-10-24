@@ -12,12 +12,17 @@
 Module defining Qasm3 Converter elements.
 
 """
+import re
+from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Optional, Union
 
 import numpy as np
+import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program, Statement
 from openqasm3.printer import dumps
+
+from .exceptions import ValidationError
 
 
 class InversionOp(Enum):
@@ -87,32 +92,23 @@ class Variable:
         )
 
 
-class Qasm3Module:
-    """
-    A module representing an unrolled openqasm quantum program.
+class QasmModule(ABC):
+    """Abstract class for a Qasm module
 
     Args:
         name (str): Name of the module.
-        module (Module): QIR Module instance.
-        num_qubits (int): Number of qubits in the circuit.
-        num_clbits (int): Number of classical bits in the circuit.
-        original_program (Program): The original openqasm3 program.
-        elements (list[Statement]): list of openqasm3 Statements.
+        program (Program): The original openqasm3 program.
+        statements (list[Statement]): list of openqasm3 Statements.
     """
 
-    def __init__(
-        self,
-        name: str,
-        program: Program,
-        statements,
-    ):
+    def __init__(self, name: str, program: Program, statements: list):
         self._name = name
         self._original_program = program
         self._statements = statements
         self._num_qubits = 0
         self._num_clbits = 0
         self._unrolled_qasm = ""
-        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3")
+        self._unrolled_ast = Program(statements=[])
 
     @property
     def name(self) -> str:
@@ -140,6 +136,31 @@ class Qasm3Module:
         """Returns the number of classical bits in the circuit."""
         return self._num_clbits
 
+    @property
+    def original_program(self) -> Program:
+        """Returns the program AST for the original qasm supplied by the user"""
+        return self._original_program
+
+    @property
+    def unrolled_ast(self) -> Program:
+        """Returns the unrolled AST for the module"""
+        return self._unrolled_ast
+
+    @unrolled_ast.setter
+    def unrolled_ast(self, value: Program):
+        """Setter for the unrolled AST"""
+        self._unrolled_ast = value
+
+    @property
+    @abstractmethod
+    def unrolled_qasm(self) -> str:
+        """Abstract property for unrolled_qasm"""
+
+    @unrolled_qasm.setter
+    @abstractmethod
+    def unrolled_qasm(self, value: str):
+        """Abstract setter for unrolled_qasm"""
+
     def add_classical_bits(self, num_clbits: int):
         """Add classical bits to the module
 
@@ -150,48 +171,6 @@ class Qasm3Module:
             None
         """
         self._num_clbits += num_clbits
-
-    @property
-    def original_program(self) -> Program:
-        """Returns the program AST for the original qasm supplied by the user"""
-        return self._original_program
-
-    @property
-    def unrolled_qasm(self) -> str:
-        """Returns the unrolled qasm for the given module"""
-        if self._unrolled_qasm == "":
-            self._unrolled_qasm = dumps(self._unrolled_ast)
-        return self._unrolled_qasm
-
-    @unrolled_qasm.setter
-    def unrolled_qasm(self, value: str):
-        """Setter for the unrolled qasm"""
-        self._unrolled_qasm = value
-
-    @property
-    def unrolled_ast(self) -> Program:
-        """Returns the unrolled AST for the given module"""
-        return self._unrolled_ast
-
-    @unrolled_ast.setter
-    def unrolled_ast(self, value: Program):
-        """Setter for the unrolled AST"""
-        self._unrolled_ast = value
-
-    def unrolled_qasm_as_list(self):
-        """Returns the unrolled qasm as a list of lines"""
-        return self.unrolled_qasm.split("\n")
-
-    def add_qasm_statement(self, statement: Statement):
-        """Add a qasm statement to the unrolled ast
-
-        Args:
-            statement (str): The qasm statement to add to the unrolled ast
-
-        Returns:
-            None
-        """
-        self._unrolled_ast.statements.append(statement)
 
     @classmethod
     def from_program(cls, program: Program):
@@ -208,6 +187,120 @@ class Qasm3Module:
             program=program,
             statements=statements,
         )
+
+    @abstractmethod
+    def accept(self, visitor):
+        """Accept a visitor for the module
+
+        Args:
+            visitor (BasicQasmVisitor): The visitor to accept
+        """
+
+
+class Qasm2Module(QasmModule):
+    """
+    A module representing an unrolled openqasm2 quantum program.
+
+    Args:
+        name (str): Name of the module.
+        program (Program): The original openqasm2 program.
+        statements (list[Statement]): list of openqasm2 Statements.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        program: Program,
+        statements: list,
+    ):
+        super().__init__(name, program, statements)
+        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="2")
+        self._whitelist_statements = {
+            qasm3_ast.BranchingStatement,
+            qasm3_ast.QubitDeclaration,
+            qasm3_ast.ClassicalDeclaration,
+            qasm3_ast.Include,
+            qasm3_ast.QuantumGateDefinition,
+            qasm3_ast.QuantumGate,
+            qasm3_ast.QuantumMeasurement,
+            qasm3_ast.QuantumMeasurementStatement,
+            qasm3_ast.QuantumReset,
+            qasm3_ast.QuantumBarrier,
+        }
+
+    def _filter_statements(self):
+        """Filter statements according to the whitelist"""
+        for stmt in self._statements:
+            stmt_type = type(stmt)
+            if stmt_type not in self._whitelist_statements:
+                raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
+            # TODO: add more filtering here if needed
+
+    def _format_declarations(self):
+        """Format the unrolled qasm for declarations in openqasm 2.0 format"""
+        qasm = self._unrolled_qasm
+        for declaration_type, replacement_type in [("qubit", "qreg"), ("bit", "creg")]:
+            pattern = rf"{declaration_type}\[(\d+)\]\s+(\w+);"
+            replacement = rf"{replacement_type} \2[\1];"
+            qasm = re.sub(pattern, replacement, qasm)
+
+        self._unrolled_qasm = qasm
+
+    @property
+    def unrolled_qasm(self) -> str:
+        """Returns the unrolled qasm for the given module"""
+        if self._unrolled_qasm == "":
+            self._unrolled_qasm = dumps(self._unrolled_ast, old_measurement=True)
+            self._format_declarations()
+        return self._unrolled_qasm
+
+    @unrolled_qasm.setter
+    def unrolled_qasm(self, value: str):
+        """Setter for the unrolled qasm"""
+        self._unrolled_qasm = value
+
+    def accept(self, visitor):
+        """Accept a visitor for the module
+
+        Args:
+            visitor (BasicQasmVisitor): The visitor to accept
+        """
+        self._filter_statements()
+        unrolled_stmt_list = visitor.visit_basic_block(self._statements)
+        self.unrolled_ast.statements.extend(unrolled_stmt_list)
+        # TODO: some finalizing method here probably
+
+
+class Qasm3Module(QasmModule):
+    """
+    A module representing an unrolled openqasm3 quantum program.
+
+    Args:
+        name (str): Name of the module.
+        program (Program): The original openqasm3 program.
+        statements (list[Statement]): list of openqasm3 Statements.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        program: Program,
+        statements: list,
+    ):
+        super().__init__(name, program, statements)
+        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3")
+
+    @property
+    def unrolled_qasm(self) -> str:
+        """Returns the unrolled qasm for the given module"""
+        if self._unrolled_qasm == "":
+            self._unrolled_qasm = dumps(self._unrolled_ast)
+        return self._unrolled_qasm
+
+    @unrolled_qasm.setter
+    def unrolled_qasm(self, value: str):
+        """Setter for the unrolled qasm"""
+        self._unrolled_qasm = value
 
     def accept(self, visitor):
         """Accept a visitor for the module

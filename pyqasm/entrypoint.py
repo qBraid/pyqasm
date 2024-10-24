@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import openqasm3
 
-from .elements import Qasm3Module
+from .elements import Qasm2Module, Qasm3Module
 from .exceptions import ValidationError
 from .visitor import BasicQasmVisitor
 
@@ -47,8 +47,11 @@ def load(program: openqasm3.ast.Program | str) -> Qasm3Module:
             raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
+    if program.version not in {"2.0", "3.0", "2", "3"}:
+        raise ValidationError(f"Unsupported OpenQASM version: {program.version}")
 
-    module = Qasm3Module.from_program(program)
+    qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
+    module = qasm_module.from_program(program)
 
     return module
 

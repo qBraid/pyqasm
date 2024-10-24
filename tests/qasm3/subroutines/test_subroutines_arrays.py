@@ -18,7 +18,7 @@ import pytest
 
 from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from tests.resources.subroutines import SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS
+from tests.qasm3.resources.subroutines import SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS
 from tests.utils import check_single_qubit_rotation_op
 
 

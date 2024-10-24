@@ -17,7 +17,7 @@ import pytest
 
 from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from tests.resources.subroutines import SUBROUTINE_INCORRECT_TESTS
+from tests.qasm3.resources.subroutines import SUBROUTINE_INCORRECT_TESTS
 from tests.utils import check_single_qubit_gate_op, check_single_qubit_rotation_op
 
 

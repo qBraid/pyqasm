@@ -16,7 +16,7 @@ import pytest
 
 from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from tests.resources.gates import (
+from tests.qasm3.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
     SINGLE_QUBIT_GATE_INCORRECT_TESTS,
     custom_op_tests,

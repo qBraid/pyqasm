@@ -16,7 +16,7 @@ import pytest
 
 from pyqasm.entrypoint import unroll, validate
 from pyqasm.exceptions import ValidationError
-from tests.resources.variables import ASSIGNMENT_TESTS, DECLARATION_TESTS
+from tests.qasm3.resources.variables import ASSIGNMENT_TESTS, DECLARATION_TESTS
 from tests.utils import check_single_qubit_rotation_op
 
 
