@@ -77,6 +77,7 @@ def validate(program: openqasm3.ast.Program | str) -> None:
 def unroll(
     program: openqasm3.ast.Program | str,
     as_module: bool = False,
+    remove_measurements: bool = False,
     **kwargs,
 ) -> Qasm3Module | str:
     """Transforms the input program into a linear sequence of qubit and
@@ -99,8 +100,8 @@ def unroll(
 
     visitor = BasicQasmVisitor(module=module, **kwargs)
     module.accept(visitor)
+    module.post_process(remove_measurements=remove_measurements)
 
     if as_module:
         return module
-
     return module.unrolled_qasm

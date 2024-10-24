@@ -92,7 +92,7 @@ class Variable:
         )
 
 
-class QasmModule(ABC): # pylint: disable=too-many-instance-attributes
+class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
     """Abstract class for a Qasm module
 
     Args:
@@ -109,7 +109,7 @@ class QasmModule(ABC): # pylint: disable=too-many-instance-attributes
         self._num_clbits = 0
         self._has_measurements = None
         self._unrolled_qasm = ""
-        self._unrolled_ast = Program(statements=[])
+        self._unrolled_ast = Program(statements=[Include("stdgates.inc")])
 
     @property
     def name(self) -> str:
@@ -153,14 +153,16 @@ class QasmModule(ABC): # pylint: disable=too-many-instance-attributes
         self._unrolled_ast = value
 
     @property
-    @abstractmethod
     def unrolled_qasm(self) -> str:
-        """Abstract property for unrolled_qasm"""
+        """Returns the unrolled qasm for the given module"""
+        if self._unrolled_qasm == "":
+            self._unrolled_qasm = self._qasm_ast_to_str(self._unrolled_ast)
+        return self._unrolled_qasm
 
     @unrolled_qasm.setter
-    @abstractmethod
     def unrolled_qasm(self, value: str):
-        """Abstract setter for unrolled_qasm"""
+        """Setter for the unrolled qasm"""
+        self._unrolled_qasm = value
 
     def add_classical_bits(self, num_clbits: int):
         """Add classical bits to the module
@@ -206,13 +208,41 @@ class QasmModule(ABC): # pylint: disable=too-many-instance-attributes
                     break
         return self._has_measurements
 
+    def _qasm_without_measurements(self, as_str: bool = True):
+        """Return the qasm without measurement operations"""
+        stmt_list = (
+            self._statements
+            if len(self._unrolled_ast.statements) == 1
+            else self._unrolled_ast.statements
+        )
+        stmts_without_meas = [
+            stmt
+            for stmt in stmt_list
+            if not isinstance(stmt, qasm3_ast.QuantumMeasurementStatement)
+        ]
+        if not as_str:
+            return stmts_without_meas
+
+        return self._qasm_ast_to_str(Program(statements=stmts_without_meas))
+
+    @abstractmethod
+    def _qasm_ast_to_str(self, qasm_ast):
+        """Convert the qasm AST to a string"""
+
     @abstractmethod
     def accept(self, visitor):
-        """Accept a visitor for the module
+        """Accept a visitor for the mßodule
 
         Args:
             visitor (BasicQasmVisitor): The visitor to accept
         """
+
+    def post_process(self, remove_measurements: bool = False):
+        """Post process the module with user supplied args"""
+        # can add other post processing steps here if needed
+        if remove_measurements:
+            self._unrolled_ast.statements = self._qasm_without_measurements(as_str=False)
+            self._unrolled_qasm = self._qasm_ast_to_str(self._unrolled_ast)
 
 
 class Qasm2Module(QasmModule):
@@ -254,28 +284,20 @@ class Qasm2Module(QasmModule):
                 raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
             # TODO: add more filtering here if needed
 
-    def _format_declarations(self):
+    def _format_declarations(self, qasm_str):
         """Format the unrolled qasm for declarations in openqasm 2.0 format"""
-        qasm = self._unrolled_qasm
         for declaration_type, replacement_type in [("qubit", "qreg"), ("bit", "creg")]:
             pattern = rf"{declaration_type}\[(\d+)\]\s+(\w+);"
             replacement = rf"{replacement_type} \2[\1];"
-            qasm = re.sub(pattern, replacement, qasm)
+            qasm_str = re.sub(pattern, replacement, qasm_str)
+        return qasm_str
 
-        self._unrolled_qasm = qasm
-
-    @property
-    def unrolled_qasm(self) -> str:
-        """Returns the unrolled qasm for the given module"""
-        if self._unrolled_qasm == "":
-            self._unrolled_qasm = dumps(self._unrolled_ast, old_measurement=True)
-            self._format_declarations()
-        return self._unrolled_qasm
-
-    @unrolled_qasm.setter
-    def unrolled_qasm(self, value: str):
-        """Setter for the unrolled qasm"""
-        self._unrolled_qasm = value
+    def _qasm_ast_to_str(self, qasm_ast):
+        """Convert the qasm AST to a string"""
+        # set the version to 2.0
+        qasm_ast.version = "2.0"
+        raw_qasm = dumps(qasm_ast, old_measurement=True)
+        return self._format_declarations(raw_qasm)
 
     def accept(self, visitor):
         """Accept a visitor for the module
@@ -308,17 +330,11 @@ class Qasm3Module(QasmModule):
         super().__init__(name, program, statements)
         self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3.0")
 
-    @property
-    def unrolled_qasm(self) -> str:
-        """Returns the unrolled qasm for the given module"""
-        if self._unrolled_qasm == "":
-            self._unrolled_qasm = dumps(self._unrolled_ast)
-        return self._unrolled_qasm
-
-    @unrolled_qasm.setter
-    def unrolled_qasm(self, value: str):
-        """Setter for the unrolled qasm"""
-        self._unrolled_qasm = value
+    def _qasm_ast_to_str(self, qasm_ast):
+        """Convert the qasm AST to a string"""
+        # set the version to 3.0
+        qasm_ast.version = "3.0"
+        return dumps(qasm_ast)
 
     def accept(self, visitor):
         """Accept a visitor for the module

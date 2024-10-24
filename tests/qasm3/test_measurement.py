@@ -92,6 +92,38 @@ def test_has_measurements():
     assert not qasm_module.has_measurements()
 
 
+def test_remove_measurement():
+    qasm3_string = """
+    OPENQASM 3.0;
+
+    qubit[2] q1;
+    qubit[5] q2;
+    qubit q3;
+
+    bit[2] c1;
+    bit c2;
+
+    c1 = measure q1;
+    measure q1 -> c1;
+    c2[0] = measure q3[0];
+    measure q1[:1] -> c1[1];
+    measure q2[{0, 1}] -> c1[{1, 0}];
+
+    """
+
+    expected_qasm = """OPENQASM 3.0;
+    include 'stdgates.inc';
+    qubit[2] q1;
+    qubit[5] q2;
+    qubit[1] q3;
+    bit[2] c1;
+    bit[1] c2;
+    """
+
+    unrolled_qasm = unroll(qasm3_string, remove_measurements=True)
+    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+
+
 def test_incorrect_measure():
     def run_test(qasm3_code, error_message):
         with pytest.raises(ValidationError, match=error_message):
