@@ -34,7 +34,9 @@ def check_unrolled_qasm(unrolled_qasm, expected_qasm):
     assert len(unrolled_qasm) == len(expected_qasm)
 
     for unrolled_line, expected_line in zip(unrolled_qasm, expected_qasm):
-        print(unrolled_line, expected_line)
+        # replace ' with " for comparison
+        unrolled_line = unrolled_line.replace("'", '"')
+        expected_line = expected_line.replace("'", '"')
         assert unrolled_line.strip() == expected_line.strip()
 
 

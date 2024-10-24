@@ -25,7 +25,7 @@ def test_whitelisted_ops():
     """Test qubit declarations in different ways"""
     qasm2_string = """
     OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     gate custom_gate a, b {
         cx a, b;
     }
@@ -43,7 +43,7 @@ def test_whitelisted_ops():
 
     expected_qasm = """
     OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     qreg q[2];
     creg c[2];
     barrier q[0];
@@ -69,7 +69,7 @@ def test_subroutine_blacklist():
         validate(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
@@ -86,7 +86,7 @@ def test_switch_blacklist():
         validate(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
@@ -106,7 +106,7 @@ def test_for_blacklist():
         validate(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
@@ -123,7 +123,7 @@ def test_while_blacklist():
         validate(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
