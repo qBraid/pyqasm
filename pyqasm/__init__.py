@@ -52,13 +52,14 @@ except ImportError:  # pragma: no cover
 
 from .entrypoint import load
 from .exceptions import PyQasmError, QasmParsingError, ValidationError
-from .modules import Qasm2Module, Qasm3Module
+from .modules import Qasm2Module, Qasm3Module, QasmModule
 
 __all__ = [
     "PyQasmError",
     "ValidationError",
     "QasmParsingError",
     "load",
+    "QasmModule",
     "Qasm2Module",
     "Qasm3Module",
     "__version__",

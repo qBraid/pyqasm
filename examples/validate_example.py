@@ -84,4 +84,4 @@ for int i in [0:N-1] {
 c = measure q;
 """
 
-pyqasm.validate(qasm_program)
+pyqasm.load(qasm_program).validate()

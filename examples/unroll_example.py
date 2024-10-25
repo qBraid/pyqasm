@@ -70,6 +70,7 @@ bit[4] result;
 result = measure q;
 """
 
-qasm_unrolled = pyqasm.unroll(qasm_program)
+qasm_module = pyqasm.load(qasm_program)
+qasm_module.unroll()
 
-print(qasm_unrolled)
+print(qasm_module.unrolled_qasm)
