@@ -9,12 +9,12 @@
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
-Module containing unit tests for unrolling measurement operations.
+Module containing unit tests for loading measurement operations.
 
 """
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -57,8 +57,9 @@ def test_measure():
     c1[0] = measure q2[1]; 
     """
 
-    unrolled_qasm = unroll(qasm3_string)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    module = load(qasm3_string)
+    module.unroll()
+    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
 
 
 def test_has_measurements():
@@ -79,7 +80,7 @@ def test_has_measurements():
     measure q2[{0, 1}] -> c1[{1, 0}];
 
     """
-    qasm_module = unroll(qasm3_string_with_measure, as_module=True)
+    qasm_module = load(qasm3_string_with_measure)
     assert qasm_module.has_measurements()
 
     qasm3_string_without_measure = """
@@ -88,7 +89,7 @@ def test_has_measurements():
     qubit[2] q1;
     qubit[5] q2;
     """
-    qasm_module = unroll(qasm3_string_without_measure, as_module=True)
+    qasm_module = load(qasm3_string_without_measure)
     assert not qasm_module.has_measurements()
 
 
@@ -120,14 +121,17 @@ def test_remove_measurement():
     bit[1] c2;
     """
 
-    unrolled_qasm = unroll(qasm3_string, remove_measurements=True)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    module = load(qasm3_string)
+    module.unroll()
+    module.remove_measurements()
+
+    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
 
 
 def test_incorrect_measure():
     def run_test(qasm3_code, error_message):
         with pytest.raises(ValidationError, match=error_message):
-            validate(qasm3_code)
+            load(qasm3_code).validate()
 
     # Test for undeclared register q2
     run_test(

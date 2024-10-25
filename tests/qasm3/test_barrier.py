@@ -14,7 +14,7 @@ Module containing unit tests for the barrier operation.
 """
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -60,8 +60,10 @@ def test_barrier():
     barrier q2[1];
     barrier q3[0];
     """
-    unrolled_qasm = unroll(qasm_str)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    module = load(qasm_str)
+    module.unroll()
+
+    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
 
 
 def test_barrier_in_function():
@@ -85,8 +87,37 @@ def test_barrier_in_function():
     barrier q[2];
     barrier q[3];
     """
-    unrolled_qasm = unroll(qasm_str)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    module = load(qasm_str)
+    module.unroll()
+    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
+
+
+def test_remove_barriers():
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[2] q1;
+    qubit[3] q2;
+    qubit[1] q3;
+    
+    // full qubits
+    barrier q1, q2, q3; 
+    barrier q1[0], q1[1], q2[:], q3[0];
+
+    // subset of qubits
+    barrier q1, q2[0:2], q3[:];
+    """
+
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q1;
+    qubit[3] q2;
+    qubit[1] q3;
+    """
+    module = load(qasm_str)
+    module.remove_barriers()
+
+    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
 
 
 def test_incorrect_barrier():
@@ -100,7 +131,7 @@ def test_incorrect_barrier():
     """
 
     with pytest.raises(ValidationError, match=r"Missing register declaration for q2 .*"):
-        validate(undeclared)
+        load(undeclared).validate()
 
     out_of_bounds = """
     OPENQASM 3.0;
@@ -113,7 +144,7 @@ def test_incorrect_barrier():
     with pytest.raises(
         ValidationError, match="Index 3 out of range for register of size 2 in qubit"
     ):
-        validate(out_of_bounds)
+        load(out_of_bounds).validate()
 
     duplicate = """
     OPENQASM 3.0;
@@ -124,4 +155,4 @@ def test_incorrect_barrier():
     """
 
     with pytest.raises(ValidationError, match=r"Duplicate qubit .*argument"):
-        validate(duplicate)
+        load(duplicate).validate()

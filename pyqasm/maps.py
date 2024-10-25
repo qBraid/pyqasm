@@ -781,3 +781,5 @@ SWITCH_BLACKLIST_STMTS = {
     SubroutineDefinition,
     QuantumGateDefinition,
 }
+
+SUPPORTED_QASM_VERSIONS = {"3.0", "3", "2", "2.0"}

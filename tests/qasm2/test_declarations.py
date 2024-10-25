@@ -13,7 +13,7 @@ Module containing unit tests for parsing and unrolling programs that contain qua
 declarations.
 
 """
-from pyqasm.entrypoint import unroll
+from pyqasm.entrypoint import load
 from tests.utils import check_unrolled_qasm
 
 
@@ -33,7 +33,10 @@ def test_qubit_declarations():
     qreg q[1];
     """
 
-    unrolled_qasm = unroll(qasm2_string)
+    result = load(qasm2_string)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
+
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -54,7 +57,10 @@ def test_clbit_declarations():
     creg c[1];
     """
 
-    unrolled_qasm = unroll(qasm2_string)
+    result = load(qasm2_string)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
+
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -82,5 +88,8 @@ def test_qubit_clbit_declarations():
     creg c2[2];
     """
 
-    unrolled_qasm = unroll(qasm2_string)
+    result = load(qasm2_string)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
+
     check_unrolled_qasm(unrolled_qasm, expected_qasm)

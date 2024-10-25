@@ -13,7 +13,7 @@ Module containing unit tests for parsing and unrolling programs that contain qua
 rotations in qasm2 format.
 
 """
-from pyqasm.entrypoint import unroll
+from pyqasm.entrypoint import load
 from tests.utils import check_unrolled_qasm
 
 
@@ -39,7 +39,9 @@ cx q[1], q[0];
 rx(-1.5707963267948966) q[1];
 rx(-1.5707963267948966) q[0];
 """
-    unrolled_qasm = unroll(qasm_in)
+    result = load(qasm_in)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -60,7 +62,9 @@ qreg q[2];
 rz(-5.07865952845335) q[1];
 ry(1.00183605297937) q[0];
 """
-    unrolled_qasm = unroll(qasm_in)
+    result = load(qasm_in)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -86,7 +90,9 @@ cx q[1], q[0];
 rx(-1.5707963267948966) q[2];
 rx(-1.5707963267948966) q[0];
 """
-    unrolled_qasm = unroll(qasm_in)
+    result = load(qasm_in)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -108,7 +114,9 @@ rx(1.5707963267948966) q[1];
 cx q[0], q[1];
 x q[0];
 """
-    unrolled_qasm = unroll(qasm_in)
+    result = load(qasm_in)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -139,5 +147,7 @@ rz(-0.7853981633974483) q[1];
 cx q[0], q[1];
 h q[1];
 """
-    unrolled_qasm = unroll(qasm_in)
+    result = load(qasm_in)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
     check_unrolled_qasm(unrolled_qasm, expected_out)

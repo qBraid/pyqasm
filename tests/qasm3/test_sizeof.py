@@ -14,7 +14,7 @@ Module containing unit tests for sizeof operation.
 """
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_single_qubit_rotation_op
 
@@ -42,7 +42,9 @@ def test_simple_sizeof():
     rx(size3) q[1];
     """
 
-    result = unroll(qasm3_string, as_module=True)
+    result = load(qasm3_string)
+    result.unroll()
+
     assert result.num_qubits == 2
 
     check_single_qubit_rotation_op(result.unrolled_ast, 4, [0, 0, 1, 1], [3, 3, 2, 3], "rx")
@@ -66,7 +68,9 @@ def test_sizeof_multiple_types():
     rx(size2) q[1];
     """
 
-    result = unroll(qasm3_string, as_module=True)
+    result = load(qasm3_string)
+    result.unroll()
+
     assert result.num_qubits == 2
     check_single_qubit_rotation_op(result.unrolled_ast, 2, [1, 1], [2, 3], "rx")
 
@@ -82,7 +86,7 @@ def test_unsupported_target():
 
         int[32] size1 = sizeof(my_ints[0]); // this is invalid
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()
 
 
 def test_sizeof_on_non_array():
@@ -98,7 +102,7 @@ def test_sizeof_on_non_array():
 
         int[32] size1 = sizeof(my_int); // this is invalid
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()
 
 
 def test_out_of_bounds_reference():
@@ -114,4 +118,4 @@ def test_out_of_bounds_reference():
 
         int[32] size1 = sizeof(my_ints, 3); // this is invalid
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()

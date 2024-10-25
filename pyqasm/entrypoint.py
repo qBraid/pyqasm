@@ -18,15 +18,15 @@ from typing import TYPE_CHECKING
 
 import openqasm3
 
-from .elements import Qasm2Module, Qasm3Module
 from .exceptions import ValidationError
-from .visitor import BasicQasmVisitor
+from .maps import SUPPORTED_QASM_VERSIONS
+from .modules import Qasm2Module, Qasm3Module, QasmModule
 
 if TYPE_CHECKING:
     import openqasm3.ast
 
 
-def load(program: openqasm3.ast.Program | str) -> Qasm3Module:
+def load(program: openqasm3.ast.Program | str) -> QasmModule:
     """Loads an OpenQASM 3 program into a `Qasm3Module` object.
 
     Args:
@@ -47,61 +47,13 @@ def load(program: openqasm3.ast.Program | str) -> Qasm3Module:
             raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
-    if program.version not in {"2.0", "3.0", "2", "3"}:
+    if program.version not in SUPPORTED_QASM_VERSIONS:
         raise ValidationError(f"Unsupported OpenQASM version: {program.version}")
+
+    # change version string to x.0 format
+    program.version = str(float(program.version))
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
     module = qasm_module.from_program(program)
 
     return module
-
-
-def validate(program: openqasm3.ast.Program | str) -> None:
-    """Validates a given OpenQASM 3 program for semantic correctness.
-
-    Args:
-        program (openqasm3.ast.Program or str): The OpenQASM 3 program to validate.
-
-    Raises:
-        ValidationError: If the program fails parsing or semantic validation.
-    """
-    module = load(program)
-
-    try:
-        visitor = BasicQasmVisitor(module, check_only=True)
-        module.accept(visitor)
-    except (TypeError, ValueError) as err:
-        raise ValidationError(err) from err
-
-
-def unroll(
-    program: openqasm3.ast.Program | str,
-    as_module: bool = False,
-    remove_measurements: bool = False,
-    **kwargs,
-) -> Qasm3Module | str:
-    """Transforms the input program into a linear sequence of qubit and
-    classical bit declarations, gate operations, and measurements
-
-    Args:
-        program (openqasm3.ast.Program or str): The OpenQASM 3 program to unroll.
-
-    Returns:
-        Qasm3Module or str: Returns the flattened program as a string. Or, if
-        ``as_module`` is Truem, returns a ``Qasm3Module`` containing the flattened
-        program and along with other program metadata as attributes.
-
-    Raises:
-        TypeError: If the input is not a supported OpenQASM 3 program type.
-        ValueError: If the input program fails to be parsed.
-        ValidationError: If the input program fails semantic validation.
-    """
-    module = load(program)
-
-    visitor = BasicQasmVisitor(module=module, **kwargs)
-    module.accept(visitor)
-    module.post_process(remove_measurements=remove_measurements)
-
-    if as_module:
-        return module
-    return module.unrolled_qasm

@@ -14,7 +14,7 @@ Module containing unit tests for reset operation.
 """
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -50,13 +50,14 @@ def test_reset_operations():
     reset q3[1];
     """
 
-    unrolled_qasm = unroll(qasm3_string)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    result = load(qasm3_string)
+    result.unroll()
+    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
 
 
 def test_reset_inside_function():
     """Test that a qubit reset inside a function is correctly parsed."""
-    qasm_str = """OPENQASM 3.0;
+    qasm3_string = """OPENQASM 3.0;
     include "stdgates.inc";
 
     def my_function(qubit a) {
@@ -73,8 +74,9 @@ def test_reset_inside_function():
     reset q[1];
     """
 
-    unrolled_qasm = unroll(qasm_str)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    result = load(qasm3_string)
+    result.unroll()
+    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
 
 
 def test_incorrect_resets():
@@ -88,7 +90,7 @@ def test_incorrect_resets():
     reset q2[0];
     """
     with pytest.raises(ValidationError):
-        validate(undeclared)
+        load(undeclared).validate()
 
     index_error = """
     OPENQASM 3.0;
@@ -100,4 +102,4 @@ def test_incorrect_resets():
     reset q1[4];
     """
     with pytest.raises(ValidationError):
-        validate(index_error)
+        load(index_error).validate()

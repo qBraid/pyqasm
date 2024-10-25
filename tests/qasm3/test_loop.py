@@ -15,7 +15,7 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
@@ -42,7 +42,7 @@ measure q->c;
 
 def test_convert_qasm3_for_loop():
     """Test converting a QASM3 program that contains a for loop."""
-    result = unroll(
+    result = load(
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -55,9 +55,9 @@ def test_convert_qasm3_for_loop():
             cx q[i], q[i+1];
         }
         measure q->c;
-        """,
-        as_module=True,
+        """
     )
+    result.unroll()
     assert result.num_qubits == 4
     assert result.num_clbits == 4
 
@@ -69,7 +69,7 @@ def test_convert_qasm3_for_loop():
 
 def test_convert_qasm3_for_loop_shadow():
     """Test for loop where loop variable shadows variable from global scope."""
-    result = unroll(
+    result = load(
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -85,9 +85,10 @@ def test_convert_qasm3_for_loop_shadow():
         }
         h q[i];
         measure q->c;
-        """,
-        as_module=True,
+        """
     )
+    result.unroll()
+
     assert result.num_clbits == 4
     assert result.num_qubits == 4
 
@@ -97,7 +98,7 @@ def test_convert_qasm3_for_loop_shadow():
 
 def test_convert_qasm3_for_loop_enclosing():
     """Test for loop where variable from outer loop is accessed from inside the loop."""
-    result = unroll(
+    result = load(
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -113,9 +114,9 @@ def test_convert_qasm3_for_loop_enclosing():
             h q[j];
         }
         measure q->c;
-        """,
-        as_module=True,
+        """
     )
+    result.unroll()
 
     assert result.num_clbits == 4
     assert result.num_qubits == 4
@@ -126,7 +127,7 @@ def test_convert_qasm3_for_loop_enclosing():
 
 def test_convert_qasm3_for_loop_enclosing_modifying():
     """Test for loop where variable from outer loop is modified from inside the loop."""
-    result = unroll(
+    result = load(
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -144,10 +145,9 @@ def test_convert_qasm3_for_loop_enclosing_modifying():
         }
         h q[j];
         measure q->c;
-        """,
-        as_module=True,
+        """
     )
-    print(result.unrolled_qasm)
+    result.unroll()
 
     assert result.num_clbits == 4
     assert result.num_qubits == 4
@@ -158,7 +158,7 @@ def test_convert_qasm3_for_loop_enclosing_modifying():
 
 def test_convert_qasm3_for_loop_discrete_set():
     """Test converting a QASM3 program that contains a for loop initialized from a DiscreteSet."""
-    result = unroll(
+    result = load(
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -171,9 +171,10 @@ def test_convert_qasm3_for_loop_discrete_set():
             cx q[i], q[i+1];
         }
         measure q->c;
-        """,
-        as_module=True,
+        """
     )
+    result.unroll()
+
     assert result.num_clbits == 4
     assert result.num_qubits == 4
 
@@ -200,7 +201,9 @@ def test_function_executed_in_loop():
     }
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
+
     assert result.num_qubits == 5
     assert result.num_clbits == 0
 
@@ -224,7 +227,8 @@ def test_loop_inside_function():
     my_function(q1);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
 
     assert result.num_qubits == 3
     assert result.num_clbits == 0
@@ -255,7 +259,9 @@ def test_function_in_nested_loop():
     my_function(q[0], 2*b);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
+
     assert result.num_qubits == 5
     assert result.num_clbits == 0
 
@@ -286,7 +292,8 @@ def test_loop_in_nested_function_call():
     qubit q;
     my_function_2(q, 3);
     """
-    result = unroll(qasm3_string, as_module=True)
+    result = load(qasm3_string)
+    result.unroll()
 
     assert result.num_clbits == 0
     assert result.num_qubits == 1
@@ -304,7 +311,7 @@ def test_convert_qasm3_for_loop_unsupported_type():
             " of set_declaration in loop."
         ),
     ):
-        validate(
+        load(
             """
             OPENQASM 3.0;
             include "stdgates.inc";
@@ -318,4 +325,4 @@ def test_convert_qasm3_for_loop_unsupported_type():
             }
             measure q->c;
             """,
-        )
+        ).validate()

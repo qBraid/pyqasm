@@ -33,8 +33,8 @@ class UnrollError(PyQasmError):
 
 
 class QasmParsingError(QASM3ParsingError):
-    """An error raised by the AST visitor during the AST-generation phase.  This is raised in cases where the
-    given program could not be correctly parsed."""
+    """An error raised by the AST visitor during the AST-generation phase.  This is raised in cases
+    where the given program could not be correctly parsed."""
 
 
 def raise_qasm3_error(

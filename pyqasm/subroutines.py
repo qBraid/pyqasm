@@ -41,7 +41,7 @@ class Qasm3SubroutineProcessor:
         """Set the visitor object for the class.
 
         Args:
-            visitor_obj (BasicQasmVisitor): The visitor object to set.
+            visitor_obj (QasmVisitor): The visitor object to set.
         """
         cls.visitor_obj = visitor_obj
 

@@ -15,7 +15,7 @@ declarations.
 """
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -58,15 +58,16 @@ def test_whitelisted_ops():
     cx q[0], q[1];
     """
 
-    unrolled_qasm = unroll(qasm2_string)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    result = load(qasm2_string)
+    result.unroll()
+    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
 
 
 def test_subroutine_blacklist():
 
     # subroutines
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
             include 'qelib1.inc';
@@ -77,13 +78,13 @@ def test_subroutine_blacklist():
                 return a;
             }
             """
-        )
+        ).validate()
 
 
 def test_switch_blacklist():
     # switch statements
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
             include 'qelib1.inc';
@@ -97,13 +98,13 @@ def test_switch_blacklist():
                     h q[0];
             }
             """
-        )
+        ).validate()
 
 
 def test_for_blacklist():
     # for loops
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
             include 'qelib1.inc';
@@ -114,13 +115,13 @@ def test_for_blacklist():
                 h q[i];
             }
             """
-        )
+        ).validate()
 
 
 def test_while_blacklist():
     # while loops
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
             include 'qelib1.inc';
@@ -131,7 +132,7 @@ def test_while_blacklist():
                 h q[0];
             }
             """
-        )
+        ).validate()
 
 
 # TODO : extend to more constructs

@@ -23,7 +23,7 @@ import numpy as np
 import openqasm3.ast as qasm3_ast
 
 from .analyzer import Qasm3Analyzer
-from .elements import Context, InversionOp, Qasm3Module, Variable
+from .elements import Context, InversionOp, Variable
 from .exceptions import ValidationError, raise_qasm3_error
 from .expressions import Qasm3ExprEvaluator
 from .maps import (
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 # pylint: disable-next=too-many-instance-attributes
-class BasicQasmVisitor:
+class QasmVisitor:
     """A visitor for basic OpenQASM program elements.
 
     This class is designed to traverse and interact with elements in an OpenQASM program.
@@ -52,8 +52,8 @@ class BasicQasmVisitor:
         record_output (bool): If True, output of the circuit will be recorded. Defaults to True.
     """
 
-    def __init__(self, module: Qasm3Module, check_only: bool = False):
-        self._module: Qasm3Module = module
+    def __init__(self, module, check_only: bool = False):
+        self._module = module
         self._scope: deque = deque([{}])
         self._context: deque = deque([Context.GLOBAL])
         self._qubit_labels: dict[str, int] = {}
@@ -299,6 +299,8 @@ class BasicQasmVisitor:
         self._module.add_qubits(register_size)
         logger.debug("Added labels for register '%s'", str(register))
 
+        if self._check_only:
+            return []
         return [register]
 
     def _check_if_name_in_scope(self, name: str, operation: Any) -> None:

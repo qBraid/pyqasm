@@ -186,7 +186,7 @@ class Qasm3Analyzer:
         return multi_dim_arr[slicing]  # type: ignore[index]
 
     @staticmethod
-    def extract_qasm_version(qasm: str) -> int:
+    def extract_qasm_version(qasm: str) -> int:  # type: ignore # pylint: disable=R1710
         """
         Parses an OpenQASM program string to determine its major version, either 2 or 3.
 
@@ -202,9 +202,10 @@ class Qasm3Analyzer:
         try:
             # TODO: optimize this to just check the start of the program for version
             parsed_program = parse(qasm)
+            assert parsed_program.version is not None
             version = int(float(parsed_program.version))
             return version
-        except (QASM3ParsingError, ValueError, TypeError) as err:
+        except (QASM3ParsingError, ValueError, TypeError):
             raise_qasm3_error(
                 "Could not determine the OpenQASM version.", err_type=QasmParsingError
             )

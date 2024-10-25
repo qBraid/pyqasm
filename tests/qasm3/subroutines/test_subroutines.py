@@ -15,7 +15,7 @@ Module containing unit tests for parsing and unrolling programs that contain sub
 
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.subroutines import SUBROUTINE_INCORRECT_TESTS
 from tests.utils import check_single_qubit_gate_op, check_single_qubit_rotation_op
@@ -33,7 +33,8 @@ def test_function_declaration():
     my_function(q);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -56,7 +57,8 @@ def test_simple_function_call():
     my_function(q, r);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -77,7 +79,8 @@ def test_const_visible_in_function_call():
     my_function(q);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -99,7 +102,8 @@ def test_update_variable_in_function():
     my_function(q);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -121,7 +125,8 @@ def test_function_call_in_expression():
     bool b = my_function(q);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 4
 
@@ -152,7 +157,8 @@ def test_classical_quantum_function():
     if(new_var>2)
         h q[0];
     """
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 4
 
@@ -176,7 +182,8 @@ def test_multiple_function_calls():
     my_function(0, q[0]);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 3
 
@@ -197,7 +204,8 @@ def test_function_call_with_return():
     float[32] r = my_function(q);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -226,7 +234,8 @@ def test_return_values_from_function():
 
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 2
 
@@ -254,7 +263,8 @@ def test_function_call_with_custom_gate():
     my_function(q, r);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
 
@@ -280,7 +290,8 @@ def test_function_call_from_within_fn():
     my_function_2(q);
     """
 
-    result = unroll(qasm_str, as_module=True)
+    result = load(qasm_str)
+    result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 2
 
@@ -309,7 +320,7 @@ def test_return_value_mismatch(data_type):
     with pytest.raises(
         ValidationError, match=r"Return type mismatch for subroutine 'my_function'.*"
     ):
-        validate(qasm_str)
+        load(qasm_str).validate()
 
 
 @pytest.mark.parametrize("keyword", ["pi", "euler", "tau"])
@@ -327,7 +338,7 @@ def test_subroutine_keyword_naming(keyword):
     """
 
     with pytest.raises(ValidationError, match=f"Subroutine name '{keyword}' is a reserved keyword"):
-        validate(qasm_str)
+        load(qasm_str).validate()
 
 
 @pytest.mark.parametrize("qubit_params", ["q", "q[:2]", "q[{0,1}]"])
@@ -353,11 +364,11 @@ def test_qubit_size_arg_mismatch(qubit_params):
         match="Qubit register size mismatch for function 'my_function'. "
         "Expected 3 in variable 'q' but got 2",
     ):
-        validate(qasm_str)
+        load(qasm_str).validate()
 
 
 @pytest.mark.parametrize("test_name", SUBROUTINE_INCORRECT_TESTS.keys())
 def test_incorrect_custom_ops(test_name):
-    qasm_input, error_message = SUBROUTINE_INCORRECT_TESTS[test_name]
+    qasm_str, error_message = SUBROUTINE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        validate(qasm_input)
+        load(qasm_str).validate()
