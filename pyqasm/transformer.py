@@ -47,7 +47,7 @@ from .validator import Qasm3Validator
 
 
 class Qasm3Transformer:
-    """Class with utility functions for transforming QASM3 elements"""
+    """Class with utility functions for transforming QASM elements"""
 
     visitor_obj = None
 

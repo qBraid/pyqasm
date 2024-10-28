@@ -11,6 +11,7 @@
 """
 Module defining Qasm modules
 """
+
 import re
 from abc import ABC, abstractmethod
 from copy import deepcopy

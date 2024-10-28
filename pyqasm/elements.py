@@ -9,7 +9,7 @@
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
-Module defining Qasm3 Converter elements.
+Module defining Qasm Converter elements.
 
 """
 from enum import Enum

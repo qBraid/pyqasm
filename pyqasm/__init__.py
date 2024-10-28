@@ -19,8 +19,6 @@ Functions
 .. autosummary::
    :toctree: ../stubs/
 
-   validate
-   unroll
    load
 
 Classes
@@ -30,6 +28,8 @@ Classes
    :toctree: ../stubs/
 
    Qasm3Module
+   Qasm2Module
+   QasmModule
 
 Exceptions
 -----------
@@ -39,6 +39,7 @@ Exceptions
 
    PyQasmError
    ValidationError
+   QasmParsingError
 
 """
 import warnings

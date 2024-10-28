@@ -9,7 +9,7 @@
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
-Module with utility functions for QASM3 visitor
+Module with utility functions for QASM visitor
 
 """
 from typing import Any, Optional, Union
@@ -25,7 +25,7 @@ from .maps import LIMITS_MAP, VARIABLE_TYPE_MAP, qasm_variable_type_cast
 
 
 class Qasm3Validator:
-    """Class with validation functions for QASM3 visitor"""
+    """Class with validation functions for QASM visitor"""
 
     @staticmethod
     def validate_register_index(index: Optional[int], size: int, qubit: bool = False) -> None:

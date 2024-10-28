@@ -9,7 +9,7 @@
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
-Module with analysis functions for QASM3 visitor
+Module with analysis functions for QASM visitor
 
 """
 from __future__ import annotations

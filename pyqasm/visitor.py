@@ -11,7 +11,7 @@
 # pylint: disable=too-many-lines
 
 """
-Module defining Qasm3 Visitor.
+Module defining Qasm Visitor.
 
 """
 import copy
