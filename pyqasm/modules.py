@@ -20,6 +20,7 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program, Statement
 from openqasm3.printer import dumps
 
+from .elements import ClbitDepthNode, QubitDepthNode
 from .exceptions import UnrollError, ValidationError
 from .visitor import QasmVisitor
 
@@ -38,7 +39,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._original_program = program
         self._statements = statements
         self._num_qubits = -1
+        self._qubit_depths: dict[tuple[str, int], QubitDepthNode] = {}
         self._num_clbits = -1
+        self._clbit_depths: dict[tuple[str, int], ClbitDepthNode] = {}
         self._has_measurements: Optional[bool] = None
         self._validated_program = False
         self._unrolled_qasm = ""
@@ -62,7 +65,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Setter for the number of qubits"""
         self._num_qubits = value
 
-    def add_qubits(self, num_qubits: int):
+    def _add_qubits(self, num_qubits: int):
         """Add qubits to the module
 
         Args:
@@ -86,7 +89,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Setter for the number of classical bits"""
         self._num_clbits = value
 
-    def add_classical_bits(self, num_clbits: int):
+    def _add_classical_bits(self, num_clbits: int):
         """Add classical bits to the module
 
         Args:
@@ -174,12 +177,22 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             for stmt in stmt_list
             if not isinstance(stmt, qasm3_ast.QuantumMeasurementStatement)
         ]
-        self._has_measurements = False
-        if in_place:
-            self._unrolled_ast.statements = stmts_without_meas
-            self._unrolled_qasm = self._qasm_ast_to_str(self._unrolled_ast)
-            return self
-        return deepcopy(self)
+        curr_module = self
+
+        if not in_place:
+            curr_module = self.copy()
+
+        for qubit in curr_module._qubit_depths.values():
+            qubit.num_measurements = 0
+        for clbit in curr_module._clbit_depths.values():
+            clbit.num_measurements = 0
+
+        curr_module._has_measurements = False
+        curr_module._statements = stmts_without_meas
+        curr_module._unrolled_ast.statements = stmts_without_meas
+        curr_module._unrolled_qasm = self._qasm_ast_to_str(curr_module._unrolled_ast)
+
+        return curr_module
 
     def remove_barriers(self, in_place: bool = True):
         """Remove the barrier operations
@@ -198,24 +211,51 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         stmts_without_barriers = [
             stmt for stmt in stmt_list if not isinstance(stmt, qasm3_ast.QuantumBarrier)
         ]
-        if in_place:
-            self._unrolled_ast.statements = stmts_without_barriers
-            self._unrolled_qasm = self._qasm_ast_to_str(self._unrolled_ast)
-            return self
+        curr_module = self
+        if not in_place:
+            curr_module = self.copy()
 
-        return deepcopy(self)
+        for qubit in curr_module._qubit_depths.values():
+            qubit.num_barriers = 0
 
-    @abstractmethod
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
+        curr_module._statements = stmts_without_barriers
+        curr_module._unrolled_ast.statements = stmts_without_barriers
+        curr_module._unrolled_qasm = self._qasm_ast_to_str(curr_module._unrolled_ast)
 
-    @abstractmethod
-    def accept(self, visitor):
-        """Accept a visitor for the mßodule
+        return curr_module
+
+    def depth(self):
+        """Calculate the depth of the unrolled openqasm program.
 
         Args:
-            visitor (QasmVisitor): The visitor to accept
+            None
+
+        Returns:
+            int: The depth of the current "unrolled" openqasm program
         """
+        # 1. Since the program will be unrolled before its execution on a QC, it makes sense to
+        # calculate the depth of the unrolled program.
+
+        # We are performing operations in place, thus we need to calculate depth
+        # at "each instance of the function call".
+        # TODO: optimize by tracking whether the program changed since we
+        # last calculated the depth
+
+        qasm_module = self.copy()
+        qasm_module._qubit_depths = {}
+        qasm_module._clbit_depths = {}
+        qasm_module.unroll()
+
+        max_depth = 0
+        max_qubit_depth, max_clbit_depth = 0, 0
+
+        # calculate the depth using the qubit and clbit depths
+        if len(qasm_module._qubit_depths) != 0:
+            max_qubit_depth = max(qubit.depth for qubit in qasm_module._qubit_depths.values())
+        if len(qasm_module._clbit_depths) != 0:
+            max_clbit_depth = max(clbit.depth for clbit in qasm_module._clbit_depths.values())
+        max_depth = max(max_qubit_depth, max_clbit_depth)
+        return max_depth
 
     def validate(self):
         """Validate the module"""
@@ -250,6 +290,18 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
     def copy(self):
         """Return a deep copy of the module"""
         return deepcopy(self)
+
+    @abstractmethod
+    def _qasm_ast_to_str(self, qasm_ast):
+        """Convert the qasm AST to a string"""
+
+    @abstractmethod
+    def accept(self, visitor):
+        """Accept a visitor for the mßodule
+
+        Args:
+            visitor (QasmVisitor): The visitor to accept
+        """
 
 
 class Qasm2Module(QasmModule):
@@ -314,6 +366,7 @@ class Qasm2Module(QasmModule):
         """
         self._filter_statements()
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
+        self.unrolled_ast.statements = [Include("qelib1.inc")]  # pylint: disable=W0201
         self.unrolled_ast.statements.extend(unrolled_stmt_list)
         # TODO: some finalizing method here probably
 
@@ -350,5 +403,6 @@ class Qasm3Module(QasmModule):
             visitor (QasmVisitor): The visitor to accept
         """
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
+        self.unrolled_ast.statements = [Include("stdgates.inc")]  # pylint: disable=W0201
         self.unrolled_ast.statements.extend(unrolled_stmt_list)
         # TODO: some finalizing method here probably

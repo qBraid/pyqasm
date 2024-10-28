@@ -23,7 +23,7 @@ import numpy as np
 import openqasm3.ast as qasm3_ast
 
 from .analyzer import Qasm3Analyzer
-from .elements import Context, InversionOp, Variable
+from .elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
 from .exceptions import ValidationError, raise_qasm3_error
 from .expressions import Qasm3ExprEvaluator
 from .maps import (
@@ -293,10 +293,11 @@ class QasmVisitor:
         for i in range(register_size):
             # required if indices are not used while applying a gate or measurement
             label_map[f"{register_name}_{i}"] = current_size + i
+            self._module._qubit_depths[(register_name, i)] = QubitDepthNode(register_name, i)
 
         self._label_scope_level[self._curr_scope].add(register_name)
 
-        self._module.add_qubits(register_size)
+        self._module._add_qubits(register_size)
         logger.debug("Added labels for register '%s'", str(register))
 
         if self._check_only:
@@ -411,7 +412,7 @@ class QasmVisitor:
 
         return openqasm_bits
 
-    def _visit_measurement(
+    def _visit_measurement(  # pylint: disable=too-many-locals
         self, statement: qasm3_ast.QuantumMeasurementStatement
     ) -> list[qasm3_ast.QuantumMeasurementStatement]:
         """Visit a measurement statement element.
@@ -468,6 +469,22 @@ class QasmVisitor:
                 unrolled_measure = qasm3_ast.QuantumMeasurementStatement(
                     measure=qasm3_ast.QuantumMeasurement(qubit=src_id), target=tgt_id
                 )
+                src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
+                tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
+
+                qubit_node, clbit_node = (
+                    self._module._qubit_depths[(src_name, src_id)],
+                    self._module._clbit_depths[(tgt_name, tgt_id)],
+                )
+                qubit_node.depth += 1
+                qubit_node.num_measurements += 1
+
+                clbit_node.depth += 1
+                clbit_node.num_measurements += 1
+
+                qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
+                clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
+
                 unrolled_measurements.append(unrolled_measure)
         return unrolled_measurements
 
@@ -496,6 +513,13 @@ class QasmVisitor:
         if not self._check_only:
             for qid in qubit_ids:
                 unrolled_reset = qasm3_ast.QuantumReset(qubits=qid)
+
+                qubit_name, qubit_id = qid.name.name, qid.indices[0][0].value  # type: ignore
+                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+
+                qubit_node.depth += 1
+                qubit_node.num_resets += 1
+
                 unrolled_resets.append(unrolled_reset)
         return unrolled_resets
 
@@ -524,11 +548,25 @@ class QasmVisitor:
         barrier_qubits = self._get_op_bits(barrier, self._global_qreg_size_map)
         unrolled_barriers = []
         if not self._check_only:
+            max_involved_depth = 0
             for qubit in barrier_qubits:
                 unrolled_barrier = qasm3_ast.QuantumBarrier(
                     qubits=[qubit]  # type: ignore[list-item]
                 )
+                qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
+                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+
+                qubit_node.depth += 1
+                qubit_node.num_barriers += 1
+
+                max_involved_depth = max(max_involved_depth, qubit_node.depth)
                 unrolled_barriers.append(unrolled_barrier)
+
+            for qubit in barrier_qubits:
+                qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
+                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+                qubit_node.depth = max_involved_depth
+
         return unrolled_barriers
 
     def _get_op_parameters(self, operation: qasm3_ast.QuantumGate) -> list[float]:
@@ -563,7 +601,7 @@ class QasmVisitor:
 
         return []
 
-    def _visit_basic_gate_operation(
+    def _visit_basic_gate_operation(  # pylint: disable=too-many-locals
         self, operation: qasm3_ast.QuantumGate, inverse: bool = False
     ) -> list[qasm3_ast.QuantumGate]:
         """Visit a gate operation element.
@@ -590,14 +628,15 @@ class QasmVisitor:
         """
 
         logger.debug("Visiting basic gate operation '%s'", str(operation))
-        op_name: str = operation.name.name
         op_qubits = self._get_op_bits(operation, self._global_qreg_size_map)
         inverse_action = None
         if not inverse:
-            qasm_func, op_qubit_count = map_qasm_op_to_callable(op_name)
+            qasm_func, op_qubit_count = map_qasm_op_to_callable(operation.name.name)
         else:
             # in basic gates, inverse action only affects the rotation gates
-            qasm_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_callable(op_name)
+            qasm_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_callable(
+                operation.name.name
+            )
 
         op_parameters = None
 
@@ -617,14 +656,25 @@ class QasmVisitor:
         for i in range(0, len(op_qubits), op_qubit_count):
             # we apply the gate on the qubit subset linearly
             qubit_subset = op_qubits[i : i + op_qubit_count]
+            unrolled_gate = []
             if op_parameters is not None:
                 unrolled_gate = qasm_func(*op_parameters, *qubit_subset)
             else:
                 unrolled_gate = qasm_func(*qubit_subset)
-            unrolled_gates = []
-            for gate in unrolled_gate:
-                unrolled_gates.append(gate)
-            result.extend(unrolled_gates)
+            result.extend(unrolled_gate)
+
+            # update qubit depths
+            max_involved_depth = 0
+            for qubit in qubit_subset:
+                qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
+                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+                qubit_node.num_gates += 1
+                max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
+
+            for qubit in qubit_subset:
+                qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
+                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+                qubit_node.depth = max_involved_depth
 
         if self._check_only:
             return []
@@ -945,6 +995,8 @@ class QasmVisitor:
             current_classical_size = len(self._clbit_labels)
             for i in range(base_size):
                 self._clbit_labels[f"{var_name}_{i}"] = current_classical_size + i
+                self._module._clbit_depths[(var_name, i)] = ClbitDepthNode(var_name, i)
+
             self._label_scope_level[self._curr_scope].add(var_name)
 
             if hasattr(statement.type, "size"):
@@ -954,7 +1006,7 @@ class QasmVisitor:
                     else qasm3_ast.IntegerLiteral(base_size)
                 )
             statements.append(statement)
-            self._module.add_classical_bits(base_size)
+            self._module._add_classical_bits(base_size)
 
         return statements
 

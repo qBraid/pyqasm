@@ -38,6 +38,76 @@ class Context(Enum):
     GATE = "gate"
 
 
+class DepthNode:
+    """Base class for depth nodes."""
+
+    def __init__(self, reg_name: str, reg_index: int):
+        self._depth = 0
+        self._reg_name = reg_name
+        self._reg_index = reg_index
+
+    @property
+    def depth(self) -> int:
+        """Return the depth of the node."""
+        return self._depth
+
+    @depth.setter
+    def depth(self, value: int):
+        """Set the depth of the node."""
+        self._depth = value
+
+    @property
+    def reg_name(self) -> str:
+        """Return the register name."""
+        return self._reg_name
+
+    @reg_name.setter
+    def reg_name(self, value: str):
+        """Set the register name."""
+        self._reg_name = value
+
+    @property
+    def reg_index(self) -> int:
+        """Return the register index."""
+        return self._reg_index
+
+    @reg_index.setter
+    def reg_index(self, value: int):
+        """Set the register index."""
+        self._reg_index = value
+
+
+class QubitDepthNode(DepthNode):
+    """Qubit depth node."""
+
+    def __init__(self, reg_name: str, reg_index: int):
+        super().__init__(reg_name, reg_index)
+        self.num_resets = 0
+        self.num_measurements = 0
+        self.num_gates = 0
+        self.num_barriers = 0
+
+    def __repr__(self) -> str:
+        return (
+            f"QubitDepthNode(reg_name = {self.reg_name}, reg_index = {self.reg_index}, "
+            f"depth = {self.depth})"
+        )
+
+
+class ClbitDepthNode(DepthNode):
+    """Classical bit depth node."""
+
+    def __init__(self, reg_name: str, reg_index: int):
+        super().__init__(reg_name, reg_index)
+        self.num_measurements = 0
+
+    def __repr__(self) -> str:
+        return (
+            f"ClbitDepthNode(reg_name = {self.reg_name}, reg_index = {self.reg_index},"
+            f" depth = {self.depth})"
+        )
+
+
 # pylint: disable-next=too-many-instance-attributes
 class Variable:
     """
@@ -55,7 +125,7 @@ class Variable:
 
     """
 
-    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    # pylint: disable-next=too-many-arguments,
     def __init__(
         self,
         name: str,
