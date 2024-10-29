@@ -35,6 +35,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         statements (list[Statement]): list of openqasm3 Statements.
     """
 
+    # Cirq style >>>
+    # split if attributes go > 14-15 or so
     def __init__(self, name: str, program: Program, statements: list):
         self._name = name
         self._original_program = program
@@ -247,6 +249,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         qasm_module._clbit_depths = {}
         qasm_module.unroll()
 
+        # TODO: to consider classical bit depth or not? see qiskit
         max_depth = 0
         max_qubit_depth, max_clbit_depth = 0, 0
 
@@ -257,6 +260,13 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             max_clbit_depth = max(clbit.depth for clbit in qasm_module._clbit_depths.values())
         max_depth = max(max_qubit_depth, max_clbit_depth)
         return max_depth
+
+    def remove_idle_qubits(self):
+        """Remove idle qubits from the module. Either collapse the size of a partially used
+        quantum register OR remove the unused quantum register entirely."""
+
+    def reverse_qubit_order(self):
+        """Reverse the order of qubits in the module"""
 
     def validate(self):
         """Validate the module"""

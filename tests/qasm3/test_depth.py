@@ -12,6 +12,7 @@
 Module containing unit tests for calculating program depth.
 
 """
+import pytest
 
 from pyqasm.entrypoint import load
 
@@ -215,3 +216,206 @@ def test_after_removing_barriers():
 
     result_copy_2 = result_copy.remove_barriers(in_place=False)
     assert result_copy_2.depth() == 3
+
+
+def test_qasm3_depth_sparse_operations():
+    """Test calculating depth of qasm3 circuit with sparse operations"""
+    qasm_string = """
+    OPENQASM 3.0;
+    gate iswap q0,q1 { s q0; s q1; h q0; cx q0,q1; cx q1,q0; h q1; }
+    bit[2] b;
+    qubit[2] q;
+    s q[0];
+    iswap q[0], q[1];
+    barrier q;
+    z q[1];
+    """
+    result = load(qasm_string)
+    result.unroll()
+
+    assert result.depth() == 8
+
+
+def test_qasm3_depth_measurement_direct():
+    """Test calculating depth of qasm3 circuit with direct measurements"""
+    qasm_string = """
+OPENQASM 3.0;
+gate iswap q0,q1 { s q0; s q1; h q0; cx q0,q1; cx q1,q0; h q1; }
+bit[2] b;
+qubit[2] q;
+s q[0];
+iswap q[0], q[1];
+z q[1];
+b[0] = measure q[0];
+b[1] = measure q[1];
+    """
+    result = load(qasm_string)
+    result.unroll()
+
+    assert result.depth() == 8
+
+
+def test_qasm3_depth_measurement_indirect():
+    """Test calculating depth of qasm3 circuit with indirect measurements"""
+    qasm_string = """
+OPENQASM 3.0;
+include "stdgates.inc";
+bit[3] c;
+qubit[3] q;
+cx q[1], q[2];
+x q[0];
+cx q[1], q[2];
+h q[0];
+rx(5.917500589065494) q[1];
+c[0] = measure q[0];
+c[1] = measure q[1];
+c[2] = measure q[2];
+    """
+    result = load(qasm_string)
+    result.unroll()
+
+    assert result.depth() == 4
+
+
+@pytest.mark.parametrize(
+    "program, expected_depth",
+    [
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+         
+qubit[2] q;
+qubit[2] r;
+qubit[2] s;
+         
+h q[0];
+h q[1];
+h r[0];
+""",
+            1,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+
+qreg q[2];
+creg c[2];
+
+h q[0];
+cx q[0], q[1];
+h q;
+
+measure q -> c;
+     """,
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+
+qreg q[2];
+
+reset q;
+reset q[0];
+""",
+            2,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+
+qreg q[2];
+
+h q[0];
+h q[0];
+h q[0];
+h q[0];
+
+barrier q;
+
+h q[1];
+""",
+            6,
+        ),
+    ],
+)
+def test_qasm3_depth_no_branching(program, expected_depth):
+    """Test calculating depth of qasm3 circuit"""
+    result = load(program)
+    result.unroll()
+    assert result.depth() == expected_depth
+
+
+@pytest.mark.skip(reason="Not implemented branching conditions depth")
+@pytest.mark.parametrize(
+    "program, expected_depth",
+    [
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+
+qreg q[2];
+creg c[2];
+
+h q[0];
+cx q[0], q[1];
+measure q[0] -> c[0];
+measure q[1] -> c[1];
+
+if (c==1) x q[0];
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+
+qreg q[2];
+creg c[2];
+
+h q[0];
+cx q[0], q[1];
+measure q[0] -> c[0];
+
+if (c==1) measure q[1] -> c[1];
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qreg q1[3];
+qreg q2[3];
+creg c1[3];
+creg c2[3];
+
+gate big_gate a1, a2, a3, b1, b2, b3
+{
+    h a1;
+}
+x q1[0];
+barrier q1;
+big_gate q1[0],q1[1],q1[2],q2[0],q2[1],q2[2];
+x q1[0];
+measure q1 -> c1;
+if(c1==1) x q2[0];
+if(c1==2) x q2[2];
+if(c1==3) x q2[1];
+measure q2 -> c2;
+""",
+            8,
+        ),
+    ],
+)
+def test_qasm3_depth_branching(program, expected_depth):
+    """Test calculating depth of qasm3 circuit with branching conditions"""
+    result = load(program)
+    result.unroll()
+    assert result.depth() == expected_depth
