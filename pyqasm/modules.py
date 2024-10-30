@@ -23,6 +23,7 @@ from openqasm3.printer import dumps
 
 from .elements import ClbitDepthNode, QubitDepthNode
 from .exceptions import UnrollError, ValidationError
+from .maps import QUANTUM_STATEMENTS
 from .visitor import QasmVisitor
 
 
@@ -39,8 +40,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._name = name
         self._original_program = program
         self._statements = statements
+        self._qubit_registers: dict[str, int] = {}
         self._num_qubits = -1
         self._qubit_depths: dict[tuple[str, int], QubitDepthNode] = {}
+        self._classical_registers: dict[str, int] = {}
         self._num_clbits = -1
         self._clbit_depths: dict[tuple[str, int], ClbitDepthNode] = {}
         self._has_measurements: Optional[bool] = None
@@ -66,7 +69,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Setter for the number of qubits"""
         self._num_qubits = value
 
-    def _add_qubits(self, num_qubits: int):
+    def _add_qubit_register(self, reg_name: str, num_qubits: int):
         """Add qubits to the module
 
         Args:
@@ -75,6 +78,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Returns:
             None
         """
+        self._qubit_registers[reg_name] = num_qubits
         self._num_qubits += num_qubits
 
     @property
@@ -90,7 +94,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Setter for the number of classical bits"""
         self._num_clbits = value
 
-    def _add_classical_bits(self, num_clbits: int):
+    def _add_classical_register(self, reg_name: str, num_clbits: int):
         """Add classical bits to the module
 
         Args:
@@ -99,6 +103,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Returns:
             None
         """
+        self._classical_registers[reg_name] = num_clbits
         self._num_clbits += num_clbits
 
     @property
@@ -258,9 +263,106 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         max_depth = max(max_qubit_depth, max_clbit_depth)
         return max_depth
 
-    def remove_idle_qubits(self):
+    def _remap_qubits(self, reg_name: str, size: int, idle_indices: list[int]):
+        """Remap the qubits in a register after removing idle qubits and update the operations
+        using this register accordingly"""
+
+        new_size = size - len(idle_indices)
+        used_indices = [idx for idx in range(size) if idx not in idle_indices]
+        idx_map = {used_indices[i]: i for i in range(new_size)}  # old_idx : new_idx
+
+        # Example -
+        # reg_name = "q", size = 5, idle_indices = [1, 3]
+        # new_size = 3, used_indices = [0, 2, 4]
+        # idx_map = {0: 0, 2: 1, 4: 2}
+
+        # update the qubit register size
+        self._qubit_registers[reg_name] = new_size
+
+        # update the qubit declaration in the unrolled ast
+        for stmt in self._unrolled_ast.statements:
+            if isinstance(stmt, qasm3_ast.QubitDeclaration):
+                if stmt.qubit.name == reg_name:
+                    stmt.size.value = new_size
+                    break
+
+        # update the qubit depths
+        for idx in used_indices:
+            qubit = self._qubit_depths[(reg_name, idx)]
+            qubit.reg_index = idx_map[idx]
+            self._qubit_depths[(reg_name, idx_map[idx])] = deepcopy(qubit)
+            del self._qubit_depths[(reg_name, idx)]
+
+        # update the operations that use the qubits
+        for operation in self._unrolled_ast.statements:
+            if not isinstance(operation, QUANTUM_STATEMENTS):
+                continue
+
+            if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
+                assert operation.target is not None
+                bit_list = [operation.measure.qubit]
+            else:
+                bit_list = (
+                    operation.qubits if isinstance(operation.qubits, list) else [operation.qubits]
+                )
+            for bit in bit_list:  # it is a list of indexed identifiers
+                if bit.name.name == reg_name:
+                    old_idx = bit.indices[0][0].value
+                    bit.indices[0][0].value = idx_map[old_idx]
+
+    def remove_idle_qubits(self, in_place: bool = True):
         """Remove idle qubits from the module. Either collapse the size of a partially used
-        quantum register OR remove the unused quantum register entirely."""
+        quantum register OR remove the unused quantum register entirely.
+
+        Will unroll the module if not already done.
+
+        Args:
+            in_place (bool): Flag to indicate if the removal should be done in place.
+
+        Returns:
+            QasmModule: The module with the idle qubits removed if in_place is False
+        """
+
+        qasm_module = self if in_place else self.copy()
+        qasm_module.unroll()
+
+        idle_qubits = [qubit for qubit in qasm_module._qubit_depths.values() if qubit.is_idle()]
+
+        # re-map the idle qubits as {reg_name: [indices]}
+        qubit_indices = {}
+        for qubit in idle_qubits:
+            if qubit.reg_name not in qubit_indices:
+                qubit_indices[qubit.reg_name] = []
+            qubit_indices[qubit.reg_name].append(qubit.reg_index)
+
+        for reg_name, idle_indices in qubit_indices.items():
+            # we have removed the idle qubits, so we can remove them from depth map
+            for idle_idx in idle_indices:
+                del qasm_module._qubit_depths[(reg_name, idle_idx)]
+
+            size = self._qubit_registers[reg_name]
+
+            if len(idle_indices) == size:  # all qubits are idle
+
+                # remove the declaration from the unrolled ast
+                for stmt in qasm_module._unrolled_ast.statements:
+                    if isinstance(stmt, qasm3_ast.QubitDeclaration):
+                        if stmt.qubit.name == reg_name:
+                            qasm_module._unrolled_ast.statements.remove(stmt)
+                            break
+
+                del qasm_module._qubit_registers[reg_name]
+                # we do not need to change any other operation as there will be no qubit usage
+                # if the complete register was unused
+
+            elif len(idle_indices) != 0:  # partially used register
+                qasm_module._remap_qubits(reg_name, size, idle_indices)
+
+        # the original ast will need to be updated to this unrolled ast as if we call the
+        # unroll operation again, it will then just choose the original ast WITH THE IDLE QUBITS
+        qasm_module._statements = qasm_module._unrolled_ast.statements
+
+        return qasm_module
 
     def reverse_qubit_order(self):
         """Reverse the order of qubits in the module"""

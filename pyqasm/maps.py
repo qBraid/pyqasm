@@ -26,8 +26,11 @@ from openqasm3.ast import (
     Identifier,
     IndexedIdentifier,
     IntType,
+    QuantumBarrier,
     QuantumGate,
     QuantumGateDefinition,
+    QuantumMeasurementStatement,
+    QuantumReset,
     QubitDeclaration,
     SubroutineDefinition,
     UintType,
@@ -863,3 +866,5 @@ SWITCH_BLACKLIST_STMTS = {
 }
 
 SUPPORTED_QASM_VERSIONS = {"3.0", "3", "2", "2.0"}
+
+QUANTUM_STATEMENTS = (QuantumGate, QuantumBarrier, QuantumReset, QuantumMeasurementStatement)
