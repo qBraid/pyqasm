@@ -15,7 +15,7 @@ declarations.
 """
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -44,7 +44,10 @@ def test_qubit_declarations():
     qubit[10] q5;
     """
 
-    unrolled_qasm = unroll(qasm3_string)
+    result = load(qasm3_string)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
+
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -72,7 +75,10 @@ def test_clbit_declarations():
     bit[10] c5;
     """
 
-    unrolled_qasm = unroll(qasm3_string)
+    result = load(qasm3_string)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
+
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -108,7 +114,10 @@ def test_qubit_clbit_declarations():
     bit[1] c4;
     """
 
-    unrolled_qasm = unroll(qasm3_string)
+    result = load(qasm3_string)
+    result.unroll()
+    unrolled_qasm = result.unrolled_qasm
+
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
@@ -121,7 +130,7 @@ def test_qubit_redeclaration_error():
         qubit q1;
         qubit q1;
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()
 
 
 def test_invalid_qubit_name():
@@ -134,7 +143,7 @@ def test_invalid_qubit_name():
         include "stdgates.inc";
         qubit pi;
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()
 
 
 def test_clbit_redeclaration_error():
@@ -146,7 +155,7 @@ def test_clbit_redeclaration_error():
         bit c1;
         bit[4] c1;
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()
 
 
 def test_non_constant_size():
@@ -160,7 +169,7 @@ def test_non_constant_size():
         int[32] N = 10;
         qubit[N] q;
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()
 
     with pytest.raises(
         ValidationError, match=r"Variable 'size' is not a constant in given expression"
@@ -171,4 +180,4 @@ def test_non_constant_size():
         int[32] size = 10;
         bit[size] c;
         """
-        validate(qasm3_string)
+        load(qasm3_string).validate()

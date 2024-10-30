@@ -41,7 +41,7 @@ class Qasm3SubroutineProcessor:
         """Set the visitor object for the class.
 
         Args:
-            visitor_obj (BasicQasmVisitor): The visitor object to set.
+            visitor_obj (QasmVisitor): The visitor object to set.
         """
         cls.visitor_obj = visitor_obj
 
@@ -91,7 +91,7 @@ class Qasm3SubroutineProcessor:
             formal_arg, actual_arg, actual_arg_name, fn_name, span
         )
 
-    @classmethod  # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    @classmethod  # pylint: disable-next=too-many-arguments
     def _process_classical_arg_by_value(
         cls, formal_arg, actual_arg, actual_arg_name, fn_name, span
     ):
@@ -141,7 +141,7 @@ class Qasm3SubroutineProcessor:
             is_constant=False,
         )
 
-    @classmethod  # pylint: disable-next=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches
+    @classmethod  # pylint: disable-next=too-many-arguments,too-many-locals,too-many-branches
     def _process_classical_arg_by_reference(
         cls, formal_arg, actual_arg, actual_arg_name, fn_name, span
     ):
@@ -295,7 +295,7 @@ class Qasm3SubroutineProcessor:
             readonly=readonly_arr,
         )
 
-    @classmethod  # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    @classmethod  # pylint: disable-next=too-many-arguments
     def process_quantum_arg(
         cls,
         formal_arg,

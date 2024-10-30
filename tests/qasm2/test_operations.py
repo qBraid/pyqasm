@@ -15,7 +15,7 @@ declarations.
 """
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -25,7 +25,7 @@ def test_whitelisted_ops():
     """Test qubit declarations in different ways"""
     qasm2_string = """
     OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     gate custom_gate a, b {
         cx a, b;
     }
@@ -43,7 +43,7 @@ def test_whitelisted_ops():
 
     expected_qasm = """
     OPENQASM 2.0;
-    include "stdgates.inc";
+    include 'qelib1.inc';
     qreg q[2];
     creg c[2];
     barrier q[0];
@@ -58,18 +58,19 @@ def test_whitelisted_ops():
     cx q[0], q[1];
     """
 
-    unrolled_qasm = unroll(qasm2_string)
-    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+    result = load(qasm2_string)
+    result.unroll()
+    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
 
 
 def test_subroutine_blacklist():
 
     # subroutines
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
@@ -77,16 +78,16 @@ def test_subroutine_blacklist():
                 return a;
             }
             """
-        )
+        ).validate()
 
 
 def test_switch_blacklist():
     # switch statements
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
@@ -97,16 +98,16 @@ def test_switch_blacklist():
                     h q[0];
             }
             """
-        )
+        ).validate()
 
 
 def test_for_blacklist():
     # for loops
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
@@ -114,16 +115,16 @@ def test_for_blacklist():
                 h q[i];
             }
             """
-        )
+        ).validate()
 
 
 def test_while_blacklist():
     # while loops
     with pytest.raises(ValidationError):
-        validate(
+        load(
             """
             OPENQASM 2.0;
-            include "stdgates.inc";
+            include 'qelib1.inc';
             qreg q[2];
             creg c[2];
 
@@ -131,7 +132,7 @@ def test_while_blacklist():
                 h q[0];
             }
             """
-        )
+        ).validate()
 
 
 # TODO : extend to more constructs

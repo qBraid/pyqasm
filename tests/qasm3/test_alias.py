@@ -18,7 +18,7 @@ import re
 
 import pytest
 
-from pyqasm.entrypoint import unroll, validate
+from pyqasm.entrypoint import load
 from pyqasm.exceptions import ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
@@ -54,7 +54,9 @@ def test_alias():
     swap myqreg5[0], myqreg5[1];
     cz myqreg6;
     """
-    result = unroll(qasm3_alias_program, as_module=True)
+    result = load(qasm3_alias_program)
+    result.unroll()
+
     assert result.num_qubits == 5
     assert result.num_clbits == 0
     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "x")
@@ -79,7 +81,8 @@ def test_alias_update():
 
     x alias[1];
     """
-    result = unroll(qasm3_alias_program, as_module=True)
+    result = load(qasm3_alias_program)
+    result.unroll()
     assert result.num_qubits == 4
     assert result.num_clbits == 0
     check_single_qubit_gate_op(result.unrolled_ast, 1, [3], "x")
@@ -104,7 +107,8 @@ def test_valid_alias_redefinition():
     let alias = q[2];
     x alias;
     """
-    result = unroll(qasm3_alias_program, as_module=True)
+    result = load(qasm3_alias_program)
+    result.unroll()
     assert result.num_qubits == 5
     assert result.num_clbits == 5
 
@@ -130,7 +134,7 @@ def test_alias_wrong_indexing():
 
         x myqreg[0];
         """
-        validate(qasm3_alias_program)
+        load(qasm3_alias_program).validate()
 
 
 def test_alias_invalid_discrete_indexing():
@@ -149,7 +153,7 @@ def test_alias_invalid_discrete_indexing():
 
         x myqreg[0];
         """
-        validate(qasm3_alias_program)
+        load(qasm3_alias_program).validate()
 
 
 def test_invalid_alias_redefinition():
@@ -169,7 +173,7 @@ def test_invalid_alias_redefinition():
 
         x alias;
         """
-        validate(qasm3_alias_program)
+        load(qasm3_alias_program).validate()
 
 
 def test_alias_defined_before():
@@ -186,7 +190,7 @@ def test_alias_defined_before():
 
         let myqreg = q2[1];
         """
-        validate(qasm3_alias_program)
+        load(qasm3_alias_program).validate()
 
 
 def test_unsupported_alias():
@@ -203,7 +207,7 @@ def test_unsupported_alias():
 
         let myqreg = q[0] ++ q[1];
         """
-        validate(qasm3_alias_program)
+        load(qasm3_alias_program).validate()
 
 
 # def test_alias_in_scope_1():
@@ -271,32 +275,32 @@ def test_unsupported_alias():
 #     compare_reference_ir(result.bitcode, simple_file)
 
 
-# def test_alias_out_of_scope():
-#     """Test converting OpenQASM 3 program with alias out of scope."""
-#     with pytest.raises(
-#         ValidationError,
-#         match=r"Variable alias not in scope for operation .*",
-#     ):
-#         qasm = """
-#         OPENQASM 3;
-#         include "stdgates.inc";
-#         qubit[4] q;
-#         bit[4] c;
+def test_alias_out_of_scope():
+    """Test converting OpenQASM 3 program with alias out of scope."""
+    with pytest.raises(
+        ValidationError,
+        match=r"Variable alias not in scope for operation .*",
+    ):
+        qasm3_alias_program = """
+        OPENQASM 3;
+        include "stdgates.inc";
+        qubit[4] q;
+        bit[4] c;
 
-#         h q;
-#         measure q -> c;
-#         if(c[0]){
-#             let alias = q[0:2];
-#             x alias[0];
-#             cx alias[0], alias[1];
-#         }
+        h q;
+        measure q -> c;
+        if(c[0]){
+            let alias = q[0:2];
+            x alias[0];
+            cx alias[0], alias[1];
+        }
 
-#         if(c[1] == 1){
-#             cx alias[1], q[2];
-#         }
+        if(c[1] == 1){
+            cx alias[1], q[2];
+        }
 
-#         if(!c[2]){
-#             h q[2];
-#         }
-#         """
-#         validate(qasm)
+        if(!c[2]){
+            h q[2];
+        }
+        """
+        load(qasm3_alias_program).validate()

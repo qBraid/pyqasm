@@ -16,6 +16,8 @@ import openqasm3.ast as qasm3_ast
 
 from pyqasm.maps import CONSTANTS_MAP
 
+CONTROLLED_ROTATION_ANGLE_1 = 0.5
+
 
 def check_unrolled_qasm(unrolled_qasm, expected_qasm):
     """Check that the unrolled qasm matches the expected qasm.
@@ -34,7 +36,9 @@ def check_unrolled_qasm(unrolled_qasm, expected_qasm):
     assert len(unrolled_qasm) == len(expected_qasm)
 
     for unrolled_line, expected_line in zip(unrolled_qasm, expected_qasm):
-        print(unrolled_line, expected_line)
+        # replace ' with " for comparison
+        unrolled_line = unrolled_line.replace("'", '"')
+        expected_line = expected_line.replace("'", '"')
         assert unrolled_line.strip() == expected_line.strip()
 
 
@@ -50,19 +54,61 @@ def check_single_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     assert gate_count == num_gates
 
 
+def _check_crx_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_u3_gates = 3 * num_gates
+    check_u3_gate_op(
+        unrolled_ast,
+        num_u3_gates,
+        [qubits[1]] * num_u3_gates,
+        [
+            [0, 0, CONSTANTS_MAP["pi"] / 2],
+            [-1 * theta / 2, 0, 0],
+            [theta / 2, -CONSTANTS_MAP["pi"] / 2, 0],
+        ]
+        * num_gates,
+    )
+
+    num_cx_gates = 2 * num_gates
+    check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_cx_gates, "cx")
+
+
+def _check_crz_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_u3_gates = 2 * num_gates
+    num_cx_gates = 2 * num_gates
+    check_u3_gate_op(
+        unrolled_ast,
+        num_u3_gates,
+        [qubits[1]] * num_u3_gates,
+        [
+            [0, 0, theta / 2],
+            [0, 0, -theta / 2],
+        ]
+        * num_gates,
+    )
+    check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_u3_gates, "cx")
+
+
 def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     qubit_id, gate_count = 0, 0
     if gate_name == "cnot":
         gate_name = "cx"
-    for stmt in unrolled_ast.statements:
-        if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == gate_name.lower():
-            assert len(stmt.qubits) == 2
-            assert stmt.qubits[0].indices[0][0].value == qubit_list[qubit_id][0]
-            assert stmt.qubits[1].indices[0][0].value == qubit_list[qubit_id][1]
-            qubit_id += 1
-            gate_count += 1
 
-    assert gate_count == num_gates
+    if gate_name == "crx":
+        param = CONTROLLED_ROTATION_ANGLE_1
+        _check_crx_gate_op(unrolled_ast, num_gates, qubit_list[0], param)
+    elif gate_name == "crz":
+        param = CONTROLLED_ROTATION_ANGLE_1
+        _check_crz_gate_op(unrolled_ast, num_gates, qubit_list[0], param)
+    else:
+        for stmt in unrolled_ast.statements:
+            if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == gate_name.lower():
+                assert len(stmt.qubits) == 2
+                assert stmt.qubits[0].indices[0][0].value == qubit_list[qubit_id][0]
+                assert stmt.qubits[1].indices[0][0].value == qubit_list[qubit_id][1]
+                qubit_id += 1
+                gate_count += 1
+
+        assert gate_count == num_gates
 
 
 def check_three_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
@@ -80,24 +126,30 @@ def check_three_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
 
 
 def check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
-    theta, phi, lam = param_list
     op_count = 0
     q_id = 0
     pi = CONSTANTS_MAP["pi"]
-    u3_param_list = [lam, pi / 2, theta + pi, pi / 2, phi + pi]
     u3_gate_list = ["rz", "rx", "rz", "rx", "rz"]
-    u3_gates_id = 0
 
-    for stmt in unrolled_ast.statements:
-        if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == u3_gate_list[u3_gates_id]:
-            assert len(stmt.qubits) == 1
-            assert stmt.qubits[0].indices[0][0].value == qubit_list[q_id]
-            assert stmt.arguments[0].value == u3_param_list[u3_gates_id]
-            u3_gates_id += 1
-            if u3_gates_id == 5:
-                u3_gates_id = 0
-                op_count += 1
-                q_id += 1
+    for params in param_list:
+        theta, phi, lam = params
+        u3_param_list = [lam, pi / 2, theta + pi, pi / 2, phi + pi]
+        u3_gates_id = 0
+
+        for stmt in unrolled_ast.statements:
+            if (
+                isinstance(stmt, qasm3_ast.QuantumGate)
+                and stmt.name.name == u3_gate_list[u3_gates_id]
+                and len(stmt.qubits) == 1
+                and stmt.qubits[0].indices[0][0].value == qubit_list[q_id]
+                and stmt.arguments[0].value == u3_param_list[u3_gates_id]
+            ):
+                u3_gates_id += 1
+                if u3_gates_id == 5:
+                    u3_gates_id = 0
+                    op_count += 1
+                    q_id += 1
+                    break  # break out of the loop to check the next set of params
 
     assert op_count == num_gates
 
@@ -130,11 +182,11 @@ def check_measure_op(unrolled_ast, num_ops, meas_pairs):
 
 def check_single_qubit_rotation_op(unrolled_ast, num_gates, qubit_list, param_list, gate_name):
     if gate_name == "u3":
-        check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list)
+        check_u3_gate_op(unrolled_ast, num_gates, qubit_list, [param_list])
         return
     if gate_name == "u2":
         param_list = [CONSTANTS_MAP["pi"] / 2, param_list[0], param_list[1]]
-        check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list)
+        check_u3_gate_op(unrolled_ast, num_gates, qubit_list, [param_list])
         return
     qubit_id, param_id, gate_count = 0, 0, 0
     for stmt in unrolled_ast.statements:

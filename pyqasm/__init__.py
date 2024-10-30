@@ -19,8 +19,6 @@ Functions
 .. autosummary::
    :toctree: ../stubs/
 
-   validate
-   unroll
    load
 
 Classes
@@ -30,6 +28,8 @@ Classes
    :toctree: ../stubs/
 
    Qasm3Module
+   Qasm2Module
+   QasmModule
 
 Exceptions
 -----------
@@ -39,6 +39,7 @@ Exceptions
 
    PyQasmError
    ValidationError
+   QasmParsingError
 
 """
 import warnings
@@ -50,16 +51,17 @@ except ImportError:  # pragma: no cover
     warnings.warn("Importing 'pyqasm' outside a proper installation.")
     __version__ = "dev"
 
-from .elements import Qasm3Module
-from .entrypoint import load, unroll, validate
-from .exceptions import PyQasmError, ValidationError
+from .entrypoint import load
+from .exceptions import PyQasmError, QasmParsingError, ValidationError
+from .modules import Qasm2Module, Qasm3Module, QasmModule
 
 __all__ = [
     "PyQasmError",
     "ValidationError",
-    "validate",
-    "unroll",
+    "QasmParsingError",
     "load",
+    "QasmModule",
+    "Qasm2Module",
     "Qasm3Module",
     "__version__",
 ]

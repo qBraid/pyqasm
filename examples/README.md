@@ -30,9 +30,9 @@ bit[4] result;
 result = measure q;
 """
 
-unrolled = pyqasm.unroll(program)
-
-print(unrolled)
+qasm_module = pyqasm.load(program)
+qasm_module.unroll()
+print(qasm_module.unrolled_qasm)
 ```
 
 ```text
@@ -61,7 +61,7 @@ result[2] = measure q[2];
 result[3] = measure q[3];
 ```
 
-`pyqasm.unroll()` simplifies a quantum program by expanding custom gate definitions and flattening complex constructs like subroutines, loops, and conditionals into basic operations. This process, also called **program flattening** or **inlining**, transforms the program into a linear sequence of qubit and classical bit declarations, gate operations, and measurements, making it easier to transpile or compile for execution on a quantum device. See the extended [Deutsch Josza program unrolling example](unroll_example.py) for more details about the OpenQASM 3 language features being "unrolled" in the above program.
+`pyqasm.QasmModule.unroll()` simplifies a quantum program by expanding custom gate definitions and flattening complex constructs like subroutines, loops, and conditionals into basic operations. This process, also called **program flattening** or **inlining**, transforms the program into a linear sequence of qubit and classical bit declarations, gate operations, and measurements, making it easier to transpile or compile for execution on a quantum device. See the extended [Deutsch Josza program unrolling example](unroll_example.py) for more details about the OpenQASM 3 language features being "unrolled" in the above program.
 
 ### Program Validation
 
@@ -81,11 +81,11 @@ h q[2];
 c = measure q;
 """
 
-pyqasm.validate(program)
+pyqasm.load(program).validate()
 ```
 
 ```text
 pyqasm.exceptions.ValidationError: Index 2 out of range for register of size 1 in qubit
 ```
 
-`pyqasm.validate()` returns `None` if the program is semantically valid, otherwise raises an Exception. Check out a more detailed [validation example](validate_example.py) for a deeper look into the capabilities of our semantic analyzer.
+`pyqasm.QasmModule.validate()` returns `None` if the program is semantically valid, otherwise raises an Exception. Check out a more detailed [validation example](validate_example.py) for a deeper look into the capabilities of our semantic analyzer.

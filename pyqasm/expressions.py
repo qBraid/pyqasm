@@ -9,7 +9,7 @@
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
-Module containing the class for evaluating QASM3 expressions.
+Module containing the class for evaluating QASM expressions.
 
 """
 
