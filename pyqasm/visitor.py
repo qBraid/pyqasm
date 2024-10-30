@@ -1412,6 +1412,7 @@ class QasmVisitor:
         # this will only build a global alias map
 
         # whenever we are referring to qubits , we will first check in the global map of registers
+
         # if the register is present, we will use the global map to get the qubit labels
         # if not, we will check the alias map for the labels
 
@@ -1598,8 +1599,8 @@ class QasmVisitor:
         visitor_function = visit_map.get(type(statement))
 
         if visitor_function:
-            # these are special, they return a tuple of return value and list of statements
             if isinstance(statement, qasm3_ast.ExpressionStatement):
+                # these return a tuple of return value and list of statements
                 _, ret_stmts = visitor_function(statement)  # type: ignore[operator]
                 result.extend(ret_stmts)
             else:
