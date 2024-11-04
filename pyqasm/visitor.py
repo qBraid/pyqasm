@@ -52,7 +52,7 @@ class QasmVisitor:
         record_output (bool): If True, output of the circuit will be recorded. Defaults to True.
     """
 
-    def __init__(self, module, check_only: bool = False):
+    def __init__(self, module, check_only: bool = False, external_gates: list[str] | None = None):
         self._module = module
         self._scope: deque = deque([{}])
         self._context: deque = deque([Context.GLOBAL])
@@ -65,6 +65,7 @@ class QasmVisitor:
         self._function_qreg_transform_map: deque = deque([])  # for nested functions
         self._global_creg_size_map: dict[str, int] = {}
         self._custom_gates: dict[str, qasm3_ast.QuantumGateDefinition] = {}
+        self._external_gates: list[str] = [] if external_gates is None else external_gates
         self._subroutine_defns: dict[str, qasm3_ast.SubroutineDefinition] = {}
         self._check_only: bool = check_only
         self._curr_scope: int = 0
@@ -757,6 +758,63 @@ class QasmVisitor:
             return []
 
         return result
+    
+    def _visit_external_gate_operation(
+        self, operation: qasm3_ast.QuantumGate, inverse: bool = False
+    ) -> list[qasm3_ast.QuantumGate]:
+        """Visit an external gate operation element.
+
+        Args:
+            operation (qasm3_ast.QuantumGate): The external gate operation to visit.
+            inverse (bool): Whether the operation is an inverse operation. Defaults to False.
+
+                            If True, the gate operation is applied in reverse order and the
+                            inverse modifier is appended to each gate call.
+                            See https://openqasm.com/language/gates.html#inverse-modifier
+                            for more clarity.
+
+        Returns:
+            list[qasm3_ast.QuantumGate]: The quantum gate that was collected.
+        """
+        
+        logger.debug("Visiting custom gate operation '%s'", str(operation))
+        gate_name: str = operation.name.name
+
+        gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
+        op_qubits: list[qasm3_ast.IndexedIdentifier] = (
+            self._get_op_bits(  # type: ignore [assignment]
+                operation,
+                self._global_qreg_size_map,
+            )
+        )
+        Qasm3Validator.validate_gate_call(operation, gate_definition, len(op_qubits))
+
+        op_parameters = []
+        if len(operation.arguments) > 0:  # parametric gate
+            op_parameters = [qasm3_ast.FloatLiteral(param) for param in self._get_op_parameters(operation)]
+            #if inverse_action == InversionOp.INVERT_ROTATION:
+            #   op_parameters = [-1 * param for param in op_parameters]
+
+        self._push_context(Context.GATE)
+   
+        modifiers = []
+        if inverse:
+            modifiers = [qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)]
+            
+        external_gate = qasm3_ast.QuantumGate(
+            modifiers=modifiers, 
+            name=qasm3_ast.Identifier(gate_name),
+            qubits=op_qubits,
+            arguments=op_parameters
+        )
+
+        result = [external_gate]
+
+        self._restore_context()
+        if self._check_only:
+            return []
+
+        return result
 
     def _collapse_gate_modifiers(self, operation: qasm3_ast.QuantumGate) -> tuple:
         """Collapse the gate modifiers of a gate operation.
@@ -821,7 +879,9 @@ class QasmVisitor:
         # apply the power first and then inverting the result
         result = []
         for _ in range(power_value):
-            if operation.name.name in self._custom_gates:
+            if operation.name.name in self._external_gates:
+                result.extend(self._visit_external_gate_operation(operation, inverse_value))
+            elif operation.name.name in self._custom_gates:
                 result.extend(self._visit_custom_gate_operation(operation, inverse_value))
             else:
                 result.extend(self._visit_basic_gate_operation(operation, inverse_value))
