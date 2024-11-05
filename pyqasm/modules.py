@@ -21,6 +21,7 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program, Statement
 from openqasm3.printer import dumps
 
+from .analyzer import Qasm3Analyzer
 from .elements import ClbitDepthNode, QubitDepthNode
 from .exceptions import UnrollError, ValidationError
 from .maps import QUANTUM_STATEMENTS
@@ -296,16 +297,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         # update the operations that use the qubits
         for operation in self._unrolled_ast.statements:
             if isinstance(operation, QUANTUM_STATEMENTS):
-                bit_list = []
-                if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
-                    assert operation.target is not None
-                    bit_list = [operation.measure.qubit]
-                else:
-                    bit_list = (
-                        operation.qubits
-                        if isinstance(operation.qubits, list)
-                        else [operation.qubits]  # type: ignore[assignment]
-                    )
+                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
                 for bit in bit_list:
                     assert isinstance(bit, qasm3_ast.IndexedIdentifier)
                     if bit.name.name == reg_name:
@@ -369,8 +361,60 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return qasm_module
 
-    def reverse_qubit_order(self):
-        """Reverse the order of qubits in the module"""
+    def reverse_qubit_order(self, in_place=True):
+        """Reverse the order of qubits in the module
+
+        Args:
+            in_place (bool): Flag to indicate if the reversal should be done in place.
+
+        Returns:
+            QasmModule: The module the qubit order reversed. If in_place is False, a new module
+                        with the reversed qubit order is returned.
+        """
+
+        qasm_module = self if in_place else self.copy()
+        qasm_module.unroll()
+
+        new_qubit_mappings = {}
+        for register, size in self._qubit_registers.items():
+            new_qubit_mappings[register] = {0: 0}
+            if size > 1:
+                new_qubit_mappings[register] = {old_id: size - old_id - 1 for old_id in range(size)}
+
+        # Example -
+        # q[0], q[1], q[2], q[3] -> q[3], q[2], q[1], q[0]
+        # new_qubit_mappings = {"q": {0: 3, 1: 2, 2: 1, 3: 0}}
+
+        # 1. Qubit depths will be recalculated whenever we calculate the depth so we do not update
+        #    the depth maps here
+
+        # 2. replace each qubit index in the Quantum Operations with the new index
+        for operation in qasm_module.unrolled_ast.statements:
+            if isinstance(operation, QUANTUM_STATEMENTS):
+                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
+                for bit in bit_list:
+                    curr_reg_name = bit.name.name
+                    curr_reg_idx = bit.indices[0][0].value
+                    new_reg_idx = new_qubit_mappings[curr_reg_name][curr_reg_idx]
+
+                    # mark it -ve so that this is not touched
+                    # while updating the same index later
+                    bit.indices[0][0].value = -1 * new_reg_idx - 1
+
+        # remove the -ve marker
+        for operation in qasm_module.unrolled_ast.statements:
+            if isinstance(operation, QUANTUM_STATEMENTS):
+                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
+                for bit in bit_list:
+                    if bit.indices[0][0].value < 0:
+                        bit.indices[0][0].value += 1
+                        bit.indices[0][0].value *= -1
+
+        # 3. update the original AST with the unrolled AST
+        qasm_module._statements = qasm_module._unrolled_ast.statements
+
+        # 4. return the module
+        return qasm_module
 
     def validate(self):
         """Validate the module"""

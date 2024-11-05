@@ -25,6 +25,7 @@ from openqasm3.ast import (
     IndexExpression,
     IntegerLiteral,
     IntType,
+    QuantumMeasurementStatement,
     RangeDefinition,
 )
 from openqasm3.parser import QASM3ParsingError
@@ -184,6 +185,29 @@ class Qasm3Analyzer:
             slice(start, end + 1, step) if start != end else start for start, end, step in indices
         )
         return multi_dim_arr[slicing]  # type: ignore[index]
+
+    @staticmethod
+    def get_op_bit_list(operation):
+        """
+        Get the list of qubits associated with an operation.
+
+        Args:
+            operation (QuantumOperation): The quantum operation.
+
+        Returns:
+            list: The list of qubits associated with the operation.
+        """
+        bit_list = []
+        if isinstance(operation, QuantumMeasurementStatement):
+            assert operation.target is not None
+            bit_list = [operation.measure.qubit]
+        else:
+            bit_list = (
+                operation.qubits
+                if isinstance(operation.qubits, list)
+                else [operation.qubits]  # type: ignore[assignment]
+            )
+        return bit_list
 
     @staticmethod
     def extract_qasm_version(qasm: str) -> int:  # type: ignore # pylint: disable=R1710

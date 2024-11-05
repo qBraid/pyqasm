@@ -64,6 +64,49 @@ Out[7]:
  'z q3[2];']
 ```
 
+- Implemented the `reverse_qubit_order` method to the `QasmModule` class which can be used to reverse the order of qubits in a quantum program ([#60](https://github.com/qBraid/pyqasm/pull/60)). Usage is as follows - 
+
+```python
+In [3]: import pyqasm
+
+In [4]: qasm3_str = """
+   ...:     OPENQASM 3.0;
+   ...:     include "stdgates.inc";
+   ...:     qubit[2] q;
+   ...:     qubit[4] q2;
+   ...:     qubit q3;
+   ...:     bit[1] c;
+   ...:
+   ...:     cnot q[0], q[1];
+   ...:     cnot q2[0], q2[1];
+   ...:     x q2[3];
+   ...:     cnot q2[0], q2[2];
+   ...:     x q3;
+   ...:     c[0] = measure q2[0];
+   ...:     """
+
+In [5]: module = pyqasm.load(qasm3_str)
+
+In [6]: module.reverse_qubit_order()
+Out[6]: <pyqasm.modules.Qasm3Module at 0x105bc9ac0>
+
+In [7]: module.unrolled_qasm.splitlines()
+Out[7]:
+['OPENQASM 3.0;',
+ 'include "stdgates.inc";',
+ 'qubit[2] q;',
+ 'qubit[4] q2;',
+ 'qubit[1] q3;',
+ 'bit[1] c;',
+ 'cx q[1], q[0];',
+ 'cx q2[3], q2[2];',
+ 'x q2[0];',
+ 'cx q2[3], q2[1];',
+ 'x q3[0];',
+ 'c[0] = measure q2[3];']
+ ```
+
+
 ### Improved / Modified
 - Improved qubit declaration semantics by adding check for quantum registers being declared as predefined constants ([#44](https://github.com/qBraid/pyqasm/pull/44))
 - Updated pre-release scripts + workflow ([#47](https://github.com/qBraid/pyqasm/pull/47))

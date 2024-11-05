@@ -89,3 +89,43 @@ def test_remove_idle_qubits_qasm3():
     assert module.num_qubits == 7
 
     check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
+
+
+def test_reverse_qubit_order_qasm3():
+    """Test the reverse qubit ordering function for qasm3 string"""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit q3;
+    bit[1] c; 
+
+    cnot q[0], q[1];
+    cnot q2[0], q2[1];
+    x q2[3];
+    cnot q2[0], q2[2];
+    x q3;
+    c[0] = measure q2[0];
+    """
+
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit[1] q3;
+    bit[1] c;
+
+    cx q[1], q[0];
+    cx q2[3], q2[2];
+    x q2[0];
+    cx q2[3], q2[1];
+    x q3[0];
+
+    c[0] = measure q2[3];
+    """
+
+    module = load(qasm3_str)
+    module.reverse_qubit_order()
+    check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
