@@ -50,6 +50,7 @@ class QasmVisitor:
     Args:
         initialize_runtime (bool): If True, quantum runtime will be initialized. Defaults to True.
         record_output (bool): If True, output of the circuit will be recorded. Defaults to True.
+        external_gates (list[str]): List of custom gates that should not be unrolled into their definition. 
     """
 
     def __init__(self, module, check_only: bool = False, external_gates: list[str] | None = None):
@@ -780,6 +781,12 @@ class QasmVisitor:
         logger.debug("Visiting custom gate operation '%s'", str(operation))
         gate_name: str = operation.name.name
 
+        if gate_name not in self._custom_gates:
+            raise_qasm3_error(
+                f"Gate '{gate_name}' is not a custom gate and can therefore not be marked as external. ",
+                span=operation.span
+            )
+
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
         op_qubits: list[qasm3_ast.IndexedIdentifier] = (
             self._get_op_bits(  # type: ignore [assignment]
@@ -791,9 +798,7 @@ class QasmVisitor:
 
         op_parameters = []
         if len(operation.arguments) > 0:  # parametric gate
-            op_parameters = [qasm3_ast.FloatLiteral(param) for param in self._get_op_parameters(operation)]
-            #if inverse_action == InversionOp.INVERT_ROTATION:
-            #   op_parameters = [-1 * param for param in op_parameters]
+            op_parameters = [qasm3_ast.FloatLiteral(param) for param in self._get_op_parameters(operation)] 
 
         self._push_context(Context.GATE)
    
