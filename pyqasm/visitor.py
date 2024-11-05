@@ -297,7 +297,8 @@ class QasmVisitor:
 
         self._label_scope_level[self._curr_scope].add(register_name)
 
-        self._module._add_qubits(register_size)
+        self._module._add_qubit_register(register_name, register_size)
+
         logger.debug("Added labels for register '%s'", str(register))
 
         if self._check_only:
@@ -1006,7 +1007,7 @@ class QasmVisitor:
                     else qasm3_ast.IntegerLiteral(base_size)
                 )
             statements.append(statement)
-            self._module._add_classical_bits(base_size)
+            self._module._add_classical_register(var_name, base_size)
 
         return statements
 
