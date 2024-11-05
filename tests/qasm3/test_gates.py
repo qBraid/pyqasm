@@ -174,6 +174,7 @@ def test_custom_ops(test_name, request):
     # Check for custom gate definition
     check_custom_qasm_gate_op(result.unrolled_ast, gate_type)
 
+
 @pytest.mark.parametrize("test_name", custom_op_tests)
 def test_custom_ops_with_external_gates(test_name, request):
     qasm3_string = request.getfixturevalue(test_name)

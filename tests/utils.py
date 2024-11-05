@@ -234,13 +234,14 @@ def check_custom_qasm_gate_op(unrolled_ast, test_type):
         raise ValueError(f"Unknown test type {test_type}")
     test_function_map[test_type](unrolled_ast)
 
+
 def check_custom_qasm_gate_op_with_external_gates(unrolled_ast, test_type):
     if test_type == "simple":
         check_two_qubit_gate_op(unrolled_ast, 1, [(0, 1)], "custom")
     elif test_type == "nested":
         check_two_qubit_gate_op(unrolled_ast, 1, [(0, 1)], "custom")
     elif test_type == "complex":
-        #Only custom1 is external, custom2 and custom3 should be unrolled
+        # Only custom1 is external, custom2 and custom3 should be unrolled
         check_single_qubit_gate_op(unrolled_ast, 1, [0], "custom1")
         check_single_qubit_gate_op(unrolled_ast, 1, [0], "ry")
         check_single_qubit_gate_op(unrolled_ast, 1, [0], "rz")

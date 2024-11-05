@@ -50,7 +50,7 @@ class QasmVisitor:
     Args:
         initialize_runtime (bool): If True, quantum runtime will be initialized. Defaults to True.
         record_output (bool): If True, output of the circuit will be recorded. Defaults to True.
-        external_gates (list[str]): List of custom gates that should not be unrolled into their definition. 
+        external_gates (list[str]): List of custom gates that should not be unrolled.
     """
 
     def __init__(self, module, check_only: bool = False, external_gates: list[str] | None = None):
@@ -760,7 +760,7 @@ class QasmVisitor:
             return []
 
         return result
-    
+
     def _visit_external_gate_operation(
         self, operation: qasm3_ast.QuantumGate, inverse: bool = False
     ) -> list[qasm3_ast.QuantumGate]:
@@ -778,14 +778,14 @@ class QasmVisitor:
         Returns:
             list[qasm3_ast.QuantumGate]: The quantum gate that was collected.
         """
-        
+
         logger.debug("Visiting custom gate operation '%s'", str(operation))
         gate_name: str = operation.name.name
 
         if gate_name not in self._custom_gates:
             raise_qasm3_error(
-                f"Gate '{gate_name}' is not a custom gate and can therefore not be marked as external. ",
-                span=operation.span
+                f"Gate '{gate_name}' is not a custom gate and can not be marked as external.",
+                span=operation.span,
             )
 
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
@@ -799,19 +799,21 @@ class QasmVisitor:
 
         op_parameters = []
         if len(operation.arguments) > 0:  # parametric gate
-            op_parameters = [qasm3_ast.FloatLiteral(param) for param in self._get_op_parameters(operation)] 
+            op_parameters = [
+                qasm3_ast.FloatLiteral(param) for param in self._get_op_parameters(operation)
+            ]
 
         self._push_context(Context.GATE)
-   
+
         modifiers = []
         if inverse:
             modifiers = [qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)]
-            
+
         external_gate = qasm3_ast.QuantumGate(
-            modifiers=modifiers, 
+            modifiers=modifiers,
             name=qasm3_ast.Identifier(gate_name),
             qubits=op_qubits,
-            arguments=op_parameters
+            arguments=op_parameters,
         )
 
         result = [external_gate]
