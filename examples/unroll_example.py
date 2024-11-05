@@ -11,7 +11,7 @@
 # pylint: disable=invalid-name
 
 """
-Script demonstrating how to unroll a QASM 3 program using the `pyqasm.unrolll` function.
+Script demonstrating how to unroll a QASM 3 program using pyqasm.
 
 """
 

@@ -11,7 +11,7 @@
 # pylint: disable=invalid-name
 
 """
-Script demonstrating how to validate a QASM 3 program using the `pyqasm.validate` function.
+Script demonstrating how to validate a QASM 3 program using pyqasm.
 
 """
 
