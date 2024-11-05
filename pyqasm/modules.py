@@ -267,13 +267,13 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Remap the qubits in a register after removing idle qubits and update the operations
         using this register accordingly"""
 
-        new_size = size - len(idle_indices)
         used_indices = [idx for idx in range(size) if idx not in idle_indices]
+        new_size = size - len(idle_indices)
         idx_map = {used_indices[i]: i for i in range(new_size)}  # old_idx : new_idx
 
         # Example -
-        # reg_name = "q", size = 5, idle_indices = [1, 3]
-        # new_size = 3, used_indices = [0, 2, 4]
+        # reg_name = "q", original_size = 5, idle_indices = [1, 3]
+        # used_indices = [0, 2, 4], new_size = 3
         # idx_map = {0: 0, 2: 1, 4: 2}
 
         # update the qubit register size
@@ -283,7 +283,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         for stmt in self._unrolled_ast.statements:
             if isinstance(stmt, qasm3_ast.QubitDeclaration):
                 if stmt.qubit.name == reg_name:
-                    stmt.size.value = new_size
+                    stmt.size.value = new_size  # type: ignore[union-attr]
                     break
 
         # update the qubit depths
@@ -295,20 +295,22 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         # update the operations that use the qubits
         for operation in self._unrolled_ast.statements:
-            if not isinstance(operation, QUANTUM_STATEMENTS):
-                continue
-
-            if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
-                assert operation.target is not None
-                bit_list = [operation.measure.qubit]
-            else:
-                bit_list = (
-                    operation.qubits if isinstance(operation.qubits, list) else [operation.qubits]
-                )
-            for bit in bit_list:  # it is a list of indexed identifiers
-                if bit.name.name == reg_name:
-                    old_idx = bit.indices[0][0].value
-                    bit.indices[0][0].value = idx_map[old_idx]
+            if isinstance(operation, QUANTUM_STATEMENTS):
+                bit_list = []
+                if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
+                    assert operation.target is not None
+                    bit_list = [operation.measure.qubit]
+                else:
+                    bit_list = (
+                        operation.qubits
+                        if isinstance(operation.qubits, list)
+                        else [operation.qubits]  # type: ignore[assignment]
+                    )
+                for bit in bit_list:
+                    assert isinstance(bit, qasm3_ast.IndexedIdentifier)
+                    if bit.name.name == reg_name:
+                        old_idx = bit.indices[0][0].value  # type: ignore[union-attr,index]
+                        bit.indices[0][0].value = idx_map[old_idx]  # type: ignore[union-attr,index]
 
     def remove_idle_qubits(self, in_place: bool = True):
         """Remove idle qubits from the module. Either collapse the size of a partially used
@@ -329,7 +331,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         idle_qubits = [qubit for qubit in qasm_module._qubit_depths.values() if qubit.is_idle()]
 
         # re-map the idle qubits as {reg_name: [indices]}
-        qubit_indices = {}
+        qubit_indices: dict[str, list[int]] = {}
         for qubit in idle_qubits:
             if qubit.reg_name not in qubit_indices:
                 qubit_indices[qubit.reg_name] = []
@@ -358,8 +360,11 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             elif len(idle_indices) != 0:  # partially used register
                 qasm_module._remap_qubits(reg_name, size, idle_indices)
 
-        # the original ast will need to be updated to this unrolled ast as if we call the
-        # unroll operation again, it will then just choose the original ast WITH THE IDLE QUBITS
+            # update the number of qubits
+            self._num_qubits -= len(idle_indices)
+
+        # the original ast will need to be updated to the unrolled ast as if we call the
+        # unroll operation again, it will incorrectly choose the original ast WITH THE IDLE QUBITS
         qasm_module._statements = qasm_module._unrolled_ast.statements
 
         return qasm_module
