@@ -93,6 +93,12 @@ class QubitDepthNode(DepthNode):
             f"depth = {self.depth})"
         )
 
+    def _total_ops(self):
+        return self.num_resets + self.num_measurements + self.num_gates + self.num_barriers
+
+    def is_idle(self):
+        return self._total_ops() == 0
+
 
 class ClbitDepthNode(DepthNode):
     """Classical bit depth node."""
@@ -106,6 +112,9 @@ class ClbitDepthNode(DepthNode):
             f"ClbitDepthNode(reg_name = {self.reg_name}, reg_index = {self.reg_index},"
             f" depth = {self.depth})"
         )
+
+    def is_idle(self):
+        return self.num_measurements == 0
 
 
 # pylint: disable-next=too-many-instance-attributes
