@@ -27,6 +27,7 @@ from tests.qasm3.resources.gates import (
 )
 from tests.utils import (
     check_custom_qasm_gate_op,
+    check_custom_qasm_gate_op_with_external_gates,
     check_single_qubit_gate_op,
     check_single_qubit_rotation_op,
     check_three_qubit_gate_op,
@@ -172,6 +173,19 @@ def test_custom_ops(test_name, request):
 
     # Check for custom gate definition
     check_custom_qasm_gate_op(result.unrolled_ast, gate_type)
+
+@pytest.mark.parametrize("test_name", custom_op_tests)
+def test_custom_ops_with_external_gates(test_name, request):
+    qasm3_string = request.getfixturevalue(test_name)
+    gate_type = test_name.removeprefix("Fixture_")
+    result = load(qasm3_string)
+    result.unroll(external_gates=["custom", "custom1"])
+
+    assert result.num_qubits == 2
+    assert result.num_clbits == 0
+
+    # Check for custom gate definition
+    check_custom_qasm_gate_op_with_external_gates(result.unrolled_ast, gate_type)
 
 
 def test_pow_gate_modifier():
