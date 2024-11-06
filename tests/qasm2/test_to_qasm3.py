@@ -21,7 +21,7 @@ from tests.utils import check_unrolled_qasm
 def test_to_qasm3_str():
     qasm2_string = """
     OPENQASM 2.0;
-    include "stdgates.inc";
+    include "qelib1.inc";
     qreg q[1];
     creg c[1];
     h q;

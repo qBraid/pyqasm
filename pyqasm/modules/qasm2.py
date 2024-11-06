@@ -90,12 +90,14 @@ class Qasm2Module(QasmModule):
         Returns:
             Union[str, Qasm3Module]: The module in openqasm3 format.
         """
-        if as_str:
-            ast_copy = deepcopy(self._original_program)
-            ast_copy.version = "3.0"
-            return dumps(ast_copy)
-
-        return Qasm3Module.from_program(deepcopy(self._original_program))
+        qasm_program = deepcopy(self._original_program)
+        # replace the include with stdgates.inc
+        for stmt in qasm_program.statements:
+            if isinstance(stmt, Include) and stmt.filename == "qelib1.inc":
+                stmt.filename = "stdgates.inc"
+                break
+        qasm_program.version = "3.0"
+        return dumps(qasm_program) if as_str else Qasm3Module.from_program(qasm_program)
 
     def accept(self, visitor):
         """Accept a visitor for the module

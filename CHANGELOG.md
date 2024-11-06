@@ -105,6 +105,38 @@ Out[7]:
  'x q3[0];',
  'c[0] = measure q2[3];']
  ```
+ - Added the `to_qasm3()` method to the `Qasm2Module` class which can be used to convert a QASM2 program to QASM3 ([#62](https://github.com/qBraid/pyqasm/pull/62)). Usage is as follows - 
+ 
+ ```python
+ In [7]: import pyqasm
+
+In [8]: qasm2_str = """
+   ...:      OPENQASM 2.0;
+   ...:      include "qelib1.inc";
+   ...:      qreg q[2];
+   ...:      creg c[2];
+   ...:      h q[0];
+   ...:      cx q[0], q[1];
+   ...:      measure q -> c;
+   ...:      """
+
+In [9]: module = pyqasm.load(qasm2_str)
+
+In [10]: module.to_qasm3(as_str = True).splitlines()
+Out[10]:
+['OPENQASM 3.0;',
+ 'include "stdgates.inc";',
+ 'qubit[2] q;',
+ 'bit[2] c;',
+ 'h q[0];',
+ 'cx q[0], q[1];',
+ 'c = measure q;']
+
+In [11]: qasm3_mod = module.to_qasm3()
+
+In [12]: qasm3_mod
+Out[12]: <pyqasm.modules.qasm3.Qasm3Module at 0x107854ad0>
+ ```
 
 
 ### Improved / Modified
@@ -210,6 +242,7 @@ In [4]: module.validate()
 
 In [5]: module_copy = module.remove_measurements(in_place=False)
 ```
+- Restructured the `pyqasm` package to have a `modules` subpackage which contains the `QasmModule`, `Qasm2Module` and `Qasm3Module` classes ([#62](https://github.com/qBraid/pyqasm/pull/62))
 
 ### Deprecated
 
