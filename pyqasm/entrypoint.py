@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING
 
 import openqasm3
 
-from .exceptions import ValidationError
-from .maps import SUPPORTED_QASM_VERSIONS
-from .modules import Qasm2Module, Qasm3Module, QasmModule
+from pyqasm.exceptions import ValidationError
+from pyqasm.maps import SUPPORTED_QASM_VERSIONS
+from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
 
 if TYPE_CHECKING:
     import openqasm3.ast

@@ -32,10 +32,10 @@ from openqasm3.ast import (
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import SizeOf, Statement, UnaryExpression
 
-from .analyzer import Qasm3Analyzer
-from .exceptions import ValidationError, raise_qasm3_error
-from .maps import CONSTANTS_MAP, qasm3_expression_op_map
-from .validator import Qasm3Validator
+from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.exceptions import ValidationError, raise_qasm3_error
+from pyqasm.maps import CONSTANTS_MAP, qasm3_expression_op_map
+from pyqasm.validator import Qasm3Validator
 
 
 class Qasm3ExprEvaluator:

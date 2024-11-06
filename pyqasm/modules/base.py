@@ -9,23 +9,21 @@
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
-Module defining Qasm modules
+Definition of the base Qasm module
 """
 
-import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program, Statement
-from openqasm3.printer import dumps
 
-from .analyzer import Qasm3Analyzer
-from .elements import ClbitDepthNode, QubitDepthNode
-from .exceptions import UnrollError, ValidationError
-from .maps import QUANTUM_STATEMENTS
-from .visitor import QasmVisitor
+from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.elements import ClbitDepthNode, QubitDepthNode
+from pyqasm.exceptions import UnrollError, ValidationError
+from pyqasm.maps import QUANTUM_STATEMENTS
+from pyqasm.visitor import QasmVisitor
 
 
 class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
@@ -461,107 +459,3 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             visitor (QasmVisitor): The visitor to accept
         """
-
-
-class Qasm2Module(QasmModule):
-    """
-    A module representing an unrolled openqasm2 quantum program.
-
-    Args:
-        name (str): Name of the module.
-        program (Program): The original openqasm2 program.
-        statements (list[Statement]): list of openqasm2 Statements.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        program: Program,
-        statements: list,
-    ):
-        super().__init__(name, program, statements)
-        self._unrolled_ast = Program(statements=[Include("qelib1.inc")], version="2.0")
-        self._whitelist_statements = {
-            qasm3_ast.BranchingStatement,
-            qasm3_ast.QubitDeclaration,
-            qasm3_ast.ClassicalDeclaration,
-            qasm3_ast.Include,
-            qasm3_ast.QuantumGateDefinition,
-            qasm3_ast.QuantumGate,
-            qasm3_ast.QuantumMeasurement,
-            qasm3_ast.QuantumMeasurementStatement,
-            qasm3_ast.QuantumReset,
-            qasm3_ast.QuantumBarrier,
-        }
-
-    def _filter_statements(self):
-        """Filter statements according to the whitelist"""
-        for stmt in self._statements:
-            stmt_type = type(stmt)
-            if stmt_type not in self._whitelist_statements:
-                raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
-            # TODO: add more filtering here if needed
-
-    def _format_declarations(self, qasm_str):
-        """Format the unrolled qasm for declarations in openqasm 2.0 format"""
-        for declaration_type, replacement_type in [("qubit", "qreg"), ("bit", "creg")]:
-            pattern = rf"{declaration_type}\[(\d+)\]\s+(\w+);"
-            replacement = rf"{replacement_type} \2[\1];"
-            qasm_str = re.sub(pattern, replacement, qasm_str)
-        return qasm_str
-
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
-        # set the version to 2.0
-        qasm_ast.version = "2.0"
-        raw_qasm = dumps(qasm_ast, old_measurement=True)
-        return self._format_declarations(raw_qasm)
-
-    def accept(self, visitor):
-        """Accept a visitor for the module
-
-        Args:
-            visitor (QasmVisitor): The visitor to accept
-        """
-        self._filter_statements()
-        unrolled_stmt_list = visitor.visit_basic_block(self._statements)
-        self.unrolled_ast.statements = [Include("qelib1.inc")]  # pylint: disable=W0201
-        self.unrolled_ast.statements.extend(unrolled_stmt_list)
-        # TODO: some finalizing method here probably
-
-
-class Qasm3Module(QasmModule):
-    """
-    A module representing an unrolled openqasm3 quantum program.
-
-    Args:
-        name (str): Name of the module.
-        program (Program): The original openqasm3 program.
-        statements (list[Statement]): list of openqasm3 Statements.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        program: Program,
-        statements: list,
-    ):
-        super().__init__(name, program, statements)
-        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3.0")
-
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
-        # set the version to 3.0
-        qasm_ast.version = "3.0"
-        return dumps(qasm_ast)
-
-    def accept(self, visitor):
-        """Accept a visitor for the module
-
-        Args:
-            visitor (QasmVisitor): The visitor to accept
-        """
-        unrolled_stmt_list = visitor.visit_basic_block(self._statements)
-        self.unrolled_ast.statements = [Include("stdgates.inc")]  # pylint: disable=W0201
-        self.unrolled_ast.statements.extend(unrolled_stmt_list)
-        # TODO: some finalizing method here probably
