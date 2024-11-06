@@ -30,11 +30,11 @@ from openqasm3.ast import (
 )
 from openqasm3.parser import QASM3ParsingError
 
-from .exceptions import QasmParsingError, ValidationError, raise_qasm3_error
+from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
 
 if TYPE_CHECKING:
-    from .elements import Variable
-    from .expressions import Qasm3ExprEvaluator
+    from pyqasm.elements import Variable
+    from pyqasm.expressions import Qasm3ExprEvaluator
 
 
 class Qasm3Analyzer:

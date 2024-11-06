@@ -22,11 +22,11 @@ from typing import Any, Optional, Union
 import numpy as np
 import openqasm3.ast as qasm3_ast
 
-from .analyzer import Qasm3Analyzer
-from .elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
-from .exceptions import ValidationError, raise_qasm3_error
-from .expressions import Qasm3ExprEvaluator
-from .maps import (
+from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
+from pyqasm.exceptions import ValidationError, raise_qasm3_error
+from pyqasm.expressions import Qasm3ExprEvaluator
+from pyqasm.maps import (
     ARRAY_TYPE_MAP,
     CONSTANTS_MAP,
     MAX_ARRAY_DIMENSIONS,
@@ -34,9 +34,9 @@ from .maps import (
     map_qasm_inv_op_to_callable,
     map_qasm_op_to_callable,
 )
-from .subroutines import Qasm3SubroutineProcessor
-from .transformer import Qasm3Transformer
-from .validator import Qasm3Validator
+from pyqasm.subroutines import Qasm3SubroutineProcessor
+from pyqasm.transformer import Qasm3Transformer
+from pyqasm.validator import Qasm3Validator
 
 logger = logging.getLogger(__name__)
 
