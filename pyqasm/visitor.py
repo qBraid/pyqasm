@@ -811,8 +811,8 @@ class QasmVisitor:
         external_gate = qasm3_ast.QuantumGate(
             modifiers=modifiers,
             name=qasm3_ast.Identifier(gate_name),
-            qubits=op_qubits,
-            arguments=op_parameters,
+            qubits=list(op_qubits),
+            arguments=list(op_parameters),
         )
 
         result = [external_gate]
