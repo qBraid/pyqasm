@@ -19,9 +19,9 @@ from openqasm3.ast import ArrayType, ClassicalDeclaration, FloatType
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import QuantumGate, QuantumGateDefinition, ReturnStatement, SubroutineDefinition
 
-from .elements import Variable
-from .exceptions import ValidationError, raise_qasm3_error
-from .maps import LIMITS_MAP, VARIABLE_TYPE_MAP, qasm_variable_type_cast
+from pyqasm.elements import Variable
+from pyqasm.exceptions import ValidationError, raise_qasm3_error
+from pyqasm.maps import LIMITS_MAP, VARIABLE_TYPE_MAP, qasm_variable_type_cast
 
 
 class Qasm3Validator:

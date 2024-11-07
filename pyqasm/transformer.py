@@ -37,11 +37,11 @@ from openqasm3.ast import (
     UnaryOperator,
 )
 
-from .elements import Variable
-from .exceptions import raise_qasm3_error
-from .expressions import Qasm3ExprEvaluator
-from .maps import VARIABLE_TYPE_MAP
-from .validator import Qasm3Validator
+from pyqasm.elements import Variable
+from pyqasm.exceptions import raise_qasm3_error
+from pyqasm.expressions import Qasm3ExprEvaluator
+from pyqasm.maps import VARIABLE_TYPE_MAP
+from pyqasm.validator import Qasm3Validator
 
 # mypy: disable-error-code="attr-defined, union-attr"
 

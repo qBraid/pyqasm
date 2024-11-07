@@ -9,22 +9,21 @@
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
 """
-Module defining Qasm modules
+Definition of the base Qasm module
 """
 
-import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program, Statement
-from openqasm3.printer import dumps
 
-from .elements import ClbitDepthNode, QubitDepthNode
-from .exceptions import UnrollError, ValidationError
-from .maps import QUANTUM_STATEMENTS
-from .visitor import QasmVisitor
+from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.elements import ClbitDepthNode, QubitDepthNode
+from pyqasm.exceptions import UnrollError, ValidationError
+from pyqasm.maps import QUANTUM_STATEMENTS
+from pyqasm.visitor import QasmVisitor
 
 
 class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
@@ -296,16 +295,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         # update the operations that use the qubits
         for operation in self._unrolled_ast.statements:
             if isinstance(operation, QUANTUM_STATEMENTS):
-                bit_list = []
-                if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
-                    assert operation.target is not None
-                    bit_list = [operation.measure.qubit]
-                else:
-                    bit_list = (
-                        operation.qubits
-                        if isinstance(operation.qubits, list)
-                        else [operation.qubits]  # type: ignore[assignment]
-                    )
+                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
                 for bit in bit_list:
                     assert isinstance(bit, qasm3_ast.IndexedIdentifier)
                     if bit.name.name == reg_name:
@@ -369,8 +359,60 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return qasm_module
 
-    def reverse_qubit_order(self):
-        """Reverse the order of qubits in the module"""
+    def reverse_qubit_order(self, in_place=True):
+        """Reverse the order of qubits in the module
+
+        Args:
+            in_place (bool): Flag to indicate if the reversal should be done in place.
+
+        Returns:
+            QasmModule: The module the qubit order reversed. If in_place is False, a new module
+                        with the reversed qubit order is returned.
+        """
+
+        qasm_module = self if in_place else self.copy()
+        qasm_module.unroll()
+
+        new_qubit_mappings = {}
+        for register, size in self._qubit_registers.items():
+            new_qubit_mappings[register] = {0: 0}
+            if size > 1:
+                new_qubit_mappings[register] = {old_id: size - old_id - 1 for old_id in range(size)}
+
+        # Example -
+        # q[0], q[1], q[2], q[3] -> q[3], q[2], q[1], q[0]
+        # new_qubit_mappings = {"q": {0: 3, 1: 2, 2: 1, 3: 0}}
+
+        # 1. Qubit depths will be recalculated whenever we calculate the depth so we do not update
+        #    the depth maps here
+
+        # 2. replace each qubit index in the Quantum Operations with the new index
+        for operation in qasm_module.unrolled_ast.statements:
+            if isinstance(operation, QUANTUM_STATEMENTS):
+                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
+                for bit in bit_list:
+                    curr_reg_name = bit.name.name
+                    curr_reg_idx = bit.indices[0][0].value
+                    new_reg_idx = new_qubit_mappings[curr_reg_name][curr_reg_idx]
+
+                    # mark it -ve so that this is not touched
+                    # while updating the same index later
+                    bit.indices[0][0].value = -1 * new_reg_idx - 1
+
+        # remove the -ve marker
+        for operation in qasm_module.unrolled_ast.statements:
+            if isinstance(operation, QUANTUM_STATEMENTS):
+                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
+                for bit in bit_list:
+                    if bit.indices[0][0].value < 0:
+                        bit.indices[0][0].value += 1
+                        bit.indices[0][0].value *= -1
+
+        # 3. update the original AST with the unrolled AST
+        qasm_module._statements = qasm_module._unrolled_ast.statements
+
+        # 4. return the module
+        return qasm_module
 
     def validate(self):
         """Validate the module"""
@@ -417,107 +459,3 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             visitor (QasmVisitor): The visitor to accept
         """
-
-
-class Qasm2Module(QasmModule):
-    """
-    A module representing an unrolled openqasm2 quantum program.
-
-    Args:
-        name (str): Name of the module.
-        program (Program): The original openqasm2 program.
-        statements (list[Statement]): list of openqasm2 Statements.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        program: Program,
-        statements: list,
-    ):
-        super().__init__(name, program, statements)
-        self._unrolled_ast = Program(statements=[Include("qelib1.inc")], version="2.0")
-        self._whitelist_statements = {
-            qasm3_ast.BranchingStatement,
-            qasm3_ast.QubitDeclaration,
-            qasm3_ast.ClassicalDeclaration,
-            qasm3_ast.Include,
-            qasm3_ast.QuantumGateDefinition,
-            qasm3_ast.QuantumGate,
-            qasm3_ast.QuantumMeasurement,
-            qasm3_ast.QuantumMeasurementStatement,
-            qasm3_ast.QuantumReset,
-            qasm3_ast.QuantumBarrier,
-        }
-
-    def _filter_statements(self):
-        """Filter statements according to the whitelist"""
-        for stmt in self._statements:
-            stmt_type = type(stmt)
-            if stmt_type not in self._whitelist_statements:
-                raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
-            # TODO: add more filtering here if needed
-
-    def _format_declarations(self, qasm_str):
-        """Format the unrolled qasm for declarations in openqasm 2.0 format"""
-        for declaration_type, replacement_type in [("qubit", "qreg"), ("bit", "creg")]:
-            pattern = rf"{declaration_type}\[(\d+)\]\s+(\w+);"
-            replacement = rf"{replacement_type} \2[\1];"
-            qasm_str = re.sub(pattern, replacement, qasm_str)
-        return qasm_str
-
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
-        # set the version to 2.0
-        qasm_ast.version = "2.0"
-        raw_qasm = dumps(qasm_ast, old_measurement=True)
-        return self._format_declarations(raw_qasm)
-
-    def accept(self, visitor):
-        """Accept a visitor for the module
-
-        Args:
-            visitor (QasmVisitor): The visitor to accept
-        """
-        self._filter_statements()
-        unrolled_stmt_list = visitor.visit_basic_block(self._statements)
-        self.unrolled_ast.statements = [Include("qelib1.inc")]  # pylint: disable=W0201
-        self.unrolled_ast.statements.extend(unrolled_stmt_list)
-        # TODO: some finalizing method here probably
-
-
-class Qasm3Module(QasmModule):
-    """
-    A module representing an unrolled openqasm3 quantum program.
-
-    Args:
-        name (str): Name of the module.
-        program (Program): The original openqasm3 program.
-        statements (list[Statement]): list of openqasm3 Statements.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        program: Program,
-        statements: list,
-    ):
-        super().__init__(name, program, statements)
-        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3.0")
-
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
-        # set the version to 3.0
-        qasm_ast.version = "3.0"
-        return dumps(qasm_ast)
-
-    def accept(self, visitor):
-        """Accept a visitor for the module
-
-        Args:
-            visitor (QasmVisitor): The visitor to accept
-        """
-        unrolled_stmt_list = visitor.visit_basic_block(self._statements)
-        self.unrolled_ast.statements = [Include("stdgates.inc")]  # pylint: disable=W0201
-        self.unrolled_ast.statements.extend(unrolled_stmt_list)
-        # TODO: some finalizing method here probably

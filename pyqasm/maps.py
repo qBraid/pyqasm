@@ -36,9 +36,9 @@ from openqasm3.ast import (
     UintType,
 )
 
-from .elements import InversionOp
-from .exceptions import ValidationError
-from .linalg import kak_decomposition_angles
+from pyqasm.elements import InversionOp
+from pyqasm.exceptions import ValidationError
+from pyqasm.linalg import kak_decomposition_angles
 
 # Define the type for the operator functions
 OperatorFunction = Union[

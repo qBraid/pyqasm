@@ -23,12 +23,12 @@ from openqasm3.ast import (
     QubitDeclaration,
 )
 
-from .analyzer import Qasm3Analyzer
-from .elements import Variable
-from .exceptions import raise_qasm3_error
-from .expressions import Qasm3ExprEvaluator
-from .transformer import Qasm3Transformer
-from .validator import Qasm3Validator
+from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.elements import Variable
+from pyqasm.exceptions import raise_qasm3_error
+from pyqasm.expressions import Qasm3ExprEvaluator
+from pyqasm.transformer import Qasm3Transformer
+from pyqasm.validator import Qasm3Validator
 
 
 class Qasm3SubroutineProcessor:

@@ -118,9 +118,12 @@ Example
    result = measure q;
    """
 
-   unrolled = pyqasm.unroll(qasm)
+   module = pyqasm.load(qasm)
+   module.unroll()
 
-   print(unrolled)
+   unrolled_qasm = module.unrolled_qasm
+
+   print(unrolled_qasm)
 
 .. code-block:: bash
 
