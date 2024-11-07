@@ -779,23 +779,22 @@ class QasmVisitor:
             list[qasm3_ast.QuantumGate]: The quantum gate that was collected.
         """
 
-        logger.debug("Visiting custom gate operation '%s'", str(operation))
+        logger.debug("Visiting external gate operation '%s'", str(operation))
         gate_name: str = operation.name.name
 
-        if gate_name not in self._custom_gates:
-            raise_qasm3_error(
-                f"Gate '{gate_name}' is not a custom gate and can not be marked as external.",
-                span=operation.span,
-            )
-
-        gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
         op_qubits: list[qasm3_ast.IndexedIdentifier] = (
             self._get_op_bits(  # type: ignore [assignment]
                 operation,
                 self._global_qreg_size_map,
             )
         )
-        Qasm3Validator.validate_gate_call(operation, gate_definition, len(op_qubits))
+
+        if gate_name in self._custom_gates:
+            # Ignore result, this is just for validation
+            self._visit_custom_gate_operation(operation, inverse=inverse)
+        else:
+            # Ignore result, this is just for validation
+            self._visit_basic_gate_operation(operation, inverse=inverse)
 
         op_parameters = []
         if len(operation.arguments) > 0:  # parametric gate
