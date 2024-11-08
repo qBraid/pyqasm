@@ -52,7 +52,7 @@ def test_reset_operations():
 
     result = load(qasm3_string)
     result.unroll()
-    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(result.dumps(), expected_qasm)
 
 
 def test_reset_inside_function():
@@ -76,7 +76,7 @@ def test_reset_inside_function():
 
     result = load(qasm3_string)
     result.unroll()
-    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(result.dumps(), expected_qasm)
 
 
 def test_incorrect_resets():

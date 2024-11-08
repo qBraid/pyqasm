@@ -46,7 +46,7 @@ def test_qubit_declarations():
 
     result = load(qasm3_string)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -77,7 +77,7 @@ def test_clbit_declarations():
 
     result = load(qasm3_string)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -116,7 +116,7 @@ def test_qubit_clbit_declarations():
 
     result = load(qasm3_string)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 

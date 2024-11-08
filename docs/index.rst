@@ -121,7 +121,7 @@ Example
    module = pyqasm.load(qasm)
    module.unroll()
 
-   unrolled_qasm = module.unrolled_qasm
+   unrolled_qasm = module.dumps()
 
    print(unrolled_qasm)
 
