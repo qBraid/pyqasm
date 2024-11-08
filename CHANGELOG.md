@@ -15,13 +15,15 @@ Types of changes:
 ## Unreleased
 
 ### Added
-- Added a `dumps` and `formatted_qasm` method to the `QasmModule` class to allow for the conversion of a `QasmModule` object to a string representation of the QASM code.([#71](https://github.com/qBraid/pyqasm/pull/71))
+- Added a `dumps` and `formatted_qasm` method to the `QasmModule` class to allow for the conversion of a `QasmModule` object to a string representation of the QASM code ([#71](https://github.com/qBraid/pyqasm/pull/71))
 
 ### Improved / Modified
+- Changed the `__init__` method for the `QasmModule` class to only accept an `openqasm3.ast.Program` object as input ([#71](https://github.com/qBraid/pyqasm/pull/71))
 
 ### Deprecated
 
 ### Removed
+- Removed the `from_program` method from the `QasmModule` class ([#71](https://github.com/qBraid/pyqasm/pull/71))
 
 ### Fixed
 
