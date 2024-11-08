@@ -17,7 +17,7 @@ from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
-from openqasm3.ast import Include, Program, Statement
+from openqasm3.ast import Include, Program
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
@@ -35,10 +35,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         statements (list[Statement]): list of openqasm3 Statements.
     """
 
-    def __init__(self, name: str, program: Program, statements: list):
+    def __init__(self, name: str, program: Program):
         self._name = name
         self._original_program = program
-        self._statements = statements
+        self._statements = program.statements
         self._qubit_registers: dict[str, int] = {}
         self._num_qubits = -1
         self._qubit_depths: dict[tuple[str, int], QubitDepthNode] = {}
@@ -47,7 +47,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._clbit_depths: dict[tuple[str, int], ClbitDepthNode] = {}
         self._has_measurements: Optional[bool] = None
         self._validated_program = False
-        self._unrolled_qasm = ""
         self._unrolled_ast = Program(statements=[Include("stdgates.inc")])
 
     @property
@@ -120,32 +119,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Setter for the unrolled AST"""
         self._unrolled_ast = value
 
-    @property
-    def unrolled_qasm(self) -> str:
-        """Returns the unrolled qasm for the given module"""
-        return self._qasm_ast_to_str(self._unrolled_ast)
-
-    @unrolled_qasm.setter
-    def unrolled_qasm(self, value: str):
-        """Setter for the unrolled qasm"""
-        self._unrolled_qasm = value
-
-    @classmethod
-    def from_program(cls, program: Program):
-        """
-        Construct a Qasm3Module from a given openqasm3.ast.Program object
-        """
-        statements: list[Statement] = []
-
-        for statement in program.statements:
-            statements.append(statement)
-
-        return cls(
-            name="main",
-            program=program,
-            statements=statements,
-        )
-
     def has_measurements(self):
         """Check if the module has any measurement operations."""
         if self._has_measurements is None:
@@ -195,7 +168,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         curr_module._has_measurements = False
         curr_module._statements = stmts_without_meas
         curr_module._unrolled_ast.statements = stmts_without_meas
-        curr_module._unrolled_qasm = self._qasm_ast_to_str(curr_module._unrolled_ast)
 
         return curr_module
 
@@ -225,7 +197,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         curr_module._statements = stmts_without_barriers
         curr_module._unrolled_ast.statements = stmts_without_barriers
-        curr_module._unrolled_qasm = self._qasm_ast_to_str(curr_module._unrolled_ast)
 
         return curr_module
 
@@ -438,11 +409,30 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         except (ValidationError, UnrollError) as err:
             # reset the unrolled ast and qasm
             self.num_qubits, self.num_clbits = -1, -1
-            self._unrolled_qasm = ""
             self._unrolled_ast = Program(
                 statements=[Include("stdgates.inc")], version=self.original_program.version
             )
             raise err
+
+    def dumps(self) -> str:
+        """Return the string representation of the QASM program
+
+        Returns:
+            str: The string representation of the module
+        """
+
+        if len(self.unrolled_ast.statements) > 1:
+            return self._qasm_ast_to_str(self.unrolled_ast)
+        return self._qasm_ast_to_str(self.original_program)
+
+    def formatted_qasm(self) -> str:
+        """Return the formatted QASM program
+           Removes empty lines and comments from the QASM program
+
+        Returns:
+            str: The formatted QASM program
+        """
+        return self.dumps()
 
     def copy(self):
         """Return a deep copy of the module"""

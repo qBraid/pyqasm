@@ -41,7 +41,7 @@ rx(-1.5707963267948966) q[0];
 """
     result = load(qasm_in)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -64,7 +64,7 @@ ry(1.00183605297937) q[0];
 """
     result = load(qasm_in)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -92,7 +92,7 @@ rx(-1.5707963267948966) q[0];
 """
     result = load(qasm_in)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -116,7 +116,7 @@ x q[0];
 """
     result = load(qasm_in)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
     check_unrolled_qasm(unrolled_qasm, expected_out)
 
 
@@ -149,5 +149,5 @@ h q[1];
 """
     result = load(qasm_in)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
     check_unrolled_qasm(unrolled_qasm, expected_out)

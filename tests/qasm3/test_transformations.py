@@ -38,7 +38,7 @@ def test_remove_idle_qubits_qasm3_small():
     assert module.num_qubits == 4
     module.remove_idle_qubits()
     assert module.num_qubits == 2
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
 
 
 def test_remove_idle_qubits_qasm3():
@@ -88,7 +88,7 @@ def test_remove_idle_qubits_qasm3():
     module.remove_idle_qubits()
     assert module.num_qubits == 7
 
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
 
 
 def test_reverse_qubit_order_qasm3():
@@ -128,4 +128,4 @@ def test_reverse_qubit_order_qasm3():
 
     module = load(qasm3_str)
     module.reverse_qubit_order()
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)

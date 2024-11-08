@@ -60,7 +60,7 @@ def test_whitelisted_ops():
 
     result = load(qasm2_string)
     result.unroll()
-    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(result.dumps(), expected_qasm)
 
 
 def test_subroutine_blacklist():

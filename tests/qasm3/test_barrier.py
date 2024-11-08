@@ -63,7 +63,7 @@ def test_barrier():
     module = load(qasm_str)
     module.unroll()
 
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(module.dumps(), expected_qasm)
 
 
 def test_barrier_in_function():
@@ -89,7 +89,7 @@ def test_barrier_in_function():
     """
     module = load(qasm_str)
     module.unroll()
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(module.dumps(), expected_qasm)
 
 
 def test_remove_barriers():
@@ -117,7 +117,7 @@ def test_remove_barriers():
     module = load(qasm_str)
     module.remove_barriers()
 
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(module.dumps(), expected_qasm)
 
 
 def test_incorrect_barrier():

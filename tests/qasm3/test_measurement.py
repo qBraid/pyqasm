@@ -59,7 +59,7 @@ def test_measure():
 
     module = load(qasm3_string)
     module.unroll()
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(module.dumps(), expected_qasm)
 
 
 def test_has_measurements():
@@ -125,7 +125,7 @@ def test_remove_measurement():
     module.unroll()
     module.remove_measurements()
 
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(module.dumps(), expected_qasm)
 
 
 def test_incorrect_measure():

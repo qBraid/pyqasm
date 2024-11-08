@@ -54,6 +54,6 @@ def load(program: openqasm3.ast.Program | str) -> QasmModule:
     program.version = str(float(program.version))
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
-    module = qasm_module.from_program(program)
+    module = qasm_module("main", program)
 
     return module

@@ -13,7 +13,10 @@ Module containing unit tests for parsing and unrolling programs that contain qua
 declarations.
 
 """
+import pytest
+
 from pyqasm.entrypoint import load
+from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
 
@@ -35,7 +38,7 @@ def test_qubit_declarations():
 
     result = load(qasm2_string)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -59,7 +62,7 @@ def test_clbit_declarations():
 
     result = load(qasm2_string)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -90,6 +93,20 @@ def test_qubit_clbit_declarations():
 
     result = load(qasm2_string)
     result.unroll()
-    unrolled_qasm = result.unrolled_qasm
+    unrolled_qasm = result.dumps()
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
+
+
+@pytest.mark.skip(reason="Not implemented yet")
+def test_invalid_qasm2_declarations():
+    """Test that invalid qasm2 raises error"""
+    invalid_qasm2 = """
+    OPENQASM 2.0;
+    include "qelib1.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit q3;
+    """
+    with pytest.raises(ValidationError):
+        load(invalid_qasm2).validate()
