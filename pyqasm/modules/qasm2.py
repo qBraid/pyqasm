@@ -35,13 +35,8 @@ class Qasm2Module(QasmModule):
         statements (list[Statement]): list of openqasm2 Statements.
     """
 
-    def __init__(
-        self,
-        name: str,
-        program: Program,
-        statements: list,
-    ):
-        super().__init__(name, program, statements)
+    def __init__(self, name: str, program: Program):
+        super().__init__(name, program)
         self._unrolled_ast = Program(statements=[Include("qelib1.inc")], version="2.0")
         self._whitelist_statements = {
             qasm3_ast.BranchingStatement,
@@ -97,7 +92,7 @@ class Qasm2Module(QasmModule):
                 stmt.filename = "stdgates.inc"
                 break
         qasm_program.version = "3.0"
-        return dumps(qasm_program) if as_str else Qasm3Module.from_program(qasm_program)
+        return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
     def accept(self, visitor):
         """Accept a visitor for the module

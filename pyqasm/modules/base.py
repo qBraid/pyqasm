@@ -17,7 +17,7 @@ from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
-from openqasm3.ast import Include, Program, Statement
+from openqasm3.ast import Include, Program
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
@@ -35,10 +35,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         statements (list[Statement]): list of openqasm3 Statements.
     """
 
-    def __init__(self, name: str, program: Program, statements: list):
+    def __init__(self, name: str, program: Program):
         self._name = name
         self._original_program = program
-        self._statements = statements
+        self._statements = program.statements
         self._qubit_registers: dict[str, int] = {}
         self._num_qubits = -1
         self._qubit_depths: dict[tuple[str, int], QubitDepthNode] = {}
@@ -118,22 +118,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
     def unrolled_ast(self, value: Program):
         """Setter for the unrolled AST"""
         self._unrolled_ast = value
-
-    @classmethod
-    def from_program(cls, program: Program):
-        """
-        Construct a Qasm3Module from a given openqasm3.ast.Program object
-        """
-        statements: list[Statement] = []
-
-        for statement in program.statements:
-            statements.append(statement)
-
-        return cls(
-            name="main",
-            program=program,
-            statements=statements,
-        )
 
     def has_measurements(self):
         """Check if the module has any measurement operations."""
