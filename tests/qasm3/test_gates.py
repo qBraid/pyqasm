@@ -60,7 +60,7 @@ def test_two_qubit_qasm3_gates(circuit_name, request):
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
-    print(result.unrolled_qasm)
+    print(result.dumps())
     check_two_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
 
 

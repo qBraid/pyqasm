@@ -32,7 +32,7 @@ result = measure q;
 
 qasm_module = pyqasm.load(program)
 qasm_module.unroll()
-print(qasm_module.unrolled_qasm)
+print(qasm_module.dumps())
 ```
 
 ```text

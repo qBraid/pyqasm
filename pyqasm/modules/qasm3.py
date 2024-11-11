@@ -28,13 +28,8 @@ class Qasm3Module(QasmModule):
         statements (list[Statement]): list of openqasm3 Statements.
     """
 
-    def __init__(
-        self,
-        name: str,
-        program: Program,
-        statements: list,
-    ):
-        super().__init__(name, program, statements)
+    def __init__(self, name: str, program: Program):
+        super().__init__(name, program)
         self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3.0")
 
     def _qasm_ast_to_str(self, qasm_ast):

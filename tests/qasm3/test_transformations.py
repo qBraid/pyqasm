@@ -38,7 +38,7 @@ def test_remove_idle_qubits_qasm3_small():
     assert module.num_qubits == 4
     module.remove_idle_qubits()
     assert module.num_qubits == 2
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
 
 
 def test_remove_idle_qubits_qasm3():
@@ -88,7 +88,7 @@ def test_remove_idle_qubits_qasm3():
     module.remove_idle_qubits()
     assert module.num_qubits == 7
 
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
 
 
 def test_reverse_qubit_order_qasm3():
@@ -128,4 +128,89 @@ def test_reverse_qubit_order_qasm3():
 
     module = load(qasm3_str)
     module.reverse_qubit_order()
-    check_unrolled_qasm(module.unrolled_qasm, expected_qasm3_str)
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+
+
+def test_populate_idle_qubits_qasm3():
+    """Test the populate idle qubits function for qasm3 string"""
+
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit q3;
+    bit[1] c;
+
+    cnot q;
+    """
+
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit[1] q3;
+    bit[1] c;
+
+    cnot q;
+    id q2[0];
+    id q2[1];
+    id q2[2];
+    id q2[3];
+    id q3[0];
+    """
+
+    module = load(qasm3_str)
+    module.populate_idle_qubits()
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+
+
+def test_populate_idle_qubits_for_no_idle_qubits():
+    """Test the populate idle qubits function for qasm3 string"""
+
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit q3;
+    bit[1] c;
+
+    h q;
+    h q2;
+    h q3;
+    """
+    # no change in the qasm
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit[1] q3;
+    bit[1] c;
+    
+    h q;
+    h q2;
+    h q3;
+    """
+
+    module = load(qasm3_str)
+    module.populate_idle_qubits()
+    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+
+
+def test_populate_idle_qubits_increases_depth_by_one():
+    """Test that the depth of the program increases by one when populating idle qubits"""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qubit[4] q2;
+    qubit q3;
+    
+    """
+    module = load(qasm3_str)
+    original_depth = module.depth()
+    module.populate_idle_qubits()
+    assert module.depth() == original_depth + 1

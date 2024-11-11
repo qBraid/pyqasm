@@ -67,7 +67,7 @@ def test_simple_if():
     assert result.num_clbits == 4
     assert result.num_qubits == 4
 
-    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
+    check_unrolled_qasm(result.dumps(), expected_qasm)
 
 
 def test_complex_if():
@@ -133,8 +133,8 @@ def test_complex_if():
     result.unroll()
     assert result.num_clbits == 8
     assert result.num_qubits == 4
-    print(result.unrolled_qasm)
-    check_unrolled_qasm(result.unrolled_qasm, expected_qasm)
+    print(result.dumps())
+    check_unrolled_qasm(result.dumps(), expected_qasm)
 
 
 def test_incorrect_if():

@@ -61,7 +61,7 @@ def test_convert_qasm3_for_loop():
     assert result.num_qubits == 4
     assert result.num_clbits == 4
 
-    print(result.unrolled_qasm)
+    print(result.dumps())
 
     check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 2, 3], "h")
     check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")

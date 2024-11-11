@@ -130,7 +130,7 @@ def test_function_call_in_expression():
     assert result.num_clbits == 0
     assert result.num_qubits == 4
 
-    print(result.unrolled_qasm)
+    print(result.dumps())
     check_single_qubit_gate_op(result.unrolled_ast, 4, list(range(4)), "h")
 
 
