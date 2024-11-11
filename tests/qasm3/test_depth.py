@@ -47,6 +47,27 @@ def test_gate_depth():
     assert result.depth() == 5
 
 
+@pytest.mark.skip(reason="Not implemented computing depth of external gates")
+def test_gate_depth_external_function():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+
+    gate my_gate() q {
+        h q;
+        x q;
+    }
+
+    qubit q;
+    my_gate() q;
+    """
+    result = load(qasm3_string)
+    result.unroll(external_gates=["my_gate"])
+    assert result.num_qubits == 1
+    assert result.num_clbits == 0
+    assert result.depth() == 1
+
+
 def test_pow_gate_depth():
     qasm3_string = """
     OPENQASM 3;

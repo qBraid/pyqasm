@@ -262,7 +262,7 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         qubit[3] q1;
         cx q1;  // invalid application of gate, as we apply it to 3 qubits in blocks of 2
         """,
-        "Invalid number of qubits 3 for operation .*",
+        "Invalid number of qubits 3 for operation cx",
     ),
     "unsupported_parameter_type": (
         """

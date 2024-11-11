@@ -154,6 +154,21 @@ def test_qasm_u3_gates_external():
     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "u3")
 
 
+def test_qasm_u3_gates_external_with_multiple_qubits():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+
+    qubit[2] q1;
+    u3(0.5, 0.5, 0.5) q1;
+    """
+    result = load(qasm3_string)
+    result.unroll(external_gates=["u3"])
+    assert result.num_qubits == 2
+    assert result.num_clbits == 0
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 1], "u3")
+
+
 def test_qasm_u2_gates():
     qasm3_string = """
     OPENQASM 3;
