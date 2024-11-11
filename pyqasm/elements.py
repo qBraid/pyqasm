@@ -162,3 +162,21 @@ class Variable:
             f"value = {self.value}, is_constant = {self.is_constant}, "
             f"readonly = {self.readonly}, is_register = {self.is_register})"
         )
+
+
+class BasisSet(Enum):
+    """
+    Enum for the different basis sets in Qasm.
+    """
+
+    DEFAULT = 0
+    TOFFOLI = 1
+    CLIFFORD = 2
+    PAULI = 3
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}.{self.name}: {self.value}>"
+
+    @staticmethod
+    def get_supported_bases():
+        return list(BasisSet)

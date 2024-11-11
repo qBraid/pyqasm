@@ -20,7 +20,7 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
 
 from pyqasm.analyzer import Qasm3Analyzer
-from pyqasm.elements import ClbitDepthNode, QubitDepthNode
+from pyqasm.elements import BasisSet, ClbitDepthNode, QubitDepthNode
 from pyqasm.exceptions import UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
 from pyqasm.visitor import QasmVisitor
@@ -443,6 +443,41 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         qasm_module._statements = qasm_module._unrolled_ast.statements
 
         # 4. return the module
+        return qasm_module
+
+    def _transform_to_basis(self, basis_set: BasisSet):
+        """Transform the unrolled module to a new basis set
+
+        Args:
+            basis_set (BasisSet): The basis set to transform the module to
+
+        Returns:
+            None
+        """
+        if basis_set == BasisSet.DEFAULT:
+            return
+        
+
+    def rebase(self, basis_set: BasisSet = BasisSet.DEFAULT, in_place=True):
+        """Rebases an openqasm program to a new gate set.
+        Will unroll the module if not already done.
+
+        Args:
+            basis_set (BasisSet): The new gate set to rebase the program to.
+
+        Returns:
+            QasmModule: The module rebased to the new gate set. If in_place is False, a new module
+                        with the rebased gate set is returned.
+
+        """
+
+        if not isinstance(basis_set, BasisSet):
+            raise TypeError(f"'gate_set' must be one of {BasisSet.get_supported_bases()}")
+
+        qasm_module = self if in_place else self.copy()
+        qasm_module.unroll()
+        qasm_module._transform_to_basis(basis_set)
+
         return qasm_module
 
     def validate(self):
