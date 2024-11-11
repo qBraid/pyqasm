@@ -273,6 +273,67 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                         old_idx = bit.indices[0][0].value  # type: ignore[union-attr,index]
                         bit.indices[0][0].value = idx_map[old_idx]  # type: ignore[union-attr,index]
 
+    def _get_idle_qubit_indices(self) -> dict[str, list[int]]:
+        """Get the indices of the idle qubits in the module
+
+        Returns:
+            dict[str, list[int]]: A dictionary mapping the register name to the list of idle qubit
+                                  indices in that register
+        """
+        idle_qubits = [qubit for qubit in self._qubit_depths.values() if qubit.is_idle()]
+
+        # re-map the idle qubits as {reg_name: [indices]}
+        qubit_indices: dict[str, list[int]] = {}
+        for qubit in idle_qubits:
+            if qubit.reg_name not in qubit_indices:
+                qubit_indices[qubit.reg_name] = []
+            qubit_indices[qubit.reg_name].append(qubit.reg_index)
+
+        return qubit_indices
+
+    def populate_idle_qubits(self, in_place: bool = True):
+        """Populate the idle qubits in the module with identity gates
+
+        Note: unrolling is not performed while calling this function
+
+        Args:
+            in_place (bool): Flag to indicate if the population should be done in place.
+
+        Returns:
+            QasmModule: The module with the idle qubits populated. If in_place is False, a new
+                        module with the populated idle qubits is returned.
+
+        """
+        qasm_module = self if in_place else self.copy()
+        qasm_module.validate()
+
+        idle_qubit_indices = qasm_module._get_idle_qubit_indices()
+
+        id_gate_list = []
+        for reg_name, idle_indices in idle_qubit_indices.items():
+            for idx in idle_indices:
+                # increment the depth of the idle qubits by 1
+                qasm_module._qubit_depths[(reg_name, idx)].depth += 1
+
+                # add an identity gate to the qubits that are idle
+                id_gate = qasm3_ast.QuantumGate(
+                    modifiers=[],
+                    name=qasm3_ast.Identifier(name="id"),
+                    arguments=[],
+                    qubits=[
+                        qasm3_ast.IndexedIdentifier(
+                            name=qasm3_ast.Identifier(name=reg_name),
+                            indices=[[qasm3_ast.IntegerLiteral(value=idx)]],
+                        )
+                    ],
+                )
+                id_gate_list.append(id_gate)
+
+        qasm_module.original_program.statements.extend(id_gate_list)
+        qasm_module._statements = qasm_module.original_program.statements
+
+        return qasm_module
+
     def remove_idle_qubits(self, in_place: bool = True):
         """Remove idle qubits from the module. Either collapse the size of a partially used
         quantum register OR remove the unused quantum register entirely.
@@ -283,22 +344,16 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             in_place (bool): Flag to indicate if the removal should be done in place.
 
         Returns:
-            QasmModule: The module with the idle qubits removed if in_place is False
+            QasmModule: The module the idle qubits removed. If in_place is False, a new module
+                        with the reversed qubit order is returned.
         """
 
         qasm_module = self if in_place else self.copy()
         qasm_module.unroll()
 
-        idle_qubits = [qubit for qubit in qasm_module._qubit_depths.values() if qubit.is_idle()]
+        idle_qubit_indices = qasm_module._get_idle_qubit_indices()
 
-        # re-map the idle qubits as {reg_name: [indices]}
-        qubit_indices: dict[str, list[int]] = {}
-        for qubit in idle_qubits:
-            if qubit.reg_name not in qubit_indices:
-                qubit_indices[qubit.reg_name] = []
-            qubit_indices[qubit.reg_name].append(qubit.reg_index)
-
-        for reg_name, idle_indices in qubit_indices.items():
+        for reg_name, idle_indices in idle_qubit_indices.items():
             # we have removed the idle qubits, so we can remove them from depth map
             for idle_idx in idle_indices:
                 del qasm_module._qubit_depths[(reg_name, idle_idx)]
@@ -331,7 +386,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         return qasm_module
 
     def reverse_qubit_order(self, in_place=True):
-        """Reverse the order of qubits in the module
+        """Reverse the order of qubits in the module.
+
+        Will unroll the module if not already done.
 
         Args:
             in_place (bool): Flag to indicate if the reversal should be done in place.
@@ -366,8 +423,11 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     curr_reg_idx = bit.indices[0][0].value
                     new_reg_idx = new_qubit_mappings[curr_reg_name][curr_reg_idx]
 
-                    # mark it -ve so that this is not touched
+                    # make the idx -ve so that this is not touched
                     # while updating the same index later
+
+                    # idx -> -1 * idx - 1 as we also have to look at index 0
+                    # which will remain 0 if we just multiply by -1
                     bit.indices[0][0].value = -1 * new_reg_idx - 1
 
         # remove the -ve marker
