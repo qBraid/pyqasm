@@ -724,10 +724,10 @@ class QasmVisitor:
         unrolled_gate_function = partial(qasm_func, *op_parameters)
         result.extend(self._broadcast_gate_operation(unrolled_gate_function, unrolled_targets))
 
+        self._update_qubit_depth(unrolled_targets)
+
         if self._check_only:
             return []
-
-        self._update_qubit_depth(unrolled_targets)
 
         return result
 
