@@ -219,6 +219,15 @@ def check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
     assert op_count == num_gates
 
 
+def _check_phase_shift_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
+    num_h_gates = 2 * num_gates
+    h_qubit_list = [qubit for qubit in qubit_list for _ in range(2)]
+    num_rx_gates = 1 * num_gates
+
+    check_single_qubit_gate_op(unrolled_ast, num_h_gates, h_qubit_list, "h")
+    check_single_qubit_rotation_op(unrolled_ast, num_rx_gates, qubit_list, param_list, "rx")
+
+
 def check_measure_op(unrolled_ast, num_ops, meas_pairs):
     """Check that the unrolled ast contains the correct number of measurements.
 
@@ -252,6 +261,9 @@ def check_single_qubit_rotation_op(unrolled_ast, num_gates, qubit_list, param_li
     if gate_name == "u2":
         param_list = [CONSTANTS_MAP["pi"] / 2, param_list[0], param_list[1]]
         check_u3_gate_op(unrolled_ast, num_gates, qubit_list, [param_list])
+        return
+    if gate_name in ["p", "phaseshift"]:
+        _check_phase_shift_gate_op(unrolled_ast, num_gates, qubit_list, param_list)
         return
     qubit_id, param_id, gate_count = 0, 0, 0
     for stmt in unrolled_ast.statements:

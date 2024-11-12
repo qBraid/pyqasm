@@ -177,7 +177,7 @@ for gate in already_tested_single_op:
     single_op_tests.remove(_fixture_name(gate))
 
 rotation_tests = [_fixture_name(s) for s in ONE_QUBIT_ROTATION_MAP if "u" not in s.lower()]
-already_tested_rotation = ["prx", "phaseshift", "p", "gpi", "gpi2"]
+already_tested_rotation = ["prx", "gpi", "gpi2"]
 for gate in already_tested_rotation:
     rotation_tests.remove(_fixture_name(gate))
 
