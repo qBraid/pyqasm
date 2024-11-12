@@ -16,6 +16,7 @@ Types of changes:
 
 ### Added
 - Added a `dumps` and `formatted_qasm` method to the `QasmModule` class to allow for the conversion of a `QasmModule` object to a string representation of the QASM code ([#71](https://github.com/qBraid/pyqasm/pull/71))
+- Added the `populate_idle_qubits` method to the `QasmModule` class to populate idle qubits with an `id` gate ([#72](https://github.com/qBraid/pyqasm/pull/72))
 - Added gate definitions for "c3sqrtx", "u1", "rxx", "cu3", "csx", "rccx" , "ch" , "cry", "cp", "cu", "cu1", "rzz" in `maps.py` ([#74](https://github.com/qBraid/pyqasm/pull/74))
 
 ### Improved / Modified
