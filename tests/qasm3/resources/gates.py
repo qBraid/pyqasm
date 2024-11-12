@@ -185,7 +185,6 @@ double_op_tests = [_fixture_name(s) for s in TWO_QUBIT_OP_MAP]
 already_tested_double_op = [
     "cv",
     "cy",
-    "ch",
     "xx",
     "xy",
     "yy",

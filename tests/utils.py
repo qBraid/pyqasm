@@ -54,6 +54,15 @@ def check_single_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     assert gate_count == num_gates
 
 
+def _check_ch_gate_op(unrolled_ast, num_gates, qubits):
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "s")
+    check_single_qubit_gate_op(unrolled_ast, 2 * num_gates, [qubits[1]] * 2 * num_gates, "h")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "t")
+    check_two_qubit_gate_op(unrolled_ast, num_gates, [qubits] * num_gates, "cx")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "tdg")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "sdg")
+
+
 def _check_crx_gate_op(unrolled_ast, num_gates, qubits, theta):
     num_u3_gates = 3 * num_gates
     check_u3_gate_op(
@@ -138,6 +147,9 @@ def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     if gate_name == "cnot":
         gate_name = "cx"
 
+    controlled_gate_tests = {
+        "ch": _check_ch_gate_op,
+    }
     controlled_rotation_gate_tests = {
         "crx": _check_crx_gate_op,
         "crz": _check_crz_gate_op,
@@ -145,8 +157,9 @@ def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
         "rxx": _check_rxx_gate_op,
         "rzz": _check_rzz_gate_op,
     }
-
-    if gate_name in controlled_rotation_gate_tests:
+    if gate_name in controlled_gate_tests:
+        controlled_gate_tests[gate_name](unrolled_ast, num_gates, qubit_list[0])
+    elif gate_name in controlled_rotation_gate_tests:
         controlled_rotation_gate_tests[gate_name](
             unrolled_ast, num_gates, qubit_list[0], CONTROLLED_ROTATION_ANGLE_1
         )
