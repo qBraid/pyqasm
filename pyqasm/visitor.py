@@ -642,7 +642,9 @@ class QasmVisitor:
         """Broadcasts the application of a gate onto multiple sets of target qubits.
 
         Args:
-            gate_function (callable): The gate that should be applied to multiple target qubits
+            gate_function (callable): The gate that should be applied to multiple target qubits.
+            (All arguments of the callable should be qubits, i.e. all non-qubit arguments of the
+            gate should already be evaluated, e.g. using functools.partial).
             all_targets (list[list[qasm3_ast.IndexedIdentifier]]):
                 The list of target of target qubits.
                 The length of this list indicates the number of time the gate is invoked.
@@ -654,7 +656,7 @@ class QasmVisitor:
             result.extend(gate_function(*targets))
         return result
 
-    def _update_qubit_depth(self, all_targets: list[list[qasm3_ast.IndexedIdentifier]]):
+    def _update_qubit_depth_for_gate(self, all_targets: list[list[qasm3_ast.IndexedIdentifier]]):
         """Updates the depth of the circuit after applying a broadcasted gate.
 
         Args:
@@ -724,7 +726,7 @@ class QasmVisitor:
         unrolled_gate_function = partial(qasm_func, *op_parameters)
         result.extend(self._broadcast_gate_operation(unrolled_gate_function, unrolled_targets))
 
-        self._update_qubit_depth(unrolled_targets)
+        self._update_qubit_depth_for_gate(unrolled_targets)
 
         if self._check_only:
             return []
@@ -839,7 +841,7 @@ class QasmVisitor:
         else:
             # Ignore result, this is just for validation
             self._visit_basic_gate_operation(operation, inverse=inverse)
-            # Don't need to check if custom gate exists, since we just validated the call
+            # Don't need to check if basic gate exists, since we just validated the call
             _, gate_qubit_count = map_qasm_op_to_callable(operation.name.name)
 
         op_parameters = [
