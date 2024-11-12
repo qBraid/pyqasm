@@ -107,7 +107,7 @@ def _generate_two_qubit_fixture(gate_name: str):
             raise ValueError(f"Unknown qasm3 gate {gate_name}")
 
         theta = ""
-        if gate_name in ["crz", "crx"]:
+        if gate_name in ["crz", "crx", "cry", "rzz", "rxx"]:
             theta = f"({CONTROLLED_ROTATION_ANGLE_1})"
 
         qasm3_string = f"""
@@ -185,16 +185,21 @@ double_op_tests = [_fixture_name(s) for s in TWO_QUBIT_OP_MAP]
 already_tested_double_op = [
     "cv",
     "cy",
+    "ch",
     "xx",
     "xy",
     "yy",
     "zz",
+    "csx",
     "pswap",
     "cp",
     "cp00",
     "cp01",
     "cp10",
     "cphaseshift",
+    "cu1",
+    "cu",
+    "cu3",
     "cphaseshift00",
     "cphaseshift01",
     "cphaseshift10",
@@ -205,7 +210,7 @@ for gate in already_tested_double_op:
     double_op_tests.remove(_fixture_name(gate))
 
 triple_op_tests = [_fixture_name(s) for s in THREE_QUBIT_OP_MAP]
-already_tested_triple_op = ["ccnot", "cswap"]
+already_tested_triple_op = ["ccnot", "cswap", "rccx"]
 for gate in already_tested_triple_op:
     triple_op_tests.remove(_fixture_name(gate))
 

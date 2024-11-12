@@ -8,6 +8,8 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
+# pylint: disable=too-many-lines
+
 """
 Module mapping supported QASM gates/operations to lower level gate operations.
 
@@ -471,7 +473,7 @@ def crz_gate(
     return result
 
 
-def cu3_gate(
+def cu3_gate(  # pylint: disable=too-many-arguments
     theta: Union[int, float],
     phi: Union[int, float],
     lam: Union[int, float],
@@ -482,7 +484,6 @@ def cu3_gate(
     """
     Implements the CU3 gate as a decomposition of other gates.
     """
-
     result: list[QuantumGate] = []
     result.extend(phaseshift_gate(gamma, qubit0))
     result.extend(phaseshift_gate((lam + phi) / 2, qubit0))
@@ -508,9 +509,9 @@ def csx_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quant
     Out[21]:
 
     q_0: ──■───
-        ┌─┴──┐
+         ┌─┴──┐
     q_1: ┤ Sx ├
-        └────┘
+         └────┘
 
     In [22]: q.decompose().decompose().draw()
     Out[22]:
@@ -519,9 +520,7 @@ def csx_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quant
              ├─────────┤┌─┴─┐┌──────────┐┌─┴─┐┌─────────┐┌─────────┐
         q_1: ┤ U2(0,π) ├┤ X ├┤ U1(-π/4) ├┤ X ├┤ U1(π/4) ├┤ U2(0,π) ├
              └─────────┘└───┘└──────────┘└───┘└─────────┘└─────────┘
-
     """
-
     result: list[QuantumGate] = []
     result.extend(phaseshift_gate(CONSTANTS_MAP["pi"] / 4, qubit0))
     result.extend(u2_gate(0, CONSTANTS_MAP["pi"], qubit1))
@@ -603,7 +602,6 @@ def rzz_gate(
     # TODO: verify implementation of the global phase
     # result.extend(phaseshift_gate(-theta/2, qubit0))
     # result.extend(phaseshift_gate(-theta/2, qubit1))
-
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
     result.extend(u3_gate(0, 0, theta, qubit1))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
@@ -892,7 +890,6 @@ TWO_QUBIT_OP_MAP = {
     "cu": cu3_gate,
     "cu3": cu3_gate,
     "csx": csx_gate,
-    "rccx": rccx_gate,
     "cphaseshift": cphaseshift_gate,
     "cu1": cphaseshift_gate,
     "cp00": cphaseshift00_gate,
@@ -909,6 +906,7 @@ THREE_QUBIT_OP_MAP = {
     "ccx": ccx_gate_op,
     "ccnot": ccx_gate_op,
     "cswap": cswap_gate,
+    "rccx": rccx_gate,
 }
 
 
@@ -1071,7 +1069,6 @@ ARRAY_TYPE_MAP = {
     BoolType: np.bool_,
     AngleType: np.float64,
 }
-
 
 # Reference : https://openqasm.com/language/types.html#arrays
 MAX_ARRAY_DIMENSIONS = 7
