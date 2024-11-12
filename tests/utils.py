@@ -54,6 +54,15 @@ def check_single_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     assert gate_count == num_gates
 
 
+def _check_ch_gate_op(unrolled_ast, num_gates, qubits):
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "s")
+    check_single_qubit_gate_op(unrolled_ast, 2 * num_gates, [qubits[1]] * 2 * num_gates, "h")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "t")
+    check_two_qubit_gate_op(unrolled_ast, num_gates, [qubits] * num_gates, "cx")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "tdg")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "sdg")
+
+
 def _check_crx_gate_op(unrolled_ast, num_gates, qubits, theta):
     num_u3_gates = 3 * num_gates
     check_u3_gate_op(
@@ -88,17 +97,72 @@ def _check_crz_gate_op(unrolled_ast, num_gates, qubits, theta):
     check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_u3_gates, "cx")
 
 
+def _check_cry_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_u3_gates = 2 * num_gates
+    num_cx_gates = 2 * num_gates
+    check_u3_gate_op(
+        unrolled_ast,
+        num_u3_gates,
+        [qubits[1]] * num_u3_gates,
+        [
+            [theta / 2, 0, 0],
+            [-theta / 2, 0, 0],
+        ]
+        * num_gates,
+    )
+    check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_u3_gates, "cx")
+
+
+def _check_rxx_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_h_gates = 4 * num_gates
+    # because H is applied as H(q0) H(q1) H(q1) H(q0) in  1 rxx gate
+    h_qubit_list = (qubits + qubits[::-1]) * num_gates
+    num_cx_gates = 2 * num_gates
+    num_rz_gates = num_gates
+    check_single_qubit_gate_op(unrolled_ast, num_h_gates, h_qubit_list, "h")
+    check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_cx_gates, "cx")
+    check_single_qubit_rotation_op(
+        unrolled_ast, num_rz_gates, [qubits[1]] * num_gates, [theta] * num_gates, "rz"
+    )
+
+
+def _check_rzz_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_cx_gates = 2 * num_gates
+    num_u3_gates = num_gates
+
+    check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_cx_gates, "cx")
+    check_u3_gate_op(
+        unrolled_ast,
+        num_u3_gates,
+        [qubits[1]] * num_u3_gates,
+        [
+            [0, 0, theta],
+        ]
+        * num_gates,
+    )
+
+
 def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     qubit_id, gate_count = 0, 0
     if gate_name == "cnot":
         gate_name = "cx"
 
-    if gate_name == "crx":
-        param = CONTROLLED_ROTATION_ANGLE_1
-        _check_crx_gate_op(unrolled_ast, num_gates, qubit_list[0], param)
-    elif gate_name == "crz":
-        param = CONTROLLED_ROTATION_ANGLE_1
-        _check_crz_gate_op(unrolled_ast, num_gates, qubit_list[0], param)
+    controlled_gate_tests = {
+        "ch": _check_ch_gate_op,
+    }
+    controlled_rotation_gate_tests = {
+        "crx": _check_crx_gate_op,
+        "crz": _check_crz_gate_op,
+        "cry": _check_cry_gate_op,
+        "rxx": _check_rxx_gate_op,
+        "rzz": _check_rzz_gate_op,
+    }
+    if gate_name in controlled_gate_tests:
+        controlled_gate_tests[gate_name](unrolled_ast, num_gates, qubit_list[0])
+    elif gate_name in controlled_rotation_gate_tests:
+        controlled_rotation_gate_tests[gate_name](
+            unrolled_ast, num_gates, qubit_list[0], CONTROLLED_ROTATION_ANGLE_1
+        )
     else:
         for stmt in unrolled_ast.statements:
             if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == gate_name.lower():
@@ -113,6 +177,7 @@ def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
 
 def check_three_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     qubit_id, gate_count = 0, 0
+
     for stmt in unrolled_ast.statements:
         if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == gate_name.lower():
             assert len(stmt.qubits) == 3
@@ -154,6 +219,15 @@ def check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
     assert op_count == num_gates
 
 
+def _check_phase_shift_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
+    num_h_gates = 2 * num_gates
+    h_qubit_list = [qubit for qubit in qubit_list for _ in range(2)]
+    num_rx_gates = 1 * num_gates
+
+    check_single_qubit_gate_op(unrolled_ast, num_h_gates, h_qubit_list, "h")
+    check_single_qubit_rotation_op(unrolled_ast, num_rx_gates, qubit_list, param_list, "rx")
+
+
 def check_measure_op(unrolled_ast, num_ops, meas_pairs):
     """Check that the unrolled ast contains the correct number of measurements.
 
@@ -187,6 +261,9 @@ def check_single_qubit_rotation_op(unrolled_ast, num_gates, qubit_list, param_li
     if gate_name == "u2":
         param_list = [CONSTANTS_MAP["pi"] / 2, param_list[0], param_list[1]]
         check_u3_gate_op(unrolled_ast, num_gates, qubit_list, [param_list])
+        return
+    if gate_name in ["p", "phaseshift"]:
+        _check_phase_shift_gate_op(unrolled_ast, num_gates, qubit_list, param_list)
         return
     qubit_id, param_id, gate_count = 0, 0, 0
     for stmt in unrolled_ast.statements:
