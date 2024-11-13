@@ -28,6 +28,7 @@ Types of changes:
 - Removed the `from_program` method from the `QasmModule` class ([#71](https://github.com/qBraid/pyqasm/pull/71))
 
 ### Fixed
+- Updated docs custom CSS used for sphinx to make version stable/latest drop-down visible. Previously was set white so blended into background and wasn't visible. ([#78](https://github.com/qBraid/pyqasm/pull/78))
 
 ### Dependencies
 
