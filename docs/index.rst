@@ -118,10 +118,10 @@ Example
    result = measure q;
    """
 
-   module = pyqasm.load(qasm)
+   module = pyqasm.loads(qasm)
    module.unroll()
 
-   unrolled_qasm = module.dumps()
+   unrolled_qasm = pyqasm.dumps(module)
 
    print(unrolled_qasm)
 

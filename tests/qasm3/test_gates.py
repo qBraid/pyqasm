@@ -14,7 +14,7 @@ Module containing unit tests for unrolling quantum gates.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
@@ -43,7 +43,7 @@ def test_single_qubit_qasm3_gates(circuit_name, request):
     gate_name = circuit_name.removeprefix("Fixture_")
 
     qasm3_string = request.getfixturevalue(circuit_name)
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
@@ -56,11 +56,10 @@ def test_two_qubit_qasm3_gates(circuit_name, request):
     gate_name = circuit_name.removeprefix("Fixture_")
 
     qasm3_string = request.getfixturevalue(circuit_name)
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
-    print(result.dumps())
     check_two_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
 
 
@@ -71,7 +70,7 @@ def test_rotation_qasm3_gates(circuit_name, request):
     gate_name = circuit_name.removeprefix("Fixture_")
 
     qasm3_string = request.getfixturevalue(circuit_name)
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
@@ -84,7 +83,7 @@ def test_three_qubit_qasm3_gates(circuit_name, request):
     gate_name = circuit_name.removeprefix("Fixture_")
 
     qasm3_string = request.getfixturevalue(circuit_name)
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 3
     assert result.num_clbits == 0
@@ -114,7 +113,7 @@ def test_gate_body_param_expression():
     bool o = true;
     my_gate(m, n, o) q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -132,7 +131,7 @@ def test_qasm_u3_gates():
     qubit[2] q1;
     u3(0.5, 0.5, 0.5) q1[0];
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
@@ -147,7 +146,7 @@ def test_qasm_u3_gates_external():
     qubit[2] q1;
     u3(0.5, 0.5, 0.5) q1[0];
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll(external_gates=["u3"])
     assert result.num_qubits == 2
     assert result.num_clbits == 0
@@ -162,7 +161,7 @@ def test_qasm_u3_gates_external_with_multiple_qubits():
     qubit[2] q1;
     u3(0.5, 0.5, 0.5) q1;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll(external_gates=["u3"])
     assert result.num_qubits == 2
     assert result.num_clbits == 0
@@ -177,7 +176,7 @@ def test_qasm_u2_gates():
     qubit[2] q1;
     u2(0.5, 0.5) q1[0];
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
@@ -188,14 +187,14 @@ def test_qasm_u2_gates():
 def test_incorrect_single_qubit_gates(test_name):
     qasm_input, error_message = SINGLE_QUBIT_GATE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        load(qasm_input).validate()
+        loads(qasm_input).validate()
 
 
 @pytest.mark.parametrize("test_name", custom_op_tests)
 def test_custom_ops(test_name, request):
     qasm3_string = request.getfixturevalue(test_name)
     gate_type = test_name.removeprefix("Fixture_")
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_qubits == 2
@@ -209,7 +208,7 @@ def test_custom_ops(test_name, request):
 def test_custom_ops_with_external_gates(test_name, request):
     qasm3_string = request.getfixturevalue(test_name)
     gate_type = test_name.removeprefix("Fixture_")
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll(external_gates=["custom", "custom1"])
 
     assert result.num_qubits == 2
@@ -227,7 +226,7 @@ def test_pow_gate_modifier():
     inv @ pow(2) @ pow(4) @ h q;
     pow(-2) @ h q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -248,7 +247,7 @@ def test_inv_gate_modifier():
     inv @ cx q2;
     inv @ ccx q[0], q2;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 3
     assert result.num_clbits == 0
@@ -275,7 +274,7 @@ def test_nested_gate_modifiers():
     pow(1) @ inv @ pow(2) @ custom q;
     pow(-1) @ custom q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
@@ -290,7 +289,7 @@ def test_unsupported_modifiers():
             NotImplementedError,
             match=r"Controlled modifier gates not yet supported .*",
         ):
-            load(
+            loads(
                 f"""
                 OPENQASM 3;
                 include "stdgates.inc";
@@ -304,4 +303,4 @@ def test_unsupported_modifiers():
 def test_incorrect_custom_ops(test_name):
     qasm_input, error_message = CUSTOM_GATE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        load(qasm_input).validate()
+        loads(qasm_input).validate()

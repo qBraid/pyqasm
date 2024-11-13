@@ -13,7 +13,7 @@ Module containing unit tests for program formatting
 
 """
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import dumps, loads
 from tests.utils import check_unrolled_qasm
 
 
@@ -33,8 +33,8 @@ def test_comments_removed_from_qasm():
     h q;
     """
 
-    result = load(qasm3_string)
-    actual_qasm3_string = result.formatted_qasm()
+    result = loads(qasm3_string)
+    actual_qasm3_string = dumps(result)
 
     check_unrolled_qasm(actual_qasm3_string, expected_qasm3_string)
 
@@ -62,7 +62,7 @@ def test_empty_lines_removed_from_qasm():
     h q;
     """
 
-    result = load(qasm3_string)
-    actual_qasm3_string = result.formatted_qasm()
+    result = loads(qasm3_string)
+    actual_qasm3_string = dumps(result)
 
     check_unrolled_qasm(actual_qasm3_string, expected_qasm3_string)

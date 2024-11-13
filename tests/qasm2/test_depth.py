@@ -13,7 +13,7 @@ Module containing unit tests for calculating program depth.
 
 """
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 
 
 def test_gate_depth():
@@ -36,7 +36,7 @@ def test_gate_depth():
     qreg q[1];
     my_gate(1, 2, 3) q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -57,7 +57,7 @@ def test_qubit_depth_with_unrelated_measure_op():
     // This should affect the depth as measurement will have to wait 
     measure q1 -> c; 
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 4
     assert result.num_clbits == 1
@@ -70,7 +70,7 @@ def test_depth_with_no_ops():
     include "stdgates.inc";
     qreg q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0

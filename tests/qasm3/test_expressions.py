@@ -14,7 +14,7 @@ Module containing unit tests for expressions.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_measure_op, check_single_qubit_gate_op, check_single_qubit_rotation_op
 
@@ -37,7 +37,7 @@ def test_correct_expressions():
     c[1] = c[0] + 2;
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -60,7 +60,7 @@ def test_bit_in_expression():
     dummy_int = c3[0];
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
 
     assert result.num_qubits == 1
@@ -72,16 +72,16 @@ def test_bit_in_expression():
 
 def test_incorrect_expressions():
     with pytest.raises(ValidationError, match=r"Unsupported expression type .*"):
-        load("OPENQASM 3; qubit q; rz(1 - 2 + 32im) q;").validate()
+        loads("OPENQASM 3; qubit q; rz(1 - 2 + 32im) q;").validate()
 
     with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
-        load("OPENQASM 3; qubit q; rx(~1.3) q;").validate()
+        loads("OPENQASM 3; qubit q; rx(~1.3) q;").validate()
 
     with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
-        load("OPENQASM 3; qubit q; rx(~1.3+5im) q;").validate()
+        loads("OPENQASM 3; qubit q; rx(~1.3+5im) q;").validate()
 
     with pytest.raises(ValidationError, match="Undefined identifier x in expression"):
-        load("OPENQASM 3; qubit q; rx(x) q;").validate()
+        loads("OPENQASM 3; qubit q; rx(x) q;").validate()
 
     with pytest.raises(ValidationError, match="Uninitialized variable x in expression"):
-        load("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
+        loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()

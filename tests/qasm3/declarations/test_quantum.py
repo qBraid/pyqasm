@@ -15,7 +15,7 @@ declarations.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -44,9 +44,9 @@ def test_qubit_declarations():
     qubit[10] q5;
     """
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
-    unrolled_qasm = result.dumps()
+    unrolled_qasm = dumps(result)
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -75,9 +75,9 @@ def test_clbit_declarations():
     bit[10] c5;
     """
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
-    unrolled_qasm = result.dumps()
+    unrolled_qasm = dumps(result)
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -114,9 +114,9 @@ def test_qubit_clbit_declarations():
     bit[1] c4;
     """
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
-    unrolled_qasm = result.dumps()
+    unrolled_qasm = dumps(result)
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -130,7 +130,7 @@ def test_qubit_redeclaration_error():
         qubit q1;
         qubit q1;
         """
-        load(qasm3_string).validate()
+        loads(qasm3_string).validate()
 
 
 def test_invalid_qubit_name():
@@ -143,7 +143,7 @@ def test_invalid_qubit_name():
         include "stdgates.inc";
         qubit pi;
         """
-        load(qasm3_string).validate()
+        loads(qasm3_string).validate()
 
 
 def test_clbit_redeclaration_error():
@@ -155,7 +155,7 @@ def test_clbit_redeclaration_error():
         bit c1;
         bit[4] c1;
         """
-        load(qasm3_string).validate()
+        loads(qasm3_string).validate()
 
 
 def test_non_constant_size():
@@ -169,7 +169,7 @@ def test_non_constant_size():
         int[32] N = 10;
         qubit[N] q;
         """
-        load(qasm3_string).validate()
+        loads(qasm3_string).validate()
 
     with pytest.raises(
         ValidationError, match=r"Variable 'size' is not a constant in given expression"
@@ -180,4 +180,4 @@ def test_non_constant_size():
         int[32] size = 10;
         bit[size] c;
         """
-        load(qasm3_string).validate()
+        loads(qasm3_string).validate()

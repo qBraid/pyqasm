@@ -474,7 +474,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             )
             raise err
 
-    def dumps(self) -> str:
+    def qasm_str(self) -> str:
         """Return the string representation of the QASM program
 
         Returns:
@@ -484,15 +484,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         if len(self.unrolled_ast.statements) > 1:
             return self._qasm_ast_to_str(self.unrolled_ast)
         return self._qasm_ast_to_str(self.original_program)
-
-    def formatted_qasm(self) -> str:
-        """Return the formatted QASM program
-           Removes empty lines and comments from the QASM program
-
-        Returns:
-            str: The formatted QASM program
-        """
-        return self.dumps()
 
     def copy(self):
         """Return a deep copy of the module"""

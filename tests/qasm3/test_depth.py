@@ -14,7 +14,7 @@ Module containing unit tests for calculating program depth.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 
 
 def test_gate_depth():
@@ -40,7 +40,7 @@ def test_gate_depth():
     bool o = true;
     my_gate(m, n, o) q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -61,7 +61,7 @@ def test_gate_depth_external_function():
     qubit q;
     my_gate() q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll(external_gates=["my_gate"])
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -76,7 +76,7 @@ def test_pow_gate_depth():
     inv @ pow(2) @ pow(4) @ h q;
     pow(-2) @ h q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -97,7 +97,7 @@ def test_inv_gate_depth():
     inv @ cx q2;
     inv @ ccx q[0], q2;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 3
     assert result.num_clbits == 0
@@ -123,7 +123,7 @@ def test_qubit_depth_with_unrelated_measure_op():
     // This should affect the depth as measurement will have to wait 
     c[0] = measure q1; 
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 4
     assert result.num_clbits == 1
@@ -146,7 +146,7 @@ def test_subroutine_depth():
     my_function(0, q[0]);
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 3
@@ -169,7 +169,7 @@ def test_depth_with_multi_control():
     cx q2[0], q[0];
     
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 6
     assert result.num_clbits == 0
@@ -182,7 +182,7 @@ def test_depth_with_no_ops():
     include "stdgates.inc";
     qubit q;
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
@@ -201,7 +201,7 @@ def test_after_removing_measurement():
     cx q[1], q[2];
 
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 3
     assert result.num_clbits == 3
@@ -224,7 +224,7 @@ def test_after_removing_barriers():
     cx q[1], q[2];
 
     """
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 3
     assert result.num_clbits == 0
@@ -251,7 +251,7 @@ def test_qasm3_depth_sparse_operations():
     barrier q;
     z q[1];
     """
-    result = load(qasm_string)
+    result = loads(qasm_string)
     result.unroll()
 
     assert result.depth() == 8
@@ -270,7 +270,7 @@ z q[1];
 b[0] = measure q[0];
 b[1] = measure q[1];
     """
-    result = load(qasm_string)
+    result = loads(qasm_string)
     result.unroll()
 
     assert result.depth() == 8
@@ -292,7 +292,7 @@ c[0] = measure q[0];
 c[1] = measure q[1];
 c[2] = measure q[2];
     """
-    result = load(qasm_string)
+    result = loads(qasm_string)
     result.unroll()
 
     assert result.depth() == 4
@@ -366,7 +366,7 @@ h q[1];
 )
 def test_qasm3_depth_no_branching(program, expected_depth):
     """Test calculating depth of qasm3 circuit"""
-    result = load(program)
+    result = loads(program)
     result.unroll()
     assert result.depth() == expected_depth
 
@@ -437,6 +437,6 @@ measure q2 -> c2;
 )
 def test_qasm3_depth_branching(program, expected_depth):
     """Test calculating depth of qasm3 circuit with branching conditions"""
-    result = load(program)
+    result = loads(program)
     result.unroll()
     assert result.depth() == expected_depth

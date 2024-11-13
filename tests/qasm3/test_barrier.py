@@ -14,7 +14,7 @@ Module containing unit tests for the barrier operation.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -60,10 +60,10 @@ def test_barrier():
     barrier q2[1];
     barrier q3[0];
     """
-    module = load(qasm_str)
+    module = loads(qasm_str)
     module.unroll()
 
-    check_unrolled_qasm(module.dumps(), expected_qasm)
+    check_unrolled_qasm(dumps(module), expected_qasm)
 
 
 def test_barrier_in_function():
@@ -87,9 +87,9 @@ def test_barrier_in_function():
     barrier q[2];
     barrier q[3];
     """
-    module = load(qasm_str)
+    module = loads(qasm_str)
     module.unroll()
-    check_unrolled_qasm(module.dumps(), expected_qasm)
+    check_unrolled_qasm(dumps(module), expected_qasm)
 
 
 def test_remove_barriers():
@@ -114,10 +114,10 @@ def test_remove_barriers():
     qubit[3] q2;
     qubit[1] q3;
     """
-    module = load(qasm_str)
+    module = loads(qasm_str)
     module.remove_barriers()
 
-    check_unrolled_qasm(module.dumps(), expected_qasm)
+    check_unrolled_qasm(dumps(module), expected_qasm)
 
 
 def test_incorrect_barrier():
@@ -131,7 +131,7 @@ def test_incorrect_barrier():
     """
 
     with pytest.raises(ValidationError, match=r"Missing register declaration for q2 .*"):
-        load(undeclared).validate()
+        loads(undeclared).validate()
 
     out_of_bounds = """
     OPENQASM 3.0;
@@ -144,7 +144,7 @@ def test_incorrect_barrier():
     with pytest.raises(
         ValidationError, match="Index 3 out of range for register of size 2 in qubit"
     ):
-        load(out_of_bounds).validate()
+        loads(out_of_bounds).validate()
 
     duplicate = """
     OPENQASM 3.0;
@@ -155,4 +155,4 @@ def test_incorrect_barrier():
     """
 
     with pytest.raises(ValidationError, match=r"Duplicate qubit .*argument"):
-        load(duplicate).validate()
+        loads(duplicate).validate()

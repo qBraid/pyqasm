@@ -14,7 +14,7 @@ Module containing unit tests for reset operation.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -50,9 +50,9 @@ def test_reset_operations():
     reset q3[1];
     """
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
-    check_unrolled_qasm(result.dumps(), expected_qasm)
+    check_unrolled_qasm(dumps(result), expected_qasm)
 
 
 def test_reset_inside_function():
@@ -74,9 +74,9 @@ def test_reset_inside_function():
     reset q[1];
     """
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
-    check_unrolled_qasm(result.dumps(), expected_qasm)
+    check_unrolled_qasm(dumps(result), expected_qasm)
 
 
 def test_incorrect_resets():
@@ -90,7 +90,7 @@ def test_incorrect_resets():
     reset q2[0];
     """
     with pytest.raises(ValidationError):
-        load(undeclared).validate()
+        loads(undeclared).validate()
 
     index_error = """
     OPENQASM 3.0;
@@ -102,4 +102,4 @@ def test_incorrect_resets():
     reset q1[4];
     """
     with pytest.raises(ValidationError):
-        load(index_error).validate()
+        loads(index_error).validate()
