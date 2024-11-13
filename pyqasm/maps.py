@@ -38,7 +38,7 @@ from openqasm3.ast import (
     UintType,
 )
 
-from pyqasm.elements import InversionOp
+from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError
 from pyqasm.linalg import kak_decomposition_angles
 
@@ -907,6 +907,31 @@ THREE_QUBIT_OP_MAP = {
     "ccnot": ccx_gate_op,
     "cswap": cswap_gate,
     "rccx": rccx_gate,
+}
+
+BASIS_GATE_MAP = {
+    # default basis set is the gate set of the stdgates.inc library file
+    BasisSet.DEFAULT: {
+        "id",
+        "rx",
+        "ry",
+        "rz",
+        "h",
+        "x",
+        "y",
+        "z",
+        "s",
+        "sx",
+        "t",
+        "sdg",
+        "tdg",
+        "cx",
+        "cz",
+        "swap",
+    },
+    BasisSet.CLIFFORD: {"h", "t", "s", "cx"},
+    BasisSet.PAULI: {"rx", "ry", "rz", "cx"},
+    BasisSet.TOFFOLI: {"h", "ccx"},
 }
 
 
