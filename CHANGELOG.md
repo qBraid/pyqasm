@@ -18,15 +18,76 @@ Types of changes:
 - Added a `dumps` and `formatted_qasm` method to the `QasmModule` class to allow for the conversion of a `QasmModule` object to a string representation of the QASM code ([#71](https://github.com/qBraid/pyqasm/pull/71))
 - Added the `populate_idle_qubits` method to the `QasmModule` class to populate idle qubits with an `id` gate ([#72](https://github.com/qBraid/pyqasm/pull/72))
 - Added gate definitions for "c3sqrtx", "u1", "rxx", "cu3", "csx", "rccx" , "ch" , "cry", "cp", "cu", "cu1", "rzz" in `maps.py` ([#74](https://github.com/qBraid/pyqasm/pull/74))
+- Added support for skipping the unrolling for externally linked gates. The `QasmModule.unroll()` method now accepts an `external_gates` parameter which is a list of gate names that should not be unrolled ([#59](https://github.com/qBraid/pyqasm/pull/59)). Usage - 
+
+```python
+In [30]: import pyqasm
+
+In [31]: qasm_str = """OPENQASM 3.0;
+    ...:     include "stdgates.inc";
+    ...:     gate custom q1, q2, q3{
+    ...:         x q1;
+    ...:         y q2;
+    ...:         z q3;
+    ...:     }
+    ...:
+    ...:     qubit[4] q;
+    ...:     custom q[0], q[1], q[2];
+    ...:     cx q[1], q[2];"""
+
+In [32]: module = pyqasm.loads(qasm_str)
+
+In [33]: module.unroll(external_gates= ["custom"])
+
+In [34]: pyqasm.dumps(module).splitlines()
+Out[34]:
+['OPENQASM 3.0;',
+ 'include "stdgates.inc";',
+ 'qubit[4] q;',
+ 'custom q[0], q[1], q[2];',
+ 'cx q[1], q[2];']
+```
+- **Major Change**: Added the `load`, `loads`, `dump`, and `dumps` functions to the `pyqasm` module to allow for the loading and dumping of QASM code ([#76](https://github.com/qBraid/pyqasm/pull/76)). Usage - 
+
+```python
+In [18]: import pyqasm
+
+In [19]: qasm_str = """OPENQASM 3.0;
+    ...:     include "stdgates.inc";
+    ...:     qreg q1[2];
+    ...:     qubit[2] q2;"""
+
+In [20]: module = pyqasm.loads(qasm_str)
+
+In [21]: print(pyqasm.dumps(module))
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q1;
+qubit[2] q2;
+
+
+In [22]: file_path = "test.qasm"
+
+In [23]: pyqasm.dump(module, file_path)
+
+In [24]: module = pyqasm.load(file_path)
+
+In [25]: print(pyqasm.dumps(module))
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q1;
+qubit[2] q2;
+```
 
 ### Improved / Modified
 - Changed the `__init__` method for the `QasmModule` class to only accept an `openqasm3.ast.Program` object as input ([#71](https://github.com/qBraid/pyqasm/pull/71))
+- The `load` function has been renamed to `loads` and `load` is now used to load a QASM file. `QasmModule.dumps()` has been renamed to `qasm_str()` ([#76](https://github.com/qBraid/pyqasm/pull/76))
 
 ### Deprecated
 
 ### Removed
 - Removed the `from_program` method from the `QasmModule` class ([#71](https://github.com/qBraid/pyqasm/pull/71))
-
+- `QasmModule.formatted_qasm()` method has been removed ([#76](https://github.com/qBraid/pyqasm/pull/76))
 ### Fixed
 
 ### Dependencies
