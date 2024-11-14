@@ -109,4 +109,4 @@ def dumps(module: QasmModule) -> str:
     if not isinstance(module, QasmModule):
         raise TypeError("Input 'module' must be of type pyqasm.modules.base.QasmModule")
 
-    return module.qasm_str()
+    return str(module)

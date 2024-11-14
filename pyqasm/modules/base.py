@@ -474,7 +474,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             )
             raise err
 
-    def qasm_str(self) -> str:
+    def __str__(self) -> str:
         """Return the string representation of the QASM program
 
         Returns:

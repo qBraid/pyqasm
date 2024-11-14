@@ -81,13 +81,14 @@ qubit[2] q2;
 
 ### Improved / Modified
 - Changed the `__init__` method for the `QasmModule` class to only accept an `openqasm3.ast.Program` object as input ([#71](https://github.com/qBraid/pyqasm/pull/71))
-- The `load` function has been renamed to `loads` and `load` is now used to load a QASM file. `QasmModule.dumps()` has been renamed to `qasm_str()` ([#76](https://github.com/qBraid/pyqasm/pull/76))
+- The `load` function has been renamed to `loads` and `load` is now used to load a QASM file. `QasmModule.dumps()` has been replaced with `__str__` method ([#76](https://github.com/qBraid/pyqasm/pull/76))
 
 ### Deprecated
 
 ### Removed
 - Removed the `from_program` method from the `QasmModule` class ([#71](https://github.com/qBraid/pyqasm/pull/71))
 - `QasmModule.formatted_qasm()` method has been removed ([#76](https://github.com/qBraid/pyqasm/pull/76))
+
 ### Fixed
 
 ### Dependencies
