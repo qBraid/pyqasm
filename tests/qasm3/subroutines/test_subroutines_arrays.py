@@ -16,7 +16,7 @@ converting OpenQASM3 programs that contain arrays in subroutines.
 
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.subroutines import SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS
 from tests.utils import check_single_qubit_rotation_op
@@ -36,7 +36,7 @@ def test_simple_function_call():
 
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
@@ -60,7 +60,7 @@ def test_passing_array_to_function():
     my_function(arr, my_q);
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
@@ -88,7 +88,7 @@ def test_passing_subarray_to_function():
 
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
@@ -113,7 +113,7 @@ def test_passing_array_with_dim_identifier():
     my_function(arr[0, :, :], my_q);
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
@@ -144,7 +144,7 @@ def test_pass_multiple_arrays_to_function():
     my_function(arr_1, arr_2, my_q);
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 1
@@ -158,4 +158,4 @@ def test_pass_multiple_arrays_to_function():
 def test_incorrect_custom_ops_with_arrays(test_name):
     qasm_input, error_message = SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        load(qasm_input).validate()
+        loads(qasm_input).validate()

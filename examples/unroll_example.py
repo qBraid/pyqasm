@@ -70,7 +70,7 @@ bit[4] result;
 result = measure q;
 """
 
-qasm_module = pyqasm.load(qasm_program)
+qasm_module = pyqasm.loads(qasm_program)
 qasm_module.unroll()
 
-print(qasm_module.dumps())
+print(pyqasm.dumps(qasm_module))

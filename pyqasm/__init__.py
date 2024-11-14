@@ -20,6 +20,9 @@ Functions
    :toctree: ../stubs/
 
    load
+   loads
+   dump
+   dumps
 
 Classes
 ---------
@@ -51,7 +54,7 @@ except ImportError:  # pragma: no cover
     warnings.warn("Importing 'pyqasm' outside a proper installation.")
     __version__ = "dev"
 
-from .entrypoint import load
+from .entrypoint import dump, dumps, load, loads
 from .exceptions import PyQasmError, QasmParsingError, ValidationError
 from .modules import Qasm2Module, Qasm3Module, QasmModule
 
@@ -60,6 +63,9 @@ __all__ = [
     "ValidationError",
     "QasmParsingError",
     "load",
+    "loads",
+    "dump",
+    "dumps",
     "QasmModule",
     "Qasm2Module",
     "Qasm3Module",

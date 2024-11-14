@@ -15,7 +15,7 @@ declarations.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -36,9 +36,9 @@ def test_qubit_declarations():
     qreg q[1];
     """
 
-    result = load(qasm2_string)
+    result = loads(qasm2_string)
     result.unroll()
-    unrolled_qasm = result.dumps()
+    unrolled_qasm = dumps(result)
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -60,9 +60,9 @@ def test_clbit_declarations():
     creg c[1];
     """
 
-    result = load(qasm2_string)
+    result = loads(qasm2_string)
     result.unroll()
-    unrolled_qasm = result.dumps()
+    unrolled_qasm = dumps(result)
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -91,9 +91,9 @@ def test_qubit_clbit_declarations():
     creg c2[2];
     """
 
-    result = load(qasm2_string)
+    result = loads(qasm2_string)
     result.unroll()
-    unrolled_qasm = result.dumps()
+    unrolled_qasm = dumps(result)
 
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
@@ -109,4 +109,4 @@ def test_invalid_qasm2_declarations():
     qubit q3;
     """
     with pytest.raises(ValidationError):
-        load(invalid_qasm2).validate()
+        loads(invalid_qasm2).validate()

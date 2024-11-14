@@ -18,7 +18,7 @@ import re
 
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
@@ -54,7 +54,7 @@ def test_alias():
     swap myqreg5[0], myqreg5[1];
     cz myqreg6;
     """
-    result = load(qasm3_alias_program)
+    result = loads(qasm3_alias_program)
     result.unroll()
 
     assert result.num_qubits == 5
@@ -81,7 +81,7 @@ def test_alias_update():
 
     x alias[1];
     """
-    result = load(qasm3_alias_program)
+    result = loads(qasm3_alias_program)
     result.unroll()
     assert result.num_qubits == 4
     assert result.num_clbits == 0
@@ -107,7 +107,7 @@ def test_valid_alias_redefinition():
     let alias = q[2];
     x alias;
     """
-    result = load(qasm3_alias_program)
+    result = loads(qasm3_alias_program)
     result.unroll()
     assert result.num_qubits == 5
     assert result.num_clbits == 5
@@ -134,7 +134,7 @@ def test_alias_wrong_indexing():
 
         x myqreg[0];
         """
-        load(qasm3_alias_program).validate()
+        loads(qasm3_alias_program).validate()
 
 
 def test_alias_invalid_discrete_indexing():
@@ -153,7 +153,7 @@ def test_alias_invalid_discrete_indexing():
 
         x myqreg[0];
         """
-        load(qasm3_alias_program).validate()
+        loads(qasm3_alias_program).validate()
 
 
 def test_invalid_alias_redefinition():
@@ -173,7 +173,7 @@ def test_invalid_alias_redefinition():
 
         x alias;
         """
-        load(qasm3_alias_program).validate()
+        loads(qasm3_alias_program).validate()
 
 
 def test_alias_defined_before():
@@ -190,7 +190,7 @@ def test_alias_defined_before():
 
         let myqreg = q2[1];
         """
-        load(qasm3_alias_program).validate()
+        loads(qasm3_alias_program).validate()
 
 
 def test_unsupported_alias():
@@ -207,7 +207,7 @@ def test_unsupported_alias():
 
         let myqreg = q[0] ++ q[1];
         """
-        load(qasm3_alias_program).validate()
+        loads(qasm3_alias_program).validate()
 
 
 # def test_alias_in_scope_1():
@@ -303,4 +303,4 @@ def test_alias_out_of_scope():
             h q[2];
         }
         """
-        load(qasm3_alias_program).validate()
+        loads(qasm3_alias_program).validate()

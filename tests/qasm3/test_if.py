@@ -15,7 +15,7 @@ Module containing unit tests for the if statements.
 
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
@@ -62,12 +62,12 @@ def test_simple_if():
     }
     """
 
-    result = load(qasm)
+    result = loads(qasm)
     result.unroll()
     assert result.num_clbits == 4
     assert result.num_qubits == 4
 
-    check_unrolled_qasm(result.dumps(), expected_qasm)
+    check_unrolled_qasm(dumps(result), expected_qasm)
 
 
 def test_complex_if():
@@ -129,18 +129,17 @@ def test_complex_if():
     h q[0];
     h q[1];
     """
-    result = load(qasm)
+    result = loads(qasm)
     result.unroll()
     assert result.num_clbits == 8
     assert result.num_qubits == 4
-    print(result.dumps())
-    check_unrolled_qasm(result.dumps(), expected_qasm)
+    check_unrolled_qasm(dumps(result), expected_qasm)
 
 
 def test_incorrect_if():
 
     with pytest.raises(ValidationError, match=r"Missing if block"):
-        load(
+        loads(
             """
             OPENQASM 3.0;
            include "stdgates.inc";
@@ -156,7 +155,7 @@ def test_incorrect_if():
         ).validate()
 
     with pytest.raises(ValidationError, match=r"Undefined identifier c2 in expression"):
-        load(
+        loads(
             """
             OPENQASM 3.0;
            include "stdgates.inc";
@@ -173,7 +172,7 @@ def test_incorrect_if():
         ).validate()
 
     with pytest.raises(ValidationError, match=r"Only '!' supported .*"):
-        load(
+        loads(
             """
             OPENQASM 3.0;
            include "stdgates.inc";
@@ -189,7 +188,7 @@ def test_incorrect_if():
            """
         ).validate()
     with pytest.raises(ValidationError, match=r"Only '==' supported .*"):
-        load(
+        loads(
             """
             OPENQASM 3.0;
            include "stdgates.inc";
@@ -208,7 +207,7 @@ def test_incorrect_if():
         ValidationError,
         match=r"Only simple comparison supported .*",
     ):
-        load(
+        loads(
             """
             OPENQASM 3.0;
            include "stdgates.inc";
@@ -227,7 +226,7 @@ def test_incorrect_if():
         ValidationError,
         match=r"RangeDefinition not supported in branching condition",
     ):
-        load(
+        loads(
             """
             OPENQASM 3.0;
            include "stdgates.inc";
@@ -247,7 +246,7 @@ def test_incorrect_if():
         ValidationError,
         match=r"DiscreteSet not supported in branching condition",
     ):
-        load(
+        loads(
             """
             OPENQASM 3.0;
            include "stdgates.inc";

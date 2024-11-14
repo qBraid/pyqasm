@@ -13,7 +13,7 @@ Module containing unit tests for transformations on qasm3 programs
 
 """
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import dumps, loads
 from tests.utils import check_unrolled_qasm
 
 
@@ -34,11 +34,11 @@ def test_remove_idle_qubits_qasm3_small():
     h q[0];
     cx q[0], q[1];
     """
-    module = load(qasm3_str)
+    module = loads(qasm3_str)
     assert module.num_qubits == 4
     module.remove_idle_qubits()
     assert module.num_qubits == 2
-    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
 def test_remove_idle_qubits_qasm3():
@@ -83,12 +83,12 @@ def test_remove_idle_qubits_qasm3():
     cx q6[0], q6[1];
     """
 
-    module = load(qasm3_str)
+    module = loads(qasm3_str)
     assert module.num_qubits == 19
     module.remove_idle_qubits()
     assert module.num_qubits == 7
 
-    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
 def test_reverse_qubit_order_qasm3():
@@ -126,9 +126,9 @@ def test_reverse_qubit_order_qasm3():
     c[0] = measure q2[3];
     """
 
-    module = load(qasm3_str)
+    module = loads(qasm3_str)
     module.reverse_qubit_order()
-    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
 def test_populate_idle_qubits_qasm3():
@@ -161,9 +161,9 @@ def test_populate_idle_qubits_qasm3():
     id q3[0];
     """
 
-    module = load(qasm3_str)
+    module = loads(qasm3_str)
     module.populate_idle_qubits()
-    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
 def test_populate_idle_qubits_for_no_idle_qubits():
@@ -195,9 +195,9 @@ def test_populate_idle_qubits_for_no_idle_qubits():
     h q3;
     """
 
-    module = load(qasm3_str)
+    module = loads(qasm3_str)
     module.populate_idle_qubits()
-    check_unrolled_qasm(module.dumps(), expected_qasm3_str)
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
 def test_populate_idle_qubits_increases_depth_by_one():
@@ -210,7 +210,7 @@ def test_populate_idle_qubits_increases_depth_by_one():
     qubit q3;
     
     """
-    module = load(qasm3_str)
+    module = loads(qasm3_str)
     original_depth = module.depth()
     module.populate_idle_qubits()
     assert module.depth() == original_depth + 1

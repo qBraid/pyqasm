@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_single_qubit_gate_op, check_single_qubit_rotation_op
 
@@ -45,7 +45,7 @@ def test_switch():
     }
     """
 
-    result = load(qasm3_switch_program)
+    result = loads(qasm3_switch_program)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -77,7 +77,7 @@ def test_switch_default():
     }
     """
 
-    result = load(qasm3_switch_program)
+    result = loads(qasm3_switch_program)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -106,7 +106,7 @@ def test_switch_identifier_case():
     }
     """
 
-    result = load(qasm3_switch_program)
+    result = loads(qasm3_switch_program)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -136,7 +136,7 @@ def test_switch_const_int():
     }
     """
 
-    result = load(qasm3_switch_program)
+    result = loads(qasm3_switch_program)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -168,7 +168,7 @@ def test_switch_duplicate_cases():
         }
         """
 
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()
 
 
 def test_no_case_switch():
@@ -191,7 +191,7 @@ def test_no_case_switch():
         }
         """
 
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()
 
 
 def test_nested_switch():
@@ -229,7 +229,7 @@ def test_nested_switch():
     }
     """
 
-    result = load(qasm3_switch_program)
+    result = loads(qasm3_switch_program)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -262,7 +262,7 @@ def test_subroutine_inside_switch():
     }
     """
 
-    result = load(qasm_str)
+    result = loads(qasm_str)
     result.unroll()
     assert result.num_clbits == 0
     assert result.num_qubits == 2
@@ -297,7 +297,7 @@ def test_invalid_scalar_switch_target(invalid_type):
 
     with pytest.raises(ValidationError, match=re.escape("Switch target i must be of type int")):
         qasm3_switch_program = base_invalid_program
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()
 
 
 @pytest.mark.parametrize("invalid_type", ["float", "bool"])
@@ -327,7 +327,7 @@ def test_invalid_array_switch_target(invalid_type):
 
     with pytest.raises(ValidationError, match=re.escape("Switch target i must be of type int")):
         qasm3_switch_program = base_invalid_program
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()
 
 
 @pytest.mark.parametrize(
@@ -360,7 +360,7 @@ def test_unsupported_statements_in_case(invalid_stmt):
     )
     with pytest.raises(ValidationError, match=r"Unsupported statement .*"):
         qasm3_switch_program = base_invalid_program
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()
 
 
 def test_non_int_expression_case():
@@ -387,7 +387,7 @@ def test_non_int_expression_case():
         match=r"Invalid value 4.3 with type .* for required type <class 'openqasm3.ast.IntType'>",
     ):
         qasm3_switch_program = base_invalid_program
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()
 
 
 def test_non_int_variable_expression():
@@ -415,7 +415,7 @@ def test_non_int_variable_expression():
         match=r"Invalid type of variable .* for required type <class 'openqasm3.ast.IntType'>",
     ):
         qasm3_switch_program = base_invalid_program
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()
 
 
 def test_non_constant_expression_case():
@@ -441,4 +441,4 @@ def test_non_constant_expression_case():
 
     with pytest.raises(ValidationError, match=r"Variable .* is not a constant in given expression"):
         qasm3_switch_program = base_invalid_program
-        load(qasm3_switch_program).validate()
+        loads(qasm3_switch_program).validate()

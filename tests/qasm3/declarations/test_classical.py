@@ -14,7 +14,7 @@ Module containing unit tests for QASM3 to QIR conversion functions.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.variables import ASSIGNMENT_TESTS, DECLARATION_TESTS
 from tests.utils import check_single_qubit_rotation_op
@@ -36,7 +36,7 @@ def test_scalar_declarations():
     bool i;
     """
 
-    load(qasm3_string).validate()
+    loads(qasm3_string).validate()
 
 
 # 2. Test const declarations in different ways
@@ -61,7 +61,7 @@ def test_const_declarations():
     const float[32] f1 = 0.00000023 + f;
     """
 
-    load(qasm3_string).validate()
+    loads(qasm3_string).validate()
 
 
 # 3. Test non-constant scalar assignments
@@ -81,7 +81,7 @@ def test_scalar_assignments():
     r = 12.2;
     """
 
-    load(qasm3_string).validate()
+    loads(qasm3_string).validate()
 
 
 # 4. Scalar value assignment
@@ -103,7 +103,7 @@ def test_scalar_value_assignment():
     b = 5.0
     r = 0.23
     f = 0.5
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -138,7 +138,7 @@ def test_scalar_type_casts():
     f = 0
     g = 1
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_clbits == 1
@@ -169,7 +169,7 @@ def test_array_type_casts():
     arr_bool_val = 1
     arr_float32_val = 6.0
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -196,7 +196,7 @@ def test_array_declarations():
     array[float[64], 3, 2] arr_float64;
     array[bool, 3, 2] arr_bool;
     """
-    load(qasm3_string).validate()
+    loads(qasm3_string).validate()
 
 
 # 6. Array assignments
@@ -247,7 +247,7 @@ def test_array_assignments():
     c = 4.5
     d = 6.7
     f = True
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -292,7 +292,7 @@ def test_array_expressions():
     b = 3
     c = 4.5
     d = 6.7
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -323,7 +323,7 @@ def test_array_initializations():
     rx(arr_bool[0][1]) q;
     """
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -356,7 +356,7 @@ def test_array_range_assignment():
 
     """
 
-    result = load(qasm3_string)
+    result = loads(qasm3_string)
     result.unroll()
 
     assert result.num_clbits == 0
@@ -369,11 +369,11 @@ def test_array_range_assignment():
 def test_incorrect_declarations(test_name):
     qasm_input, error_message = DECLARATION_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        load(qasm_input).validate()
+        loads(qasm_input).validate()
 
 
 @pytest.mark.parametrize("test_name", ASSIGNMENT_TESTS.keys())
 def test_incorrect_assignments(test_name):
     qasm_input, error_message = ASSIGNMENT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        load(qasm_input).validate()
+        loads(qasm_input).validate()

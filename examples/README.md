@@ -30,9 +30,9 @@ bit[4] result;
 result = measure q;
 """
 
-qasm_module = pyqasm.load(program)
+qasm_module = pyqasm.loads(program)
 qasm_module.unroll()
-print(qasm_module.dumps())
+print(pyqasm.dumps(qasm_module))
 ```
 
 ```text
@@ -81,7 +81,7 @@ h q[2];
 c = measure q;
 """
 
-pyqasm.load(program).validate()
+pyqasm.loads(program).validate()
 ```
 
 ```text

@@ -14,7 +14,7 @@ Module containing unit tests for conversion to qasm3.
 """
 import pytest
 
-from pyqasm.entrypoint import load
+from pyqasm.entrypoint import loads
 from pyqasm.modules.qasm3 import Qasm3Module
 from tests.utils import check_unrolled_qasm
 
@@ -106,7 +106,7 @@ c4x q[0], q[1], q[2], q[3], q[4];
 
 @pytest.mark.parametrize("test_input, expected_qasm3", QASM_TEST_DATA)
 def test_to_qasm3_str(test_input, expected_qasm3):
-    result = load(test_input)
+    result = loads(test_input)
     returned_qasm3 = result.to_qasm3(as_str=True)
     assert isinstance(returned_qasm3, str)
     check_unrolled_qasm(returned_qasm3, expected_qasm3)
@@ -121,7 +121,7 @@ def test_to_qasm3_module():
     h q;
     measure q -> c;
     """
-    result = load(qasm2_string)
+    result = loads(qasm2_string)
 
     qasm3_module = result.to_qasm3(as_str=False)
     assert isinstance(qasm3_module, Qasm3Module)
