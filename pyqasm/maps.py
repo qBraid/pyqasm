@@ -910,7 +910,7 @@ THREE_QUBIT_OP_MAP = {
 }
 
 
-def map_qasm_op_to_callable(op_name: str):
+def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
     """
     Map a QASM operation to a callable.
 
@@ -919,23 +919,24 @@ def map_qasm_op_to_callable(op_name: str):
 
     Returns:
         tuple: A tuple containing the callable and the number of qubits the operation acts on.
+
+    Raises:
+        ValidationError: If the QASM operation is unsupported or undeclared.
     """
-    try:
-        return ONE_QUBIT_OP_MAP[op_name], 1
-    except KeyError:
-        pass
-    try:
-        return ONE_QUBIT_ROTATION_MAP[op_name], 1
-    except KeyError:
-        pass
-    try:
-        return TWO_QUBIT_OP_MAP[op_name], 2
-    except KeyError:
-        pass
-    try:
-        return THREE_QUBIT_OP_MAP[op_name], 3
-    except KeyError as exc:
-        raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}") from exc
+    op_maps: list[tuple[dict, int]] = [
+        (ONE_QUBIT_OP_MAP, 1),
+        (ONE_QUBIT_ROTATION_MAP, 1),
+        (TWO_QUBIT_OP_MAP, 2),
+        (THREE_QUBIT_OP_MAP, 3),
+    ]
+
+    for op_map, qubit_count in op_maps:
+        try:
+            return op_map[op_name], qubit_count
+        except KeyError:
+            continue
+
+    raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
 
 
 SELF_INVERTING_ONE_QUBIT_OP_SET = {"id", "h", "x", "y", "z"}
