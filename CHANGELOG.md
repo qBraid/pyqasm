@@ -21,7 +21,7 @@ Types of changes:
 
 ### Improved / Modified
 - Changed the `__init__` method for the `QasmModule` class to only accept an `openqasm3.ast.Program` object as input ([#71](https://github.com/qBraid/pyqasm/pull/71))
-- Changed `DepthNode`, `QubitDepthNode` and `ClbitDepthNode` to dataclasses. `__repr__` method is therefore handled automatically and you don't need all of the redundant private / public attribute and setters ([#79](https://github.com/qBraid/pyqasm/pull/79))
+- Changed `DepthNode`, `QubitDepthNode`, `ClbitDepthNode`, and `Variable` to dataclasses. `__repr__` method is therefore handled automatically and you don't need all of the redundant private / public attribute and setters ([#79](https://github.com/qBraid/pyqasm/pull/79))
 - Simplified `map_qasm_op_to_callable` redundant `KeyError` handling with loop ([#79](https://github.com/qBraid/pyqasm/pull/79))
 
 ### Deprecated
