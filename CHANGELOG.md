@@ -81,6 +81,8 @@ qubit[2] q2;
 
 ### Improved / Modified
 - Changed the `__init__` method for the `QasmModule` class to only accept an `openqasm3.ast.Program` object as input ([#71](https://github.com/qBraid/pyqasm/pull/71))
+- Changed `DepthNode`, `QubitDepthNode`, `ClbitDepthNode`, and `Variable` to dataclasses. `__repr__` method is therefore handled automatically and you don't need all of the redundant private / public attribute and setters ([#79](https://github.com/qBraid/pyqasm/pull/79))
+- Simplified `map_qasm_op_to_callable` redundant `KeyError` handling with loop ([#79](https://github.com/qBraid/pyqasm/pull/79))
 - The `load` function has been renamed to `loads` and `load` is now used to load a QASM file. `QasmModule.dumps()` has been replaced with `__str__` method ([#76](https://github.com/qBraid/pyqasm/pull/76))
 
 ### Deprecated
@@ -90,6 +92,7 @@ qubit[2] q2;
 - `QasmModule.formatted_qasm()` method has been removed ([#76](https://github.com/qBraid/pyqasm/pull/76))
 
 ### Fixed
+- Updated docs custom CSS used for sphinx to make version stable/latest drop-down visible. Previously was set white so blended into background and wasn't visible. ([#78](https://github.com/qBraid/pyqasm/pull/78))
 
 ### Dependencies
 
