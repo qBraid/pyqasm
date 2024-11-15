@@ -63,6 +63,13 @@ def _check_ch_gate_op(unrolled_ast, num_gates, qubits):
     check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "sdg")
 
 
+def _check_iswap_gate_op(unrolled_ast, num_gates, qubits):
+    check_single_qubit_gate_op(unrolled_ast, 2 * num_gates, qubits * num_gates, "s")
+    cx_gate_qubits = [qubits, qubits[::-1]] * num_gates
+    check_two_qubit_gate_op(unrolled_ast, 2 * num_gates, cx_gate_qubits, "cx")
+    check_single_qubit_gate_op(unrolled_ast, 2 * num_gates, qubits * num_gates, "h")
+
+
 def _check_crx_gate_op(unrolled_ast, num_gates, qubits, theta):
     num_u3_gates = 3 * num_gates
     check_u3_gate_op(
@@ -147,9 +154,7 @@ def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     if gate_name == "cnot":
         gate_name = "cx"
 
-    controlled_gate_tests = {
-        "ch": _check_ch_gate_op,
-    }
+    controlled_gate_tests = {"ch": _check_ch_gate_op, "iswap": _check_iswap_gate_op}
     controlled_rotation_gate_tests = {
         "crx": _check_crx_gate_op,
         "crz": _check_crz_gate_op,
