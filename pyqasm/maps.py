@@ -204,6 +204,7 @@ def ch_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quantu
     Implements the CH gate as a decomposition of other gates.
 
     Used the following qiskit decomposition -
+
         In [10]: q = QuantumCircuit(2)
 
         In [11]: q.ch(0, 1)
@@ -226,25 +227,6 @@ def ch_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quantu
     result.extend(one_qubit_gate_op("h", qubit1))
     result.extend(one_qubit_gate_op("sdg", qubit1))
 
-    return result
-
-
-def xx_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
-) -> list[QuantumGate]:
-    """
-    Implements the XX gate as a decomposition of other gates.
-    """
-    result: list[QuantumGate] = []
-    result.extend(one_qubit_gate_op("h", qubit0))
-    result.extend(one_qubit_gate_op("h", qubit1))
-    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
-    result.extend(one_qubit_gate_op("h", qubit1))
-    result.extend(one_qubit_rotation_op("rx", theta, qubit0))
-    result.extend(one_qubit_gate_op("h", qubit1))
-    result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
-    result.extend(one_qubit_gate_op("h", qubit0))
-    result.extend(one_qubit_gate_op("h", qubit1))
     return result
 
 
@@ -356,6 +338,24 @@ def pswap_gate(
     return result
 
 
+def iswap_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[QuantumGate]:
+    """Implements the iSwap gate as a decomposition of other gates.
+
+    Reference: https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.iSwapGate
+    """
+
+    result: list[QuantumGate] = []
+
+    result.extend(one_qubit_gate_op("s", qubit0))
+    result.extend(one_qubit_gate_op("s", qubit1))
+    result.extend(one_qubit_gate_op("h", qubit0))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit0))
+    result.extend(one_qubit_gate_op("h", qubit1))
+
+    return result
+
+
 def crx_gate(
     theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
@@ -363,11 +363,6 @@ def crx_gate(
     Implements the CRX gate as a decomposition of other gates.
 
     Used the following qiskit decomposition:
-
-        In [24]: q = QuantumCircuit(2)
-
-        In [25]: q.crx(Parameter('theta'), 0, 1)
-        Out[25]: <qiskit.circuit.instructionset.InstructionSet at 0x12e533be0>
 
         In [26]: q.draw()
         Out[26]:
@@ -402,13 +397,6 @@ def cry_gate(
 
     Used the following qiskit decomposition -
 
-        In [1]: from qiskit.circuit import Parameter, QuantumCircuit
-
-        In [2]: q = QuantumCircuit(2)
-
-        In [3]: q.cry(Parameter('theta'), 0, 1)
-        Out[3]: <qiskit.circuit.instructionset.InstructionSet at 0x1203b3550>
-
         In [4]: q.draw()
         Out[4]:
 
@@ -437,16 +425,9 @@ def crz_gate(
     theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
-        Implements the CRZ gate as a decomposition of other gates.
+    Implements the CRZ gate as a decomposition of other gates.
 
-        Used the following qiskit decomposition -
-
-        In [1]: from qiskit.circuit import Parameter, QuantumCircuit
-
-        In [2]: q = QuantumCircuit(2)
-
-        In [3]: q.crz(Parameter('theta'), 0, 1)
-        Out[3]: <qiskit.circuit.instructionset.InstructionSet at 0x119fbfbe0>
+    Used the following qiskit decomposition -
 
         In [4]: q.draw()
         Out[4]:
@@ -473,7 +454,7 @@ def crz_gate(
     return result
 
 
-def cu3_gate(  # pylint: disable=too-many-arguments
+def cu_gate(  # pylint: disable=too-many-arguments
     theta: Union[int, float],
     phi: Union[int, float],
     lam: Union[int, float],
@@ -482,44 +463,141 @@ def cu3_gate(  # pylint: disable=too-many-arguments
     qubit1: IndexedIdentifier,
 ) -> list[QuantumGate]:
     """
-    Implements the CU3 gate as a decomposition of other gates.
+    Implements the CU gate as a decomposition of other gates.
+
+    Uses the following qiskit decomposition -
+
+        In [7]: qc.draw()
+        Out[7]:
+
+        q_0: ────────────■─────────────
+             ┌───────────┴────────────┐
+        q_1: ┤ U(theta,phi,lam,gamma) ├
+             └────────────────────────┘
+
+        In [8]: qc.decompose().decompose().decompose().draw()
+        Out[8]:
+                 ┌──────────────┐    ┌──────────────────────┐                                     »
+        q_0: ────┤ U(0,0,gamma) ├────┤ U(0,0,lam/2 + phi/2) ├──■──────────────────────────────────»
+             ┌───┴──────────────┴───┐└──────────────────────┘┌─┴─┐┌──────────────────────────────┐»
+        q_1: ┤ U(0,0,lam/2 - phi/2) ├────────────────────────┤ X ├┤ U(-theta/2,0,-lam/2 - phi/2) ├»
+             └──────────────────────┘                        └───┘└──────────────────────────────┘»
+        «
+        «q_0: ──■──────────────────────
+        «     ┌─┴─┐┌──────────────────┐
+        «q_1: ┤ X ├┤ U(theta/2,phi,0) ├
+        «     └───┘└──────────────────┘
     """
     result: list[QuantumGate] = []
-    result.extend(phaseshift_gate(gamma, qubit0))
-    result.extend(phaseshift_gate((lam + phi) / 2, qubit0))
-    result.extend(phaseshift_gate((lam - phi) / 2, qubit1))
+    result.extend(u3_gate(0, 0, gamma, qubit0))
+    result.extend(u3_gate(0, 0, lam / 2 + phi / 2, qubit0))
+    result.extend(u3_gate(0, 0, lam / 2 - phi / 2, qubit1))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
-    result.extend(u3_gate(-theta / 2, 0, -(phi + lam) / 2, qubit1))
+    result.extend(u3_gate(-theta / 2, 0, -lam / 2 - phi / 2, qubit1))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
     result.extend(u3_gate(theta / 2, phi, 0, qubit1))
 
     return result
 
 
+def cu3_gate(  # pylint: disable=too-many-arguments
+    theta: Union[int, float],
+    phi: Union[int, float],
+    lam: Union[int, float],
+    qubit0: IndexedIdentifier,
+    qubit1: IndexedIdentifier,
+) -> list[QuantumGate]:
+    """
+    Implements the CU3 gate as a decomposition of other gates.
+
+    Uses the following qiskit decomposition -
+
+        In [7]: qc.draw()
+        Out[7]:
+
+        q_0: ──────────■──────────
+             ┌─────────┴─────────┐
+        q_1: ┤ U3(theta,phi,lam) ├
+             └───────────────────┘
+
+        In [8]: qc.decompose().decompose().decompose().draw()
+        Out[8]:
+             ┌──────────────────────┐
+        q_0: ┤ U(0,0,lam/2 + phi/2) ├──■────────────────────────────────────■──────────────────────
+             ├──────────────────────┤┌─┴─┐┌──────────────────────────────┐┌─┴─┐┌──────────────────┐
+        q_1: ┤ U(0,0,lam/2 - phi/2) ├┤ X ├┤ U(-theta/2,0,-lam/2 - phi/2) ├┤ X ├┤ U(theta/2,phi,0) ├
+             └──────────────────────┘└───┘└──────────────────────────────┘└───┘└──────────────────┘
+    """
+    result: list[QuantumGate] = []
+    result.extend(u3_gate(0, 0, lam / 2 + phi / 2, qubit0))
+    result.extend(u3_gate(0, 0, lam / 2 - phi / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(-theta / 2, 0, -lam / 2 - phi / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(theta / 2, phi, 0, qubit1))
+
+    return result
+
+
+def cu1_gate(
+    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
+    """
+    Implements the CU1 gate as a decomposition of other gates.
+
+    Uses the following qiskit decomposition -
+
+        In [11]: qc.draw()
+        Out[11]:
+
+        q_0: ─■──────────
+              │U1(theta)
+        q_1: ─■──────────
+
+
+        In [12]: qc.decompose().decompose().decompose().draw()
+        Out[12]:
+             ┌────────────────┐
+        q_0: ┤ U(0,0,theta/2) ├──■───────────────────────■────────────────────
+             └────────────────┘┌─┴─┐┌─────────────────┐┌─┴─┐┌────────────────┐
+        q_1: ──────────────────┤ X ├┤ U(0,0,-theta/2) ├┤ X ├┤ U(0,0,theta/2) ├
+                             └───┘└─────────────────┘└───┘└────────────────┘
+    """
+    result: list[QuantumGate] = []
+    result.extend(u3_gate(0, 0, theta / 2, qubit0))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(u3_gate(0, 0, theta / 2, qubit1))
+
+    return result
+
+
 def csx_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[QuantumGate]:
     """Implement the CSX gate as a decomposition of other gates.
+
     Used the following qiskit decomposition -
 
-    In [19]: q = QuantumCircuit(2)
+        In [19]: q = QuantumCircuit(2)
 
-    In [20]: q.csx(0,1)
-    Out[20]: <qiskit.circuit.instructionset.InstructionSet at 0x127e022f0>
+        In [20]: q.csx(0,1)
+        Out[20]: <qiskit.circuit.instructionset.InstructionSet at 0x127e022f0>
 
-    In [21]: q.draw()
-    Out[21]:
+        In [21]: q.draw()
+        Out[21]:
 
-    q_0: ──■───
-         ┌─┴──┐
-    q_1: ┤ Sx ├
-         └────┘
+        q_0: ──■───
+             ┌─┴──┐
+        q_1: ┤ Sx ├
+             └────┘
 
-    In [22]: q.decompose().decompose().draw()
-    Out[22]:
-             ┌─────────┐
-        q_0: ┤ U1(π/4) ├──■────────────────■────────────────────────
-             ├─────────┤┌─┴─┐┌──────────┐┌─┴─┐┌─────────┐┌─────────┐
-        q_1: ┤ U2(0,π) ├┤ X ├┤ U1(-π/4) ├┤ X ├┤ U1(π/4) ├┤ U2(0,π) ├
-             └─────────┘└───┘└──────────┘└───┘└─────────┘└─────────┘
+        In [22]: q.decompose().decompose().draw()
+        Out[22]:
+                 ┌─────────┐
+            q_0: ┤ U1(π/4) ├──■────────────────■────────────────────────
+                 ├─────────┤┌─┴─┐┌──────────┐┌─┴─┐┌─────────┐┌─────────┐
+            q_1: ┤ U2(0,π) ├┤ X ├┤ U1(-π/4) ├┤ X ├┤ U1(π/4) ├┤ U2(0,π) ├
+                 └─────────┘└───┘└──────────┘└───┘└─────────┘└─────────┘
     """
     result: list[QuantumGate] = []
     result.extend(phaseshift_gate(CONSTANTS_MAP["pi"] / 4, qubit0))
@@ -539,6 +617,8 @@ def rxx_gate(
     """
     Implements the RXX gate as a decomposition of other gates.
     """
+    # TODO: to implement global phase of -theta / 2
+
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("h", qubit0))
     result.extend(one_qubit_gate_op("h", qubit1))
@@ -573,29 +653,25 @@ def rzz_gate(
 ) -> list[QuantumGate]:
     """
     Implements the RZZ gate as a decomposition of other gates.
+
     Used the following qiskit decomposition -
 
-    In [30]: q = QuantumCircuit(2)
+        In [32]: q.draw()
+        Out[32]:
 
-    In [31]: q.rzz(Parameter('theta'), 0,1)
-    Out[31]: <qiskit.circuit.instructionset.InstructionSet at 0x1201303d0>
-
-    In [32]: q.draw()
-    Out[32]:
-
-    q_0: ─■──────────
-        │ZZ(theta)
-    q_1: ─■──────────
+        q_0: ─■──────────
+              │ZZ(theta)
+        q_1: ─■──────────
 
 
-    In [33]: q.decompose().decompose().decompose().draw()
-    Out[33]:
-    global phase: -theta/2
+        In [33]: q.decompose().decompose().decompose().draw()
+        Out[33]:
+        global phase: -theta/2
 
-    q_0: ──■─────────────────────■──
-         ┌─┴─┐┌───────────────┐┌─┴─┐
-    q_1: ┤ X ├┤ U3(0,0,theta) ├┤ X ├
-         └───┘└───────────────┘└───┘
+        q_0: ──■─────────────────────■──
+             ┌─┴─┐┌───────────────┐┌─┴─┐
+        q_1: ┤ X ├┤ U3(0,0,theta) ├┤ X ├
+             └───┘└───────────────┘└───┘
     """
     result: list[QuantumGate] = []
 
@@ -614,19 +690,32 @@ def cphaseshift_gate(
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift gate as a decomposition of other gates.
+
+    Uses the following qiskit decomposition -
+
+        In [11]: qc.draw()
+        Out[11]:
+
+        q_0: ─■─────────
+             │P(theta)
+        q_1: ─■─────────
+
+
+        In [12]: qc.decompose().decompose().decompose().draw()
+        Out[12]:
+             ┌────────────────┐
+        q_0: ┤ U(0,0,theta/2) ├──■───────────────────────■────────────────────
+             └────────────────┘┌─┴─┐┌─────────────────┐┌─┴─┐┌────────────────┐
+        q_1: ──────────────────┤ X ├┤ U(0,0,-theta/2) ├┤ X ├┤ U(0,0,theta/2) ├
+                               └───┘└─────────────────┘└───┘└────────────────┘
     """
     result: list[QuantumGate] = []
-    result.extend(one_qubit_gate_op("h", qubit0))
-    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit0))
-    result.extend(one_qubit_gate_op("h", qubit0))
+    result.extend(u3_gate(0, 0, theta / 2, qubit0))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
-    result.extend(one_qubit_gate_op("h", qubit1))
-    result.extend(one_qubit_rotation_op("rx", -theta / 2, qubit0))
-    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
-    result.extend(one_qubit_gate_op("h", qubit1))
-    result.extend(one_qubit_rotation_op("rx", theta / 2, qubit1))
-    result.extend(one_qubit_gate_op("h", qubit1))
+    result.extend(u3_gate(0, 0, theta / 2, qubit1))
+
     return result
 
 
@@ -876,22 +965,23 @@ TWO_QUBIT_OP_MAP = {
     "cv": cv_gate,
     "cy": cy_gate,
     "ch": ch_gate,
-    "xx": xx_gate,
+    "xx": rxx_gate,
     "xy": xy_gate,
     "yy": yy_gate,
     "zz": zz_gate,
     "rzz": rzz_gate,
     "pswap": pswap_gate,
+    "iswap": iswap_gate,
     "cp": cphaseshift_gate,
     "crx": crx_gate,
     "cry": cry_gate,
     "crz": crz_gate,
     "rxx": rxx_gate,
-    "cu": cu3_gate,
+    "cu": cu_gate,
     "cu3": cu3_gate,
     "csx": csx_gate,
     "cphaseshift": cphaseshift_gate,
-    "cu1": cphaseshift_gate,
+    "cu1": cu1_gate,
     "cp00": cphaseshift00_gate,
     "cphaseshift00": cphaseshift00_gate,
     "cp01": cphaseshift01_gate,
