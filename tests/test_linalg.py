@@ -13,15 +13,19 @@ Module containing unit tests for linalg.py functions.
 
 """
 import numpy as np
+import pytest
 
 from pyqasm.linalg import (
     _block_diag,
+    _deconstruct_matrix_to_angles,
     _helper_svd,
     _kak_canonicalize_vector,
+    _kronecker_factor,
     _orthogonal_diagonalize,
     _so4_to_su2,
     kak_decomposition_angles,
     orthogonal_bidiagonalize,
+    so_bidiagonalize,
 )
 
 
@@ -95,3 +99,61 @@ def test_kak_decomposition_angles():
 
     assert len(angles) == 4
     assert all(len(a) == 3 for a in angles)
+
+
+def test_kronecker_fator():
+    """Test _kronecker_fator function."""
+    a = np.array([[1, 2], [3, 4]], dtype=np.complex128)
+    b = np.array([[0, 5], [6, 7]], dtype=np.complex128)
+    mat = np.kron(a, b)
+
+    g, f1, f2 = _kronecker_factor(mat)
+
+    assert np.allclose(g * np.kron(f1, f2), mat)
+    assert f1.shape == (2, 2)
+    assert f2.shape == (2, 2)
+
+
+def test_deconstruct_matrix_to_angles():
+    """Test _deconstruct_matrix_to_angles function."""
+    mat = np.array([[1, 0], [0, 1j]])
+    angles = _deconstruct_matrix_to_angles(mat)
+
+    assert len(angles) == 3
+    assert all(isinstance(angle, float) for angle in angles)
+
+
+def test_so_bidiagonalize_unitary():
+    """Test so_bidiagonalize function with a unitary matrix."""
+    mat = np.array([[1 / np.sqrt(2), 1 / np.sqrt(2)], [1j / np.sqrt(2), -1j / np.sqrt(2)]])
+    left, diag, right = so_bidiagonalize(mat)
+
+    assert left.shape == (2, 2)
+    assert right.shape == (2, 2)
+    assert diag.shape == (2,)
+
+    assert np.allclose(left @ mat @ right, np.diag(diag))
+
+
+def test_so_bidiagonalize_raises_for_non_unitary():
+    """Test so_bidiagonalize function raises ValueError for non-unitary matrix."""
+    mat = np.array([[1, 2j], [-2j, 3]])
+    with pytest.raises(ValueError, match="Matrix must be unitary"):
+        so_bidiagonalize(mat)
+
+
+@pytest.mark.parametrize(
+    "mat",
+    [
+        np.array(
+            [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
+        ),  # 4x4 matrix, but not unitary
+        np.array(
+            [[1 / np.sqrt(2), 1 / np.sqrt(2)], [1j / np.sqrt(2), -1j / np.sqrt(2)]]
+        ),  # Unitary matrix, but not 4x4
+    ],
+)
+def test_kak_decomp_raises_for_invalid_mat(mat):
+    """Test kak_decomposition_angles raises ValueError for non-unitary or non-4x4 matrix."""
+    with pytest.raises(ValueError, match="Matrix must be 4x4 unitary."):
+        kak_decomposition_angles(mat)
