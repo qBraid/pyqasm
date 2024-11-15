@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Cython build files
+pyqasm/linalg_cy.c
+
 # Distribution / packaging
 .Python
 build/

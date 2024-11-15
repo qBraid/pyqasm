@@ -20,10 +20,10 @@ from pyqasm.linalg import (
     _deconstruct_matrix_to_angles,
     _helper_svd,
     _kak_canonicalize_vector,
-    _kronecker_factor,
     _orthogonal_diagonalize,
     _so4_to_su2,
     kak_decomposition_angles,
+    kronecker_factor,
     orthogonal_bidiagonalize,
     so_bidiagonalize,
 )
@@ -107,7 +107,7 @@ def test_kronecker_fator():
     b = np.array([[0, 5], [6, 7]], dtype=np.complex128)
     mat = np.kron(a, b)
 
-    g, f1, f2 = _kronecker_factor(mat)
+    g, f1, f2 = kronecker_factor(mat)
 
     assert np.allclose(g * np.kron(f1, f2), mat)
     assert f1.shape == (2, 2)

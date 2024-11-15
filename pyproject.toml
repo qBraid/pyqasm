@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "setuptools_scm"]
+requires = ["setuptools>=74.1", "setuptools_scm", "Cython", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -45,6 +45,14 @@ docs = ["sphinx>=7.3.7,<8.2.0", "sphinx-autodoc-typehints>=1.24,<2.6", "sphinx-r
 
 [tool.setuptools_scm]
 write_to = "pyqasm/_version.py"
+
+[tool.setuptools.package-data]
+pyqasm = ["py.typed", "*.pyx", "*.pxd", "*.o"]
+
+[tool.setuptools]
+ext-modules = [
+  {name = "pyqasm.linalg_cy", sources = ["pyqasm/linalg_cy.pyx"], include-dirs = ["numpy"]}
+]
 
 [tool.black]
 line-length = 100

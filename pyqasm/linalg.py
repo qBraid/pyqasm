@@ -133,10 +133,13 @@ def orthogonal_bidiagonalize(
     return left, right
 
 
-def _kronecker_factor(
+def kronecker_factor(
     mat: NDArray[np.complex128],
 ) -> tuple[float, NDArray[np.complex128], NDArray[np.complex128]]:
     """Split U = kron(A, B) to A and B."""
+    if mat.shape != (4, 4):
+        raise ValueError("Matrix must be 4x4.")
+
     a, b = max(((i, j) for i in range(4) for j in range(4)), key=lambda t: abs(mat[t]))
 
     f1 = np.zeros((2, 2), dtype=mat.dtype)
@@ -169,7 +172,7 @@ def _so4_to_su2(
     magic_conj_t = np.conj(magic.T)
 
     ab = np.dot(np.dot(magic, mat), magic_conj_t)
-    _, a, b = _kronecker_factor(ab)
+    _, a, b = kronecker_factor(ab)
 
     return a, b
 
