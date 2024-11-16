@@ -16,11 +16,12 @@ import numpy as np
 import pytest
 
 from pyqasm.linalg import (
+    _apply_svd,
     _block_diag,
     _deconstruct_matrix_to_angles,
-    _helper_svd,
     _kak_canonicalize_vector,
     _orthogonal_diagonalize,
+    is_unitary,
     kak_decomposition_angles,
     orthogonal_bidiagonalize,
     so_bidiagonalize,
@@ -41,14 +42,50 @@ def test_kak_canonicalize_vector():
     assert result["single_qubit_operations_before"][0][0][0] == -np.sqrt(2) / 2
 
 
-def test_helper_svd():
-    """Test _helper_svd function."""
+@pytest.mark.parametrize(
+    "x,y,z",
+    [
+        (0.1, 0.2, 0.3),
+        (0.3, 0.2, 0.1),
+        (-0.1, -0.2, -0.3),
+        (np.pi / 4, 0, 0),
+        (0, np.pi / 4, 0),
+        (0, 0, np.pi / 4),
+        (np.pi / 3, 0.2, -0.1),
+        (np.pi / 5, 0.2, 0.1),
+        (np.pi / 4 + 1e-9, 0, -1),
+    ],
+)
+def test_kak_canonicalize_vector_general(x, y, z):
+    result = _kak_canonicalize_vector(x, y, z)
+    assert "single_qubit_operations_after" in result
+    assert "single_qubit_operations_before" in result
+    assert all(op.shape == (2, 2) for op in result["single_qubit_operations_after"])
+    assert all(op.shape == (2, 2) for op in result["single_qubit_operations_before"])
+
+
+@pytest.mark.parametrize(
+    "x,y,z",
+    [
+        (0, 0, 0),
+        (np.pi / 4, np.pi / 4, np.pi / 4),
+        (-np.pi / 4, -np.pi / 4, -np.pi / 4),
+    ],
+)
+def test_kak_canonicalize_vector_edge_cases(x, y, z):
+    result = _kak_canonicalize_vector(x, y, z)
+    assert "single_qubit_operations_after" in result
+    assert "single_qubit_operations_before" in result
+
+
+def test_apply_svd():
+    """Test _apply_svd function."""
     mat = np.random.rand(4, 4)
-    u, s, vh = _helper_svd(mat)
+    u, s, vh = _apply_svd(mat)
     assert np.allclose(np.dot(u, np.dot(np.diag(s), vh)), mat)
 
     mat_empty = np.array([[]])
-    u, s, vh = _helper_svd(mat_empty)
+    u, s, vh = _apply_svd(mat_empty)
     assert u.shape == (0, 0)
     assert vh.shape == (0, 0)
     assert len(s) == 0
@@ -143,6 +180,21 @@ def test_so_bidiagonalize_raises_for_non_unitary():
         so_bidiagonalize(mat)
 
 
+def test_so_bidiagonalize_right_neg_det():
+    """Test so_bidiagonalize with a matrix that triggers right determinant adjustment."""
+    mat = np.array(
+        [[1 / np.sqrt(2), 1j / np.sqrt(2)], [1j / np.sqrt(2), 1 / np.sqrt(2)]], dtype=np.complex128
+    )
+
+    assert is_unitary(mat)
+
+    left, diag, right = so_bidiagonalize(mat)
+    assert np.linalg.det(right) >= 0
+
+    reconstructed = np.dot(left, np.dot(mat, right))
+    assert np.allclose(reconstructed, np.diag(diag), atol=1e-8)
+
+
 @pytest.mark.parametrize(
     "mat",
     [
@@ -158,3 +210,37 @@ def test_kak_decomp_raises_for_invalid_mat(mat):
     """Test kak_decomposition_angles raises ValueError for non-unitary or non-4x4 matrix."""
     with pytest.raises(ValueError, match="Matrix must be 4x4 unitary."):
         kak_decomposition_angles(mat)
+
+
+@pytest.mark.parametrize(
+    "matrix,expected",
+    [
+        (np.array([[1, 0], [0, -1]]), True),
+        (np.array([[1 / np.sqrt(2), 1 / np.sqrt(2)], [1 / np.sqrt(2), -1 / np.sqrt(2)]]), True),
+        (np.array([[1, 1], [1, 1]]), False),
+        (np.array([[1, 0], [0, 1], [1, 0]]), False),
+        (np.array([[1 + 1j, 0], [0, 1 - 1j]]) / np.sqrt(2), True),
+    ],
+)
+def test_is_unitary(matrix, expected):
+    """Test is_unitary function with various matrices."""
+    assert is_unitary(matrix) == expected
+
+
+@pytest.mark.parametrize(
+    "matrix,rtol,atol,expected",
+    [
+        (np.eye(2) + 1e-6, 1e-5, 1e-8, False),
+        (np.eye(2) + 1e-6, 1e-4, 1e-5, True),
+    ],
+)
+def test_is_unitary_with_tolerances(matrix, rtol, atol, expected):
+    """Test is_unitary function with tolerances."""
+    assert is_unitary(matrix, rtol=rtol, atol=atol) == expected
+
+
+@pytest.mark.parametrize("matrix", ["not a matrix", 123])
+def test_is_unitary_invalid_input(matrix):
+    """Test is_unitary function raises ValueError for invalid input."""
+    with pytest.raises(ValueError):
+        is_unitary(matrix)

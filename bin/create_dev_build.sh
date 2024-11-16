@@ -13,7 +13,7 @@
 ################################################################################
 # Description:
 # Script for creating development package builds. It temporarily checks out
-# a new branch, modifies the `package.json` file to reflect the provided
+# a new branch, modifies the `pyproject.toml` file to reflect the provided
 # development version, and then triggers the build process.
 #
 # Usage:

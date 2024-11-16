@@ -42,8 +42,11 @@ def is_unitary(matrix: np.ndarray, rtol: float = 1e-5, atol: float = 1e-8) -> bo
     Returns:
         bool: True if the matrix is unitary, False otherwise.
     """
-    if matrix.shape[0] != matrix.shape[1]:
-        return False
+    try:
+        if matrix.shape[0] != matrix.shape[1]:
+            return False
+    except AttributeError as err:
+        raise ValueError("Input must be a numpy array.") from err
 
     identity = np.eye(matrix.shape[0], dtype=matrix.dtype)
     product = np.dot(np.conjugate(matrix.T), matrix)
@@ -51,7 +54,7 @@ def is_unitary(matrix: np.ndarray, rtol: float = 1e-5, atol: float = 1e-8) -> bo
     return np.allclose(product, identity, rtol=rtol, atol=atol)
 
 
-def _helper_svd(
+def _apply_svd(
     mat: NDArray[np.float64],
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """Helper function to perform SVD on a matrix."""
@@ -112,7 +115,7 @@ def orthogonal_bidiagonalize(
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Find orthogonal matrices that diagonalize mat1 and mat2."""
     atol = 1e-9
-    base_left, base_diag, base_right = _helper_svd(mat1)
+    base_left, base_diag, base_right = _apply_svd(mat1)
     base_diag = np.diag(base_diag)
 
     dim = base_diag.shape[0]
@@ -127,7 +130,7 @@ def orthogonal_bidiagonalize(
     overlap_adjust = _orthogonal_diagonalize(overlap, base_diag)
 
     extra = semi_corrected[rank:, rank:]
-    extra_left_adjust, _, extra_right_adjust = _helper_svd(extra)
+    extra_left_adjust, _, extra_right_adjust = _apply_svd(extra)
 
     left_adjust = _block_diag(overlap_adjust, extra_left_adjust)
     right_adjust = _block_diag(overlap_adjust.T, extra_right_adjust)
@@ -218,7 +221,7 @@ def _kak_canonicalize_vector(
 def _deconstruct_matrix_to_angles(
     mat: NDArray[np.floating | np.complexfloating],
 ) -> tuple[float, float, float]:
-    """Decompose matrix into angles."""
+    """Breaks down a 2x2 unitary into ZYZ angle parameters."""
 
     def _phase_matrix(angle: float) -> NDArray[np.complex128]:
         return np.diag([1, np.exp(1j * angle)])

@@ -13,6 +13,10 @@
 import cython
 import numpy as np
 
+ctypedef fused RealorComplexDouble:
+    double
+    double complex
+
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -63,13 +67,9 @@ cpdef kronecker_factor(double complex[:, ::1] mat):
     return _kronecker_factor(mat)
 
 
-ctypedef fused so4_type:
-    double
-    double complex
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef so4_to_su2(so4_type[:, :] mat):
+cpdef so4_to_su2(RealorComplexDouble[:, :] mat):
     cdef double complex[:, ::1] magic, ab
     cdef double complex[:, :] magic_conj_t, a, b
     magic = np.array(
