@@ -21,12 +21,13 @@ from pyqasm.linalg import (
     _helper_svd,
     _kak_canonicalize_vector,
     _orthogonal_diagonalize,
-    _so4_to_su2,
     kak_decomposition_angles,
-    kronecker_factor,
     orthogonal_bidiagonalize,
     so_bidiagonalize,
 )
+
+# pylint: disable-next=no-name-in-module
+from pyqasm.linalg_cy import kronecker_factor, so4_to_su2  # type: ignore
 
 
 def test_kak_canonicalize_vector():
@@ -86,7 +87,7 @@ def test_orthogonal_bidiagonalize():
 def test_so4_to_su2():
     """Test SO4 to SU2 conversion."""
     mat = np.eye(4)
-    a, b = _so4_to_su2(mat)
+    a, b = so4_to_su2(mat)
 
     assert a.shape == (2, 2)
     assert b.shape == (2, 2)

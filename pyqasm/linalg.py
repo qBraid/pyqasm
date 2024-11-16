@@ -21,6 +21,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+# pylint: disable-next=no-name-in-module
+from pyqasm.linalg_cy import so4_to_su2  # type: ignore
+
 if TYPE_CHECKING:
     from numpy.typing import DTypeLike, NDArray
 
@@ -40,7 +43,7 @@ def is_unitary(matrix: np.ndarray, rtol: float = 1e-5, atol: float = 1e-8) -> bo
         bool: True if the matrix is unitary, False otherwise.
     """
     if matrix.shape[0] != matrix.shape[1]:
-        return False  # Not square, can't be unitary
+        return False
 
     identity = np.eye(matrix.shape[0], dtype=matrix.dtype)
     product = np.dot(np.conjugate(matrix.T), matrix)
@@ -105,7 +108,7 @@ def _orthogonal_diagonalize(
 
 # pylint: disable-next=too-many-locals
 def orthogonal_bidiagonalize(
-    mat1: NDArray[np.float64], mat2: NDArray[np.float64]
+    mat1: NDArray[np.float64], mat2: NDArray[np.complex64]
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Find orthogonal matrices that diagonalize mat1 and mat2."""
     atol = 1e-9
@@ -131,50 +134,6 @@ def orthogonal_bidiagonalize(
     left = np.dot(left_adjust.T, base_left.T)
     right = np.dot(base_right.T, right_adjust.T)
     return left, right
-
-
-def kronecker_factor(
-    mat: NDArray[np.complex128],
-) -> tuple[float, NDArray[np.complex128], NDArray[np.complex128]]:
-    """Split U = kron(A, B) to A and B."""
-    if mat.shape != (4, 4):
-        raise ValueError("Matrix must be 4x4.")
-
-    a, b = max(((i, j) for i in range(4) for j in range(4)), key=lambda t: abs(mat[t]))
-
-    f1 = np.zeros((2, 2), dtype=mat.dtype)
-    f2 = np.zeros((2, 2), dtype=mat.dtype)
-    for i in range(2):
-        for j in range(2):
-            f1[(a >> 1) ^ i, (b >> 1) ^ j] = mat[a ^ (i << 1), b ^ (j << 1)]
-            f2[(a & 1) ^ i, (b & 1) ^ j] = mat[a ^ i, b ^ j]
-
-    with np.errstate(divide="ignore", invalid="ignore"):
-        det_f1 = np.sqrt(np.linalg.det(f1)) or 1  # Avoid division by zero
-        det_f2 = np.sqrt(np.linalg.det(f2)) or 1
-        f1 /= det_f1
-        f2 /= det_f2
-
-    g = mat[a, b] / (f1[a >> 1, b >> 1] * f2[a & 1, b & 1])
-    if np.real(g) < 0:
-        f1 *= -1
-        g *= -1
-
-    return g, f1, f2
-
-
-def _so4_to_su2(
-    mat: NDArray[np.floating | np.complexfloating],
-) -> tuple[NDArray[np.floating | np.complexfloating], NDArray[np.floating | np.complexfloating]]:
-    """Decompose SO(4) matrix to SU(2) matrices."""
-    magic = np.array([[1, 0, 0, 1j], [0, 1j, 1, 0], [0, 1j, -1, 0], [1, 0, 0, -1j]]) * np.sqrt(0.5)
-
-    magic_conj_t = np.conj(magic.T)
-
-    ab = np.dot(np.dot(magic, mat), magic_conj_t)
-    _, a, b = kronecker_factor(ab)
-
-    return a, b
 
 
 def _kak_canonicalize_vector(
@@ -315,8 +274,8 @@ def kak_decomposition_angles(mat: NDArray[np.complex128]) -> list[list[float]]:
 
     left, d, right = so_bidiagonalize(kak_magic_dag @ mat @ kak_magic)
 
-    a1, a0 = _so4_to_su2(left.T)
-    b1, b0 = _so4_to_su2(right.T)
+    a1, a0 = so4_to_su2(left.T)
+    b1, b0 = so4_to_su2(right.T)
 
     kak_gama = np.array([[1, 1, 1, 1], [1, 1, -1, -1], [-1, 1, -1, 1], [1, -1, -1, 1]]) * 0.25
 

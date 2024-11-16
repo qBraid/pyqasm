@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=74.1", "setuptools_scm", "Cython", "numpy"]
+requires = ["setuptools>=74.1", "setuptools_scm", "Cython>=3.0", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -47,7 +47,7 @@ docs = ["sphinx>=7.3.7,<8.2.0", "sphinx-autodoc-typehints>=1.24,<2.6", "sphinx-r
 write_to = "pyqasm/_version.py"
 
 [tool.setuptools.package-data]
-pyqasm = ["py.typed", "*.pyx", "*.pxd", "*.o"]
+pyqasm = ["py.typed", "*.pyx"]
 
 [tool.setuptools]
 ext-modules = [
@@ -56,7 +56,7 @@ ext-modules = [
 
 [tool.black]
 line-length = 100
-target-version = ["py310", "py311", "py312"]
+target-version = ["py310", "py311", "py312", "py313"]
 
 [tool.isort]
 profile = "black"

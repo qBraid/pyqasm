@@ -1,5 +1,5 @@
 include *.txt *.md
-recursive-include docs *.rst *.py *.png *.ico *.txt
-recursive-include pyqasm *.py *.pyx *.o
+recursive-include docs *.rst *.py *.png *.ico
+recursive-include pyqasm *.py *.pyx
 include pyqasm/py.typed
 prune docs/build/
