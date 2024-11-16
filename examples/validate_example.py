@@ -15,9 +15,9 @@ Script demonstrating how to validate a QASM 3 program using pyqasm.
 
 """
 
-import pyqasm
+from pyqasm import loads
 
-qasm_program = """
+qasm = """
 OPENQASM 3;
 include "stdgates.inc";
 
@@ -84,4 +84,6 @@ for int i in [0:N-1] {
 c = measure q;
 """
 
-pyqasm.loads(qasm_program).validate()
+program = loads(qasm)
+
+program.validate()

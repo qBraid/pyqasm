@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # Cython build files
-pyqasm/linalg_cy.c
+src/pyqasm/linalg_cy.c
 
 # Distribution / packaging
 .Python
@@ -28,7 +28,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-pyqasm/_version.py
+src/pyqasm/_version.py
 
 
 # PyInstaller

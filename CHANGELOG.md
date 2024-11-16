@@ -87,6 +87,7 @@ qubit[2] q2;
 - Experimental Cython integration:  ([#83](https://github.com/qBraid/pyqasm/pull/83))
     - Migrated `pyqasm.linalg._kronecker_factor` to `pyqasm.linalg_cy` with ~60% speedup
     - Migrated `pyqasm.linalg._so4_to_so2()` to to `pyqasm.linalg_cy` with ~5% speedup
+- Changed source code directory from `./pyqasm` to `./src/pyqasm` to prevents conflicts between the local source directory and the installed package in site-packages, ensuring Python's module resolution prioritizes the correct version. Required for local testing with new Cython build step ([#83](https://github.com/qBraid/pyqasm/pull/83))
 
 ### Deprecated
 
