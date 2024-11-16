@@ -84,6 +84,9 @@ qubit[2] q2;
 - Changed `DepthNode`, `QubitDepthNode`, `ClbitDepthNode`, and `Variable` to dataclasses. `__repr__` method is therefore handled automatically and you don't need all of the redundant private / public attribute and setters ([#79](https://github.com/qBraid/pyqasm/pull/79))
 - Simplified `map_qasm_op_to_callable` redundant `KeyError` handling with loop ([#79](https://github.com/qBraid/pyqasm/pull/79))
 - The `load` function has been renamed to `loads` and `load` is now used to load a QASM file. `QasmModule.dumps()` has been replaced with `__str__` method ([#76](https://github.com/qBraid/pyqasm/pull/76))
+- Experimental Cython integration:  ([#83](https://github.com/qBraid/pyqasm/pull/83))
+    - Migrated `pyqasm.linalg._kronecker_factor` to `pyqasm.linalg_cy` with ~60% speedup
+    - Migrated `pyqasm.linalg._so4_to_so2()` to to `pyqasm.linalg_cy` with ~5% speedup
 
 ### Deprecated
 
@@ -93,6 +96,7 @@ qubit[2] q2;
 
 ### Fixed
 - Updated docs custom CSS used for sphinx to make version stable/latest drop-down visible. Previously was set white so blended into background and wasn't visible. ([#78](https://github.com/qBraid/pyqasm/pull/78))
+- Fixed bug in `pyqasm.linalg.so_bidiagonalize()` in final dot product order ([#83](https://github.com/qBraid/pyqasm/pull/83))
 
 ### Dependencies
 
@@ -100,4 +104,6 @@ qubit[2] q2;
 
 Archive of changelog entries from previous releases:
 
+- [v0.0.3](https://github.com/qBraid/pyqasm/releases/tag/v0.0.3)
+- [v0.0.2](https://github.com/qBraid/pyqasm/releases/tag/v0.0.2)
 - [v0.0.1](https://github.com/qBraid/pyqasm/releases/tag/v0.0.1)
