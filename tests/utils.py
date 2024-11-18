@@ -16,7 +16,7 @@ import openqasm3.ast as qasm3_ast
 
 from pyqasm.maps import CONSTANTS_MAP
 
-CONTROLLED_ROTATION_ANGLE_1 = 0.5
+CONTROLLED_ROTATION_TEST_ANGLE = 0.5
 
 
 def check_unrolled_qasm(unrolled_qasm, expected_qasm):
@@ -133,6 +133,26 @@ def _check_rxx_gate_op(unrolled_ast, num_gates, qubits, theta):
     )
 
 
+def _check_ryy_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_rx_gates = 4 * num_gates
+    rx_qubit_list = qubits * 2 * num_gates
+    rx_param_list = [
+        CONSTANTS_MAP["pi"] / 2,
+        CONSTANTS_MAP["pi"] / 2,
+        -CONSTANTS_MAP["pi"] / 2,
+        -CONSTANTS_MAP["pi"] / 2,
+    ] * num_gates
+    num_cx_gates = 2 * num_gates
+    cx_qubit_list = [qubits, qubits] * num_gates
+    num_rz_gates = num_gates
+
+    check_single_qubit_rotation_op(unrolled_ast, num_rx_gates, rx_qubit_list, rx_param_list, "rx")
+    check_two_qubit_gate_op(unrolled_ast, num_cx_gates, cx_qubit_list, "cx")
+    check_single_qubit_rotation_op(
+        unrolled_ast, num_rz_gates, [qubits[1]] * num_gates, [theta] * num_gates, "rz"
+    )
+
+
 def _check_rzz_gate_op(unrolled_ast, num_gates, qubits, theta):
     num_cx_gates = 2 * num_gates
     num_u3_gates = num_gates
@@ -149,6 +169,33 @@ def _check_rzz_gate_op(unrolled_ast, num_gates, qubits, theta):
     )
 
 
+def _check_xx_yy_gate_op(unrolled_ast, num_gates, qubits, theta):
+    phi = theta
+    num_rz_gates = 6 * num_gates
+    rz_qubit_list = [qubits[0], qubits[1], qubits[0]] * 2 * num_gates
+    rz_param_list = [
+        phi,
+        -1 * CONSTANTS_MAP["pi"] / 2,
+        CONSTANTS_MAP["pi"] / 2,
+        -1 * CONSTANTS_MAP["pi"] / 2,
+        CONSTANTS_MAP["pi"] / 2,
+        -1 * phi,
+    ] * num_gates
+    num_cx_gates = 2 * num_gates
+    cx_qubit_list = [qubits[::-1]] * num_cx_gates
+    num_ry_gates = 2 * num_gates
+    ry_qubit_list = qubits * num_ry_gates
+    ry_param_list = [-1 * theta / 2] * num_ry_gates
+
+    check_single_qubit_rotation_op(unrolled_ast, num_rz_gates, rz_qubit_list, rz_param_list, "rz")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[0]] * num_gates, "s")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "sx")
+    check_two_qubit_gate_op(unrolled_ast, num_cx_gates, cx_qubit_list, "cx")
+    check_single_qubit_rotation_op(unrolled_ast, num_ry_gates, ry_qubit_list, ry_param_list, "ry")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "sxdg")
+    check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[0]] * num_gates, "sdg")
+
+
 def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     qubit_id, gate_count = 0, 0
     if gate_name == "cnot":
@@ -160,13 +207,15 @@ def check_two_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
         "crz": _check_crz_gate_op,
         "cry": _check_cry_gate_op,
         "rxx": _check_rxx_gate_op,
+        "ryy": _check_ryy_gate_op,
         "rzz": _check_rzz_gate_op,
+        "xx_plus_yy": _check_xx_yy_gate_op,
     }
     if gate_name in controlled_gate_tests:
         controlled_gate_tests[gate_name](unrolled_ast, num_gates, qubit_list[0])
     elif gate_name in controlled_rotation_gate_tests:
         controlled_rotation_gate_tests[gate_name](
-            unrolled_ast, num_gates, qubit_list[0], CONTROLLED_ROTATION_ANGLE_1
+            unrolled_ast, num_gates, qubit_list[0], CONTROLLED_ROTATION_TEST_ANGLE
         )
     else:
         for stmt in unrolled_ast.statements:
