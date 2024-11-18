@@ -15,6 +15,8 @@ Module containing unit tests for linalg.py functions.
 import numpy as np
 import pytest
 
+# pylint: disable-next=no-name-in-module
+from pyqasm.accelerate.linalg import kronecker_factor, so4_to_su2  # type: ignore
 from pyqasm.linalg import (
     _apply_svd,
     _block_diag,
@@ -26,9 +28,6 @@ from pyqasm.linalg import (
     orthogonal_bidiagonalize,
     so_bidiagonalize,
 )
-
-# pylint: disable-next=no-name-in-module
-from pyqasm.linalg_cy import kronecker_factor, so4_to_su2  # type: ignore
 
 
 def test_kak_canonicalize_vector():

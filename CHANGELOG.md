@@ -79,6 +79,7 @@ qubit[2] q1;
 qubit[2] q2;
 ```
 - Added definitions for various gates in `maps.py` and tests for qasm formatting functions of the qbraid-sdk ([#82](https://github.com/qBraid/pyqasm/pull/82), [#84](https://github.com/qBraid/pyqasm/pull/84))
+- Added `pyqasm.accelerate` module to hold `.pyx` files with Cython-based optimizations for computationally intensive functions  ([#83](https://github.com/qBraid/pyqasm/pull/83))
 
 ### Improved / Modified
 - Changed the `__init__` method for the `QasmModule` class to only accept an `openqasm3.ast.Program` object as input ([#71](https://github.com/qBraid/pyqasm/pull/71))

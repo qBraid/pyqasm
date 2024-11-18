@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # Cython build files
-src/pyqasm/linalg_cy.c
+src/pyqasm/accelerate/linalg.c
 
 # Distribution / packaging
 .Python

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 # pylint: disable-next=no-name-in-module
-from pyqasm.linalg_cy import so4_to_su2  # type: ignore
+from pyqasm.accelerate.linalg import so4_to_su2  # type: ignore
 
 if TYPE_CHECKING:
     from numpy.typing import DTypeLike, NDArray
@@ -39,14 +39,17 @@ def is_unitary(matrix: np.ndarray, rtol: float = 1e-5, atol: float = 1e-8) -> bo
         rtol (float): Relative tolerance for numerical stability (default: 1e-5).
         atol (float): Absolute tolerance for numerical stability (default: 1e-8).
 
+    Raises:
+        ValueError: If the input is not a numpy array.
+
     Returns:
         bool: True if the matrix is unitary, False otherwise.
     """
-    try:
-        if matrix.shape[0] != matrix.shape[1]:
-            return False
-    except AttributeError as err:
-        raise ValueError("Input must be a numpy array.") from err
+    if not isinstance(matrix, np.ndarray):
+        raise ValueError("Input must be a numpy array.")
+
+    if matrix.shape[0] != matrix.shape[1]:
+        return False
 
     identity = np.eye(matrix.shape[0], dtype=matrix.dtype)
     product = np.dot(np.conjugate(matrix.T), matrix)

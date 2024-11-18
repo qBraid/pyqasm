@@ -52,7 +52,7 @@ pyqasm = ["py.typed", "*.pyx"]
 [tool.setuptools]
 packages = {find = {where = ["src"]}}
 ext-modules = [
-  {name = "pyqasm.linalg_cy", sources = ["src/pyqasm/linalg_cy.pyx"], include-dirs = ["numpy"]}
+  {name = "pyqasm.accelerate.linalg", sources = ["src/pyqasm/accelerate/linalg.pyx"], include-dirs = ["numpy"]}
 ]
 
 [tool.black]
