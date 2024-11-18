@@ -24,7 +24,7 @@ from pyqasm.maps import (
     THREE_QUBIT_OP_MAP,
     TWO_QUBIT_OP_MAP,
 )
-from tests.utils import CONTROLLED_ROTATION_ANGLE_1
+from tests.utils import CONTROLLED_ROTATION_TEST_ANGLE
 
 CUSTOM_OPS = ["simple", "nested", "complex"]
 
@@ -106,17 +106,20 @@ def _generate_two_qubit_fixture(gate_name: str):
         if not _validate_gate_name(gate_name):
             raise ValueError(f"Unknown qasm3 gate {gate_name}")
 
-        theta = ""
-        if gate_name in ["crz", "crx", "cry", "rzz", "rxx"]:
-            theta = f"({CONTROLLED_ROTATION_ANGLE_1})"
+        params = ""
+        if gate_name in ["crz", "crx", "cry", "rzz", "rxx", "ryy"]:
+            params = f"({CONTROLLED_ROTATION_TEST_ANGLE})"
+
+        if gate_name in ["xx_plus_yy"]:
+            params = f"({CONTROLLED_ROTATION_TEST_ANGLE},{CONTROLLED_ROTATION_TEST_ANGLE})"
 
         qasm3_string = f"""
         OPENQASM 3;
         include "stdgates.inc";
 
         qubit[2] q;
-        {gate_name}{theta} q[0], q[1];
-        {gate_name}{theta} q;
+        {gate_name}{params} q[0], q[1];
+        {gate_name}{params} q;
         """
         return qasm3_string
 
