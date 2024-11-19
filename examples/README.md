@@ -3,9 +3,9 @@
 ### Program Unrolling
 
 ```python
-import pyqasm 
+from pyqasm import loads, dumps
 
-program = """
+qasm = """
 OPENQASM 3;
 include "stdgates.inc";
 
@@ -30,9 +30,9 @@ bit[4] result;
 result = measure q;
 """
 
-qasm_module = pyqasm.loads(program)
-qasm_module.unroll()
-print(pyqasm.dumps(qasm_module))
+module = loads(qasm)
+module.unroll()
+print(dumps(module))
 ```
 
 ```text
@@ -66,7 +66,7 @@ result[3] = measure q[3];
 ### Program Validation
 
 ```python
-import pyqasm
+from pyqasm import loads
 
 program = """
 OPENQASM 3;
@@ -81,7 +81,9 @@ h q[2];
 c = measure q;
 """
 
-pyqasm.loads(program).validate()
+module = loads(program)
+
+module.validate()
 ```
 
 ```text

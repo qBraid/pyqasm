@@ -91,7 +91,7 @@ Example
 
 .. code-block:: python
 
-   import pyqasm
+   from pyqasm import loads, dumps
 
    qasm = """
    OPENQASM 3;
@@ -118,10 +118,10 @@ Example
    result = measure q;
    """
 
-   module = pyqasm.loads(qasm)
-   module.unroll()
+   program = loads(qasm)
+   program.unroll()
 
-   unrolled_qasm = pyqasm.dumps(module)
+   unrolled_qasm = dumps(program)
 
    print(unrolled_qasm)
 

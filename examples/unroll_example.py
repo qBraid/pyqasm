@@ -15,9 +15,9 @@ Script demonstrating how to unroll a QASM 3 program using pyqasm.
 
 """
 
-import pyqasm
+from pyqasm import dumps, loads
 
-qasm_program = """
+qasm = """
 // A program containing the Deutsch-Josza algorithm in OpenQASM 3
 OPENQASM 3;
 include "stdgates.inc";
@@ -70,7 +70,8 @@ bit[4] result;
 result = measure q;
 """
 
-qasm_module = pyqasm.loads(qasm_program)
-qasm_module.unroll()
+program = loads(qasm)
 
-print(pyqasm.dumps(qasm_module))
+program.unroll()
+
+print(dumps(program))
