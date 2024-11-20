@@ -12,7 +12,7 @@
 Defines a module for handling OpenQASM 3.0 programs.
 """
 
-from openqasm3.ast import Include, Program
+from openqasm3.ast import Program
 from openqasm3.printer import dumps
 
 from pyqasm.modules.base import QasmModule
@@ -30,7 +30,7 @@ class Qasm3Module(QasmModule):
 
     def __init__(self, name: str, program: Program):
         super().__init__(name, program)
-        self._unrolled_ast = Program(statements=[Include("stdgates.inc")], version="3.0")
+        self._unrolled_ast = Program(statements=[], version="3.0")
 
     def _qasm_ast_to_str(self, qasm_ast):
         """Convert the qasm AST to a string"""
@@ -45,6 +45,5 @@ class Qasm3Module(QasmModule):
             visitor (QasmVisitor): The visitor to accept
         """
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
-        self.unrolled_ast.statements = [Include("stdgates.inc")]  # pylint: disable=W0201
-        self.unrolled_ast.statements.extend(unrolled_stmt_list)
+        self._unrolled_ast.statements.extend(unrolled_stmt_list)
         # TODO: some finalizing method here probably

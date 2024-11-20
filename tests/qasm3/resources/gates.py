@@ -175,7 +175,7 @@ for test_name in CUSTOM_OPS:
     locals()[name] = _generate_custom_op_fixture(test_name)
 
 single_op_tests = [_fixture_name(s) for s in ONE_QUBIT_OP_MAP]
-already_tested_single_op = ["id", "si", "ti", "v", "sx", "vi", "sxdg"]
+already_tested_single_op = ["id", "si", "ti", "v", "sx", "vi", "sxdg", "not"]
 for gate in already_tested_single_op:
     single_op_tests.remove(_fixture_name(gate))
 
@@ -212,7 +212,7 @@ for gate in already_tested_double_op:
     double_op_tests.remove(_fixture_name(gate))
 
 triple_op_tests = [_fixture_name(s) for s in THREE_QUBIT_OP_MAP]
-already_tested_triple_op = ["ccnot", "cswap", "rccx"]
+already_tested_triple_op = ["ccnot", "cswap", "rccx", "toffoli"]
 for gate in already_tested_triple_op:
     triple_op_tests.remove(_fixture_name(gate))
 

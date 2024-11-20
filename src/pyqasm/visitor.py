@@ -58,6 +58,7 @@ class QasmVisitor:
         self._module = module
         self._scope: deque = deque([{}])
         self._context: deque = deque([Context.GLOBAL])
+        self._included_files: set[str] = set()
         self._qubit_labels: dict[str, int] = {}
         self._clbit_labels: dict[str, int] = {}
         self._alias_qubit_labels: dict[tuple[str, int], tuple[str, int]] = {}
@@ -1695,6 +1696,26 @@ class QasmVisitor:
             default_stmts = statement.default.statements
             return _evaluate_case(default_stmts)
 
+    def _visit_include(self, include: qasm3_ast.Include) -> list[qasm3_ast.Statement]:
+        """Visit an include statement element.
+
+        Args:
+            include (qasm3_ast.Include): The include statement to visit.
+
+        Returns:
+            None
+        """
+        filename = include.filename
+        if filename in self._included_files:
+            raise_qasm3_error(f"File '{filename}' already included", span=include.span)
+        self._included_files.add(filename)
+        print("Visiting include statement", include)
+
+        if self._check_only:
+            return []
+
+        return [include]
+
     def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
@@ -1707,7 +1728,7 @@ class QasmVisitor:
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
         visit_map = {
-            qasm3_ast.Include: lambda x: [],  # No operation
+            qasm3_ast.Include: self._visit_include,  # No operation
             qasm3_ast.QuantumMeasurementStatement: self._visit_measurement,
             qasm3_ast.QuantumReset: self._visit_reset,
             qasm3_ast.QuantumBarrier: self._visit_barrier,

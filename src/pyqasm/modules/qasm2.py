@@ -37,7 +37,7 @@ class Qasm2Module(QasmModule):
 
     def __init__(self, name: str, program: Program):
         super().__init__(name, program)
-        self._unrolled_ast = Program(statements=[Include("qelib1.inc")], version="2.0")
+        self._unrolled_ast = Program(statements=[], version="2.0")
         self._whitelist_statements = {
             qasm3_ast.BranchingStatement,
             qasm3_ast.QubitDeclaration,
@@ -102,6 +102,5 @@ class Qasm2Module(QasmModule):
         """
         self._filter_statements()
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
-        self.unrolled_ast.statements = [Include("qelib1.inc")]  # pylint: disable=W0201
         self.unrolled_ast.statements.extend(unrolled_stmt_list)
         # TODO: some finalizing method here probably
