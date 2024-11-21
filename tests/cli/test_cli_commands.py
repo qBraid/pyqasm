@@ -46,9 +46,11 @@ def test_validate_qasm_with_invalid_file(capsys):
         validate_qasm(src_paths)
 
     captured = capsys.readouterr()
-    assert f"{INVALID_FILE}: error:" in captured.out
-    assert "Index 2 out of range for register of size 1 in qubit [validation]" in captured.out
-    assert "Found errors in 1 file (checked 3 source files)" in captured.out
+
+    captured_out = captured.out.replace("\n", "")
+    assert f"{INVALID_FILE}: error:" in captured_out
+    assert "Index 2 out of range for register of size 1 in qubit [validation]" in captured_out
+    assert "Found errors in 1 file (checked 3 source files)" in captured_out
 
 
 def test_validate_qasm_with_skip_file(capsys):
@@ -60,7 +62,9 @@ def test_validate_qasm_with_skip_file(capsys):
         validate_qasm(src_paths, skip_files=skip_files)
 
     captured = capsys.readouterr()
-    assert f"Success: no issues found in {len(VALID_FILES)} source files" in captured.out
+
+    captured_out = captured.out.replace("\n", "")
+    assert f"Success: no issues found in {len(VALID_FILES)} source files" in captured_out
 
 
 def test_validate_command_with_invalid_file(runner: CliRunner):
@@ -68,9 +72,11 @@ def test_validate_command_with_invalid_file(runner: CliRunner):
     result = runner.invoke(app, ["validate", RESOURCE_DIR])
 
     assert result.exit_code == 1
-    assert f"{INVALID_FILE}: error:" in result.output
-    assert "Index 2 out of range for register of size 1 in qubit [validation]" in result.output
-    assert "Found errors in 1 file (checked 3 source files)" in result.output
+
+    result_output = result.output.replace("\n", "")
+    assert f"{INVALID_FILE}: error:" in result_output
+    assert "Index 2 out of range for register of size 1 in qubit [validation]" in result_output
+    assert "Found errors in 1 file (checked 3 source files)" in result_output
 
 
 def test_validate_command_with_skip_file(runner: CliRunner):
@@ -78,7 +84,9 @@ def test_validate_command_with_skip_file(runner: CliRunner):
     result = runner.invoke(app, ["validate", RESOURCE_DIR, "--skip", INVALID_FILE])
 
     assert result.exit_code == 0
-    assert f"Success: no issues found in {len(VALID_FILES)} source files" in result.output
+
+    result_output = result.output.replace("\n", "")
+    assert f"Success: no issues found in {len(VALID_FILES)} source files" in result_output
 
 
 def test_validate_command_with_only_valid_files(runner: CliRunner):
@@ -96,7 +104,10 @@ def test_validate_command_with_only_valid_files(runner: CliRunner):
         result = runner.invoke(app, ["validate", valid_only_dir])
 
         assert result.exit_code == 0
-        assert f"Success: no issues found in {len(VALID_FILES)} source files" in result.output
+        assert (
+            f"Success: no issues found in {len(VALID_FILES)} source files"
+            in result.output.replace("\n", "")
+        )
 
     finally:
         shutil.rmtree(valid_only_dir, ignore_errors=True)
