@@ -39,13 +39,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._name = name
         self._original_program = program
         self._statements = program.statements
-        self._qubit_registers: dict[str, int] = {}
         self._num_qubits = -1
-        self._qubit_depths: dict[tuple[str, int], QubitDepthNode] = {}
-        self._classical_registers: dict[str, int] = {}
         self._num_clbits = -1
+        self._qubit_depths: dict[tuple[str, int], QubitDepthNode] = {}
         self._clbit_depths: dict[tuple[str, int], ClbitDepthNode] = {}
+        self._qubit_registers: dict[str, int] = {}
+        self._classical_registers: dict[str, int] = {}
         self._has_measurements: Optional[bool] = None
+        self._has_barriers: Optional[bool] = None
         self._validated_program = False
         self._unrolled_ast = Program(statements=[Include("stdgates.inc")])
 
@@ -171,6 +172,30 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return curr_module
 
+    def has_barriers(self):
+        """Check if the module has any barrier operations.
+
+        Args:
+            None
+
+        Returns:
+            bool: True if the module has barrier operations, False otherwise
+        """
+        if self._has_barriers is None:
+            self._has_barriers = False
+            # try to check in the unrolled version as that will a better indicator of
+            # the presence of barriers
+            stmts_to_check = (
+                self._unrolled_ast.statements
+                if len(self._unrolled_ast.statements) > 1
+                else self._statements
+            )
+            for stmt in stmts_to_check:
+                if isinstance(stmt, qasm3_ast.QuantumBarrier):
+                    self._has_barriers = True
+                    break
+        return self._has_barriers
+
     def remove_barriers(self, in_place: bool = True):
         """Remove the barrier operations
 
@@ -195,6 +220,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         for qubit in curr_module._qubit_depths.values():
             qubit.num_barriers = 0
 
+        curr_module._has_barriers = False
         curr_module._statements = stmts_without_barriers
         curr_module._unrolled_ast.statements = stmts_without_barriers
 

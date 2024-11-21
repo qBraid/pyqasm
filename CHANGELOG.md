@@ -80,6 +80,7 @@ qubit[2] q2;
 ```
 - Added definitions for various gates in `maps.py` and tests for qasm formatting functions of the qbraid-sdk ([#82](https://github.com/qBraid/pyqasm/pull/82), [#84](https://github.com/qBraid/pyqasm/pull/84))
 - Added `pyqasm.accelerate` module to hold `.pyx` files with Cython-based optimizations for computationally intensive functions  ([#83](https://github.com/qBraid/pyqasm/pull/83))
+- Added `has_barriers` method for checking if a `QasmModule` object contains barriers ([#85](https://github.com/qBraid/pyqasm/pull/85))
 - Added `pyqasm.cli` module with `typer` integration to enable using pyqasm as a command-line tool ([#87](https://github.com/qBraid/pyqasm/pull/87))
 
 ```bash

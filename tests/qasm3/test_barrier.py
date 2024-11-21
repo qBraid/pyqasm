@@ -62,7 +62,7 @@ def test_barrier():
     """
     module = loads(qasm_str)
     module.unroll()
-
+    assert module.has_barriers() is True
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
@@ -115,8 +115,9 @@ def test_remove_barriers():
     qubit[1] q3;
     """
     module = loads(qasm_str)
+    assert module.has_barriers() is True
     module.remove_barriers()
-
+    assert module.has_barriers() is False
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
