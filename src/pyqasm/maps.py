@@ -171,7 +171,11 @@ def global_phase_gate(theta: float, qubit_list: list[IndexedIdentifier]) -> list
     Returns:
         list[QuantumPhase]: A QuantumPhase object representing the global phase gate.
     """
-    return [QuantumPhase(argument=FloatLiteral(value=theta), qubits=qubit_list, modifiers=[])]
+    return [
+        QuantumPhase(
+            argument=FloatLiteral(value=theta), qubits=qubit_list, modifiers=[]  # type: ignore
+        )
+    ]
 
 
 def sxdg_gate_op(qubit_id) -> list[QuantumGate]:
@@ -660,12 +664,12 @@ def csx_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quant
 
 def rxx_gate(
     theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
-) -> list[QuantumGate]:
+) -> list[Union[QuantumGate, QuantumPhase]]:
     """
     Implements the RXX gate as a decomposition of other gates.
     """
 
-    result: list[QuantumGate] = []
+    result: list[Union[QuantumGate, QuantumPhase]] = []
     result.extend(global_phase_gate(-theta / 2, [qubit0, qubit1]))
     result.extend(one_qubit_gate_op("h", qubit0))
     result.extend(one_qubit_gate_op("h", qubit1))
@@ -697,7 +701,7 @@ def rccx_gate(
 
 def rzz_gate(
     theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
-) -> list[QuantumGate]:
+) -> list[Union[QuantumGate, QuantumPhase]]:
     """
     Implements the RZZ gate as a decomposition of other gates.
 
@@ -720,7 +724,7 @@ def rzz_gate(
         q_1: ┤ X ├┤ U3(0,0,theta) ├┤ X ├
              └───┘└───────────────┘└───┘
     """
-    result: list[QuantumGate] = []
+    result: list[Union[QuantumGate, QuantumPhase]] = []
 
     result.extend(global_phase_gate(-theta / 2, [qubit0, qubit1]))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))

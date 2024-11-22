@@ -294,7 +294,7 @@ class Qasm3Transformer:
     @classmethod
     def transform_function_qubits(
         cls,
-        q_op: Union[QuantumGate, QuantumBarrier, QuantumReset],
+        q_op: Union[QuantumGate, QuantumBarrier, QuantumReset, QuantumPhase],
         formal_qreg_sizes: dict[str, int],
         qubit_map: dict[tuple, tuple],
     ) -> list[IndexedIdentifier]:

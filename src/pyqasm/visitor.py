@@ -745,7 +745,7 @@ class QasmVisitor:
 
     def _visit_custom_gate_operation(
         self, operation: qasm3_ast.QuantumGate, inverse: bool = False
-    ) -> list[qasm3_ast.QuantumGate]:
+    ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
         """Visit a custom gate operation element recursively.
 
         Args:
@@ -885,7 +885,7 @@ class QasmVisitor:
 
     def _visit_phase_operation(
         self, operation: qasm3_ast.QuantumPhase, inverse: bool = False
-    ) -> list[qasm3_ast.Statement]:
+    ) -> list[qasm3_ast.QuantumPhase]:
         """Visit a phase operation element.
 
         Args:
@@ -917,7 +917,9 @@ class QasmVisitor:
 
         return [operation]
 
-    def _collapse_gate_modifiers(self, operation: qasm3_ast.QuantumGate) -> tuple:
+    def _collapse_gate_modifiers(
+        self, operation: Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]
+    ) -> tuple:
         """Collapse the gate modifiers of a gate operation.
            Some analysis is required to get this result.
            The basic idea is that any power operation is multiplied and inversions are toggled.
@@ -952,8 +954,8 @@ class QasmVisitor:
         return (power_value, inverse_value)
 
     def _visit_generic_gate_operation(
-        self, operation: qasm3_ast.QuantumGate
-    ) -> list[qasm3_ast.QuantumGate]:
+        self, operation: Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]
+    ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
         """Visit a gate operation element.
 
         Args:
@@ -982,7 +984,7 @@ class QasmVisitor:
             )
         # Applying the inverse first and then the power is same as
         # apply the power first and then inverting the result
-        result = []
+        result: list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]] = []
         for _ in range(power_value):
             if isinstance(operation, qasm3_ast.QuantumPhase):
                 result.extend(self._visit_phase_operation(operation, inverse_value))
