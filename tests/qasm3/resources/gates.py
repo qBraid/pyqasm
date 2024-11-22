@@ -285,6 +285,14 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
 
 # qasm_input, expected_error
 CUSTOM_GATE_INCORRECT_TESTS = {
+    "incorrect_gphase_usage": (
+        """
+        OPENQASM 3.0;
+        qubit q;
+        gphase(pi) q;
+        """,
+        r"Qubit arguments not allowed for phase operation",
+    ),
     "undeclared_custom": (
         """
         OPENQASM 3;

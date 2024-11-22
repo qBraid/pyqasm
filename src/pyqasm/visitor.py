@@ -346,6 +346,15 @@ class QasmVisitor:
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
             assert operation.target is not None
             bit_list = [operation.measure.qubit] if qubits else [operation.target]
+        elif isinstance(operation, qasm3_ast.QuantumPhase) and operation.qubits is None:
+            for reg_name, reg_size in reg_size_map.items():
+                bit_list.append(
+                    qasm3_ast.IndexedIdentifier(
+                        qasm3_ast.Identifier(reg_name), [[qasm3_ast.IntegerLiteral(i)]]
+                    )
+                    for i in range(reg_size)
+                )
+            return bit_list
         else:
             bit_list = (
                 operation.qubits if isinstance(operation.qubits, list) else [operation.qubits]
@@ -647,7 +656,7 @@ class QasmVisitor:
             (All arguments of the callable should be qubits, i.e. all non-qubit arguments of the
             gate should already be evaluated, e.g. using functools.partial).
             all_targets (list[list[qasm3_ast.IndexedIdentifier]]):
-                The list of target of target qubits.
+                The list of target qubits.
                 The length of this list indicates the number of time the gate is invoked.
         Returns:
             List of all executed gates.
@@ -783,11 +792,11 @@ class QasmVisitor:
         self._push_context(Context.GATE)
         result = []
         for gate_op in gate_definition_ops:
-            if isinstance(gate_op, qasm3_ast.QuantumGate):
+            if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
+                gate_op_copy = copy.deepcopy(gate_op)
                 # necessary to avoid modifying the original gate definition
                 # in case the gate is reapplied
-                gate_op_copy = copy.deepcopy(gate_op)
-                if gate_op.name.name == gate_name:
+                if isinstance(gate_op, qasm3_ast.QuantumGate) and gate_op.name.name == gate_name:
                     raise_qasm3_error(
                         f"Recursive definitions not allowed for gate {gate_name}", span=gate_op.span
                     )
@@ -874,6 +883,40 @@ class QasmVisitor:
 
         return result
 
+    def _visit_phase_operation(
+        self, operation: qasm3_ast.QuantumPhase, inverse: bool = False
+    ) -> list[qasm3_ast.Statement]:
+        """Visit a phase operation element.
+
+        Args:
+            operation (qasm3_ast.QuantumPhase): The phase operation to visit.
+            inverse (bool): Whether the operation is an inverse operation. Defaults to False.
+
+        Returns:
+            list[qasm3_ast.Statement]: The unrolled quantum phase operation.
+        """
+        logger.debug("Visiting phase operation '%s'", str(operation))
+
+        evaluated_arg = Qasm3ExprEvaluator.evaluate_expression(operation.argument)[0]
+        if inverse:
+            evaluated_arg = -1 * evaluated_arg
+
+        operation.argument = qasm3_ast.FloatLiteral(value=evaluated_arg)
+        # no qubit evaluation to be done here
+        # if args are provided in global scope, then we should raise error
+        if self._in_global_scope() and len(operation.qubits) != 0:
+            raise_qasm3_error(
+                f"Qubit arguments not allowed for phase operation {str(operation)} in global scope",
+                span=operation.span,
+            )
+
+        # if it were in function scope, then the args would have been evaluated and added to the
+        # qubit list
+        if self._check_only:
+            return []
+
+        return [operation]
+
     def _collapse_gate_modifiers(self, operation: qasm3_ast.QuantumGate) -> tuple:
         """Collapse the gate modifiers of a gate operation.
            Some analysis is required to get this result.
@@ -923,7 +966,11 @@ class QasmVisitor:
         operation = copy.deepcopy(operation)
 
         # only needs to be done once for a gate operation
-        if not self._in_gate_scope() and len(self._function_qreg_size_map) > 0:
+        if (
+            len(operation.qubits) > 0
+            and not self._in_gate_scope()
+            and len(self._function_qreg_size_map) > 0
+        ):
             # we are in SOME function scope
             # transform qubits to use the global qreg identifiers
             operation.qubits = (
@@ -937,7 +984,9 @@ class QasmVisitor:
         # apply the power first and then inverting the result
         result = []
         for _ in range(power_value):
-            if operation.name.name in self._external_gates:
+            if isinstance(operation, qasm3_ast.QuantumPhase):
+                result.extend(self._visit_phase_operation(operation, inverse_value))
+            elif operation.name.name in self._external_gates:
                 result.extend(self._visit_external_gate_operation(operation, inverse_value))
             elif operation.name.name in self._custom_gates:
                 result.extend(self._visit_custom_gate_operation(operation, inverse_value))
@@ -1709,8 +1758,6 @@ class QasmVisitor:
         if filename in self._included_files:
             raise_qasm3_error(f"File '{filename}' already included", span=include.span)
         self._included_files.add(filename)
-        print("Visiting include statement", include)
-
         if self._check_only:
             return []
 
@@ -1735,6 +1782,7 @@ class QasmVisitor:
             qasm3_ast.QubitDeclaration: self._visit_quantum_register,
             qasm3_ast.QuantumGateDefinition: self._visit_gate_definition,
             qasm3_ast.QuantumGate: self._visit_generic_gate_operation,
+            qasm3_ast.QuantumPhase: self._visit_generic_gate_operation,
             qasm3_ast.ClassicalDeclaration: self._visit_classical_declaration,
             qasm3_ast.ClassicalAssignment: self._visit_classical_assignment,
             qasm3_ast.ConstantDeclaration: self._visit_constant_declaration,
@@ -1775,3 +1823,24 @@ class QasmVisitor:
         for stmt in stmt_list:
             result.extend(self.visit_statement(stmt))
         return result
+
+    def finalize(self, unrolled_stmts):
+        """Finalize the unrolled statements.
+        Rules:
+        - Remove qubit args from phase operations if ALL qubits are used
+        To add more rules if needed
+
+        Args:
+            unrolled_stmts (list[qasm3_ast.Statement]): The list of unrolled statements.
+
+        Returns:
+            list[qasm3_ast.Statement]: The list of finalized statements.
+
+        """
+        # remove the gphase qubits if they use ALL qubits
+        for stmt in unrolled_stmts:
+            # Rule 1
+            if isinstance(stmt, qasm3_ast.QuantumPhase):
+                if len(stmt.qubits) == len(self._qubit_labels):
+                    stmt.qubits = []
+        return unrolled_stmts

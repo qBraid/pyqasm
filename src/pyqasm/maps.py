@@ -32,6 +32,7 @@ from openqasm3.ast import (
     QuantumGate,
     QuantumGateDefinition,
     QuantumMeasurementStatement,
+    QuantumPhase,
     QuantumReset,
     QubitDeclaration,
     SubroutineDefinition,
@@ -157,6 +158,20 @@ def u2_inv_gate(phi, lam, qubits) -> list[QuantumGate]:
     the u2_gate function.
     """
     return u3_inv_gate(CONSTANTS_MAP["pi"] / 2, phi, lam, qubits)
+
+
+def global_phase_gate(theta: float, qubit_list: list[IndexedIdentifier]) -> list[QuantumPhase]:
+    """
+    Builds a global phase gate with the given theta and qubit list.
+
+    Args:
+        theta (float): The phase angle.
+        qubit_list (list[IndexedIdentifier]): The list of qubits on which to apply the phase.
+
+    Returns:
+        list[QuantumPhase]: A QuantumPhase object representing the global phase gate.
+    """
+    return [QuantumPhase(argument=FloatLiteral(value=theta), qubits=qubit_list, modifiers=[])]
 
 
 def sxdg_gate_op(qubit_id) -> list[QuantumGate]:
@@ -649,9 +664,9 @@ def rxx_gate(
     """
     Implements the RXX gate as a decomposition of other gates.
     """
-    # TODO: to implement global phase of -theta / 2
 
     result: list[QuantumGate] = []
+    result.extend(global_phase_gate(-theta / 2, [qubit0, qubit1]))
     result.extend(one_qubit_gate_op("h", qubit0))
     result.extend(one_qubit_gate_op("h", qubit1))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
@@ -707,9 +722,7 @@ def rzz_gate(
     """
     result: list[QuantumGate] = []
 
-    # TODO: verify implementation of the global phase
-    # result.extend(phaseshift_gate(-theta/2, qubit0))
-    # result.extend(phaseshift_gate(-theta/2, qubit1))
+    result.extend(global_phase_gate(-theta / 2, [qubit0, qubit1]))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
     result.extend(u3_gate(0, 0, theta, qubit1))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))

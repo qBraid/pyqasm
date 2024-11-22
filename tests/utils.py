@@ -54,6 +54,25 @@ def check_single_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     assert gate_count == num_gates
 
 
+def check_global_phase_op(unrolled_ast, num_gates, qubit_list, phase_list):
+    # qubit_list is list [list]
+    # qubit_list = [ [], [0,1,2], [3,4,5] ] means gphase applied on ALL , 3 , 3 qubits  with given
+    # phase values
+    qubits_id, phase_id = 0, 0
+    gate_count = 0
+    for stmt in unrolled_ast.statements:
+        if isinstance(stmt, qasm3_ast.QuantumPhase):
+            assert len(stmt.qubits) == len(qubit_list[qubits_id])
+            assert stmt.argument.value == phase_list[phase_id]
+            for i, _ in enumerate(stmt.qubits):
+                assert stmt.qubits[i].indices[0][0].value == qubit_list[qubits_id][i]
+            qubits_id += 1
+            phase_id += 1
+            gate_count += 1
+
+    assert gate_count == num_gates
+
+
 def _check_ch_gate_op(unrolled_ast, num_gates, qubits):
     check_single_qubit_gate_op(unrolled_ast, num_gates, [qubits[1]] * num_gates, "s")
     check_single_qubit_gate_op(unrolled_ast, 2 * num_gates, [qubits[1]] * 2 * num_gates, "h")
@@ -121,11 +140,15 @@ def _check_cry_gate_op(unrolled_ast, num_gates, qubits, theta):
 
 
 def _check_rxx_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_global_phase = num_gates
     num_h_gates = 4 * num_gates
     # because H is applied as H(q0) H(q1) H(q1) H(q0) in  1 rxx gate
     h_qubit_list = (qubits + qubits[::-1]) * num_gates
     num_cx_gates = 2 * num_gates
     num_rz_gates = num_gates
+    check_global_phase_op(
+        unrolled_ast, num_global_phase, [[]] * num_gates, [-theta / 2] * num_gates
+    )
     check_single_qubit_gate_op(unrolled_ast, num_h_gates, h_qubit_list, "h")
     check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_cx_gates, "cx")
     check_single_qubit_rotation_op(
@@ -154,9 +177,13 @@ def _check_ryy_gate_op(unrolled_ast, num_gates, qubits, theta):
 
 
 def _check_rzz_gate_op(unrolled_ast, num_gates, qubits, theta):
+    num_global_phase = num_gates
     num_cx_gates = 2 * num_gates
     num_u3_gates = num_gates
 
+    check_global_phase_op(
+        unrolled_ast, num_global_phase, [[]] * num_gates, [-theta / 2] * num_gates
+    )
     check_two_qubit_gate_op(unrolled_ast, num_cx_gates, [qubits] * num_cx_gates, "cx")
     check_u3_gate_op(
         unrolled_ast,

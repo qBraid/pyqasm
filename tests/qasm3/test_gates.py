@@ -14,7 +14,7 @@ Module containing unit tests for unrolling quantum gates.
 """
 import pytest
 
-from pyqasm.entrypoint import loads
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
@@ -32,6 +32,7 @@ from tests.utils import (
     check_single_qubit_rotation_op,
     check_three_qubit_gate_op,
     check_two_qubit_gate_op,
+    check_unrolled_qasm,
 )
 
 
@@ -202,6 +203,76 @@ def test_custom_ops(test_name, request):
 
     # Check for custom gate definition
     check_custom_qasm_gate_op(result.unrolled_ast, gate_type)
+
+
+def test_global_phase_gate():
+    qasm3_string = """OPENQASM 3.0;
+    qubit[2] q;
+    gphase(pi/4);
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    gphase(0.7853981633974483);
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 2
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
+
+
+def test_global_phase_qubits_retained():
+    """Test that global phase gate is retained when applied on specific qubits"""
+    qasm3_string = """OPENQASM 3.0;
+    gate custom a,b,c { 
+       gphase(pi/8);
+       h a;
+    }
+    qubit[23] q2;
+    custom q2[0:3];
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[23] q2;
+    gphase(0.39269908169872414) q2[0], q2[1], q2[2];
+    h q2[0];
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 23
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
+
+
+def test_global_phase_qubits_simplified():
+    """Test that the global phase gate is simplified when applied on all qubits"""
+    qasm3_string = """OPENQASM 3.0;
+    qubit[3] q2;
+    gate custom a,b,c {
+        gphase(pi/8) a, b, c;
+    }
+    custom q2;
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[3] q2;
+    gphase(0.39269908169872414);
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 3
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
 
 
 @pytest.mark.parametrize("test_name", custom_op_tests)

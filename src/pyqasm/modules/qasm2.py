@@ -102,5 +102,6 @@ class Qasm2Module(QasmModule):
         """
         self._filter_statements()
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
-        self.unrolled_ast.statements.extend(unrolled_stmt_list)
-        # TODO: some finalizing method here probably
+        final_stmt_list = visitor.finalize(unrolled_stmt_list)
+
+        self.unrolled_ast.statements = final_stmt_list

@@ -12,6 +12,7 @@
 Module with transformation functions for QASM3 visitor
 
 """
+from copy import deepcopy
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -30,6 +31,7 @@ from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
     QuantumBarrier,
     QuantumGate,
+    QuantumPhase,
     QuantumReset,
     RangeDefinition,
     UintType,
@@ -133,7 +135,7 @@ class Qasm3Transformer:
 
     @staticmethod
     def transform_gate_qubits(
-        gate_op: QuantumGate, qubit_map: dict[str, IndexedIdentifier]
+        gate_op: Union[QuantumGate, QuantumPhase], qubit_map: dict[str, IndexedIdentifier]
     ) -> None:
         """Transform the qubits of a gate operation with a qubit map.
 
@@ -144,6 +146,9 @@ class Qasm3Transformer:
         Returns:
             None
         """
+        if isinstance(gate_op, QuantumPhase) and len(gate_op.qubits) == 0:
+            gate_op.qubits = deepcopy(list(qubit_map.values()))
+            return
         for i, qubit in enumerate(gate_op.qubits):
             if isinstance(qubit, IndexedIdentifier):
                 raise_qasm3_error(
@@ -195,7 +200,7 @@ class Qasm3Transformer:
 
     @staticmethod
     def transform_gate_params(
-        gate_op: QuantumGate, param_map: dict[str, Union[int, float, bool]]
+        gate_op: Union[QuantumGate, QuantumPhase], param_map: dict[str, Union[int, float, bool]]
     ) -> None:
         """Transform the parameters of a gate operation with a parameter map.
 
@@ -211,10 +216,13 @@ class Qasm3Transformer:
 
         # param map is a "global dict for this gate" which contains the binding of the params
         # to the actual values used in the call
-        for i, actual_arg in enumerate(gate_op.arguments):
-            # recursively replace ALL instances of the parameter in the expression
-            # with the actual value
-            gate_op.arguments[i] = Qasm3Transformer.transform_expression(actual_arg, param_map)
+        if isinstance(gate_op, QuantumGate):
+            for i, actual_arg in enumerate(gate_op.arguments):
+                # recursively replace ALL instances of the parameter in the expression
+                # with the actual value
+                gate_op.arguments[i] = Qasm3Transformer.transform_expression(actual_arg, param_map)
+        else:
+            gate_op.argument = Qasm3Transformer.transform_expression(gate_op.argument, param_map)
 
     @staticmethod
     def get_branch_params(condition: Any) -> tuple[Optional[int], str, Optional[bool]]:
@@ -234,7 +242,6 @@ class Qasm3Transformer:
                 span=condition.span,
             )
         if isinstance(condition, UnaryExpression):
-            print(condition)
             if condition.op != UnaryOperator["!"]:
                 raise_qasm3_error(
                     message="Only '!' supported in branching condition with classical register",
