@@ -13,6 +13,7 @@ Script to verify OpenQASM files
 
 """
 
+import logging
 import os
 from typing import Optional
 
@@ -20,6 +21,9 @@ import typer
 from rich.console import Console
 
 from pyqasm import load
+from pyqasm.exceptions import QasmParsingError, UnrollError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def validate_paths_exist(paths: Optional[list[str]]) -> Optional[list[str]]:
@@ -51,19 +55,17 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
             return True
 
         skip_tag = "// pyqasm: ignore"
-        line_number = 0
 
         for line in content.splitlines():
-            line_number += 1
-            if 5 <= line_number <= 30 and skip_tag in line:
+            if skip_tag in line:
                 return True
-            if line_number > 30:
+            if "OPENQASM" in line:
                 break
 
         return False
 
     def validate_qasm_file(file_path: str) -> None:
-        with open(file_path, "r", encoding="ISO-8859-1") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         if should_skip(file_path, content):
@@ -72,8 +74,11 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
         try:
             module = load(file_path)
             module.validate()
-        except Exception as err:  # pylint: disable=broad-exception-caught
+        except (ValidationError, UnrollError, QasmParsingError) as err:
             failed_files.append((file_path, err))
+        except Exception as uncaught_err:  # pylint: disable=broad-exception-caught
+            logger.debug("Uncaught error in %s", file_path, exc_info=uncaught_err)
+            failed_files.append((file_path, uncaught_err))
 
     def process_files_in_directory(directory: str) -> int:
         count = 0
