@@ -1,4 +1,4 @@
-name: Build and Test pyqasm
+name: CI
 
 on:
   pull_request:
@@ -27,11 +27,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install setuptools wheel cibuildwheel cython
+
+      # since cibuildwheel builds for any python >= current version, we need to restrict it
+      # to the one used in this job
       - name: Set CIBW_BUILD environment variable to restrict python build version
+        # Also, since value of the version is 3.x and cibuildwheel expects it to be 3x, we remove 
+        # the dot from the version
         run: |
           python -c "import os; version = '${{ matrix.python-version }}'.replace('.', ''); os.environ['CIBW_BUILD'] = f'cp{version}-*'; print(f'CIBW_BUILD=cp{version}-*')" >> $GITHUB_ENV    
       - name: Build the package
-        run: cibuildwheel --output-dir dist
+        run: CIBW_ARCHS_LINUX=x86_64 cibuildwheel --output-dir dist
       - name: Upload built package
         uses: actions/upload-artifact@v4
         with:
