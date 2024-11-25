@@ -12,40 +12,79 @@ jobs:
     if: github.event.pull_request.draft == false
     runs-on: ${{ matrix.os }}
     strategy:
+
+      # Ensure that a wheel builder finishes even if another fails
+      fail-fast: false
+
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.10', '3.11']
+        include:
+          # Linux 64 bit manylinux2014
+          - os: ubunutu-latest 
+            python: 310
+            platform_id: manylinux2014 
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 311
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+
+
+          # MacOS x86_64
+          - os: macos-13
+            python: 310
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 311
+            platform_id: macosx_x86_64
+          
+
+          # MacOS arm64
+          - os: macos-14
+            python: 310
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 311
+            platform_id: macosx_arm64
+          
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Checkout Pyqasm
+        uses: actions/checkout@v4
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Upgrade pip and install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install setuptools wheel cibuildwheel cython
+          python-version: "3.10" # update once build dependencies are available
 
-      # since cibuildwheel builds for any python >= current version, we need to restrict it
-      # to the one used in this job
-      - name: Set CIBW_BUILD environment variable to restrict python build version
-        # Also, since value of the version is 3.x and cibuildwheel expects it to be 3x, we remove 
-        # the dot from the version
-        run: |
-          python -c "import os; version = '${{ matrix.python-version }}'.replace('.', ''); os.environ['CIBW_BUILD'] = f'cp{version}-*'; print(f'CIBW_BUILD=cp{version}-*')" >> $GITHUB_ENV    
-      - name: Build the package
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            CIBW_ARCHS_LINUX=x86_64 cibuildwheel --platform linux --output-dir dist
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            cibuildwheel --output-dir dist
-          fi
+      # - name: Upgrade pip and install build tools
+      #   run: |
+      #     python -m pip install --upgrade pip
+      #     pip install setuptools wheel cibuildwheel cython      
+      # - name: Set CIBW_BUILD environment variable to restrict python build version
+      #   # Also, since value of the version is 3.x and cibuildwheel expects it to be 3x, we remove 
+      #   # the dot from the version
+      #   run: |
+      #     python -c "import os; version = '${{ matrix.python-version }}'.replace('.', ''); os.environ['CIBW_BUILD'] = f'cp{version}-*'; print(f'CIBW_BUILD=cp{version}-*')" >> $GITHUB_ENV    
+      - name: Build and Test the package
+        env: 
+          # since cibuildwheel builds for any python >= current version, we need to restrict it
+          # to the one used in this job
+          CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
+          CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh
+          CIBW_BEFORE_TEST: bash {project}/bin/cibw/pre_test.sh
+          CIBW_TEST_REQUIRES: pytest
+          CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh
+          CIBW_BUILD_VERBOSITY: 1
+        run: bash bin/cibw/build_wheels.sh
+
+      # Used for code coverage later
       - name: Upload built package
+        if: matrix.os == 'macos-14' && matrix.python == 311
         uses: actions/upload-artifact@v4
         with:
-          name: built-package-${{ matrix.python-version }}-${{ matrix.os }}
+          name: built-package-${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
 
   test:
@@ -54,20 +93,23 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.10', '3.11']
+        include:
+          # Use MacOS arm64 for testing code cov 
+          - os: macos-14
+            python: 311
+            platform_id: macosx_arm64
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.11
           cache: pip
       - name: Download built package
         uses: actions/download-artifact@v4
         with:
-          name: built-package-${{ matrix.python-version }}-${{ matrix.os }}
+          name: built-package-${{ matrix.python }}-${{ matrix.os }}
           path: dist
       - name: Install package wheel with extras
         run: |
@@ -80,11 +122,8 @@ jobs:
             echo "Uninstalling " $wheel
             pip uninstall -y pyqasm 
           done
-      # - name: Run tests with coverage
-      #   run: |
-      #     pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
-      - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.11'
+     - name: Upload coverage to Codecov
+        if: matrix.python == '3.11'
         uses: codecov/codecov-action@v4.4.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
