@@ -12,15 +12,7 @@
 
 echo "Running test_wheel.sh"
 
-for wheel in dist/*.whl; do
-    echo "Installing $wheel"
-    python -m pip install $wheel"[test]"
-    echo "Running tests for " $wheel
-    python -m pytest tests/
-    echo "Uninstalling " $wheel
-    pip uninstall -y pyqasm 
-    echo "Test success for " $wheel
-done
+# the built wheel is already installed in the test env by cibuildwheel
+python -m pytest $project/tests
 
 echo "Finished running test_wheel.sh"
-

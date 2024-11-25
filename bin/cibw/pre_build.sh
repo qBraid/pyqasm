@@ -16,6 +16,6 @@ echo "Running pre_build.sh"
 python -m pip install --upgrade pip
 
 # Install required packages
-pip install setuptools wheel cibuildwheel cython
+pip install setuptools wheel cython
 
 echo "Finished running pre_build.sh"

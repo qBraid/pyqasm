@@ -19,7 +19,7 @@ jobs:
       matrix:
         include:
           # Linux 64 bit manylinux2014
-          - os: ubunutu-latest 
+          - os: ubuntu-latest 
             python: 310
             platform_id: manylinux2014 
             manylinux_image: manylinux2014
@@ -51,10 +51,18 @@ jobs:
       - name: Checkout Pyqasm
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python Version
+        env:
+          MATRIX_PYTHON: ${{ matrix.python }}
+        run: |
+          python_version="${{ matrix.python }}"
+          python_version_with_dot="${python_version:0:1}.${python_version:1}" # Transform 310 -> 3.10
+          echo "PYTHON_VERSION_WITH_DOT=$python_version_with_dot" >> $GITHUB_ENV
+
+      - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10" # update once build dependencies are available
+          python-version: ${{ env.PYTHON_VERSION_WITH_DOT }}
 
       # - name: Upgrade pip and install build tools
       #   run: |
@@ -69,49 +77,50 @@ jobs:
         env: 
           # since cibuildwheel builds for any python >= current version, we need to restrict it
           # to the one used in this job
-          CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
+          CIBW_BUILD: "cp${{ matrix.python }}-${{ matrix.platform_id }}"
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh
           CIBW_BEFORE_TEST: bash {project}/bin/cibw/pre_test.sh
           CIBW_TEST_REQUIRES: pytest
-          CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh
+          CIBW_TEST_COMMAND: python -m pytest {project}/tests
           CIBW_BUILD_VERBOSITY: 1
+
         run: bash bin/cibw/build_wheels.sh
 
       # Used for code coverage later
       - name: Upload built package
-        if: matrix.os == 'macos-14' && matrix.python == 311
+        if: ${{ matrix.os == 'macos-14' && matrix.python == 311 }}
         uses: actions/upload-artifact@v4
         with:
           name: built-package-${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
-
-  test:
-    if: github.event.pull_request.draft == false
+  code-coverage:
+    if: ${{ github.event.pull_request.draft == false }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          # Use MacOS arm64 for testing code cov 
           - os: macos-14
             python: 311
-            platform_id: macosx_arm64
+            arch: all
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: 3.11
           cache: pip
+
       - name: Download built package
         uses: actions/download-artifact@v4
         with:
           name: built-package-${{ matrix.python }}-${{ matrix.os }}
           path: dist
-      - name: Install package wheel with extras
+
+      - name: Install and Test package wheel with extras
         run: |
           pip install setuptools
           for wheel in dist/*.whl; do
@@ -122,8 +131,9 @@ jobs:
             echo "Uninstalling " $wheel
             pip uninstall -y pyqasm 
           done
-     - name: Upload coverage to Codecov
-        if: matrix.python == '3.11'
+
+      - name: Upload coverage to Codecov
+        if: ${{ matrix.python == 311 }}
         uses: codecov/codecov-action@v4.4.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

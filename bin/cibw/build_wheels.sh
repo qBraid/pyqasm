@@ -12,6 +12,7 @@
 
 echo "Running build_wheels.sh"
 
-cibuildwheel --output-dir dist
+python -m pip install cibuildwheel
+python -m cibuildwheel --output-dir dist
 
 echo "Finished running build_wheels.sh"
