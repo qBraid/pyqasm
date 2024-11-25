@@ -14,7 +14,7 @@ Module containing unit tests for PyQASM CLI commands.
 """
 
 import os
-import re 
+import re
 import shutil
 
 import pytest
@@ -38,9 +38,10 @@ def runner():
     """Fixture to create a CLI runner."""
     return CliRunner()
 
+
 def normalize_output(output):
     """Normalize the output by stripping whitespace and replacing multiple spaces with a single space."""
-    return re.sub(r'\s+', ' ', output.strip())
+    return re.sub(r"\s+", " ", output.strip())
 
 
 def test_validate_qasm_with_invalid_file(capsys):
