@@ -12,8 +12,11 @@
 
 echo "Running pre_test.sh"
 
-# Install pytest 
+# Install test extra 
 pip install pytest
+
+# Install CLI extra
+pip install "typer>=0.12.1" typing-extensions "rich>=10.11.0"
 
 # dump system info in stdout 
 echo "System info: "

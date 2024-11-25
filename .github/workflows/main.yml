@@ -126,7 +126,7 @@ jobs:
         run: |
           pip install setuptools
           for wheel in dist/*.whl; do
-            python -m pip install $wheel"[test]"
+            python -m pip install $wheel"[test, cli]"
             python -m pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
           done
 
