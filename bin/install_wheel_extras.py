@@ -20,10 +20,11 @@
 ################################################################################
 
 
+import argparse
+import glob
 import os
 import sys
-import glob
-import argparse
+
 
 def main():
     parser = argparse.ArgumentParser(description="Install wheel with extras.")
@@ -50,6 +51,7 @@ def main():
     # Execute the pip install command
     print(f"Executing: {install_command}")
     os.system(install_command)
+
 
 if __name__ == "__main__":
     main()

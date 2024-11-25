@@ -20,9 +20,11 @@ from pyqasm.entrypoint import dump, dumps, load, loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
+QASM_RESOURCES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/qasm")
+
 
 def test_correct_file_read():
-    file_path = "tests/qasm3/resources/qasm/custom_gate_complex.qasm"
+    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_gate_complex.qasm")
     result = load(file_path)
     actual_qasm = dumps(result)
     with open(file_path, "r", encoding="utf-8") as file:
@@ -30,7 +32,7 @@ def test_correct_file_read():
 
 
 def test_correct_module_dump():
-    file_path = "tests/qasm3/resources/qasm/test.qasm"
+    file_path = os.path.join(QASM_RESOURCES_DIR, "test.qasm")
     qasm_str = 'OPENQASM 3.0;\n include "stdgates.inc";\n qubit q;'
     module = loads(qasm_str)
     dump(module, file_path)
