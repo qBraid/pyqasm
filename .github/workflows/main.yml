@@ -36,7 +36,12 @@ jobs:
         run: |
           python -c "import os; version = '${{ matrix.python-version }}'.replace('.', ''); os.environ['CIBW_BUILD'] = f'cp{version}-*'; print(f'CIBW_BUILD=cp{version}-*')" >> $GITHUB_ENV    
       - name: Build the package
-        run: CIBW_ARCHS_LINUX=x86_64 cibuildwheel --output-dir dist
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            CIBW_ARCHS_LINUX=x86_64 cibuildwheel --platform linux --output-dir dist
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            cibuildwheel --output-dir dist
+          fi
       - name: Upload built package
         uses: actions/upload-artifact@v4
         with:
