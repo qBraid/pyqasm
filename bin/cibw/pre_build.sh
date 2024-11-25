@@ -10,6 +10,8 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
+set -e 
+
 echo "Running pre_build.sh"
 
 # Upgrade pip

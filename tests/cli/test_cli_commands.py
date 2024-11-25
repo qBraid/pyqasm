@@ -14,6 +14,7 @@ Module containing unit tests for PyQASM CLI commands.
 """
 
 import os
+import re 
 import shutil
 
 import pytest
@@ -37,6 +38,10 @@ def runner():
     """Fixture to create a CLI runner."""
     return CliRunner()
 
+def normalize_output(output):
+    """Normalize the output by stripping whitespace and replacing multiple spaces with a single space."""
+    return re.sub(r'\s+', ' ', output.strip())
+
 
 def test_validate_qasm_with_invalid_file(capsys):
     """Test validate_qasm function with an invalid file present."""
@@ -47,7 +52,7 @@ def test_validate_qasm_with_invalid_file(capsys):
 
     captured = capsys.readouterr()
 
-    captured_out = captured.out.replace("\n", "")
+    captured_out = normalize_output(captured.out)
     assert f"{INVALID_FILE}: error:" in captured_out
     assert "Index 2 out of range for register of size 1 in qubit [validation]" in captured_out
     assert "Found errors in 1 file (checked 3 source files)" in captured_out
@@ -73,7 +78,7 @@ def test_validate_command_with_invalid_file(runner: CliRunner):
 
     assert result.exit_code == 1
 
-    result_output = result.output.replace("\n", "")
+    result_output = normalize_output(result.output)
     assert f"{INVALID_FILE}: error:" in result_output
     assert "Index 2 out of range for register of size 1 in qubit [validation]" in result_output
     assert "Found errors in 1 file (checked 3 source files)" in result_output

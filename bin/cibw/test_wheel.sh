@@ -16,6 +16,8 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
+set -e  # Exit immediately if a command exits with a non-zero status
+
 echo "Running test_wheel.sh"
 
 # Script has an argument which is the project path 
@@ -24,5 +26,11 @@ project=$1
 # the built wheel is already installed in the test env by cibuildwheel
 # just run the tests 
 python -m pytest $project/tests
+pytest_exit_code=$?
+
+if [ $pytest_exit_code -ne 0 ]; then
+    echo "Tests failed for $wheel"
+    exit 1
+fi
 
 echo "Finished running test_wheel.sh"
