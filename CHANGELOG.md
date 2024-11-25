@@ -81,6 +81,20 @@ qubit[2] q2;
 - Added definitions for various gates in `maps.py` and tests for qasm formatting functions of the qbraid-sdk ([#82](https://github.com/qBraid/pyqasm/pull/82), [#84](https://github.com/qBraid/pyqasm/pull/84))
 - Added `pyqasm.accelerate` module to hold `.pyx` files with Cython-based optimizations for computationally intensive functions  ([#83](https://github.com/qBraid/pyqasm/pull/83))
 - Added `has_barriers` method for checking if a `QasmModule` object contains barriers ([#85](https://github.com/qBraid/pyqasm/pull/85))
+- Added `pyqasm.cli` module with `typer` integration to enable using pyqasm as a command-line tool ([#87](https://github.com/qBraid/pyqasm/pull/87))
+
+```bash
+$ pip install 'pyqasm[cli]'
+$ pyqasm --help
+Usage: pyqasm [OPTIONS] COMMAND [ARGS]...
+$ pyqasm --version
+pyqasm/0.1.0a1
+$ pyqasm validate tests/cli/resources
+tests/cli/resources/invalid1.qasm: error: Index 2 out of range for register of size 1 in qubit [validation]
+Found errors in 1 file (checked 3 source files)
+$ pyqasm validate tests/cli/resources --skip tests/cli/resources/invalid1.qasm
+Success: no issues found in 2 source files
+```
 
 ### Improved / Modified
 - Changed the `__init__` method for the `QasmModule` class to only accept an `openqasm3.ast.Program` object as input ([#71](https://github.com/qBraid/pyqasm/pull/71))
