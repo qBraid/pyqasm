@@ -12,7 +12,11 @@
 
 echo "Running pre_test.sh"
 
-# Install pytest and the wheel
+# Install pytest 
 pip install pytest
+
+# dump system info in stdout 
+echo "System info: "
+python -c "import platform; print(platform.platform())"
 
 echo "Finished running pre_test.sh"

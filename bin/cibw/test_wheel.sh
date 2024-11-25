@@ -10,9 +10,19 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
+# Check if dir argument (the directory path) is provided
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <directory>"
+    exit 1
+fi
+
 echo "Running test_wheel.sh"
 
+# Script has an argument which is the project path 
+project=$1
+
 # the built wheel is already installed in the test env by cibuildwheel
+# just run the tests 
 python -m pytest $project/tests
 
 echo "Finished running test_wheel.sh"

@@ -27,7 +27,14 @@ jobs:
             python: 311
             platform_id: manylinux_x86_64
             manylinux_image: manylinux2014
-
+          - os: ubuntu-latest
+            python: 312
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 313
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
 
           # MacOS x86_64
           - os: macos-13
@@ -36,7 +43,12 @@ jobs:
           - os: macos-13
             python: 311
             platform_id: macosx_x86_64
-          
+          - os: macos-13
+            python: 312
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 313
+            platform_id: macosx_x86_64
 
           # MacOS arm64
           - os: macos-14
@@ -44,6 +56,12 @@ jobs:
             platform_id: macosx_arm64
           - os: macos-14
             python: 311
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 312
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 313
             platform_id: macosx_arm64
           
 
@@ -54,9 +72,10 @@ jobs:
       - name: Setup Python Version
         env:
           MATRIX_PYTHON: ${{ matrix.python }}
+        # Transform 3x -> 3.x
         run: |
           python_version="${{ matrix.python }}"
-          python_version_with_dot="${python_version:0:1}.${python_version:1}" # Transform 310 -> 3.10
+          python_version_with_dot="${python_version:0:1}.${python_version:1}" 
           echo "PYTHON_VERSION_WITH_DOT=$python_version_with_dot" >> $GITHUB_ENV
 
       - name: Install Python
@@ -64,26 +83,17 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION_WITH_DOT }}
 
-      # - name: Upgrade pip and install build tools
-      #   run: |
-      #     python -m pip install --upgrade pip
-      #     pip install setuptools wheel cibuildwheel cython      
-      # - name: Set CIBW_BUILD environment variable to restrict python build version
-      #   # Also, since value of the version is 3.x and cibuildwheel expects it to be 3x, we remove 
-      #   # the dot from the version
-      #   run: |
-      #     python -c "import os; version = '${{ matrix.python-version }}'.replace('.', ''); os.environ['CIBW_BUILD'] = f'cp{version}-*'; print(f'CIBW_BUILD=cp{version}-*')" >> $GITHUB_ENV    
       - name: Build and Test the package
         env: 
-          # since cibuildwheel builds for any python >= current version, we need to restrict it
-          # to the one used in this job
+          # since cibuildwheel builds for all python versions >= current version, we need to 
+          # restrict it to the one used in this job
           CIBW_BUILD: "cp${{ matrix.python }}-${{ matrix.platform_id }}"
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh
           CIBW_BEFORE_TEST: bash {project}/bin/cibw/pre_test.sh
           CIBW_TEST_REQUIRES: pytest
-          CIBW_TEST_COMMAND: python -m pytest {project}/tests
+          CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh {project}
           CIBW_BUILD_VERBOSITY: 1
 
         run: bash bin/cibw/build_wheels.sh
@@ -95,6 +105,7 @@ jobs:
         with:
           name: built-package-${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
+
   code-coverage:
     if: ${{ github.event.pull_request.draft == false }}
     needs: build
@@ -104,8 +115,7 @@ jobs:
         include:
           - os: macos-14
             python: 311
-            arch: all
-
+            platform_id: macosx_arm64
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -124,12 +134,8 @@ jobs:
         run: |
           pip install setuptools
           for wheel in dist/*.whl; do
-            echo "Installing $wheel"
             python -m pip install $wheel"[test]"
-            echo "Running tests for " $wheel
             python -m pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
-            echo "Uninstalling " $wheel
-            pip uninstall -y pyqasm 
           done
 
       - name: Upload coverage to Codecov
