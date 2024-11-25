@@ -19,7 +19,7 @@ Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for progr
 
 ## Installation
 
-PyQASM requires Python 3.10 or greater, and can be installed with pip as follows:
+PyQASM requires Python 3.11 or greater, and can be installed with pip as follows:
 
 ```bash
 pip install pyqasm

@@ -79,7 +79,7 @@ seamless conversion into Quantum Intermediate Representation (QIR).
 Installation
 -------------
 
-PyQASM requires Python 3.10 or greater. The base package can be installed with pip as follows:
+PyQASM requires Python 3.11 or greater. The base package can be installed with pip as follows:
 
 .. code-block:: bash
 
