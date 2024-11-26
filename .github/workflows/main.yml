@@ -20,15 +20,12 @@ jobs:
       matrix:
         include:
           # Windows 64 bit
-          # - os: windows-latest
-          #   python: 39
-          #   platform_id: win_amd64
-          # - os: windows-latest
-          #   python: 310
-          #   platform_id: win_amd64
-          # - os: windows-latest
-          #   python: 311
-          #   platform_id: win_amd64
+          - os: windows-latest
+            python: 310
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 311
+            platform_id: win_amd64
           # - os: windows-latest
           #   python: 312
           #   platform_id: win_amd64
