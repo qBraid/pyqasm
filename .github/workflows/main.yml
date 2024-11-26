@@ -7,9 +7,9 @@ on:
     branches: ['main']
   workflow_dispatch:
 
-# Reference: https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows/wheels.yml
+# Reference: https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows
 jobs:
-  build:
+  build_wheels:
     if: github.event.pull_request.draft == false
     runs-on: ${{ matrix.os }}
     strategy:
@@ -94,7 +94,7 @@ jobs:
           # Thus, the matrix.python is not required here, only for setting up builds
           python-version: "3.11"
 
-      - name: Build and Test the package
+      - name: Build and Test Wheels
         env: 
           # since cibuildwheel builds for all python versions >= current version, we need to 
           # restrict it to the one used in this job
@@ -114,15 +114,35 @@ jobs:
         if: ${{ matrix.os == 'macos-14' && matrix.python == 311 }}
         uses: actions/upload-artifact@v4
         with:
-          name: built-package-${{ matrix.python }}-${{ matrix.os }}
+          name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
 
+  build_sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Pyqasm
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build source distribution
+        run: bash bin/build_sdist.sh
+
+      - name: Test source distribution
+        run: bash bin/test_sdist.sh
+
+
   # We need a separate job for coverage as the build job is run inside a docker container. 
-  # Since coverage uses generated files after running the tests, we need to run the tests on 
+  # Since coverage uses files generated after running the tests, we need to run the tests on 
   # the host machine
   code-coverage:
     if: ${{ github.event.pull_request.draft == false }}
-    needs: build
+    needs: build_wheels
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -141,10 +161,10 @@ jobs:
       - name: Download built package
         uses: actions/download-artifact@v4
         with:
-          name: built-package-${{ matrix.python }}-${{ matrix.os }}
+          name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist
 
-      - name: Install and Test package wheel with extras
+      - name: Install and Test wheel with extras
         run: |
           pip install setuptools
           for wheel in dist/*.whl; do
