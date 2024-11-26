@@ -77,25 +77,24 @@ jobs:
             python: 313
             platform_id: macosx_arm64
           
-          # TODO: add windows builds
 
     steps:
       - name: Checkout Pyqasm
         uses: actions/checkout@v4
 
-      - name: Setup Python Version
-        env:
-          MATRIX_PYTHON: ${{ matrix.python }}
-        # Transform 3x -> 3.x
-        run: |
-          python_version="${{ matrix.python }}"
-          python_version_with_dot="${python_version:0:1}.${python_version:1}" 
-          echo "PYTHON_VERSION_WITH_DOT=$python_version_with_dot" >> $GITHUB_ENV
+      # - name: Setup Python Version
+      #   env:
+      #     MATRIX_PYTHON: ${{ matrix.python }}
+      #   # Transform 3x -> 3.x
+      #   run: |
+      #     python_version="${{ matrix.python }}"
+      #     python_version_with_dot="${python_version:0:1}.${python_version:1}" 
+      #     echo "PYTHON_VERSION_WITH_DOT=$python_version_with_dot" >> $GITHUB_ENV
 
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION_WITH_DOT }}
+          python-version: "3.11"
 
       - name: Build and Test the package
         env: 
