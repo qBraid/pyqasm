@@ -26,10 +26,12 @@ jobs:
           - os: windows-latest
             python: 311
             platform_id: win_amd64
-          # - os: windows-latest
-          #   python: 312
-          #   platform_id: win_amd64
-
+          - os: windows-latest
+            python: 312
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 313
+            platform_id: win_amd64
 
           # Linux 64 bit manylinux2014
           - os: ubuntu-latest
@@ -82,18 +84,14 @@ jobs:
       - name: Checkout Pyqasm
         uses: actions/checkout@v4
 
-      # - name: Setup Python Version
-      #   env:
-      #     MATRIX_PYTHON: ${{ matrix.python }}
-      #   # Transform 3x -> 3.x
-      #   run: |
-      #     python_version="${{ matrix.python }}"
-      #     python_version_with_dot="${python_version:0:1}.${python_version:1}" 
-      #     echo "PYTHON_VERSION_WITH_DOT=$python_version_with_dot" >> $GITHUB_ENV
-
       - name: Install Python
         uses: actions/setup-python@v5
         with:
+          # cibuildwheel is designed to build wheels for multiple Python versions. 
+          # It does this by downloading and using the appropriate Python versions internally, 
+          # independent of the Python version used to invoke cibuildwheel
+
+          # Thus, the matrix.python is not required here, only for setting up builds
           python-version: "3.11"
 
       - name: Build and Test the package
@@ -119,6 +117,9 @@ jobs:
           name: built-package-${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
 
+  # We need a separate job for coverage as the build job is run inside a docker container. 
+  # Since coverage uses generated files after running the tests, we need to run the tests on 
+  # the host machine
   code-coverage:
     if: ${{ github.event.pull_request.draft == false }}
     needs: build
