@@ -23,14 +23,19 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | SwitchStatement                | ✅          | Completed              |
 | BranchingStatement             | ✅          | Completed              |
 | SubroutineDefinition           | ✅          | Completed              |
-| Looping statements(eg. for)    | ✅          | Completed              |
+| ForLoops                       | ✅          | Completed              |
 | RangeDefinition                | ✅          | Completed              |
 | QuantumGate                    | ✅          | Completed              |
 | QuantumGateModifier (ctrl)     | 📋          | Planned                |
+| WhileLoop                      | 📋          | Planned                |
 | IODeclaration                  | 📋          | Planned                |
 | Pragma                         | 📋          | Planned                |
-| Annotations                    | 📋          | Planned                |
-| Pulse-level ops (e.g. delay)   | 📋          | Planned                |
-| Calibration ops                | 📋          | Planned                |
-| Duration literals              | 📋          | Planned                |
+| Annotation                     | 📋          | Planned                |
+| DurationType                   | 📋          | Planned                |
+| StretchType                    | 📋          | Planned                |
+| DelayInstruction               | 📋          | Planned                |
+| Box                            | 📋          | Planned                |
+| CalibrationStatement           | 📋          | Planned                |
+| CalibrationDefinition          | 📋          | Planned                |
 | ComplexType                    | 📋          | Planned                |
+| AngleType                      | 📋          | Planned                |
