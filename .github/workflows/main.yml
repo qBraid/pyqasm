@@ -102,8 +102,8 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh
+          CIBW_TEST_EXTRAS: "test,cli"
           CIBW_BEFORE_TEST: bash {project}/bin/cibw/pre_test.sh
-          CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh {project}
           CIBW_BUILD_VERBOSITY: 1
 
@@ -167,10 +167,8 @@ jobs:
       - name: Install and Test wheel with extras
         run: |
           pip install setuptools
-          for wheel in dist/*.whl; do
-            python -m pip install $wheel"[test, cli]"
-            python -m pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
-          done
+          bash bin/install_wheel_extras.sh dist --type wheel --extra test --extra cli 
+          python -m pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.python == 311 }}

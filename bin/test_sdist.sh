@@ -10,26 +10,29 @@
 #
 # THERE IS NO WARRANTY for the pyqasm, as per Section 15 of the GPL v3.
 
+# Usage: ./bin/test_sdist.sh [TARGET_PATH]
+# TARGET_PATH: The path to the root directory of the project
 set -e
 set -x
 
-# Move up 1 level to create the virtual
-# environment outside of the source folder
-cd ..
+# Set the target path to the argument or default to the
+# current working directory
+TARGET_PATH="${1:-$(pwd)}"
 
-python -m venv test_env
-source test_env/bin/activate
+# Create a temporary dir, XXXXX will be replaced by a random string
+# of 5 chars to make the directory unique
+TEMP_ENV_DIR=$(mktemp -d -t build_env_XXXXX)
+python -m venv "$TEMP_ENV_DIR"
+source "$TEMP_ENV_DIR/bin/activate"
 
 # Install the source distribution
-python -m pip install pyqasm/dist/*.tar.gz
+SCRIPT_DIR="$TARGET_PATH/bin"
 
-# Install test and CLI extra 
-pip install pytest
-pip install "typer>=0.12.1" typing-extensions "rich>=10.11.0"
+"$SCRIPT_DIR/install_wheel_extras.sh" "$TARGET_PATH/dist" --type sdist --extra cli --extra test
 
 # Run the tests on the installed source distribution
-pytest pyqasm/tests
+pytest "$TARGET_PATH/tests"
 
-# Deactivate the virtual environment and remove it
+# Deactivate and remove venv
 deactivate
-rm -rf build_env
+rm -rf "$TEMP_ENV_DIR"

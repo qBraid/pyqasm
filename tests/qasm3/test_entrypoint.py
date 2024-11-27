@@ -20,7 +20,7 @@ from pyqasm.entrypoint import dump, dumps, load, loads
 from pyqasm.exceptions import ValidationError
 from tests.utils import check_unrolled_qasm
 
-QASM_RESOURCES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/qasm")
+QASM_RESOURCES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "qasm")
 
 
 def test_correct_file_read():

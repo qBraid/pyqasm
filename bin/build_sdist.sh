@@ -10,25 +10,30 @@
 #
 # THERE IS NO WARRANTY for the pyqasm, as per Section 15 of the GPL v3.
 
+# Usage: ./bin/build_sdist.sh [TARGET_PATH]
+# TARGET_PATH: The path to the root directory of the project
 set -e
 set -x
 
-# Move up 1 level to create the virtual
-# environment outside of the source folder
-cd ..
+# Set the target path to the argument or default to the
+# current working directory
+TARGET_PATH="${1:-$(pwd)}"
 
-python -m venv build_env
-source build_env/bin/activate
+# Create a temporary dir, XXXXX will be replaced by a random string
+# of 5 chars to make the directory unique
+TEMP_ENV_DIR=$(mktemp -d -t build_env_XXXXX)
+python -m venv "$TEMP_ENV_DIR"
+source "$TEMP_ENV_DIR/bin/activate"
 
-python -m pip install numpy cython
+# Install the necessary packages for building sdist 
+# NOTE: project deps are not reqd as we are just making a source distribution
 python -m pip install twine build
 
-cd pyqasm
-python -m build --sdist --outdir dist
+python -m build --sdist --outdir "$TARGET_PATH/dist" "$TARGET_PATH"
 
 # Check whether the source distribution will render correctly
-twine check dist/*.tar.gz
+twine check "$TARGET_PATH/dist"/*.tar.gz
 
-# Deactivate the virtual environment and remove it
+# Deactivate and remove venv
 deactivate
-rm -rf build_env
+rm -rf "$TEMP_ENV_DIR"
