@@ -2,69 +2,175 @@ name: CI
 
 on:
   pull_request:
-    branches: ['main']
     types: [opened, reopened, ready_for_review, synchronize]
   push:
     branches: ['main']
   workflow_dispatch:
 
+# Reference: https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows
 jobs:
-  build:
+  build_wheels:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+
+      # Ensure that a wheel builder finishes even if another fails
+      fail-fast: false
+
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        include:
+          # Windows 64 bit
+          - os: windows-latest
+            python: 310
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 311
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 312
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 313
+            platform_id: win_amd64
+
+          # Linux 64 bit manylinux2014
+          - os: ubuntu-latest
+            python: 310
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 311
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 312
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 313
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+
+          # MacOS x86_64
+          - os: macos-13
+            python: 310
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 311
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 312
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 313
+            platform_id: macosx_x86_64
+
+          # MacOS arm64
+          - os: macos-14
+            python: 310
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 311
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 312
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 313
+            platform_id: macosx_arm64
+          
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Checkout Pyqasm
+        uses: actions/checkout@v4
+
+      - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Upgrade pip and install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install setuptools wheel build
-      - name: Build the package
-        run: |
-          python -m build
+          # cibuildwheel is designed to build wheels for multiple Python versions. 
+          # It does this by downloading and using the appropriate Python versions internally, 
+          # independent of the Python version used to invoke cibuildwheel
+
+          # Thus, the matrix.python is not required here, only for setting up builds
+          python-version: "3.11"
+
+      - name: Build and Test Wheels
+        env: 
+          # since cibuildwheel builds for all python versions >= current version, we need to 
+          # restrict it to the one used in this job
+          CIBW_BUILD: "cp${{ matrix.python }}-${{ matrix.platform_id }}"
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
+          CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh
+          CIBW_TEST_EXTRAS: "test,cli"
+          CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh {project}
+          CIBW_BUILD_VERBOSITY: 1
+
+        run: bash bin/cibw/build_wheels.sh
+
+      # Used for code coverage later
       - name: Upload built package
+        if: ${{ matrix.os == 'macos-14' && matrix.python == 311 }}
         uses: actions/upload-artifact@v4
         with:
-          name: built-package-${{ matrix.python-version }}
+          name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
 
-  test:
-    if: github.event.pull_request.draft == false
-    needs: build
+  build_sdist:
+    name: Source distribution
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11', '3.12']
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Checkout Pyqasm
+        uses: actions/checkout@v4
+
+      - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
+
+      - name: Build source distribution
+        run: bash bin/build_sdist.sh
+
+      - name: Test source distribution
+        run: bash bin/test_sdist.sh
+
+
+  # We need a separate job for coverage as the build job is run inside a docker container. 
+  # Since coverage uses files generated after running the tests, we need to run the tests on 
+  # the host machine
+  code-coverage:
+    if: ${{ github.event.pull_request.draft == false }}
+    needs: build_wheels
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            python: 311
+            platform_id: macosx_arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
           cache: pip
+
       - name: Download built package
         uses: actions/download-artifact@v4
         with:
-          name: built-package-${{ matrix.python-version }}
+          name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist
-      - name: Install package wheel with extras
+
+      - name: Install and Test wheel with extras
         run: |
           pip install setuptools
-          bin/install_wheel_extras.sh dist --extra test --extra cli
-      - name: Run tests with coverage
-        run: |
-          pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
+          bash bin/install_wheel_extras.sh dist --type wheel --extra test --extra cli 
+          python -m pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
+
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.11'
+        if: ${{ matrix.python == 311 }}
         uses: codecov/codecov-action@v4.4.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
