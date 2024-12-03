@@ -21,6 +21,7 @@ from tests.qasm3.resources.gates import (
     SINGLE_QUBIT_GATE_INCORRECT_TESTS,
     custom_op_tests,
     double_op_tests,
+    four_op_tests,
     rotation_tests,
     single_op_tests,
     triple_op_tests,
@@ -28,6 +29,7 @@ from tests.qasm3.resources.gates import (
 from tests.utils import (
     check_custom_qasm_gate_op,
     check_custom_qasm_gate_op_with_external_gates,
+    check_four_qubit_gate_op,
     check_single_qubit_gate_op,
     check_single_qubit_rotation_op,
     check_three_qubit_gate_op,
@@ -89,6 +91,20 @@ def test_three_qubit_qasm3_gates(circuit_name, request):
     assert result.num_qubits == 3
     assert result.num_clbits == 0
     check_three_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
+
+
+@pytest.mark.parametrize("circuit_name", four_op_tests)
+def test_four_qubit_qasm3_gates(circuit_name, request):
+    qubit_list = [[0, 1, 2, 3], [0, 1, 2, 3]]
+    gate_name = circuit_name.removeprefix("Fixture_")
+
+    qasm3_string = request.getfixturevalue(circuit_name)
+    result = loads(qasm3_string)
+    # we do not want to validate every gate inside it
+    result.unroll(external_gates=[gate_name])
+    assert result.num_qubits == 4
+    assert result.num_clbits == 0
+    check_four_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
 
 
 def test_gate_body_param_expression():

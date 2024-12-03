@@ -612,7 +612,7 @@ def cu1_gate(
         q_0: ┤ U(0,0,theta/2) ├──■───────────────────────■────────────────────
              └────────────────┘┌─┴─┐┌─────────────────┐┌─┴─┐┌────────────────┐
         q_1: ──────────────────┤ X ├┤ U(0,0,-theta/2) ├┤ X ├┤ U(0,0,theta/2) ├
-                             └───┘└─────────────────┘└───┘└────────────────┘
+                               └───┘└─────────────────┘└───┘└────────────────┘
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, theta / 2, qubit0))
@@ -835,9 +835,12 @@ def gpi2_gate(phi, qubit_id) -> list[QuantumGate]:
     """
     Implements the gpi2 gate as a decomposition of other gates.
     """
+    # Reference:
+    # https://amazon-braket-sdk-python.readthedocs.io/en/latest/_apidoc/braket.circuits.circuit.html#braket.circuits.circuit.Circuit.gpi2
+    # https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.U3Gate#u3gate
     theta_0 = CONSTANTS_MAP["pi"] / 2
-    phi_0 = phi + 3 * CONSTANTS_MAP["pi"] / 2
-    lambda_0 = -phi_0 + CONSTANTS_MAP["pi"] / 2
+    phi_0 = phi - CONSTANTS_MAP["pi"] / 2
+    lambda_0 = CONSTANTS_MAP["pi"] / 2 - phi
     return u3_gate(theta_0, phi_0, lambda_0, qubit_id)
 
 
@@ -920,13 +923,106 @@ def ecr_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quant
     return result
 
 
+def c3sx_gate(
+    qubit0: IndexedIdentifier,
+    qubit1: IndexedIdentifier,
+    qubit2: IndexedIdentifier,
+    qubit3: IndexedIdentifier,
+) -> list[QuantumGate]:
+    """
+    Implements the c3sx gate as a decomposition of other gates.
+
+    Uses the following qiskit decomposition -
+
+    In [15]: qc.draw()
+    Out[15]:
+
+    q_0: ──■───
+           │
+    q_1: ──■───
+           │
+    q_2: ──■───
+         ┌─┴──┐
+    q_3: ┤ Sx ├
+         └────┘
+
+    In [16]: qc.decompose().draw()
+    Out[16]:
+
+    q_0: ──────■──────────■────────────────────■────────────────────────────────────────■────────
+               │        ┌─┴─┐                ┌─┴─┐                                      │
+    q_1: ──────┼────────┤ X ├──────■─────────┤ X ├──────■──────────■────────────────────┼────────
+               │        └───┘      │         └───┘      │        ┌─┴─┐                ┌─┴─┐
+    q_2: ──────┼───────────────────┼────────────────────┼────────┤ X ├──────■─────────┤ X ├──────
+         ┌───┐ │U1(π/8) ┌───┐┌───┐ │U1(-π/8) ┌───┐┌───┐ │U1(π/8) ├───┤┌───┐ │U1(-π/8) ├───┤┌───┐
+    q_3: ┤ H ├─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─
+         └───┘          └───┘└───┘           └───┘└───┘          └───┘└───┘           └───┘└───┘
+    «
+    «q_0:─────────────────────────────────■──────────────────────
+    «                                     │
+    «q_1:────────────■────────────────────┼──────────────────────
+    «              ┌─┴─┐                ┌─┴─┐
+    «q_2:─■────────┤ X ├──────■─────────┤ X ├──────■─────────────
+    «     │U1(π/8) ├───┤┌───┐ │U1(-π/8) ├───┤┌───┐ │U1(π/8) ┌───┐
+    «q_3:─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─■────────┤ H ├
+    «              └───┘└───┘           └───┘└───┘          └───┘
+    """
+
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(cu1_gate(CONSTANTS_MAP["pi"] / 8, qubit0, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    # h(q[3]) * h (q[3]) = Identity
+    result.extend(cu1_gate(-CONSTANTS_MAP["pi"] / 8, qubit1, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    # h(q[3]) * h (q[3]) = Identity
+    result.extend(cu1_gate(CONSTANTS_MAP["pi"] / 8, qubit1, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit2))
+    # h(q[3]) * h (q[3]) = Identity
+    result.extend(cu1_gate(-CONSTANTS_MAP["pi"] / 8, qubit2, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit2))
+    # h(q[3]) * h (q[3]) = Identity
+    result.extend(cu1_gate(CONSTANTS_MAP["pi"] / 8, qubit2, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit2))
+    # h(q[3]) * h (q[3]) = Identity
+    result.extend(cu1_gate(-CONSTANTS_MAP["pi"] / 8, qubit2, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit2))
+    # h(q[3]) * h (q[3]) = Identity
+    result.extend(cu1_gate(CONSTANTS_MAP["pi"] / 8, qubit2, qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+
+    return result
+
+
+def c4x_gate(
+    qubit0: IndexedIdentifier,
+    qubit1: IndexedIdentifier,
+    qubit2: IndexedIdentifier,
+    qubit3: IndexedIdentifier,
+) -> list[QuantumGate]:
+    """
+    Implements the c4x gate
+    """
+    return [
+        QuantumGate(
+            modifiers=[],
+            name=Identifier(name="c4x"),
+            arguments=[],
+            qubits=[qubit0, qubit1, qubit2, qubit3],
+        )
+    ]
+
+
 def prx_gate(theta, phi, qubit_id) -> list[QuantumGate]:
     """
     Implements the PRX gate as a decomposition of other gates.
     """
+    # Reference:
+    # https://amazon-braket-sdk-python.readthedocs.io/en/latest/_apidoc/braket.circuits.circuit.html#braket.circuits.circuit.Circuit.prx
+    # https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.U3Gate#u3gate
     theta_0 = theta
-    phi_0 = CONSTANTS_MAP["pi"] / 2 - phi
-    lambda_0 = -phi_0
+    phi_0 = phi - CONSTANTS_MAP["pi"] / 2
+    lambda_0 = CONSTANTS_MAP["pi"] / 2 - phi
     return u3_gate(theta_0, phi_0, lambda_0, qubit_id)
 
 
@@ -1019,7 +1115,7 @@ TWO_QUBIT_OP_MAP = {
     "rxx": rxx_gate,
     "yy": ryy_gate,
     "ryy": ryy_gate,
-    "zz": zz_gate,
+    "zz": rzz_gate,
     "rzz": rzz_gate,
     "xy": xy_gate,
     "xx_plus_yy": xx_plus_yy_gate,
@@ -1052,6 +1148,12 @@ THREE_QUBIT_OP_MAP = {
     "rccx": rccx_gate,
 }
 
+FOUR_QUBIT_OP_MAP = {"c3sx": c3sx_gate, "c3sqrtx": c3sx_gate}
+
+FIVE_QUBIT_OP_MAP = {
+    "c4x": c4x_gate,
+}
+
 
 def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
     """
@@ -1071,6 +1173,8 @@ def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
         (ONE_QUBIT_ROTATION_MAP, 1),
         (TWO_QUBIT_OP_MAP, 2),
         (THREE_QUBIT_OP_MAP, 3),
+        (FOUR_QUBIT_OP_MAP, 4),
+        (FIVE_QUBIT_OP_MAP, 5),
     ]
 
     for op_map, qubit_count in op_maps:

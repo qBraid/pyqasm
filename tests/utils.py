@@ -271,6 +271,20 @@ def check_three_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
     assert gate_count == num_gates
 
 
+def check_four_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
+    qubit_id, gate_count = 0, 0
+
+    for stmt in unrolled_ast.statements:
+        if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == gate_name.lower():
+            assert len(stmt.qubits) == 4
+            for i in range(4):
+                assert stmt.qubits[i].indices[0][0].value == qubit_list[qubit_id][i]
+            qubit_id += 1
+            gate_count += 1
+
+    assert gate_count == num_gates
+
+
 def check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
     op_count = 0
     q_id = 0
