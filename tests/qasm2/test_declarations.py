@@ -30,8 +30,8 @@ def test_qubit_declarations():
     
     """
 
-    expected_qasm = """OPENQASM 2.0;
-    include 'qelib1.inc';
+    expected_qasm = """
+    OPENQASM 2.0;
     qreg q3[3];
     qreg q[1];
     """
@@ -83,7 +83,8 @@ def test_qubit_clbit_declarations():
     creg c2[2];
     """
 
-    expected_qasm = """OPENQASM 2.0;
+    expected_qasm = """
+    OPENQASM 2.0;
     include 'qelib1.inc';
     qreg q1[1];
     qreg q2[2];

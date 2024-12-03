@@ -19,6 +19,7 @@ import os
 import pytest
 
 from pyqasm.maps import (
+    FOUR_QUBIT_OP_MAP,
     ONE_QUBIT_OP_MAP,
     ONE_QUBIT_ROTATION_MAP,
     THREE_QUBIT_OP_MAP,
@@ -30,6 +31,14 @@ CUSTOM_OPS = ["simple", "nested", "complex"]
 
 RESOURCES_DIR = os.path.join(os.path.dirname(__file__), "qasm")
 
+VALID_GATE_NAMES = set(
+    ONE_QUBIT_OP_MAP.keys()
+    | TWO_QUBIT_OP_MAP.keys()
+    | ONE_QUBIT_ROTATION_MAP.keys()
+    | THREE_QUBIT_OP_MAP.keys()
+    | FOUR_QUBIT_OP_MAP.keys()
+)
+
 
 def resources_file(filename: str) -> str:
     return os.path.join(RESOURCES_DIR, f"{filename}")
@@ -39,22 +48,10 @@ def _fixture_name(s: str) -> str:
     return f"Fixture_{s}"
 
 
-def _validate_gate_name(gate_name: str) -> str:
-    if gate_name in ONE_QUBIT_OP_MAP:
-        return True
-    if gate_name in TWO_QUBIT_OP_MAP:
-        return True
-    if gate_name in ONE_QUBIT_ROTATION_MAP:
-        return True
-    if gate_name in THREE_QUBIT_OP_MAP:
-        return True
-    return False
-
-
 def _generate_one_qubit_fixture(gate_name: str):
     @pytest.fixture()
     def test_fixture():
-        if not _validate_gate_name(gate_name):
+        if gate_name not in VALID_GATE_NAMES:
             raise ValueError(f"Unknown qasm3 gate {gate_name}")
         qasm3_string = f"""
         OPENQASM 3;
@@ -79,7 +76,7 @@ for gate in ONE_QUBIT_OP_MAP:
 def _generate_rotation_fixture(gate_name: str):
     @pytest.fixture()
     def test_fixture():
-        if not _validate_gate_name(gate_name):
+        if gate_name not in VALID_GATE_NAMES:
             raise ValueError(f"Unknown qasm3 gate {gate_name}")
         qasm3_string = f"""
         OPENQASM 3;
@@ -103,7 +100,7 @@ for gate in ONE_QUBIT_ROTATION_MAP:
 def _generate_two_qubit_fixture(gate_name: str):
     @pytest.fixture()
     def test_fixture():
-        if not _validate_gate_name(gate_name):
+        if gate_name not in VALID_GATE_NAMES:
             raise ValueError(f"Unknown qasm3 gate {gate_name}")
 
         params = ""
@@ -135,7 +132,7 @@ for gate in TWO_QUBIT_OP_MAP:
 def _generate_three_qubit_fixture(gate_name: str):
     @pytest.fixture()
     def test_fixture():
-        if not _validate_gate_name(gate_name):
+        if gate_name not in VALID_GATE_NAMES:
             raise ValueError(f"Unknown qasm3 gate {gate_name}")
         qasm3_string = f"""
         OPENQASM 3;
@@ -154,6 +151,30 @@ def _generate_three_qubit_fixture(gate_name: str):
 for gate in THREE_QUBIT_OP_MAP:
     name = _fixture_name(gate)
     locals()[name] = _generate_three_qubit_fixture(gate)
+
+
+def _generate_four_qubit_fixture(gate_name: str):
+    @pytest.fixture()
+    def test_fixture():
+        if gate_name not in VALID_GATE_NAMES:
+            raise ValueError(f"Unknown qasm3 gate {gate_name}")
+        qasm3_string = f"""
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        qubit[4] q;
+        {gate_name} q[0], q[1], q[2], q[3];
+        {gate_name} q;
+        """
+        return qasm3_string
+
+    return test_fixture
+
+
+# Generate four-qubit gate fixtures
+for gate in FOUR_QUBIT_OP_MAP:
+    name = _fixture_name(gate)
+    locals()[name] = _generate_four_qubit_fixture(gate)
 
 
 def _generate_custom_op_fixture(op_name: str):
@@ -175,7 +196,7 @@ for test_name in CUSTOM_OPS:
     locals()[name] = _generate_custom_op_fixture(test_name)
 
 single_op_tests = [_fixture_name(s) for s in ONE_QUBIT_OP_MAP]
-already_tested_single_op = ["id", "si", "ti", "v", "sx", "vi", "sxdg"]
+already_tested_single_op = ["id", "si", "ti", "v", "sx", "vi", "sxdg", "not"]
 for gate in already_tested_single_op:
     single_op_tests.remove(_fixture_name(gate))
 
@@ -212,9 +233,11 @@ for gate in already_tested_double_op:
     double_op_tests.remove(_fixture_name(gate))
 
 triple_op_tests = [_fixture_name(s) for s in THREE_QUBIT_OP_MAP]
-already_tested_triple_op = ["ccnot", "cswap", "rccx"]
+already_tested_triple_op = ["ccnot", "cswap", "rccx", "toffoli"]
 for gate in already_tested_triple_op:
     triple_op_tests.remove(_fixture_name(gate))
+
+four_op_tests = [_fixture_name(s) for s in FOUR_QUBIT_OP_MAP]
 
 custom_op_tests = [_fixture_name(s) for s in CUSTOM_OPS]
 
@@ -285,6 +308,14 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
 
 # qasm_input, expected_error
 CUSTOM_GATE_INCORRECT_TESTS = {
+    "incorrect_gphase_usage": (
+        """
+        OPENQASM 3.0;
+        qubit q;
+        gphase(pi) q;
+        """,
+        r"Qubit arguments not allowed for phase operation",
+    ),
     "undeclared_custom": (
         """
         OPENQASM 3;

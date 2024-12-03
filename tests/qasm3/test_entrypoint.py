@@ -63,3 +63,9 @@ def test_incorrect_module_dump():
 def test_incorrect_qasm_version():
     with pytest.raises(ValidationError, match=r"Unsupported OpenQASM version"):
         loads("OPENQASM 4.0;\n qubit q;")
+
+
+def test_incorrect_module_unroll_raises_error():
+    with pytest.raises(ValidationError):
+        module = loads("OPENQASM 3.0;\n qubit q; h q[2]")
+        module.unroll()

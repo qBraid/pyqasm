@@ -40,8 +40,8 @@ def test_measure():
 
     """
 
-    expected_qasm = """OPENQASM 3.0;
-    include "stdgates.inc";
+    expected_qasm = """
+    OPENQASM 3.0;
     qubit[2] q1;
     qubit[5] q2;
     qubit[1] q3;
@@ -112,8 +112,8 @@ def test_remove_measurement():
 
     """
 
-    expected_qasm = """OPENQASM 3.0;
-    include 'stdgates.inc';
+    expected_qasm = """
+    OPENQASM 3.0;
     qubit[2] q1;
     qubit[5] q2;
     qubit[1] q3;

@@ -17,7 +17,7 @@ from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
-from openqasm3.ast import Include, Program
+from openqasm3.ast import Program
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
@@ -48,7 +48,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._has_measurements: Optional[bool] = None
         self._has_barriers: Optional[bool] = None
         self._validated_program = False
-        self._unrolled_ast = Program(statements=[Include("stdgates.inc")])
+        self._unrolled_ast = Program(statements=[])
 
     @property
     def name(self) -> str:
@@ -128,7 +128,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             # the presence of measurements
             stmts_to_check = (
                 self._unrolled_ast.statements
-                if len(self._unrolled_ast.statements) > 1
+                if len(self._unrolled_ast.statements) > 0
                 else self._statements
             )
             for stmt in stmts_to_check:
@@ -148,7 +148,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """
         stmt_list = (
             self._statements
-            if len(self._unrolled_ast.statements) == 1
+            if len(self._unrolled_ast.statements) == 0
             else self._unrolled_ast.statements
         )
         stmts_without_meas = [
@@ -187,7 +187,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             # the presence of barriers
             stmts_to_check = (
                 self._unrolled_ast.statements
-                if len(self._unrolled_ast.statements) > 1
+                if len(self._unrolled_ast.statements) > 0
                 else self._statements
             )
             for stmt in stmts_to_check:
@@ -207,7 +207,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """
         stmt_list = (
             self._statements
-            if len(self._unrolled_ast.statements) == 1
+            if len(self._unrolled_ast.statements) == 0
             else self._unrolled_ast.statements
         )
         stmts_without_barriers = [
@@ -393,6 +393,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     if isinstance(stmt, qasm3_ast.QubitDeclaration):
                         if stmt.qubit.name == reg_name:
                             qasm_module._unrolled_ast.statements.remove(stmt)
+                            qasm_module._statements.remove(stmt)
                             break
 
                 del qasm_module._qubit_registers[reg_name]
@@ -441,7 +442,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         #    the depth maps here
 
         # 2. replace each qubit index in the Quantum Operations with the new index
-        for operation in qasm_module.unrolled_ast.statements:
+        for operation in qasm_module._unrolled_ast.statements:
             if isinstance(operation, QUANTUM_STATEMENTS):
                 bit_list = Qasm3Analyzer.get_op_bit_list(operation)
                 for bit in bit_list:
@@ -457,7 +458,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     bit.indices[0][0].value = -1 * new_reg_idx - 1
 
         # remove the -ve marker
-        for operation in qasm_module.unrolled_ast.statements:
+        for operation in qasm_module._unrolled_ast.statements:
             if isinstance(operation, QUANTUM_STATEMENTS):
                 bit_list = Qasm3Analyzer.get_op_bit_list(operation)
                 for bit in bit_list:
@@ -495,9 +496,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         except (ValidationError, UnrollError) as err:
             # reset the unrolled ast and qasm
             self.num_qubits, self.num_clbits = -1, -1
-            self._unrolled_ast = Program(
-                statements=[Include("stdgates.inc")], version=self.original_program.version
-            )
+            self._unrolled_ast = Program(statements=[], version=self.original_program.version)
             raise err
 
     def __str__(self) -> str:
@@ -507,7 +506,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             str: The string representation of the module
         """
 
-        if len(self.unrolled_ast.statements) > 1:
+        if len(self._unrolled_ast.statements) > 1:
             return self._qasm_ast_to_str(self.unrolled_ast)
         return self._qasm_ast_to_str(self.original_program)
 

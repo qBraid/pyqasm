@@ -203,31 +203,3 @@ def test_simplify_redundant_parentheses(qasm_input, expected_result):
     module.unroll(external_gates=["cry", "crx", "ry"])
     actual_result = dumps(module)
     check_unrolled_qasm(actual_result, expected_result)
-
-
-@pytest.mark.parametrize(
-    "qasm3_without, qasm3_with",
-    [
-        (
-            """
-        OPENQASM 3.0;
-        qubit[1] q;
-        h q[0];
-        ry(pi/4) q[0];
-                """,
-            """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-        qubit[1] q;
-        h q[0];
-        ry(0.7853981633974483) q[0];
-        """,
-        ),
-    ],
-)
-def test_add_stdgates_include(qasm3_without, qasm3_with):
-    """Test adding stdgates include to OpenQASM 3.0 string"""
-    module = loads(qasm3_without)
-    module.unroll()
-    actual_qasm3 = dumps(module)
-    check_unrolled_qasm(actual_qasm3, qasm3_with)

@@ -14,13 +14,14 @@ Module containing unit tests for unrolling quantum gates.
 """
 import pytest
 
-from pyqasm.entrypoint import loads
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
     SINGLE_QUBIT_GATE_INCORRECT_TESTS,
     custom_op_tests,
     double_op_tests,
+    four_op_tests,
     rotation_tests,
     single_op_tests,
     triple_op_tests,
@@ -28,10 +29,12 @@ from tests.qasm3.resources.gates import (
 from tests.utils import (
     check_custom_qasm_gate_op,
     check_custom_qasm_gate_op_with_external_gates,
+    check_four_qubit_gate_op,
     check_single_qubit_gate_op,
     check_single_qubit_rotation_op,
     check_three_qubit_gate_op,
     check_two_qubit_gate_op,
+    check_unrolled_qasm,
 )
 
 
@@ -88,6 +91,20 @@ def test_three_qubit_qasm3_gates(circuit_name, request):
     assert result.num_qubits == 3
     assert result.num_clbits == 0
     check_three_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
+
+
+@pytest.mark.parametrize("circuit_name", four_op_tests)
+def test_four_qubit_qasm3_gates(circuit_name, request):
+    qubit_list = [[0, 1, 2, 3], [0, 1, 2, 3]]
+    gate_name = circuit_name.removeprefix("Fixture_")
+
+    qasm3_string = request.getfixturevalue(circuit_name)
+    result = loads(qasm3_string)
+    # we do not want to validate every gate inside it
+    result.unroll(external_gates=[gate_name])
+    assert result.num_qubits == 4
+    assert result.num_clbits == 0
+    check_four_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
 
 
 def test_gate_body_param_expression():
@@ -202,6 +219,100 @@ def test_custom_ops(test_name, request):
 
     # Check for custom gate definition
     check_custom_qasm_gate_op(result.unrolled_ast, gate_type)
+
+
+def test_global_phase_gate():
+    qasm3_string = """OPENQASM 3.0;
+    qubit[2] q;
+    gphase(pi/4);
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    gphase(0.7853981633974483);
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 2
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
+
+
+def test_global_phase_qubits_retained():
+    """Test that global phase gate is retained when applied on specific qubits"""
+    qasm3_string = """OPENQASM 3.0;
+    gate custom a,b,c { 
+       gphase(pi/8);
+       h a;
+    }
+    qubit[23] q2;
+    custom q2[0:3];
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[23] q2;
+    gphase(0.39269908169872414) q2[0], q2[1], q2[2];
+    h q2[0];
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 23
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
+
+
+def test_global_phase_qubits_simplified():
+    """Test that the global phase gate is simplified when applied on all qubits"""
+    qasm3_string = """OPENQASM 3.0;
+    qubit[3] q2;
+    gate custom a,b,c {
+        gphase(pi/8) a, b, c;
+    }
+    custom q2;
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[3] q2;
+    gphase(0.39269908169872414);
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 3
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
+
+
+def test_inverse_global_phase():
+    """Test that the inverse of global phase gate is simplified"""
+    qasm3_string = """OPENQASM 3.0;
+    qubit[3] q2;
+    gate custom a,b,c {
+        inv @ gphase(pi/8) a, b, c;
+    }
+    custom q2;
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[3] q2;
+    gphase(-0.39269908169872414);
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 3
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
 
 
 @pytest.mark.parametrize("test_name", custom_op_tests)
