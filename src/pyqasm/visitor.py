@@ -900,6 +900,8 @@ class QasmVisitor:
         evaluated_arg = Qasm3ExprEvaluator.evaluate_expression(operation.argument)[0]
         if inverse:
             evaluated_arg = -1 * evaluated_arg
+        # remove the modifiers, as we have already applied the inverse
+        operation.modifiers = []
 
         operation.argument = qasm3_ast.FloatLiteral(value=evaluated_arg)
         # no qubit evaluation to be done here

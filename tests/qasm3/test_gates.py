@@ -291,6 +291,30 @@ def test_global_phase_qubits_simplified():
     check_unrolled_qasm(dumps(module), qasm3_expected)
 
 
+def test_inverse_global_phase():
+    """Test that the inverse of global phase gate is simplified"""
+    qasm3_string = """OPENQASM 3.0;
+    qubit[3] q2;
+    gate custom a,b,c {
+        inv @ gphase(pi/8) a, b, c;
+    }
+    custom q2;
+    """
+
+    qasm3_expected = """
+    OPENQASM 3.0;
+    qubit[3] q2;
+    gphase(-0.39269908169872414);
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 3
+    assert module.num_clbits == 0
+
+    check_unrolled_qasm(dumps(module), qasm3_expected)
+
+
 @pytest.mark.parametrize("test_name", custom_op_tests)
 def test_custom_ops_with_external_gates(test_name, request):
     qasm3_string = request.getfixturevalue(test_name)
