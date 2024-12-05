@@ -4,35 +4,156 @@ on:
   workflow_dispatch:
 
 jobs:
-  pypi-publish:
-    name: Build pre-release dist & upload to PyPI
-    runs-on: ubuntu-latest
-    environment: release
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+  build_wheels:
+    runs-on: ${{ matrix.os }}
+    strategy:
 
-      - name: Set up Python
+      # Ensure that a wheel builder finishes even if another fails
+      fail-fast: false
+
+      matrix:
+        include:
+          # Windows 64 bit
+          - os: windows-latest
+            python: 310
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 311
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 312
+            platform_id: win_amd64
+          - os: windows-latest
+            python: 313
+            platform_id: win_amd64
+
+          # Linux 64 bit manylinux2014
+          - os: ubuntu-latest
+            python: 310
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 311
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 312
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 313
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+
+          # MacOS x86_64
+          - os: macos-13
+            python: 310
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 311
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 312
+            platform_id: macosx_x86_64
+          - os: macos-13
+            python: 313
+            platform_id: macosx_x86_64
+
+          # MacOS arm64
+          - os: macos-14
+            python: 310
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 311
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 312
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 313
+            platform_id: macosx_arm64
+          
+
+    steps:
+      - name: Checkout Pyqasm
+        uses: actions/checkout@v4
+
+      - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.11"
 
-      - name: Install build dependencies
-        run: python -m pip install -U pip wheel build toml-cli qbraid-core
+      - name: Build and Test Wheels
+        env: 
+          PRE_RELEASE_BUILD: "true"
+          CIBW_BUILD: "cp${{ matrix.python }}-${{ matrix.platform_id }}"
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
+          CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh {project}
+          CIBW_TEST_EXTRAS: "test,cli"
+          CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh {project}
+          CIBW_BUILD_VERBOSITY: 1
 
-      - name: Build binary wheel + source tarball
-        id: build-dev
-        run: |
-            export PRE_RELEASE_VERSION=$(python bin/stamp_pre_release.py pyqasm)
-            [[ "$PRE_RELEASE_VERSION" =~ .*(-a\.|-b\.|-rc\.).* ]] && echo "Deploying pre-release version '$PRE_RELEASE_VERSION'" || (echo "not pre-release version"; exit 0)
-            out_dir="${PWD}/dist"
-            bin/create_dev_build.sh $PRE_RELEASE_VERSION "${out_dir}"
-            echo "dir=$out_dir" >> $GITHUB_OUTPUT
+        run: bash bin/cibw/build_wheels.sh
 
-      - name: Publish pre-release package to PyPI
+      - name: Upload built wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
+          path: dist/*.whl
+
+  build_sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Pyqasm
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Update pre-release version
+        env:
+          PRE_RELEASE_BUILD: "true"
+        run: bash bin/cibw/pre_build.sh .
+
+      - name: Build source distribution
+        run: bash bin/build_sdist.sh
+
+      - name: Test source distribution
+        run: bash bin/test_sdist.sh
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with: 
+          name: package-sdist
+          path: dist/*.tar.gz
+
+  pypi-publish:
+    name: Download pre-release artifacts & upload to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    environment: release
+
+    steps:
+      - name: Checkout Pyqasm
+        uses: actions/checkout@v4
+    
+      - name: Download artifacts 
+        uses: actions/download-artifact@v4
+        with:
+          # pattern should match the upload artifact naming convention 
+          # of the previous jobs
+          pattern: package-*
+          path: dist
+          # put all files in single directory
+          merge-multiple: true
+
+      - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
-          packages-dir: ${{ steps.build-dev.outputs.dir }}
