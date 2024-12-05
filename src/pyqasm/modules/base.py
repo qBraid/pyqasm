@@ -120,7 +120,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Setter for the unrolled AST"""
         self._unrolled_ast = value
 
-    def has_measurements(self):
+    def has_measurements(self) -> bool:
         """Check if the module has any measurement operations."""
         if self._has_measurements is None:
             self._has_measurements = False
@@ -137,7 +137,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     break
         return self._has_measurements
 
-    def remove_measurements(self, in_place: bool = True):
+    def remove_measurements(self, in_place: bool = True) -> Optional["QasmModule"]:
         """Remove the measurement operations
 
         Args:
@@ -172,7 +172,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return curr_module
 
-    def has_barriers(self):
+    def has_barriers(self) -> bool:
         """Check if the module has any barrier operations.
 
         Args:
@@ -196,7 +196,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     break
         return self._has_barriers
 
-    def remove_barriers(self, in_place: bool = True):
+    def remove_barriers(self, in_place: bool = True) -> Optional["QasmModule"]:
         """Remove the barrier operations
 
         Args:
@@ -223,6 +223,32 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         curr_module._has_barriers = False
         curr_module._statements = stmts_without_barriers
         curr_module._unrolled_ast.statements = stmts_without_barriers
+
+        return curr_module
+
+    def remove_includes(self, in_place=True) -> Optional["QasmModule"]:
+        """Remove the include statements from the module
+
+        Args:
+            in_place (bool): Flag to indicate if the removal should be done in place.
+
+        Returns:
+            QasmModule: The module with the includes removed if in_place is False, None otherwise
+        """
+        stmt_list = (
+            self._statements
+            if len(self._unrolled_ast.statements) == 0
+            else self._unrolled_ast.statements
+        )
+        stmts_without_includes = [
+            stmt for stmt in stmt_list if not isinstance(stmt, qasm3_ast.Include)
+        ]
+        curr_module = self
+        if not in_place:
+            curr_module = self.copy()
+
+        curr_module._statements = stmts_without_includes
+        curr_module._unrolled_ast.statements = stmts_without_includes
 
         return curr_module
 

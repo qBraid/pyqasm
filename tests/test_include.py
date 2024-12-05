@@ -63,3 +63,43 @@ def test_repeated_include_raises_error():
     with pytest.raises(ValidationError):
         module = loads(qasm_str)
         module.validate()
+
+
+def test_remove_includes():
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    include "random.qasm";
+
+    qubit[2] q;
+    h q;
+    """
+    expected_qasm_str = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    h q[0];
+    h q[1];
+    """
+    module = loads(qasm_str)
+    module.remove_includes()
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm_str)
+
+
+def test_remove_includes_without_include():
+    qasm_str = """
+    OPENQASM 3.0;
+
+    qubit[2] q;
+    h q;
+    """
+    expected_qasm_str = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    h q[0];
+    h q[1];
+    """
+    module = loads(qasm_str)
+    module = module.remove_includes(in_place=False)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm_str)
