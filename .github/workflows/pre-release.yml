@@ -86,6 +86,11 @@ jobs:
       - name: Build and Test Wheels
         env: 
           PRE_RELEASE_BUILD: "true"
+          # The linux builds happen inside a docker container 
+          # and if we are using the pre-release build, we need to pass
+          # the pre-release env variable to the docker container
+          # Ref : https://cibuildwheel.pypa.io/en/stable/options/#environment-pass
+          CIBW_ENVIRONMENT_PASS_LINUX: PRE_RELEASE_BUILD
           CIBW_BUILD: "cp${{ matrix.python }}-${{ matrix.platform_id }}"
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
