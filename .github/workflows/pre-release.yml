@@ -115,6 +115,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Update pre-release version
+        env:
+          PRE_RELEASE_BUILD: "true"
+        run: bash bin/cibw/pre_build.sh .
+
       - name: Build source distribution
         run: bash bin/build_sdist.sh
 
@@ -128,7 +133,7 @@ jobs:
           path: dist/*.tar.gz
 
   pypi-publish:
-    name: Build pre-release dist & upload to PyPI
+    name: Download pre-release artifacts & upload to PyPI
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     environment: release
