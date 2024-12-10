@@ -8,8 +8,6 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
-from typing import Callable, Union
-
 import numpy as np
 from openqasm3.ast import (
     AngleType,
@@ -22,12 +20,6 @@ from openqasm3.ast import (
 )
 
 from pyqasm.exceptions import ValidationError
-
-# Define the type for the operator functions
-OperatorFunction = Union[
-    Callable[[Union[int, float, bool]], Union[int, float, bool]],
-    Callable[[Union[int, float, bool], Union[int, float, bool]], Union[int, float, bool]],
-]
 
 
 # pylint: disable=inconsistent-return-statements

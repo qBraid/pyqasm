@@ -24,13 +24,9 @@ from openqasm3.ast import (
 from pyqasm.elements import InversionOp
 from pyqasm.exceptions import ValidationError
 from pyqasm.linalg import kak_decomposition_angles
+from pyqasm.maps import OperatorFunction
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
-# Define the type for the operator functions
-OperatorFunction = Union[
-    Callable[[Union[int, float, bool]], Union[int, float, bool]],
-    Callable[[Union[int, float, bool], Union[int, float, bool]], Union[int, float, bool]],
-]
 
 OPERATOR_MAP: dict[str, OperatorFunction] = {
     "+": lambda x, y: x + y,
