@@ -10,6 +10,12 @@
 
 # pylint: disable=too-many-lines
 
+"""
+Module mapping supported QASM gates to lower level gate operations.
+
+"""
+
+
 from typing import Callable, Union
 
 import numpy as np

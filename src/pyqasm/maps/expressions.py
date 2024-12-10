@@ -8,6 +8,12 @@
 #
 # THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
 
+"""
+Module mapping supported QASM expressions to lower level gate operations.
+
+"""
+
+
 import numpy as np
 from openqasm3.ast import (
     AngleType,
