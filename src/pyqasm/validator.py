@@ -21,7 +21,7 @@ from openqasm3.ast import QuantumGate, QuantumGateDefinition, ReturnStatement, S
 
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.maps import LIMITS_MAP, VARIABLE_TYPE_MAP, qasm_variable_type_cast
+from pyqasm.maps.expressions import LIMITS_MAP, VARIABLE_TYPE_MAP, qasm_variable_type_cast
 
 
 class Qasm3Validator:
