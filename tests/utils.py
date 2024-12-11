@@ -14,7 +14,7 @@ Module containing utility functions for unit tests.
 """
 import openqasm3.ast as qasm3_ast
 
-from pyqasm.maps import CONSTANTS_MAP
+from pyqasm.maps.expressions import CONSTANTS_MAP
 
 CONTROLLED_ROTATION_TEST_ANGLE = 0.5
 

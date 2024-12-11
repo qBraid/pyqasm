@@ -27,14 +27,9 @@ from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
-from pyqasm.maps import (
-    ARRAY_TYPE_MAP,
-    CONSTANTS_MAP,
-    MAX_ARRAY_DIMENSIONS,
-    SWITCH_BLACKLIST_STMTS,
-    map_qasm_inv_op_to_callable,
-    map_qasm_op_to_callable,
-)
+from pyqasm.maps import SWITCH_BLACKLIST_STMTS
+from pyqasm.maps.gates import map_qasm_op_to_callable, map_qasm_inv_op_to_callable
+from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
