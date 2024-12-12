@@ -228,7 +228,12 @@ class Qasm3Transformer:
     @staticmethod
     def get_branch_params(
         condition: Expression,
-    ) -> tuple[Optional[int], str, Optional[Union[BinaryOperator, UnaryOperator]], Optional[bool]]:
+    ) -> tuple[
+        Optional[int],
+        str,
+        Optional[Union[BinaryOperator, UnaryOperator]],
+        Optional[Union[bool, int]],
+    ]:
         """
         Get the branch parameters from the branching condition
 
@@ -236,7 +241,8 @@ class Qasm3Transformer:
             condition (Any): The condition to analyze
 
         Returns:
-            tuple[Optional[int], str, Expression, Any]: 
+            tuple[Optional[int], str, Optional[Union[BinaryOperator, UnaryOperator]],
+                Optional[Union[bool,int]]]:
                 register_idx, register_name, op, value of RHS
         """
         if isinstance(condition, Identifier):
@@ -261,7 +267,7 @@ class Qasm3Transformer:
             if condition.op not in [BinaryOperator[o] for o in ["==", ">=", "<=", ">", "<"]]:
                 raise_qasm3_error(
                     message="Only {==, >=, <=, >, <} supported in branching condition "
-                        "with classical register",
+                    "with classical register",
                     span=condition.span,
                 )
 

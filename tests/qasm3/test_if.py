@@ -197,7 +197,7 @@ def test_multi_bit_if():
 
     result = loads(qasm)
     result.unroll()
-    assert result.num_clbits == 4 
+    assert result.num_clbits == 4
     assert result.num_qubits == 1
     check_unrolled_qasm(dumps(result), expected_qasm)
 
@@ -253,7 +253,10 @@ def test_incorrect_if():
            }
            """
         ).validate()
-    with pytest.raises(ValidationError, match=r"Only {==, >=, <=, >, <} supported in branching condition with classical register"):
+    with pytest.raises(
+        ValidationError,
+        match=r"Only {==, >=, <=, >, <} supported in branching condition with classical register",
+    ):
         loads(
             """
             OPENQASM 3.0;
