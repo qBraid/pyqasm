@@ -38,7 +38,7 @@ In [4]: from pyqasm import dumps
 In [5]: dumps(module).splitlines()
 Out[5]: ['OPENQASM 3.0;', 'qubit[2] q;', 'h q;']
 ```
-- Added support for unrolling multi-bit equality branching.
+- Added support for unrolling multi-bit branching with `==`, `>=`, `<=`, `>`, and `<`.
 
 ### Improved / Modified
  - Refactored the initialization of `QasmModule` to remove default include statements. Only user supplied include statements are now added to the generated QASM code ([#86](https://github.com/qBraid/pyqasm/pull/86))

@@ -34,9 +34,6 @@ def test_simple_if():
     if(c[1] == 1){
         cx q[1], q[2];
     }
-    if(c == 5){
-        x q[3];
-    }
     """
     expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
@@ -57,20 +54,12 @@ def test_simple_if():
     if (c[1] == true) {
     cx q[1], q[2];
     }
-    if (c[0] == true) {
-        if (c[1] == false) {
-            if (c[2] == true) {
-                x q[3];
-            }
-        }
-    }
     """
 
     result = loads(qasm)
     result.unroll()
     assert result.num_clbits == 4
     assert result.num_qubits == 4
-    print(dumps(result))
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -140,6 +129,79 @@ def test_complex_if():
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
+def test_multi_bit_if():
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[4] c;
+    if(c == 3){
+        h q[0];
+    }
+    if(c >= 3){
+        h q[0];
+    } else {
+        x q[0];
+    }
+    if(c <= 3){
+        h q[0];
+    } else {
+        x q[0];
+    }
+    if(c < 4){
+        h q[0];
+    } else {
+        x q[0];
+    }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[4] c;
+    if (c[3] == false) {
+        if (c[2] == false) {
+            if (c[1] == true) {
+                if (c[0] == true) {
+                    h q[0];
+                }
+            }
+        }
+    }
+    if (c[1] == true) {
+        if (c[0] == true) {
+            h q[0];
+        } else {
+            x q[0];
+        }
+    } else {
+        x q[0];
+    }
+    if (c[3] == false) {
+       if (c[2] == false) {
+           h q[0];
+       } else {
+           x q[0];
+       }
+    } else {
+        x q[0];
+    }
+    if (c[3] == false) {
+       if (c[2] == false) {
+           h q[0];
+       } else {
+           x q[0];
+       }
+    } else {
+        x q[0];
+    }
+    """
+
+    result = loads(qasm)
+    result.unroll()
+    assert result.num_clbits == 4 
+    assert result.num_qubits == 1
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
 def test_incorrect_if():
 
     with pytest.raises(ValidationError, match=r"Missing if block"):
@@ -191,7 +253,7 @@ def test_incorrect_if():
            }
            """
         ).validate()
-    with pytest.raises(ValidationError, match=r"Only '==' supported .*"):
+    with pytest.raises(ValidationError, match=r"Only {==, >=, <=, >, <} supported in branching condition with classical register"):
         loads(
             """
             OPENQASM 3.0;
@@ -202,7 +264,7 @@ def test_incorrect_if():
            h q;
            measure q->c;
 
-           if(c[0] >= 1){
+           if(c[0] >> 1){
             cx q;
            }
            """
