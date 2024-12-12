@@ -57,8 +57,12 @@ def test_simple_if():
     if (c[1] == true) {
     cx q[1], q[2];
     }
-    if (c == 5) {
-    x q[3];
+    if (c[0] == true) {
+        if (c[1] == false) {
+            if (c[2] == true) {
+                x q[3];
+            }
+        }
     }
     """
 
@@ -66,7 +70,7 @@ def test_simple_if():
     result.unroll()
     assert result.num_clbits == 4
     assert result.num_qubits == 4
-
+    print(dumps(result))
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
