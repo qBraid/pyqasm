@@ -21,6 +21,7 @@ from openqasm3.ast import (
     BinaryOperator,
     BooleanLiteral,
     DiscreteSet,
+    Expression,
     FloatLiteral,
     Identifier,
     IndexedIdentifier,
@@ -225,7 +226,7 @@ class Qasm3Transformer:
             gate_op.argument = Qasm3Transformer.transform_expression(gate_op.argument, param_map)
 
     @staticmethod
-    def get_branch_params(condition: Any) -> tuple[Optional[int], str, Optional[bool]]:
+    def get_branch_params(condition: Expression) -> tuple[Optional[int], str, Optional[bool]]:
         """
         Get the branch parameters from the branching condition
 
