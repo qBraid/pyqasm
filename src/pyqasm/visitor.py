@@ -1388,7 +1388,7 @@ class QasmVisitor:
                         else_block=else_block,
                     )
 
-                result.extend(self.visit_basic_block([ravel(0)])) # type: ignore[arg-type]
+                result.extend(self.visit_basic_block([ravel(0)]))  # type: ignore[arg-type]
         else:
             # here we can unroll the block depending on the condition
             positive_branching = Qasm3ExprEvaluator.evaluate_expression(condition)[0] != 0
