@@ -13,8 +13,6 @@ Module mapping supported QASM gates/operations to lower level gate operations.
 
 """
 
-from typing import Callable, Union
-
 from openqasm3.ast import (
     ClassicalDeclaration,
     QuantumBarrier,
@@ -25,12 +23,6 @@ from openqasm3.ast import (
     QubitDeclaration,
     SubroutineDefinition,
 )
-
-# Define the type for the operator functions
-OperatorFunction = Union[
-    Callable[[Union[int, float, bool]], Union[int, float, bool]],
-    Callable[[Union[int, float, bool], Union[int, float, bool]], Union[int, float, bool]],
-]
 
 # Reference : https://openqasm.com/language/classical.html#the-switch-statement
 # Paragraph 14

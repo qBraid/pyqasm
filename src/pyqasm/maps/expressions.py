@@ -13,19 +13,63 @@ Module mapping supported QASM expressions to lower level gate operations.
 
 """
 
+from typing import Callable, Union
 
 import numpy as np
-from openqasm3.ast import (
-    AngleType,
-    BitType,
-    BoolType,
-    ComplexType,
-    FloatType,
-    IntType,
-    UintType,
-)
+from openqasm3.ast import AngleType, BitType, BoolType, ComplexType, FloatType, IntType, UintType
 
 from pyqasm.exceptions import ValidationError
+
+# Define the type for the operator functions
+OperatorFunction = Union[
+    Callable[[Union[int, float, bool]], Union[int, float, bool]],
+    Callable[[Union[int, float, bool], Union[int, float, bool]], Union[int, float, bool]],
+]
+
+
+OPERATOR_MAP: dict[str, OperatorFunction] = {
+    "+": lambda x, y: x + y,
+    "-": lambda x, y: x - y,
+    "*": lambda x, y: x * y,
+    "/": lambda x, y: x / y,
+    "%": lambda x, y: x % y,
+    "==": lambda x, y: x == y,
+    "!=": lambda x, y: x != y,
+    "<": lambda x, y: x < y,
+    ">": lambda x, y: x > y,
+    "<=": lambda x, y: x <= y,
+    ">=": lambda x, y: x >= y,
+    "&&": lambda x, y: x and y,
+    "||": lambda x, y: x or y,
+    "^": lambda x, y: x ^ y,
+    "&": lambda x, y: x & y,
+    "|": lambda x, y: x | y,
+    "<<": lambda x, y: x << y,
+    ">>": lambda x, y: x >> y,
+    "~": lambda x: ~x,
+    "!": lambda x: not x,
+    "UMINUS": lambda x: -x,
+}
+
+
+def qasm3_expression_op_map(op_name: str, *args) -> Union[float, int, bool]:
+    """
+    Return the result of applying the given operator to the given operands.
+
+    Args:
+        op_name (str): The operator name.
+        *args: The operands of type Union[int, float, bool]
+                1. For unary operators, a single operand (e.g., ~3)
+                2. For binary operators, two operands (e.g., 3 + 2)
+
+    Returns:
+        (Union[float, int, bool]): The result of applying the operator to the operands.
+    """
+    try:
+        operator = OPERATOR_MAP[op_name]
+        return operator(*args)
+    except KeyError as exc:
+        raise ValidationError(f"Unsupported / undeclared QASM operator: {op_name}") from exc
 
 
 # pylint: disable=inconsistent-return-statements
