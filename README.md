@@ -11,9 +11,6 @@
 
 Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation.
 
->[!WARNING]
-> **This project is "pre-alpha", and is not yet stable or fully realized. Use with caution, as the API and functionality are subject to significant changes.**
-
 ## Motivation
 [OpenQASM](https://openqasm.com/) is a powerful language for expressing hybrid quantum-classical programs, but it lacks a comprehensive tool supporting the full capabilities of the language. PyQASM aims to fill this gap by building upon the [`openqasm3.parser`](https://github.com/openqasm/openqasm/blob/ast-py/v1.0.0/source/openqasm/openqasm3/parser.py), and providing support for semantic analysis and utilities for program compilation.
 
