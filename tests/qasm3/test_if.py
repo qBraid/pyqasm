@@ -157,17 +157,17 @@ def test_multi_bit_if():
     include "stdgates.inc";
     qubit[1] q;
     bit[4] c;
-    if (c[3] == false) {
-        if (c[2] == false) {
-            if (c[1] == true) {
-                if (c[0] == true) {
+    if (c[0] == false) {
+        if (c[1] == false) {
+            if (c[2] == true) {
+                if (c[3] == true) {
                     h q[0];
                 }
             }
         }
     }
-    if (c[1] == true) {
-        if (c[0] == true) {
+    if (c[2] == true) {
+        if (c[3] == true) {
             h q[0];
         } else {
             x q[0];
@@ -175,8 +175,8 @@ def test_multi_bit_if():
     } else {
         x q[0];
     }
-    if (c[3] == false) {
-       if (c[2] == false) {
+    if (c[0] == false) {
+       if (c[1] == false) {
            h q[0];
        } else {
            x q[0];
@@ -184,8 +184,8 @@ def test_multi_bit_if():
     } else {
         x q[0];
     }
-    if (c[3] == false) {
-       if (c[2] == false) {
+    if (c[0] == false) {
+       if (c[1] == false) {
            h q[0];
        } else {
            x q[0];

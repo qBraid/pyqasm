@@ -13,7 +13,7 @@ Module with transformation functions for QASM3 visitor
 
 """
 from copy import deepcopy
-from typing import Any, Optional, Union
+from typing import Any, NamedTuple, Optional, Union
 
 import numpy as np
 from openqasm3.ast import (
@@ -47,6 +47,16 @@ from pyqasm.maps import VARIABLE_TYPE_MAP
 from pyqasm.validator import Qasm3Validator
 
 # mypy: disable-error-code="attr-defined, union-attr"
+
+BranchParams = NamedTuple(
+    "BranchParams",
+    [
+        ("reg_idx", Optional[int]),
+        ("reg_name", str),
+        ("op", Optional[Union[BinaryOperator, UnaryOperator]]),
+        ("rhs_val", Optional[Union[bool, int]]),
+    ],
+)
 
 
 class Qasm3Transformer:
@@ -228,12 +238,7 @@ class Qasm3Transformer:
     @staticmethod
     def get_branch_params(
         condition: Expression,
-    ) -> tuple[
-        Optional[int],
-        str,
-        Optional[Union[BinaryOperator, UnaryOperator]],
-        Optional[Union[bool, int]],
-    ]:
+    ) -> BranchParams:
         """
         Get the branch parameters from the branching condition
 
@@ -241,9 +246,7 @@ class Qasm3Transformer:
             condition (Any): The condition to analyze
 
         Returns:
-            tuple[Optional[int], str, Optional[Union[BinaryOperator, UnaryOperator]],
-                Optional[Union[bool,int]]]:
-                register_idx, register_name, op, value of RHS
+            BranchParams
         """
         if isinstance(condition, Identifier):
             raise_qasm3_error(
@@ -257,7 +260,7 @@ class Qasm3Transformer:
                     message="Only '!' supported in branching condition with classical register",
                     span=condition.span,
                 )
-            return (
+            return BranchParams(
                 condition.expression.index[0].value,
                 condition.expression.collection.name,
                 condition.op,
@@ -273,7 +276,7 @@ class Qasm3Transformer:
 
             if isinstance(condition.lhs, Identifier):
                 # full register eg. if(c == 5)
-                return (
+                return BranchParams(
                     None,
                     condition.lhs.name,
                     condition.op,
@@ -282,7 +285,7 @@ class Qasm3Transformer:
                         0
                     ],
                 )
-            return (
+            return BranchParams(
                 condition.lhs.index[0].value,
                 condition.lhs.collection.name,
                 condition.op,
@@ -301,14 +304,14 @@ class Qasm3Transformer:
                         message="RangeDefinition not supported in branching condition",
                         span=condition.span,
                     )
-                return (
+                return BranchParams(
                     condition.index[0].value,
                     condition.collection.name,
                     BinaryOperator["=="],
                     True,
                 )  # eg. if(c[0])
         # default case
-        return None, "", None, None
+        return BranchParams(None, "", None, None)
 
     @classmethod
     def transform_function_qubits(

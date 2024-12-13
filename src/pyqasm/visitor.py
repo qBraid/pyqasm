@@ -1384,13 +1384,15 @@ class QasmVisitor:
                 rhs_value_str = bin(int(rhs_value))[2:].zfill(size)
                 else_block = self.visit_basic_block(statement.else_block)
 
-                def ravel(i):
-                    r = rhs_value_str[i] == "1"
+                def ravel(bit_ind):
+                    """Unravel if statement from MSB to LSB"""
+                    r = rhs_value_str[bit_ind] == "1"
                     if (op == qasm3_ast.BinaryOperator[">="] and not r) or (
                         op == qasm3_ast.BinaryOperator["<="] and r
                     ):
-                        # ith-bit doesn't affect condition -> skip
-                        return if_block if i == len(rhs_value_str) - 1 else ravel(i + 1)
+                        # skip if bit condition is irrelevant.
+                        # ex. if op is >= and r = 0, both values reg[i]={0,1} satisfy the condition
+                        return if_block if bit_ind == len(rhs_value_str) - 1 else ravel(bit_ind + 1)
 
                     return [
                         qasm3_ast.BranchingStatement(
@@ -1398,11 +1400,15 @@ class QasmVisitor:
                                 op=qasm3_ast.BinaryOperator["=="],
                                 lhs=qasm3_ast.IndexExpression(
                                     collection=qasm3_ast.Identifier(name=reg_name),
-                                    index=[qasm3_ast.IntegerLiteral(size - i - 1)],
+                                    index=[qasm3_ast.IntegerLiteral(bit_ind)],
                                 ),
                                 rhs=qasm3_ast.BooleanLiteral(r),
                             ),
-                            if_block=if_block if i == len(rhs_value_str) - 1 else ravel(i + 1),
+                            if_block=(
+                                if_block
+                                if bit_ind == len(rhs_value_str) - 1
+                                else ravel(bit_ind + 1)
+                            ),
                             else_block=else_block,
                         )
                     ]
