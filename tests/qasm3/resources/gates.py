@@ -18,7 +18,7 @@ import os
 
 import pytest
 
-from pyqasm.maps import (
+from pyqasm.maps.gates import (
     FOUR_QUBIT_OP_MAP,
     ONE_QUBIT_OP_MAP,
     ONE_QUBIT_ROTATION_MAP,

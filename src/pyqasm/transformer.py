@@ -42,7 +42,7 @@ from openqasm3.ast import (
 from pyqasm.elements import Variable
 from pyqasm.exceptions import raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
-from pyqasm.maps import VARIABLE_TYPE_MAP
+from pyqasm.maps.expressions import VARIABLE_TYPE_MAP
 from pyqasm.validator import Qasm3Validator
 
 # mypy: disable-error-code="attr-defined, union-attr"
