@@ -38,6 +38,37 @@ In [4]: from pyqasm import dumps
 In [5]: dumps(module).splitlines()
 Out[5]: ['OPENQASM 3.0;', 'qubit[2] q;', 'h q;']
 ```
+- Added support for unrolling multi-bit branching with `==`, `>=`, `<=`, `>`, and `<`. Usage example -
+```python
+In [1]: from pyqasm import loads
+
+In [2]: module = loads(
+   ...: """OPENQASM 3.0;
+   ...: include "stdgates.inc";
+   ...: qubit[1] q;
+   ...: bit[4] c;
+   ...: if(c == 3){
+   ...:     h q[0];
+   ...: }
+   ...: """)
+
+In [3]: module.unroll()
+
+In [4]: dumps(module)
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[1] q;
+bit[4] c;
+if (c[0] == false) {
+  if (c[1] == false) {
+    if (c[2] == true) {
+      if (c[3] == true) {
+        h q[0];
+      }
+    }
+  }
+}
+```
 
 ### Improved / Modified
  - Refactored the initialization of `QasmModule` to remove default include statements. Only user supplied include statements are now added to the generated QASM code ([#86](https://github.com/qBraid/pyqasm/pull/86))
