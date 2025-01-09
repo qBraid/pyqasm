@@ -128,6 +128,31 @@ def test_remove_measurement():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_init_measure():
+    qasm3_string = """
+    OPENQASM 3.0;
+    qubit a;
+    qubit[2] b;
+    bit c = measure a;
+    bit[2] d = measure b;
+    """
+
+    expected_qasm = """
+    OPENQASM 3.0;
+    qubit[1] a;
+    qubit[2] b;
+    bit[1] c;
+    c[0] = measure a[0];
+    bit[2] d;
+    d[0] = measure b[0];
+    d[1] = measure b[1];
+    """
+
+    module = loads(qasm3_string)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
 def test_incorrect_measure():
     def run_test(qasm3_code, error_message):
         with pytest.raises(ValidationError, match=error_message):
