@@ -133,23 +133,34 @@ def test_init_measure():
     OPENQASM 3.0;
     qubit a;
     qubit[2] b;
+    qubit[4] e;
     bit c = measure a;
     bit[2] d = measure b;
+    bit[2] f = measure e[:2];
+    bit[2] g = measure e[{2, 3}];
     """
 
     expected_qasm = """
     OPENQASM 3.0;
     qubit[1] a;
     qubit[2] b;
+    qubit[4] e;
     bit[1] c;
     c[0] = measure a[0];
     bit[2] d;
     d[0] = measure b[0];
     d[1] = measure b[1];
+    bit[2] f;
+    f[0] = measure e[0];
+    f[1] = measure e[1];
+    bit[2] g;
+    g[0] = measure e[2];
+    g[1] = measure e[3];
     """
 
     module = loads(qasm3_string)
     module.unroll()
+    print(dumps(module))
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
