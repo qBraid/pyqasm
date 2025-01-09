@@ -933,17 +933,15 @@ class QasmVisitor:
         Returns:
             tuple[Any, Any]: The power and inverse values of the gate operation.
         """
-        power_value, inverse_value = 1, False
+        exponent = 1
 
         for modifier in operation.modifiers:
             modifier_name = modifier.modifier
             if modifier_name == qasm3_ast.GateModifierName.pow and modifier.argument is not None:
                 current_power = Qasm3ExprEvaluator.evaluate_expression(modifier.argument)[0]
-                if current_power < 0:
-                    inverse_value = not inverse_value
-                power_value = power_value * abs(current_power)
+                exponent *= current_power
             elif modifier_name == qasm3_ast.GateModifierName.inv:
-                inverse_value = not inverse_value
+                exponent *= -1
             elif modifier_name in [
                 qasm3_ast.GateModifierName.ctrl,
                 qasm3_ast.GateModifierName.negctrl,
@@ -953,7 +951,7 @@ class QasmVisitor:
                     err_type=NotImplementedError,
                     span=operation.span,
                 )
-        return (power_value, inverse_value)
+        return (abs(exponent), exponent < 0)
 
     def _visit_generic_gate_operation(
         self, operation: Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]

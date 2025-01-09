@@ -370,6 +370,19 @@ def test_inv_gate_modifier():
     check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 0, 1]], "ccx")
 
 
+def test_ctrl_gate_modifier():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit q;
+    ctrl @ x q;
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    print(result)
+    assert False
+
+
 def test_nested_gate_modifiers():
     qasm3_string = """
     OPENQASM 3;
