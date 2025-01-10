@@ -374,13 +374,17 @@ def test_ctrl_gate_modifier():
     qasm3_string = """
     OPENQASM 3.0;
     include "stdgates.inc";
-    qubit[2] q;
-    pow(3) @ ctrl @ inv @ x q[0], q[1];
+    qubit[4] q;
+    ctrl @ z q[0], q[1];
+    ctrl @ ctrl @ x q[0], q[1], q[2];
+    ctrl(2) @ x q[1], q[2], q[3];
     """
     result = loads(qasm3_string)
     result.unroll()
-    assert result.num_qubits == 2
-    check_two_qubit_gate_op(result.unrolled_ast, 3, [[0, 1], [0, 1], [0, 1]], "cx")
+    assert result.num_qubits == 4
+    print(dumps(result))
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
+    check_three_qubit_gate_op(result.unrolled_ast, 2, [[0, 1, 2], [1, 2, 3]], 'ccx')
 
 
 def test_nested_gate_modifiers():

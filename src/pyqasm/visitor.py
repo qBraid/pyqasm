@@ -636,7 +636,7 @@ class QasmVisitor:
             The list of all targets that the unrolled gate should act on.
         """
         op_qubits = self._get_op_bits(operation, self._global_qreg_size_map)
-        if len(op_qubits) % gate_qubit_count != 0:
+        if len(op_qubits) <= 0 or len(op_qubits) % gate_qubit_count != 0:
             raise_qasm3_error(
                 f"Invalid number of qubits {len(op_qubits)} for operation {operation.name.name}",
                 span=operation.span,
@@ -717,13 +717,11 @@ class QasmVisitor:
             ValidationError: If the number of qubits is invalid.
 
         """
-        print("HII")
-        print(inverse, negctrls, ctrls, operation)
         logger.debug("Visiting basic gate operation '%s'", str(operation))
         inverse_action = None
         if not inverse:
             if len(negctrls) > 0: 
-                raise_qasm3_error(f"Negctrl is an unsupported in gate operation: {operation}", err_type=NotImplementedError, span=operation.span)
+                raise_qasm3_error(f"Negctrl is an unsupported in gate operation: {operation} NEG {negctrls}", err_type=NotImplementedError, span=operation.span)
 
             if len(ctrls) > 0:
                 qasm_func, op_qubit_total_count = map_qasm_ctrl_op_to_callable(operation.name.name, len(ctrls))
@@ -974,6 +972,7 @@ class QasmVisitor:
                 )
             )
 
+        ctrls, negctrls = copy.deepcopy(ctrls), copy.deepcopy(negctrls)
         # ctrl / pow / inv modifiers commute. so group them.
         exponent = 1
         ctrl_arg_ind = 0
@@ -985,9 +984,9 @@ class QasmVisitor:
             elif modifier_name == qasm3_ast.GateModifierName.inv:
                 exponent *= -1
             elif modifier_name in [qasm3_ast.GateModifierName.ctrl, qasm3_ast.GateModifierName.negctrl]:
-                count = Qasm3ExprEvaluator.evaluate_expression(modifier.argument, const_expr=True, reqd_type=int)[0]
+                count = Qasm3ExprEvaluator.evaluate_expression(modifier.argument)[0]
                 if count is None: count = 1
-                if count <= 0:
+                if not isinstance(count, int) or count <= 0:
                     raise_qasm3_error(
                         f"Controlled modifiers must have positive integer arguments in gate operation {operation}",
                         span = operation.span
