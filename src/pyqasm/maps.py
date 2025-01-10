@@ -1236,6 +1236,43 @@ def map_qasm_inv_op_to_callable(op_name: str):
     raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
 
 
+CTRL_GATE_MAP = {
+    "x": "cx",
+    "y": "cy",
+    "z": "cz",
+    "rx": "crx",
+    "ry": "cry",
+    "rz": "crz",
+    "p": "cp",
+    "h": "ch",
+    "u": "cu",
+    "swap": "cswap",
+    "cx": "ccx"
+}
+
+
+def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
+    """
+    Map a controlled QASM operation to a callable. 
+    """
+    
+    ctrl_op_name = op_name
+    while ctrl_count > 0 and ctrl_op_name in CTRL_GATE_MAP:
+        ctrl_op_name = CTRL_GATE_MAP[ctrl_op_name]
+        ctrl_count -= 1
+
+    if ctrl_count == 0:
+        if ctrl_op_name in ONE_QUBIT_OP_MAP:
+            return ONE_QUBIT_OP_MAP[ctrl_op_name], 1
+        if ctrl_op_name in TWO_QUBIT_OP_MAP:
+            return TWO_QUBIT_OP_MAP[ctrl_op_name], 2
+        if ctrl_op_name in THREE_QUBIT_OP_MAP:
+            return THREE_QUBIT_OP_MAP[ctrl_op_name], 3
+    
+    # TODO: decompose controls if not built in
+    raise ValidationError(f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controlls")
+
+
 # pylint: disable=inconsistent-return-statements
 def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     """Cast the variable type to the type to match, if possible.
