@@ -956,6 +956,9 @@ class QasmVisitor:
         Returns:
             None
         """
+        operation = copy.deepcopy(operation)
+        ctrls, negctrls = copy.deepcopy(ctrls), copy.deepcopy(negctrls)
+        
         # only needs to be done once for a gate operation
         if (
             len(operation.qubits) > 0
@@ -972,7 +975,6 @@ class QasmVisitor:
                 )
             )
 
-        ctrls, negctrls = copy.deepcopy(ctrls), copy.deepcopy(negctrls)
         # ctrl / pow / inv modifiers commute. so group them.
         exponent = 1
         ctrl_arg_ind = 0
@@ -1007,7 +1009,6 @@ class QasmVisitor:
 
         power_value, inverse_value = abs(exponent), exponent < 0
 
-        operation = copy.deepcopy(operation)
         operation.qubits = operation.qubits[ctrl_arg_ind:]
         operation.modifiers = []
         
