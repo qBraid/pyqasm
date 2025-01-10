@@ -894,6 +894,7 @@ class QasmVisitor:
 
         self._push_context(Context.GATE)
 
+        # TODO: add ctrl @ support + testing
         modifiers = []
         if inverse:
             modifiers = [qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)]
@@ -932,6 +933,7 @@ class QasmVisitor:
         Returns:
             list[qasm3_ast.Statement]: The unrolled quantum phase operation.
         """
+        # TODO: phase = ctrl @ gphase. unify this w/ existing ctrl support
         logger.debug("Visiting phase operation '%s'", str(operation))
 
         evaluated_arg = Qasm3ExprEvaluator.evaluate_expression(operation.argument)[0]

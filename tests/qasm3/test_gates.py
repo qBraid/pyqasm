@@ -378,12 +378,15 @@ def test_ctrl_gate_modifier():
     ctrl @ z q[0], q[1];
     ctrl @ ctrl @ x q[0], q[1], q[2];
     ctrl(2) @ x q[1], q[2], q[3];
+    ctrl @ gphase(0.1) q[0];
     """
     result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 4
     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
     check_three_qubit_gate_op(result.unrolled_ast, 2, [[0, 1, 2], [1, 2, 3]], "ccx")
+    print(dumps(result))
+    assert False
 
 
 def test_nested_gate_modifiers():
