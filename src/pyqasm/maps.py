@@ -1247,15 +1247,15 @@ CTRL_GATE_MAP = {
     "h": "ch",
     "u": "cu",
     "swap": "cswap",
-    "cx": "ccx"
+    "cx": "ccx",
 }
 
 
 def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
     """
-    Map a controlled QASM operation to a callable. 
+    Map a controlled QASM operation to a callable.
     """
-    
+
     ctrl_op_name, c = op_name, ctrl_count
     while c > 0 and ctrl_op_name in CTRL_GATE_MAP:
         ctrl_op_name = CTRL_GATE_MAP[ctrl_op_name]
@@ -1267,9 +1267,11 @@ def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
             return TWO_QUBIT_OP_MAP[ctrl_op_name], 2
         if ctrl_op_name in THREE_QUBIT_OP_MAP:
             return THREE_QUBIT_OP_MAP[ctrl_op_name], 3
-    
+
     # TODO: decompose controls if not built in
-    raise ValidationError(f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controls")
+    raise ValidationError(
+        f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controls"
+    )
 
 
 # pylint: disable=inconsistent-return-statements

@@ -382,32 +382,35 @@ def test_ctrl_gate_modifier():
     result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 4
-    print(dumps(result))
     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
-    check_three_qubit_gate_op(result.unrolled_ast, 2, [[0, 1, 2], [1, 2, 3]], 'ccx')
+    check_three_qubit_gate_op(result.unrolled_ast, 2, [[0, 1, 2], [1, 2, 3]], "ccx")
 
 
 def test_nested_gate_modifiers():
     qasm3_string = """
     OPENQASM 3;
     include "stdgates.inc";
-    qubit[2] q;
+    qubit[3] q;
     gate custom2 p, q{
-        y p;
+        x p;
         z q;
+        ctrl @ x q, p;
     }
     gate custom p, q {
         pow(1) @ custom2 p, q;
     }
-    pow(1) @ inv @ pow(2) @ custom q;
-    pow(-1) @ custom q;
+    pow(1) @ inv @ pow(2) @ custom q[0], q[1];
+    ctrl @ pow(-1) @ custom q[0], q[1], q[2];
     """
     result = loads(qasm3_string)
     result.unroll()
-    assert result.num_qubits == 2
+    assert result.num_qubits == 3
     assert result.num_clbits == 0
-    check_single_qubit_gate_op(result.unrolled_ast, 3, [1, 1, 1], "z")
-    check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 0, 0], "y")
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [1, 1, 1], "z")
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0, 0], "x")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 2]], "cz")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [[1, 0], [1, 0], [0, 1]], "cx")
+    check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 2, 1]], "ccx")
 
 
 def test_unsupported_modifiers():
