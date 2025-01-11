@@ -16,17 +16,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional, Union
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
-from pyqasm.maps import ONE_QUBIT_OP_MAP, TWO_QUBIT_OP_MAP, THREE_QUBIT_OP_MAP, FOUR_QUBIT_OP_MAP, FIVE_QUBIT_OP_MAP
+from pyqasm.maps import ONE_QUBIT_OP_MAP, ONE_QUBIT_ROTATION_MAP, TWO_QUBIT_OP_MAP, THREE_QUBIT_OP_MAP, FOUR_QUBIT_OP_MAP, FIVE_QUBIT_OP_MAP, REV_CTRL_GATE_MAP
 from pyqasm.expressions import Qasm3ExprEvaluator
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import openqasm3.ast as ast
 
+DEFAULT_GATE_COLOR = '#d4b6e8'
+HADAMARD_GATE_COLOR = '#f0a6a6'
+
 def draw(module: QasmModule, output="mpl"):
     if isinstance(module, Qasm2Module):
         module: Qasm3Module = module.to_qasm3()
     if output == "mpl":
-        _draw_mpl(module)
+        return _draw_mpl(module)
     else:
         raise NotImplementedError(f"{output} drawing for Qasm3Module is unsupported")
 
@@ -39,7 +42,6 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
     n_lines = module._num_qubits + module._num_clbits
     statements = module._statements
     
-    fig, ax = plt.subplots(figsize=(10, n_lines * 0.7))
     line_nums = dict()
     line_num = -1
     max_depth = 0
@@ -62,6 +64,7 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
             line_num -= 1
         line_num += size
     
+    fig, ax = plt.subplots(figsize=(10, n_lines * 0.7))
 
     for qubit_reg in module._qubit_registers.keys():
         for i in range(size):
@@ -82,50 +85,67 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
     for i, statement in enumerate(statements):
         if "Declaration" in str(type(statement)): continue
         if isinstance(statement, ast.QuantumGate):     
+            args = [Qasm3ExprEvaluator.evaluate_expression(arg)[0] for arg in statement.arguments]
             qubits = [(q.name.name,Qasm3ExprEvaluator.evaluate_expression(q.indices[0][0])[0]) for q in statement.qubits]
             draw_depth = 1 + max([depths[q] for q in qubits])
             for q in qubits: 
                 depths[q] = draw_depth
-            _draw_mpl_gate(statement, ax, [line_nums[q] for q in qubits], draw_depth)
+            _draw_mpl_gate(statement, ax, [line_nums[q] for q in qubits], draw_depth, args)
         elif isinstance(statement, ast.QuantumMeasurement):
+            pass
+        elif isinstance(statement, ast.QuantumBarrier):
+            pass
+        elif isinstance(statement, ast.QuantumReset):
             pass
         else:
             raise NotImplementedError(f"Unsupported statement: {statement}")
     
-    # Configure plot
     ax.set_ylim(-0.5, n_lines - 0.5)
-    ax.set_xlim(-1, len(statements))
+    ax.set_xlim(-0.5, max_depth) 
     ax.axis('off')
-    ax.set_title('Quantum Circuit')
     
     plt.tight_layout()
     return fig
 
 def _draw_mpl_bit(bit: tuple[str, int], ax: plt.Axes, line_num: int, max_depth: int):
-    ax.hlines(y=line_num, xmin=0, xmax=max_depth, color='gray', linestyle='-')
-    ax.text(-0.5, line_num, f'{bit[0]}[{bit[1]}]', ha='right', va='center')
+    ax.hlines(y=line_num, xmin=-0.125, xmax=max_depth, color='gray', linestyle='-')
+    ax.text(-0.25, line_num, f'{bit[0]}[{bit[1]}]', ha='right', va='center')
 
 def _draw_mpl_qubit(qubit: tuple[str, int], ax: plt.Axes, line_num: int, max_depth: int):
-    ax.hlines(y=line_num, xmin=0, xmax=max_depth, color='black', linestyle='-')
-    ax.text(-0.5, line_num, f'{qubit[0]}[{qubit[1]}]', ha='right', va='center')
+    ax.hlines(y=line_num, xmin=-0.125, xmax=max_depth, color='black', linestyle='-')
+    ax.text(-0.25, line_num, f'{qubit[0]}[{qubit[1]}]', ha='right', va='center')
 
-def _draw_mpl_gate(gate: ast.QuantumGate, ax: plt.Axes, lines: list[int], depth: int):
+def _draw_mpl_gate(gate: ast.QuantumGate, ax: plt.Axes, lines: list[int], depth: int, args: list[Any]):
     print("DRAW", gate.name.name, lines, depth)
-    if gate.name.name in ONE_QUBIT_OP_MAP:
-        ax.text(depth, lines[0], gate.name.name, ha='center', va='center',
-        bbox=dict(facecolor='white', edgecolor='black'))
+    if gate.name.name in ONE_QUBIT_OP_MAP or gate.name.name in ONE_QUBIT_ROTATION_MAP:
+        _draw_mpl_one_qubit_gate(gate, ax, lines[0], depth, args)
     elif gate.name.name in TWO_QUBIT_OP_MAP:
-        pass
-        # q1_idx = module.qubits.index(qubits[0])
-        # q2_idx = module.qubits.index(qubits[1])
-        # min_idx = min(q1_idx, q2_idx)
-        # max_idx = max(q1_idx, q2_idx)
-        
-        # # Draw vertical connection
-        # ax.vlines(x=i, ymin=min_idx, ymax=max_idx, color='black')
-        # # Draw gate symbol
-        # ax.text(i, (min_idx + max_idx)/2, gate_name, ha='center', va='center',
-        #     bbox=dict(facecolor='white', edgecolor='black'))
+        if gate.name.name in REV_CTRL_GATE_MAP:
+            gate.name.name = REV_CTRL_GATE_MAP[gate.name.name]
+            _draw_mpl_one_qubit_gate(gate, ax, lines[1], depth, args)
+            _draw_mpl_control(ax, lines[0], lines[1], depth)
+        elif gate.name.name == 'swap':
+            _draw_mpl_swap(ax, lines[0], lines[1], depth)
+        else:
+            raise NotImplementedError(f"Unsupported gate: {gate.name.name}")
     else:
-        pass
+        raise NotImplementedError(f"Unsupported gate: {gate.name.name}")
     
+def _draw_mpl_one_qubit_gate(gate: ast.QuantumGate, ax: plt.Axes, line: int, depth: int, args: list[Any]):
+    color = DEFAULT_GATE_COLOR
+    if gate.name.name == 'h':
+        color = HADAMARD_GATE_COLOR
+    text = gate.name.name.upper()
+    if len(args) > 0:
+        text += f"\n({', '.join([f'{a:.3f}' if isinstance(a, float) else str(a) for a in args])})"
+    ax.text(depth, line, text, ha='center', va='center',
+        bbox=dict(facecolor=color, edgecolor='none'))
+
+def _draw_mpl_control(ax: plt.Axes, ctrl: int, target: int, depth: int):
+    ax.vlines(x=depth, ymin=min(ctrl, target), ymax=max(ctrl, target), color='black', linestyle='-')
+    ax.plot(depth, ctrl, 'ko', markersize=8, markerfacecolor='black')
+    
+def _draw_mpl_swap(ax: plt.Axes, ctrl: int, target: int, depth: int):
+    ax.vlines(x=depth, ymin=min(ctrl, target), ymax=max(ctrl, target), color='black', linestyle='-')
+    ax.plot(depth, ctrl, 'x', markersize=8, color='black')
+    ax.plot(depth, target, 'x', markersize=8, color='black')

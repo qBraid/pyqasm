@@ -1,12 +1,18 @@
 import pytest
 from pyqasm.entrypoint import loads, load
-from pyqasm.printer import _draw_mpl
+from pyqasm.printer import draw
 
 import matplotlib.pyplot as plt
 import random
 from qbraid import random_circuit, transpile
 
-def test_simple_circuit_drawing():
+def _check_fig(circuit, fig):
+    ax = fig.gca()
+    # plt.savefig("test.png")
+    assert len(ax.texts) > 0
+    plt.close(fig)
+
+def test_simple():
     qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q;
@@ -14,29 +20,17 @@ def test_simple_circuit_drawing():
     h q[0];
     z q[1];
     y q[0];
-    rz(pi/0.1) q[0];
+    rz(pi/1.1) q[0];
     cx q[0], q[1];
+    swap q[0], q[1];
     b = measure q;
     """
-    
-    circuit = loads(qasm)
-    fig = _draw_mpl(circuit)
-    
-    ax = fig.gca()
-    plt.savefig("test.png")
-    assert len(ax.texts) > 0
-    plt.close(fig)
-    assert False
-
-@pytest.mark.skip(reason="Not implemented drawing for all gates")
-def test_random_qiskit_circuit():
-    qiskit_circuit = random_circuit("qiskit", measure=random.choice([True, False]))
-    qasm_str = transpile(qiskit_circuit, random.choice(["qasm2", "qasm3"]))
-    
-    module = load(qasm_str)
-    fig = module.draw()
-    
-    assert isinstance(fig, plt.Figure)
-    ax = fig.gca()
-    assert len(ax.texts) > 0 
-    plt.close(fig)
+    circ = loads(qasm)
+    fig = draw(circ)
+    _check_fig(circ, fig) 
+   
+def test_random():
+    circ = random_circuit("qasm3", measure=random.choice([True, False]))
+    module = loads(circ)
+    fig = draw(module)
+    _check_fig(circ, fig) 
