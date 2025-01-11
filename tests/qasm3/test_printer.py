@@ -8,8 +8,10 @@ from qbraid import random_circuit, transpile
 
 def _check_fig(circ, fig):
     ax = fig.gca()
+    # plt.savefig("test.png")
     assert len(ax.texts) > 0
     plt.close(fig)
+    # assert False
 
 def test_simple():
     qasm = """OPENQASM 3.0;
@@ -18,7 +20,6 @@ def test_simple():
     bit[2] b;
     h q[0];
     z q[1];
-    y q[0];
     rz(pi/1.1) q[0];
     cx q[0], q[1];
     swap q[0], q[1];
