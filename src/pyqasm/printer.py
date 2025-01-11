@@ -37,7 +37,6 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
     module.unroll()
     module.remove_includes()
     module.remove_barriers()
-    module.remove_measurements()
 
     n_lines = module._num_qubits + module._num_clbits
     statements = module._statements
@@ -94,6 +93,7 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
         elif isinstance(statement, ast.QuantumMeasurementStatement):
             qubit_key = _identifier_to_key(statement.measure.qubit)
             target_key = _identifier_to_key(statement.target)
+            draw_depth = 1 + max([depths[q] for q in qubits]) 
             _draw_mpl_measurement(ax, line_nums[qubit_key], line_nums[target_key], draw_depth)
         elif isinstance(statement, ast.QuantumBarrier):
             pass
@@ -103,7 +103,7 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
             raise NotImplementedError(f"Unsupported statement: {statement}")
     
     ax.set_ylim(-0.5, n_lines - 0.5)
-    ax.set_xlim(-0.5, max_depth) 
+    ax.set_xlim(-0.5, max_depth + 0.5) 
     ax.axis('off')
     
     plt.tight_layout()
@@ -116,11 +116,11 @@ def _identifier_to_key(identifier: ast.Identifier | ast.IndexedIdentifier) -> tu
         return identifier.name.name, Qasm3ExprEvaluator.evaluate_expression(identifier.indices[0][0])[0]
 
 def _draw_mpl_bit(bit: tuple[str, int], ax: plt.Axes, line_num: int, max_depth: int):
-    ax.hlines(y=line_num, xmin=-0.125, xmax=max_depth, color='gray', linestyle='-')
+    ax.hlines(y=line_num, xmin=-0.125, xmax=max_depth+0.25, color='gray', linestyle='-')
     ax.text(-0.25, line_num, f'{bit[0]}[{bit[1]}]', ha='right', va='center')
 
 def _draw_mpl_qubit(qubit: tuple[str, int], ax: plt.Axes, line_num: int, max_depth: int):
-    ax.hlines(y=line_num, xmin=-0.125, xmax=max_depth, color='black', linestyle='-')
+    ax.hlines(y=line_num, xmin=-0.125, xmax=max_depth+0.25, color='black', linestyle='-')
     ax.text(-0.25, line_num, f'{qubit[0]}[{qubit[1]}]', ha='right', va='center')
 
 def _draw_mpl_gate(gate: ast.QuantumGate, ax: plt.Axes, lines: list[int], depth: int, args: list[Any]):
@@ -159,5 +159,8 @@ def _draw_mpl_swap(ax: plt.Axes, ctrl_line: int, target_line: int, depth: int):
     ax.plot(depth, target_line, 'x', markersize=8, color='black')
 
 def _draw_mpl_measurement(ax: plt.Axes, qbit_line: int, cbit_line: int, depth: int):
-    ax.plot(depth, qbit_line, 'x', markersize=8, color='black')
-    ax.plot(depth, cbit_line, 'x', markersize=8, color='black')
+    ax.text(depth, qbit_line, 'M', ha='center', va='center',
+        bbox=dict(facecolor='gray', edgecolor='none'))
+    ax.vlines(x=depth-0.01, ymin=min(qbit_line, cbit_line), ymax=max(qbit_line, cbit_line), color='gray', linestyle='-')
+    ax.vlines(x=depth+0.01, ymin=min(qbit_line, cbit_line), ymax=max(qbit_line, cbit_line), color='gray', linestyle='-')
+    ax.plot(depth, cbit_line+0.05, 'v', markersize=8, color='gray')

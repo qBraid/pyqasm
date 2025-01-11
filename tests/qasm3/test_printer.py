@@ -8,7 +8,6 @@ from qbraid import random_circuit, transpile
 
 def _check_fig(circ, fig):
     ax = fig.gca()
-    plt.savefig("test.png")
     assert len(ax.texts) > 0
     plt.close(fig)
 
