@@ -31,6 +31,7 @@ GATE_BOX_WIDTH, GATE_BOX_HEIGHT = 0.6, 0.6
 GATE_SPACING = 0.2
 LINE_SPACING = 0.6
 TEXT_MARGIN = 0.6
+FRAME_PADDING = 0.2
 
 def draw(module: Qasm3Module, output="mpl"):
     if output == "mpl":
@@ -105,8 +106,8 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
     width += TEXT_MARGIN
 
     fig, ax = plt.subplots(figsize=(width, n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1)))
-    ax.set_ylim(-GATE_BOX_HEIGHT/2, n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1) - GATE_BOX_HEIGHT/2)
-    ax.set_xlim(0, width)
+    ax.set_ylim(-GATE_BOX_HEIGHT/2-FRAME_PADDING/2, n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1) - GATE_BOX_HEIGHT/2 + FRAME_PADDING/2)
+    ax.set_xlim(-FRAME_PADDING/2, width)
     ax.axis('off')
     # ax.set_aspect('equal')
     # plt.tight_layout()
@@ -174,7 +175,6 @@ def _mpl_draw_statement(statement: ast.QuantumStatement, line_nums: dict[tuple[s
         raise NotImplementedError(f"Unsupported statement: {statement}")
 
 def _mpl_draw_gate(gate: ast.QuantumGate, args: list[Any], lines: list[int], ax: plt.Axes, x: float):
-    print("DRAW", gate.name.name, lines, x)
     if gate.name.name in ONE_QUBIT_OP_MAP or gate.name.name in ONE_QUBIT_ROTATION_MAP:
         _draw_mpl_one_qubit_gate(gate, args, lines[0], ax, x)
     elif gate.name.name in TWO_QUBIT_OP_MAP:
