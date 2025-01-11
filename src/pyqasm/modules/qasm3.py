@@ -16,7 +16,7 @@ from openqasm3.ast import Program
 from openqasm3.printer import dumps
 
 from pyqasm.modules.base import QasmModule
-
+from pyqasm.printer import draw
 
 class Qasm3Module(QasmModule):
     """
@@ -48,3 +48,7 @@ class Qasm3Module(QasmModule):
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
         self._unrolled_ast.statements = final_stmt_list
+
+    def draw(self):
+        """Draw the module"""
+        return draw(self)

@@ -15,19 +15,19 @@ Module with analysis functions for QASM visitor
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional, Union
-from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
 from pyqasm.maps import ONE_QUBIT_OP_MAP, ONE_QUBIT_ROTATION_MAP, TWO_QUBIT_OP_MAP, THREE_QUBIT_OP_MAP, FOUR_QUBIT_OP_MAP, FIVE_QUBIT_OP_MAP, REV_CTRL_GATE_MAP
 from pyqasm.expressions import Qasm3ExprEvaluator
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import openqasm3.ast as ast
 
+if TYPE_CHECKING:
+    from pyqasm.modules.base import Qasm3Module
+
 DEFAULT_GATE_COLOR = '#d4b6e8'
 HADAMARD_GATE_COLOR = '#f0a6a6'
 
-def draw(module: QasmModule, output="mpl"):
-    if isinstance(module, Qasm2Module):
-        module: Qasm3Module = module.to_qasm3()
+def draw(module: Qasm3Module, output="mpl"):
     if output == "mpl":
         return _draw_mpl(module)
     else:
@@ -86,13 +86,15 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
         if "Declaration" in str(type(statement)): continue
         if isinstance(statement, ast.QuantumGate):     
             args = [Qasm3ExprEvaluator.evaluate_expression(arg)[0] for arg in statement.arguments]
-            qubits = [(q.name.name,Qasm3ExprEvaluator.evaluate_expression(q.indices[0][0])[0]) for q in statement.qubits]
+            qubits = [_identifier_to_key(q) for q in statement.qubits]
             draw_depth = 1 + max([depths[q] for q in qubits])
             for q in qubits: 
                 depths[q] = draw_depth
             _draw_mpl_gate(statement, ax, [line_nums[q] for q in qubits], draw_depth, args)
-        elif isinstance(statement, ast.QuantumMeasurement):
-            pass
+        elif isinstance(statement, ast.QuantumMeasurementStatement):
+            qubit_key = _identifier_to_key(statement.measure.qubit)
+            target_key = _identifier_to_key(statement.target)
+            _draw_mpl_measurement(ax, line_nums[qubit_key], line_nums[target_key], draw_depth)
         elif isinstance(statement, ast.QuantumBarrier):
             pass
         elif isinstance(statement, ast.QuantumReset):
@@ -106,6 +108,12 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
     
     plt.tight_layout()
     return fig
+
+def _identifier_to_key(identifier: ast.Identifier | ast.IndexedIdentifier) -> tuple[str, int]:
+    if isinstance(identifier, ast.Identifier):
+        return identifier.name, -1
+    else:
+        return identifier.name.name, Qasm3ExprEvaluator.evaluate_expression(identifier.indices[0][0])[0]
 
 def _draw_mpl_bit(bit: tuple[str, int], ax: plt.Axes, line_num: int, max_depth: int):
     ax.hlines(y=line_num, xmin=-0.125, xmax=max_depth, color='gray', linestyle='-')
@@ -141,11 +149,15 @@ def _draw_mpl_one_qubit_gate(gate: ast.QuantumGate, ax: plt.Axes, line: int, dep
     ax.text(depth, line, text, ha='center', va='center',
         bbox=dict(facecolor=color, edgecolor='none'))
 
-def _draw_mpl_control(ax: plt.Axes, ctrl: int, target: int, depth: int):
-    ax.vlines(x=depth, ymin=min(ctrl, target), ymax=max(ctrl, target), color='black', linestyle='-')
-    ax.plot(depth, ctrl, 'ko', markersize=8, markerfacecolor='black')
+def _draw_mpl_control(ax: plt.Axes, ctrl_line: int, target_line: int, depth: int):
+    ax.vlines(x=depth, ymin=min(ctrl_line, target_line), ymax=max(ctrl_line, target_line), color='black', linestyle='-')
+    ax.plot(depth, ctrl_line, 'ko', markersize=8, markerfacecolor='black')
     
-def _draw_mpl_swap(ax: plt.Axes, ctrl: int, target: int, depth: int):
-    ax.vlines(x=depth, ymin=min(ctrl, target), ymax=max(ctrl, target), color='black', linestyle='-')
-    ax.plot(depth, ctrl, 'x', markersize=8, color='black')
-    ax.plot(depth, target, 'x', markersize=8, color='black')
+def _draw_mpl_swap(ax: plt.Axes, ctrl_line: int, target_line: int, depth: int):
+    ax.vlines(x=depth, ymin=min(ctrl_line, target_line), ymax=max(ctrl_line, target_line), color='black', linestyle='-')
+    ax.plot(depth, ctrl_line, 'x', markersize=8, color='black')
+    ax.plot(depth, target_line, 'x', markersize=8, color='black')
+
+def _draw_mpl_measurement(ax: plt.Axes, qbit_line: int, cbit_line: int, depth: int):
+    ax.plot(depth, qbit_line, 'x', markersize=8, color='black')
+    ax.plot(depth, cbit_line, 'x', markersize=8, color='black')

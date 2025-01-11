@@ -23,6 +23,7 @@ from openqasm3.printer import dumps
 from pyqasm.exceptions import ValidationError
 from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
+from pyqasm.printer import draw
 
 
 class Qasm2Module(QasmModule):
@@ -105,3 +106,7 @@ class Qasm2Module(QasmModule):
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
         self.unrolled_ast.statements = final_stmt_list
+
+    def draw(self):
+        """Draw the module"""
+        return draw(self.to_qasm3())

@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 import random
 from qbraid import random_circuit, transpile
 
-def _check_fig(circuit, fig):
+def _check_fig(circ, fig):
     ax = fig.gca()
-    # plt.savefig("test.png")
+    plt.savefig("test.png")
     assert len(ax.texts) > 0
     plt.close(fig)
 
@@ -26,11 +26,12 @@ def test_simple():
     b = measure q;
     """
     circ = loads(qasm)
-    fig = draw(circ)
+    fig = circ.draw()
     _check_fig(circ, fig) 
    
 def test_random():
-    circ = random_circuit("qasm3", measure=random.choice([True, False]))
-    module = loads(circ)
-    fig = draw(module)
+    circ = random_circuit("qiskit", measure=random.choice([True, False]))
+    qasm_str = transpile(circ, random.choice(["qasm2", "qasm3"]))
+    module = loads(qasm_str)
+    fig = module.draw()
     _check_fig(circ, fig) 
