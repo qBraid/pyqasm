@@ -98,3 +98,21 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     is_constant: bool = False
     is_register: bool = False
     readonly: bool = False
+
+
+class BasisSet(Enum):
+    """
+    Enum for the different basis sets in Qasm.
+    """
+
+    DEFAULT = 0
+    ROTATIONAL_CX = 1
+    CLIFFORD_T = 2
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}.{self.name}: {self.value}>"
+
+    @staticmethod
+    def get_supported_bases():
+        return list(BasisSet)
+    

@@ -17,12 +17,14 @@ from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
-from openqasm3.ast import Program
+from openqasm3.ast import Program, QuantumGate
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
-from pyqasm.exceptions import UnrollError, ValidationError
+from pyqasm.exceptions import RebaseError, UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
+from pyqasm.maps.decomposition_rules import AppliedQubit, DECOMPOSITION_RULES, solovay_kitaev_algo
+from pyqasm.maps.gates import BASIS_GATE_MAP
 from pyqasm.visitor import QasmVisitor
 
 
@@ -524,6 +526,124 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             self.num_qubits, self.num_clbits = -1, -1
             self._unrolled_ast = Program(statements=[], version=self.original_program.version)
             raise err
+
+    def rebase(self, target_basis_set, in_place=True):
+        """Rebase the AST to use a specified target basis set.
+        
+        Will unroll the module if not already done.
+
+        Args:
+            target_basis_set: The target basis set to rebase the module to.
+            in_place (bool): Flag to indicate if the reversal should be done in place.
+            
+        Returns:
+            QasmModule: The module with the gates rebased to the target basis set.
+        """
+        if target_basis_set not in DECOMPOSITION_RULES:
+            raise ValueError(f"Target basis set '{target_basis_set}' is not defined in DECOMPOSITION_RULES.")
+
+        qasm_module = self if in_place else self.copy()
+
+        if len(qasm_module._unrolled_ast.statements) == 0:
+            qasm_module.unroll()
+
+        decomposition_rules = DECOMPOSITION_RULES[target_basis_set]
+        target_basis_gate_list = BASIS_GATE_MAP[target_basis_set]
+        rebased_statements = []
+
+        for statement in qasm_module._unrolled_ast.statements:
+            if isinstance(statement, QuantumGate):
+                gate_name = statement.name.name
+                
+                if gate_name in target_basis_gate_list:
+                    # Keep the gate as is if no decomposition exists
+                    rebased_statements.append(statement)
+                elif gate_name in decomposition_rules:
+                    # Decompose and apply the gates
+                    self._apply_decomposed_gates(
+                        decomposition_rules, 
+                        rebased_statements, 
+                        statement, 
+                        gate_name
+                        )
+                elif self._is_parameterized_gate(gate_name):
+                    # Approximate parameterized gates using Solovay-Kitaev
+                    
+                    # Example - 
+                    # approx_gates = solovay_kitaev_algo(
+                    #     gate_name, statement.arguments[0].value, accuracy=0.01
+                    # )
+                    # rebased_statements.extend(approx_gates)
+                    pass
+                else:
+                    # Raise an error if the gate is not supported in the target basis set
+                    raise RebaseError(f"Gate '{gate_name}' is not supported in the target basis set '{target_basis_set}'.")
+                
+            else:
+                # Non-gate statements are directly appended
+                rebased_statements.append(statement)
+
+        # Replace the unrolled AST with the rebased one
+        qasm_module._unrolled_ast.statements = rebased_statements
+        
+        return qasm_module
+
+    def _apply_decomposed_gates(self, decomposition_rules, rebased_statements, statement, gate_name):
+        """Apply the decomposed gates based on the decomposition rules.
+
+        Args:
+            decomposition_rules: The decomposition rules to apply.
+            rebased_statements: The list of rebased statements.
+            statement: The statement to apply the decomposition rules to.
+            gate_name: The name of the gate to apply the decomposition rules to.
+        """
+        for rule in decomposition_rules[gate_name]:
+            qubits = self._get_qubits_for_gate(statement.qubits, rule)                
+
+            new_gate = qasm3_ast.QuantumGate(
+                        modifiers=[],
+                        name=qasm3_ast.Identifier(name=rule["gate"]),
+                        arguments=[qasm3_ast.FloatLiteral(value=rule["param"])] if "param" in rule else [],
+                        qubits=qubits,
+                    )
+
+            rebased_statements.append(new_gate)
+
+    def _get_qubits_for_gate(self, qubits, rule):
+        """
+        Determines the order of qubits to be used for a gate operation based on the provided rule.
+        
+        Args:
+            qubits: The qubits to be used for the gate operation.
+            rule: The decomposition rule to apply.
+            
+        Returns:
+            list: The ordered qubits to be used for the gate operation.
+        """
+        if "controll_bit" in rule:
+            if rule["controll_bit"] == AppliedQubit.QUBIT1:
+                qubits = [qubits[0], qubits[1]]
+            else:
+                qubits = [qubits[1], qubits[0]]
+        
+        elif "target_bit" in rule:
+            if rule["target_bit"] == AppliedQubit.QUBIT1:
+                qubits = [qubits[0]]
+            else:
+                qubits = [qubits[1]]
+        return qubits
+
+    def _is_parameterized_gate(self, gate_name):
+        """
+        Check if the gate is parameterized and requires approximation.
+        
+        Args:
+            gate_name: The name of the gate.
+        Returns:
+            bool: True if the gate is parameterized, False otherwise.
+        """
+        parameterized_gates = {"rx", "ry", "rz"} 
+        return gate_name in parameterized_gates
 
     def __str__(self) -> str:
         """Return the string representation of the QASM program
