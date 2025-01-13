@@ -1134,6 +1134,11 @@ class QasmVisitor:
                 init_value = self._evaluate_array_initialization(
                     statement.init_expression, final_dimensions, base_type
                 )
+            elif isinstance(statement.init_expression, qasm3_ast.QuantumMeasurement):
+                measurement, statement.init_expression = statement.init_expression, None
+                return self._visit_classical_declaration(statement) + self._visit_measurement(
+                    qasm3_ast.QuantumMeasurementStatement(measurement, statement.identifier)
+                )  # type: ignore
             else:
                 init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
                     statement.init_expression
