@@ -23,7 +23,7 @@ from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
 from pyqasm.exceptions import RebaseError, UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
-from pyqasm.maps.decomposition_rules import AppliedQubit, DECOMPOSITION_RULES, solovay_kitaev_algo
+from pyqasm.maps.decomposition_rules import AppliedQubit, DECOMPOSITION_RULES
 from pyqasm.maps.gates import BASIS_GATE_MAP
 from pyqasm.visitor import QasmVisitor
 
@@ -540,7 +540,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             QasmModule: The module with the gates rebased to the target basis set.
         """
         if target_basis_set not in DECOMPOSITION_RULES:
-            raise ValueError(f"Target basis set '{target_basis_set}' is not defined in DECOMPOSITION_RULES.")
+            raise ValueError(f"Target basis set '{target_basis_set}' is not defined.")
 
         qasm_module = self if in_place else self.copy()
 
@@ -554,22 +554,22 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         for statement in qasm_module._unrolled_ast.statements:
             if isinstance(statement, QuantumGate):
                 gate_name = statement.name.name
-                
+
                 if gate_name in target_basis_gate_list:
                     # Keep the gate as is if no decomposition exists
                     rebased_statements.append(statement)
                 elif gate_name in decomposition_rules:
                     # Decompose and apply the gates
                     self._apply_decomposed_gates(
-                        decomposition_rules, 
-                        rebased_statements, 
-                        statement, 
+                        decomposition_rules,
+                        rebased_statements,
+                        statement,
                         gate_name
                         )
                 elif self._is_parameterized_gate(gate_name):
                     # Approximate parameterized gates using Solovay-Kitaev
-                    
-                    # Example - 
+
+                    # Example -
                     # approx_gates = solovay_kitaev_algo(
                     #     gate_name, statement.arguments[0].value, accuracy=0.01
                     # )
@@ -577,33 +577,35 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     pass
                 else:
                     # Raise an error if the gate is not supported in the target basis set
-                    raise RebaseError(f"Gate '{gate_name}' is not supported in the target basis set '{target_basis_set}'.")
-                
+                    error = f"Gate '{gate_name}' is not supported in the '{target_basis_set} set'."
+                    raise RebaseError(error)
+
             else:
                 # Non-gate statements are directly appended
                 rebased_statements.append(statement)
 
         # Replace the unrolled AST with the rebased one
         qasm_module._unrolled_ast.statements = rebased_statements
-        
+
         return qasm_module
 
-    def _apply_decomposed_gates(self, decomposition_rules, rebased_statements, statement, gate_name):
+    def _apply_decomposed_gates(self, decomposition_rules, rebased_statements, statement, gate):
         """Apply the decomposed gates based on the decomposition rules.
 
         Args:
             decomposition_rules: The decomposition rules to apply.
             rebased_statements: The list of rebased statements.
             statement: The statement to apply the decomposition rules to.
-            gate_name: The name of the gate to apply the decomposition rules to.
+            gate: The name of the gate to apply the decomposition rules to.
         """
-        for rule in decomposition_rules[gate_name]:
-            qubits = self._get_qubits_for_gate(statement.qubits, rule)                
+        for rule in decomposition_rules[gate]:
+            qubits = self._get_qubits_for_gate(statement.qubits, rule)
+            arguments = [qasm3_ast.FloatLiteral(value=rule["param"])] if "param" in rule else []
 
             new_gate = qasm3_ast.QuantumGate(
                         modifiers=[],
                         name=qasm3_ast.Identifier(name=rule["gate"]),
-                        arguments=[qasm3_ast.FloatLiteral(value=rule["param"])] if "param" in rule else [],
+                        arguments=arguments,
                         qubits=qubits,
                     )
 
@@ -625,7 +627,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 qubits = [qubits[0], qubits[1]]
             else:
                 qubits = [qubits[1], qubits[0]]
-        
+
         elif "target_bit" in rule:
             if rule["target_bit"] == AppliedQubit.QUBIT1:
                 qubits = [qubits[0]]
@@ -642,7 +644,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Returns:
             bool: True if the gate is parameterized, False otherwise.
         """
-        parameterized_gates = {"rx", "ry", "rz"} 
+        parameterized_gates = {"rx", "ry", "rz"}
         return gate_name in parameterized_gates
 
     def __str__(self) -> str:

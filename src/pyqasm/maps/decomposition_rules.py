@@ -1,22 +1,40 @@
+# Copyright (C) 2024 qBraid
+#
+# This file is part of pyqasm
+#
+# Pyqasm is free software released under the GNU General Public License v3
+# or later. You can redistribute and/or modify it under the terms of the GPL v3.
+# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#
+# TH_summary_ERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+
+"""
+Definition of the decomposition rules for the gates in the basis sets.
+"""
 from enum import Enum
 from pyqasm.maps.expressions import CONSTANTS_MAP
 from pyqasm.elements import BasisSet
 
 class AppliedQubit(Enum):
+    """Enum to represent the qubits that are involved in the decomposition of a gate.
+    """
     QUBIT1 = 0  # Control qubit
     QUBIT2 = 1  # Target qubit
 
-"""Decomposition rules for the gates in the basis sets. 
-The rules are defined as a dictionary where the key is the gate name and the value is a list of dictionaries. 
-Each dictionary in the list represents a step in the decomposition of the gate. 
-Each step is defined by a dictionary with the following keys:
-    - gate: The name of the gate to be applied.
-    - param: The parameter of the gate.
-    - target_bit: The target qubit of the gate. This key is only used for decomposition of gates that operate on two qubits.
-    - controll_bit: The control qubit of the gate. This key is only used for gates that operate on two qubits.
-"""
+# Decomposition rules for the gates in the basis sets.
+# The rules are defined as a dictionary where the key is the gate name.
+# The value is a list of dictionaries.
+# Each dictionary in the list represents a step in the decomposition of the gate.
+# Each step is defined by a dictionary with the following keys:
+#     - gate: The name of the gate to be applied.
+#     - param: The parameter of the gate.
+#     - target_bit: The target qubit of the gate.
+#                   This key is only used for decomposition of gates that operate on two qubits.
+#     - controll_bit: The control qubit of the gate.
+#                   This key is only used for gates that operate on two qubits.
+#
 DECOMPOSITION_RULES = {
-    
+
     BasisSet.ROTATIONAL_CX: {
         "x": [
             {"gate": "rx", "param": CONSTANTS_MAP["pi"]}
@@ -99,6 +117,8 @@ DECOMPOSITION_RULES = {
         ]
     }
 }
-"""TODO: Implement the Solovay-Kitaev algorithm"""
-def solovay_kitaev_algo(gate_name, param, accuracy):
-    pass
+
+# """TODO: Implement the Solovay-Kitaev algorithm"""
+#
+# def solovay_kitaev_algo(gate_name, param, accuracy):
+#     pass

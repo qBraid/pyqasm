@@ -115,4 +115,3 @@ class BasisSet(Enum):
     @staticmethod
     def get_supported_bases():
         return list(BasisSet)
-    

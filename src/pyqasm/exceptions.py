@@ -30,7 +30,7 @@ class ValidationError(PyQasmError):
 
 class UnrollError(PyQasmError):
     """Exception raised when a OpenQASM program fails unrolling."""
-    
+
 class RebaseError(PyQasmError):
     """Exception raised when a OpenQASM program fails to rebase into target basis set."""
 
