@@ -670,7 +670,7 @@ class QasmVisitor:
             result.extend(gate_function(*ctrls, *targets))
         return result
 
-    def _update_qubit_depth_for_gate(self, all_targets: list[list[qasm3_ast.IndexedIdentifier]]):
+    def _update_qubit_depth_for_gate(self, all_targets: list[list[qasm3_ast.IndexedIdentifier]], ctrls: list[qasm3_ast.IndexedIdentifier]):
         """Updates the depth of the circuit after applying a broadcasted gate.
 
         Args:
@@ -681,13 +681,13 @@ class QasmVisitor:
         """
         for qubit_subset in all_targets:
             max_involved_depth = 0
-            for qubit in qubit_subset:
+            for qubit in qubit_subset + ctrls:
                 qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
                 qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
                 qubit_node.num_gates += 1
                 max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
 
-            for qubit in qubit_subset:
+            for qubit in qubit_subset + ctrls:
                 qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
                 qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
                 qubit_node.depth = max_involved_depth
@@ -764,7 +764,7 @@ class QasmVisitor:
                 )
             )
 
-            self._update_qubit_depth_for_gate(unrolled_targets)
+            self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
         if self._check_only:
             return []
 
