@@ -1254,6 +1254,13 @@ CTRL_GATE_MAP = {
 def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
     """
     Map a controlled QASM operation to a callable.
+
+    Args:
+        op_name (str): The QASM operation name.
+        ctrl_count (int): The number of control qubits.
+
+    Returns:
+        tuple: A tuple containing the callable and the number of qubits the operation acts on.
     """
 
     ctrl_op_name, c = op_name, ctrl_count

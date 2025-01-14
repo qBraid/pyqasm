@@ -386,6 +386,20 @@ def test_ctrl_gate_modifier():
     check_three_qubit_gate_op(result.unrolled_ast, 2, [[0, 1, 2], [1, 2, 3]], "ccx")
 
 
+def test_negctrl_gate_modifier():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    negctrl @ z q[0], q[1];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 2
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "x")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
+
+
 def test_nested_gate_modifiers():
     qasm3_string = """
     OPENQASM 3;
@@ -413,18 +427,45 @@ def test_nested_gate_modifiers():
     check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 2, 1]], "ccx")
 
 
-def test_negctrl_gate_modifier():
-    qasm3_string = """
+@pytest.mark.parametrize(
+    "test",
+    [
+        (
+            """
     OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q;
-    negctrl @ z q[0], q[1];
-    """
-    result = loads(qasm3_string)
-    result.unroll()
-    assert result.num_qubits == 2
-    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "x")
-    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
+    h q;
+    bit b;
+    b = measure q[0];
+    ctrl(b+1) @ x q[0], q[1];
+    """,
+            "Controlled modifier arguments must be compile-time constants.*",
+        ),
+        (
+            """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    ctrl(1.5) @ x q[0], q[1];
+    """,
+            "Controlled modifier argument must be a positive integer.*",
+        ),
+        (
+            """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit q;
+    pow(1.5) @ x q;
+    """,
+            "Power modifier argument must be an integer.*",
+        ),
+    ],
+)
+def test_modifier_arg_error(test):
+    qasm3_string, error_message = test
+    with pytest.raises(ValidationError, match=error_message):
+        loads(qasm3_string).validate()
 
 
 @pytest.mark.parametrize("test_name", CUSTOM_GATE_INCORRECT_TESTS.keys())

@@ -670,7 +670,11 @@ class QasmVisitor:
             result.extend(gate_function(*ctrls, *targets))
         return result
 
-    def _update_qubit_depth_for_gate(self, all_targets: list[list[qasm3_ast.IndexedIdentifier]], ctrls: list[qasm3_ast.IndexedIdentifier]):
+    def _update_qubit_depth_for_gate(
+        self,
+        all_targets: list[list[qasm3_ast.IndexedIdentifier]],
+        ctrls: list[qasm3_ast.IndexedIdentifier],
+    ):
         """Updates the depth of the circuit after applying a broadcasted gate.
 
         Args:
@@ -696,7 +700,7 @@ class QasmVisitor:
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = []
+        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
     ) -> list[qasm3_ast.QuantumGate]:
         """Visit a gate operation element.
 
@@ -748,6 +752,8 @@ class QasmVisitor:
         unrolled_gate_function = partial(qasm_func, *op_parameters)
 
         if inverse:
+            # for convenience, we recur and handle the ctrl @'s to the unrolled no inverse case
+            # instead of trying to map the inverted callable to a ctrl'd version
             result.extend(
                 [
                     g2
@@ -759,23 +765,20 @@ class QasmVisitor:
             )
         else:
             result.extend(
-                self._broadcast_gate_operation(
-                    unrolled_gate_function, unrolled_targets, ctrls
-                )
+                self._broadcast_gate_operation(unrolled_gate_function, unrolled_targets, ctrls)
             )
 
             self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
         if self._check_only:
             return []
 
-        
         return result
 
     def _visit_custom_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = []
+        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
     ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
         """Visit a custom gate operation element recursively.
 
@@ -857,7 +860,7 @@ class QasmVisitor:
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = []
+        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
     ) -> list[qasm3_ast.QuantumGate]:
         """Visit an external gate operation element.
 
@@ -922,7 +925,7 @@ class QasmVisitor:
         self,
         operation: qasm3_ast.QuantumPhase,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = []
+        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
     ) -> list[qasm3_ast.QuantumPhase]:
         """Visit a phase operation element.
 
@@ -961,7 +964,7 @@ class QasmVisitor:
     def _visit_generic_gate_operation(
         self,
         operation: Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase],
-        ctrls: list[qasm3_ast.IndexedIdentifier] = []
+        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
     ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
         """Visit a gate operation element.
 
@@ -996,17 +999,38 @@ class QasmVisitor:
         for modifier in operation.modifiers:
             modifier_name = modifier.modifier
             if modifier_name == qasm3_ast.GateModifierName.pow and modifier.argument is not None:
-                current_power = Qasm3ExprEvaluator.evaluate_expression(modifier.argument)[0]
+                try:
+                    current_power = Qasm3ExprEvaluator.evaluate_expression(
+                        modifier.argument, reqd_type=qasm3_ast.IntType
+                    )[0]
+                except ValidationError:
+                    raise_qasm3_error(
+                        f"Power modifier argument must be an integer in gate operation {operation}",
+                        span=operation.span,
+                    )
                 exponent *= current_power
             elif modifier_name == qasm3_ast.GateModifierName.inv:
                 exponent *= -1
-            elif modifier_name in [qasm3_ast.GateModifierName.ctrl, qasm3_ast.GateModifierName.negctrl]:
-                count = Qasm3ExprEvaluator.evaluate_expression(modifier.argument)[0]
+            elif modifier_name in [
+                qasm3_ast.GateModifierName.ctrl,
+                qasm3_ast.GateModifierName.negctrl,
+            ]:
+                try:
+                    count = Qasm3ExprEvaluator.evaluate_expression(
+                        modifier.argument, const_expr=True
+                    )[0]
+                except ValidationError:
+                    raise_qasm3_error(
+                        "Controlled modifier arguments must be compile-time constants "
+                        f"in gate operation {operation}",
+                        span=operation.span,
+                    )
                 if count is None:
                     count = 1
                 if not isinstance(count, int) or count <= 0:
                     raise_qasm3_error(
-                        f"Controlled modifiers must have positive integer arguments in gate operation {operation}",
+                        "Controlled modifier argument must be a positive integer "
+                        f"in gate operation {operation}",
                         span=operation.span,
                     )
                 ctrl_qubits = operation.qubits[ctrl_arg_ind : ctrl_arg_ind + count]
@@ -1021,13 +1045,12 @@ class QasmVisitor:
         operation.qubits = operation.qubits[ctrl_arg_ind:]
         operation.modifiers = []
 
-        
-
-
         # apply pow(int) via duplication
         if not isinstance(power_value, int):
             raise_qasm3_error(
-                f"Power modifiers with non-integer arguments are unsupported in gate operation {operation}"
+                "Power modifiers with non-integer arguments are unsupported in gate "
+                f"operation {operation}",
+                span=operation.span,
             )
 
         # get controlled? inverted? operation x power times
@@ -1041,10 +1064,12 @@ class QasmVisitor:
                 r = self._visit_custom_gate_operation(operation, inverse_value, ctrls)
             else:
                 r = self._visit_basic_gate_operation(operation, inverse_value, ctrls)
-            result.extend(r)            
-        
+            result.extend(r)
+
         # negctrl -> ctrl conversion
-        negs = [qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls]
+        negs = [
+            qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls
+        ]
         result = negs + result + negs
 
         if self._check_only:
