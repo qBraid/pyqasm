@@ -10,7 +10,6 @@
 
 import random
 
-import matplotlib.pyplot as plt
 import pytest
 from qbraid import random_circuit, transpile
 
@@ -21,7 +20,6 @@ def _check_fig(circ, fig):
     ax = fig.gca()
     # plt.savefig("test.png")
     assert len(ax.texts) > 0
-    plt.close(fig)
     # assert False
 
 
@@ -42,6 +40,20 @@ def test_simple():
     fig = circ.draw()
     _check_fig(circ, fig)
 
+
+def test_custom_gate():
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit q;
+    gate custom a {
+        h a;
+        z a;
+    }
+    custom q;
+    """
+    circ = loads(qasm)
+    fig = circ.draw()
+    _check_fig(circ, fig)
 
 @pytest.mark.parametrize("_", range(10))
 def test_random(_):

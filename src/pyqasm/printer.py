@@ -16,9 +16,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-import matplotlib as mpl
 import openqasm3.ast as ast
-from matplotlib import pyplot as plt
 
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import (
@@ -31,8 +29,16 @@ from pyqasm.maps import (
     TWO_QUBIT_OP_MAP,
 )
 
+try:
+    from matplotlib import pyplot as plt
+    mpl_installed = True
+except ImportError as e:
+    mpl_installed = False
+
 if TYPE_CHECKING:
     from pyqasm.modules.base import Qasm3Module
+    
+
 
 DEFAULT_GATE_COLOR = "#d4b6e8"
 HADAMARD_GATE_COLOR = "#f0a6a6"
@@ -45,6 +51,9 @@ FRAME_PADDING = 0.2
 
 
 def draw(module: Qasm3Module, output="mpl"):
+    if not mpl_installed:
+        raise ImportError("matplotlib needs to be installed prior to running pyqasm.draw(). You can install matplotlib with:\n'pip install pyqasm[visualization]'")
+
     if output == "mpl":
         return _draw_mpl(module)
     else:
