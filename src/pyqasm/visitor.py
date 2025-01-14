@@ -686,14 +686,14 @@ class QasmVisitor:
         for qubit_subset in all_targets:
             max_involved_depth = 0
             for qubit in qubit_subset + ctrls:
-                qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
-                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+                qubit_id = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]  # type: ignore
+                qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
                 qubit_node.num_gates += 1
                 max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
 
             for qubit in qubit_subset + ctrls:
-                qubit_name, qubit_id = qubit.name.name, qubit.indices[0][0].value  # type: ignore
-                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+                qubit_id = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]  # type: ignore
+                qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
                 qubit_node.depth = max_involved_depth
 
     def _visit_basic_gate_operation(  # pylint: disable=too-many-locals

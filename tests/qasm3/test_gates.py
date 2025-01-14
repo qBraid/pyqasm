@@ -399,6 +399,83 @@ def test_negctrl_gate_modifier():
     check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "x")
     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
 
+def test_ctrl_in_custom_gate():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    gate custom a, b, c {
+        ctrl @ x a, b;
+        ctrl(2) @ x a, b, c;
+    }
+    custom q[0], q[1], q[2];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 3
+    assert result.num_clbits == 0
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cx")
+    check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 1, 2]], "ccx")
+
+def test_ctrl_in_subroutine():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    def f(qubit a, qubit b) {
+        ctrl @ x a, b;
+        return;
+    }
+    qubit[2] q;
+    f(q[0], q[1]);
+    """
+    
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 2
+    assert result.num_clbits == 0
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cx")
+
+def test_ctrl_in_if_block():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit b;
+    b = measure q[0];
+    if(b == 1) {
+        ctrl @ x q[0], q[1];
+    }
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[1] b;
+    b[0] = measure q[0];
+    if (b == 1) {
+        cx q[0], q[1];
+    }
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+def test_ctrl_in_for_loop():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+
+    for int i in [0:2]{
+        ctrl @ x q[0], q[i+1];
+    }
+    """
+    # TODO: breaks if the index of the ctrl is not a compile-time constant
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 4
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (0, 2), (0, 3)], "cx")
+
 
 def test_nested_gate_modifiers():
     qasm3_string = """
