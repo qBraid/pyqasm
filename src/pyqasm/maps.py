@@ -1235,9 +1235,10 @@ def map_qasm_inv_op_to_callable(op_name: str):
         )
     raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
 
+
 REV_CTRL_GATE_MAP = {
     "cx": "x",
-    "cy": "y", 
+    "cy": "y",
     "cz": "z",
     "crx": "rx",
     "cry": "ry",
@@ -1248,6 +1249,7 @@ REV_CTRL_GATE_MAP = {
     "cswap": "swap",
     "ccx": "cx",
 }
+
 
 # pylint: disable=inconsistent-return-statements
 def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):

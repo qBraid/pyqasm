@@ -18,6 +18,7 @@ from openqasm3.printer import dumps
 from pyqasm.modules.base import QasmModule
 from pyqasm.printer import draw
 
+
 class Qasm3Module(QasmModule):
     """
     A module representing an openqasm3 quantum program.
