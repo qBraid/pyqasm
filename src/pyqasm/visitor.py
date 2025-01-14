@@ -972,6 +972,7 @@ class QasmVisitor:
             None
         """
         operation, ctrls = copy.deepcopy(operation), copy.deepcopy(ctrls)
+        negctrls = []
 
         # only needs to be done once for a gate operation
         if (
@@ -999,7 +1000,7 @@ class QasmVisitor:
                 exponent *= current_power
             elif modifier_name == qasm3_ast.GateModifierName.inv:
                 exponent *= -1
-            elif modifier_name == qasm3_ast.GateModifierName.ctrl:
+            elif modifier_name in [qasm3_ast.GateModifierName.ctrl, qasm3_ast.GateModifierName.negctrl]:
                 count = Qasm3ExprEvaluator.evaluate_expression(modifier.argument)[0]
                 if count is None:
                     count = 1
@@ -1012,12 +1013,8 @@ class QasmVisitor:
                 # TODO: assert ctrl_qubits are single qubits
                 ctrl_arg_ind += count
                 ctrls.extend(ctrl_qubits)
-            else:
-                raise_qasm3_error(
-                    f"Negctrl is an unsupported in gate operation: {operation}",
-                    err_type=NotImplementedError,
-                    span=operation.span,
-                )
+                if modifier_name == qasm3_ast.GateModifierName.negctrl:
+                    negctrls.extend(ctrl_qubits)
 
         power_value, inverse_value = abs(exponent), exponent < 0
 
@@ -1042,6 +1039,9 @@ class QasmVisitor:
             raise_qasm3_error(
                 f"Power modifiers with non-integer arguments are unsupported in gate operation {operation}"
             )
+        
+        negs = [qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls]
+        result = negs + result + negs
 
         if self._check_only:
             return []

@@ -413,20 +413,18 @@ def test_nested_gate_modifiers():
     check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 2, 1]], "ccx")
 
 
-def test_unsupported_modifiers():
-    # TO DO : add implementations, but till then we have tests
-    with pytest.raises(
-        NotImplementedError,
-        match=r"Negctrl is an unsupported in gate operation.*",
-    ):
-        loads(
-            f"""
-            OPENQASM 3;
-            include "stdgates.inc";
-            qubit[2] q;
-            negctrl @ h q[0], q[1];
-            """
-        ).validate()
+def test_negctrl_gate_modifier():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    negctrl @ z q[0], q[1];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 2
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "x")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
 
 
 @pytest.mark.parametrize("test_name", CUSTOM_GATE_INCORRECT_TESTS.keys())
