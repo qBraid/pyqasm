@@ -764,11 +764,11 @@ class QasmVisitor:
                 )
             )
 
-        self._update_qubit_depth_for_gate(unrolled_targets)
-
+            self._update_qubit_depth_for_gate(unrolled_targets)
         if self._check_only:
             return []
 
+        
         return result
 
     def _visit_custom_gate_operation(
@@ -1021,25 +1021,29 @@ class QasmVisitor:
         operation.qubits = operation.qubits[ctrl_arg_ind:]
         operation.modifiers = []
 
-        # get controlled? inverted? operation
-        result: list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]] = []
-        if isinstance(operation, qasm3_ast.QuantumPhase):
-            result = self._visit_phase_operation(operation, inverse_value, ctrls)
-        elif operation.name.name in self._external_gates:
-            result = self._visit_external_gate_operation(operation, inverse_value, ctrls)
-        elif operation.name.name in self._custom_gates:
-            result = self._visit_custom_gate_operation(operation, inverse_value, ctrls)
-        else:
-            result = self._visit_basic_gate_operation(operation, inverse_value, ctrls)
+        
+
 
         # apply pow(int) via duplication
-        if isinstance(power_value, int):
-            result *= power_value
-        else:
+        if not isinstance(power_value, int):
             raise_qasm3_error(
                 f"Power modifiers with non-integer arguments are unsupported in gate operation {operation}"
             )
+
+        # get controlled? inverted? operation x power times
+        result: list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]] = []
+        for _ in range(power_value):
+            if isinstance(operation, qasm3_ast.QuantumPhase):
+                r = self._visit_phase_operation(operation, inverse_value, ctrls)
+            elif operation.name.name in self._external_gates:
+                r = self._visit_external_gate_operation(operation, inverse_value, ctrls)
+            elif operation.name.name in self._custom_gates:
+                r = self._visit_custom_gate_operation(operation, inverse_value, ctrls)
+            else:
+                r = self._visit_basic_gate_operation(operation, inverse_value, ctrls)
+            result.extend(r)            
         
+        # negctrl -> ctrl conversion
         negs = [qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls]
         result = negs + result + negs
 
