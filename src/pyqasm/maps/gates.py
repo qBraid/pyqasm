@@ -21,7 +21,7 @@ from typing import Callable, Union
 import numpy as np
 from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
 
-from pyqasm.elements import InversionOp, BasisSet
+from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP

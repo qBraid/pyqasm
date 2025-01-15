@@ -17,7 +17,7 @@ from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
-from openqasm3.ast import Program, QuantumGate
+from openqasm3.ast import BranchingStatement, Program, QuantumGate
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
@@ -547,38 +547,28 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         if len(qasm_module._unrolled_ast.statements) == 0:
             qasm_module.unroll()
 
-        decomposition_rules = DECOMPOSITION_RULES[target_basis_set]
-        target_basis_gate_list = BASIS_GATE_MAP[target_basis_set]
         rebased_statements = []
 
         for statement in qasm_module._unrolled_ast.statements:
             if isinstance(statement, QuantumGate):
                 gate_name = statement.name.name
 
-                if gate_name in target_basis_gate_list:
-                    # Keep the gate as is if no decomposition exists
-                    rebased_statements.append(statement)
-                elif gate_name in decomposition_rules:
-                    # Decompose and apply the gates
-                    self._apply_decomposed_gates(
-                        decomposition_rules,
-                        rebased_statements,
-                        statement,
-                        gate_name
-                        )
-                elif self._is_parameterized_gate(gate_name):
-                    # Approximate parameterized gates using Solovay-Kitaev
+                # Decompose the gate
+                processed_gates_list = self._process_gate_statement(
+                    gate_name,
+                    statement,
+                    target_basis_set
+                    )
+                for processed_gate in processed_gates_list:
+                    rebased_statements.append(processed_gate)
 
-                    # Example -
-                    # approx_gates = solovay_kitaev_algo(
-                    #     gate_name, statement.arguments[0].value, accuracy=0.01
-                    # )
-                    # rebased_statements.extend(approx_gates)
-                    pass
-                else:
-                    # Raise an error if the gate is not supported in the target basis set
-                    error = f"Gate '{gate_name}' is not supported in the '{target_basis_set} set'."
-                    raise RebaseError(error)
+            elif isinstance(statement, BranchingStatement):
+                # Recursively process the if_block and else_block
+
+                rebased_statements.append(self._process_branching_statement(
+                    statement,
+                    target_basis_set
+                    ))
 
             else:
                 # Non-gate statements are directly appended
@@ -589,15 +579,107 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return qasm_module
 
-    def _apply_decomposed_gates(self, decomposition_rules, rebased_statements, statement, gate):
+    def _process_gate_statement(self, gate_name, statement, target_basis_set):
+        """Process the gate statement based on the target basis set.
+        
+        Args:
+            gate_name: The name of the gate to process.
+            statement: The statement to process.
+            target_basis_set: The target basis set to rebase the module to.
+            
+        Returns:
+            list: The processed gates based on the target basis set.
+        """
+        decomposition_rules = DECOMPOSITION_RULES[target_basis_set]
+        target_basis_gate_list = BASIS_GATE_MAP[target_basis_set]
+
+        processed_gates_list = []
+
+        if gate_name in target_basis_gate_list:
+            # Keep the gate as is
+            processed_gates_list = [statement]
+        elif gate_name in decomposition_rules:
+            # Decompose the gates
+            processed_gates_list = self._get_decomposed_gates(
+                decomposition_rules,
+                statement,
+                gate_name
+                )
+        elif self._is_parameterized_gate(gate_name):
+            # Approximate parameterized gates using Solovay-Kitaev
+            # Example -
+            # approx_gates = solovay_kitaev_algo(
+            #     gate_name, statement.arguments[0].value, accuracy=0.01
+            # )
+            # return approx_gates
+            pass
+        else:
+            # Raise an error if the gate is not supported in the target basis set
+            error = f"Gate '{gate_name}' is not supported in the '{target_basis_set} set'."
+            raise RebaseError(error)
+
+        return processed_gates_list
+
+    def _process_branching_statement(self, branching_statement, target_basis_set):
+        """Process the branching statement based on the target basis set.
+        
+        Args:
+            branching_statement: The branching statement to process.
+            target_basis_set: The target basis set to rebase the module to.
+            
+        Returns:
+            BranchingStatement: The processed branching statement based on the target basis set.
+        """
+        if_block = []
+        else_block = []
+
+        for statement in branching_statement.if_block:
+            if isinstance(statement, QuantumGate):
+                gate_name = statement.name.name
+                processed_gates_list = self._process_gate_statement(
+                    gate_name,
+                    statement,
+                    target_basis_set
+                    )
+                if_block.extend(processed_gates_list)
+            elif isinstance(statement, BranchingStatement):
+                if_block.append(self._process_branching_statement(statement, target_basis_set))
+            else:
+                if_block.append(statement)
+
+        for statement in branching_statement.else_block:
+            if isinstance(statement, QuantumGate):
+                gate_name = statement.name.name
+                processed_gates_list = self._process_gate_statement(
+                    gate_name,
+                    statement,
+                    target_basis_set
+                    )
+                else_block.extend(processed_gates_list)
+            elif isinstance(statement, BranchingStatement):
+                else_block.append(self._process_branching_statement(statement, target_basis_set))
+            else:
+                else_block.append(statement)
+
+        return BranchingStatement(
+            condition=branching_statement.condition,
+            if_block=if_block,
+            else_block=else_block
+        )
+
+    def _get_decomposed_gates(self, decomposition_rules, statement, gate):
         """Apply the decomposed gates based on the decomposition rules.
 
         Args:
             decomposition_rules: The decomposition rules to apply.
-            rebased_statements: The list of rebased statements.
             statement: The statement to apply the decomposition rules to.
             gate: The name of the gate to apply the decomposition rules to.
+            
+        Returns:
+            list: The decomposed gates to be applied.
         """
+        decomposed_gates = []
+
         for rule in decomposition_rules[gate]:
             qubits = self._get_qubits_for_gate(statement.qubits, rule)
             arguments = [qasm3_ast.FloatLiteral(value=rule["param"])] if "param" in rule else []
@@ -609,7 +691,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                         qubits=qubits,
                     )
 
-            rebased_statements.append(new_gate)
+            decomposed_gates.append(new_gate)
+        return decomposed_gates
 
     def _get_qubits_for_gate(self, qubits, rule):
         """
