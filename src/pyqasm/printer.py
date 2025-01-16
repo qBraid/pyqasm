@@ -55,6 +55,7 @@ def draw(module: Qasm3Module, output="mpl"):
         raise ImportError("matplotlib needs to be installed prior to running pyqasm.draw(). You can install matplotlib with:\n'pip install pyqasm[visualization]'")
 
     if output == "mpl":
+        plt.ioff()
         return _draw_mpl(module)
     else:
         raise NotImplementedError(f"{output} drawing for Qasm3Module is unsupported")
