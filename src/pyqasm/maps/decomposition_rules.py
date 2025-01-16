@@ -12,8 +12,10 @@
 Definition of the decomposition rules for the gates in the basis sets.
 """
 from enum import Enum
+
 from pyqasm.elements import BasisSet
 from pyqasm.maps.expressions import CONSTANTS_MAP
+
 
 class AppliedQubit(Enum):
     """Enum to represent the qubits that are involved in the decomposition of a gate.

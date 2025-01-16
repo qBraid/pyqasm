@@ -23,7 +23,7 @@ from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
 from pyqasm.exceptions import RebaseError, UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
-from pyqasm.maps.decomposition_rules import AppliedQubit, DECOMPOSITION_RULES
+from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES, AppliedQubit
 from pyqasm.maps.gates import BASIS_GATE_MAP
 from pyqasm.visitor import QasmVisitor
 
