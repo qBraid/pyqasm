@@ -1,5 +1,4 @@
-# Copyright (C) 2024 qBraid
-#
+# Copyright (C) 2025 qBraid#
 # This file is part of pyqasm
 #
 # Pyqasm is free software released under the GNU General Public License v3
@@ -31,13 +30,13 @@ from pyqasm.maps import (
 
 try:
     from matplotlib import pyplot as plt
+
     mpl_installed = True
 except ImportError as e:
     mpl_installed = False
 
 if TYPE_CHECKING:
     from pyqasm.modules.base import Qasm3Module
-    
 
 
 DEFAULT_GATE_COLOR = "#d4b6e8"
@@ -53,11 +52,13 @@ FRAME_PADDING = 0.2
 
 def draw(module: Qasm3Module, output="mpl", **kwargs):
     if not mpl_installed:
-        raise ImportError("matplotlib needs to be installed prior to running pyqasm.draw(). You can install matplotlib with:\n'pip install pyqasm[visualization]'")
+        raise ImportError(
+            "matplotlib needs to be installed prior to running pyqasm.draw(). You can install matplotlib with:\n'pip install pyqasm[visualization]'"
+        )
 
     if output == "mpl":
         plt.ioff()
-        plt.close('all')
+        plt.close("all")
         return _draw_mpl(module, **kwargs)
     else:
         raise NotImplementedError(f"{output} drawing for Qasm3Module is unsupported")
@@ -66,7 +67,7 @@ def draw(module: Qasm3Module, output="mpl", **kwargs):
 def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
     module.unroll()
     module.remove_includes()
-    
+
     idle_wires = kwargs.get("idle_wires", True)
 
     statements = module._statements
@@ -126,15 +127,15 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
         if depth >= len(moments):
             moments.append([])
         moments[depth].append(statement)
-    
+
     if not idle_wires:
-        # remove all lines that are not used            
+        # remove all lines that are not used
         ks = sorted(line_nums.keys(), key=lambda k: line_nums[k])
         ks = [k for k in ks if depths[k] > 0]
-        line_nums = { k:i for i,k in enumerate(ks) }
+        line_nums = {k: i for i, k in enumerate(ks)}
 
     sections = [[]]
-    
+
     width = TEXT_MARGIN
     for moment in moments:
         w = _mpl_get_moment_width(moment)
@@ -145,7 +146,7 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
             width = w
             sections.append([])
         sections[-1].append(moment)
-        
+
     if len(sections) > 1:
         width = FIG_MAX_WIDTH
 
@@ -155,11 +156,11 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
         len(sections),
         1,
         sharex=True,
-        figsize=(width, len(sections)*(n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1)))
+        figsize=(width, len(sections) * (n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1))),
     )
     if len(sections) == 1:
         axs = [axs]
-    
+
     for ax in axs:
         ax.set_ylim(
             -GATE_BOX_HEIGHT / 2 - FRAME_PADDING / 2,
@@ -171,7 +172,7 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
         ax.set_xlim(-FRAME_PADDING / 2, width)
         ax.axis("off")
 
-    for sidx,moments in enumerate(sections):
+    for sidx, moments in enumerate(sections):
         ax = axs[sidx]
         x = 0
         if sidx == 0:
@@ -186,7 +187,7 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
 
         x += TEXT_MARGIN
         x0 = x
-        for i,moment in enumerate(moments):
+        for i, moment in enumerate(moments):
             dx = _mpl_get_moment_width(moment)
             _mpl_draw_lines(dx, line_nums, sizes, ax, x, start=(i == 0 and sidx == 0))
             x += dx
@@ -213,29 +214,59 @@ def _identifier_to_key(identifier: ast.Identifier | ast.IndexedIdentifier) -> tu
 def _mpl_line_to_y(line_num: int) -> float:
     return line_num * (GATE_BOX_HEIGHT + LINE_SPACING)
 
+
 def _mpl_draw_qubit_label(qubit: tuple[str, int], line_num: int, ax: plt.Axes, x: float):
     ax.text(x, _mpl_line_to_y(line_num), f"{qubit[0]}[{qubit[1]}]", ha="right", va="center")
+
 
 def _mpl_draw_creg_label(creg: str, size: int, line_num: int, ax: plt.Axes, x: float):
     ax.text(x, _mpl_line_to_y(line_num), f"{creg[0]}", ha="right", va="center")
 
-def _mpl_draw_lines(width, line_nums: dict[tuple[str, int], int], sizes: dict[tuple[str, int], int], ax: plt.Axes, x: float, start=True):
+
+def _mpl_draw_lines(
+    width,
+    line_nums: dict[tuple[str, int], int],
+    sizes: dict[tuple[str, int], int],
+    ax: plt.Axes,
+    x: float,
+    start=True,
+):
     for k in line_nums.keys():
         y = _mpl_line_to_y(line_nums[k])
         if k[1] == -1:
-            gap = GATE_BOX_HEIGHT/15
+            gap = GATE_BOX_HEIGHT / 15
             ax.hlines(
-                xmin=x - width / 2, xmax=x + width / 2, y=y+gap/2, color="black", linestyle="-", zorder=-10
+                xmin=x - width / 2,
+                xmax=x + width / 2,
+                y=y + gap / 2,
+                color="black",
+                linestyle="-",
+                zorder=-10,
             )
             ax.hlines(
-                xmin=x - width / 2, xmax=x + width / 2, y=y-gap/2, color="black", linestyle="-", zorder=-10
+                xmin=x - width / 2,
+                xmax=x + width / 2,
+                y=y - gap / 2,
+                color="black",
+                linestyle="-",
+                zorder=-10,
             )
             if start:
-                ax.plot([x - width/2 + gap, x - width/2 + 2*gap], [y-2*gap, y+2*gap], color="black", zorder=-10)
-                ax.text(x - width/2 + 3*gap, y+3*gap, f"{sizes[k]}", fontsize=8)
+                ax.plot(
+                    [x - width / 2 + gap, x - width / 2 + 2 * gap],
+                    [y - 2 * gap, y + 2 * gap],
+                    color="black",
+                    zorder=-10,
+                )
+                ax.text(x - width / 2 + 3 * gap, y + 3 * gap, f"{sizes[k]}", fontsize=8)
         else:
             ax.hlines(
-                xmin=x - width / 2, xmax=x + width / 2, y=y, color="black", linestyle="-", zorder=-10
+                xmin=x - width / 2,
+                xmax=x + width / 2,
+                y=y,
+                color="black",
+                linestyle="-",
+                zorder=-10,
             )
 
 
@@ -257,7 +288,9 @@ def _mpl_draw_statement(
     elif isinstance(statement, ast.QuantumMeasurementStatement):
         qubit_key = _identifier_to_key(statement.measure.qubit)
         target_key = _identifier_to_key(statement.target)
-        _mpl_draw_measurement(line_nums[qubit_key], line_nums[(target_key[0], -1)], target_key[1], ax, x)
+        _mpl_draw_measurement(
+            line_nums[qubit_key], line_nums[(target_key[0], -1)], target_key[1], ax, x
+        )
     elif isinstance(statement, ast.QuantumBarrier):
         lines = [line_nums[_identifier_to_key(q)] for q in statement.qubits]
         _mpl_draw_barrier(lines, ax, x)
@@ -299,7 +332,6 @@ def _draw_mpl_one_qubit_gate(
     if gate.name.name == "h":
         color = HADAMARD_GATE_COLOR
     text = gate.name.name.upper()
-    
 
     y = _mpl_line_to_y(line)
     rect = plt.Rectangle(
@@ -310,11 +342,11 @@ def _draw_mpl_one_qubit_gate(
         edgecolor="none",
     )
     ax.add_patch(rect)
-    
+
     if len(args) > 0:
         args_text = f"{', '.join([f'{a:.3f}' if isinstance(a, float) else str(a) for a in args])}"
-        ax.text(x, y + GATE_BOX_HEIGHT/8, text, ha="center", va="center", fontsize=12)
-        ax.text(x, y - GATE_BOX_HEIGHT/4, args_text, ha="center", va="center", fontsize=8)
+        ax.text(x, y + GATE_BOX_HEIGHT / 8, text, ha="center", va="center", fontsize=12)
+        ax.text(x, y - GATE_BOX_HEIGHT / 4, args_text, ha="center", va="center", fontsize=8)
     else:
         ax.text(x, y, text, ha="center", va="center", fontsize=12)
 
@@ -337,9 +369,9 @@ def _draw_mpl_swap(line1: int, line2: int, ax: plt.Axes, x: float):
 def _mpl_draw_measurement(qbit_line: int, cbit_line: int, idx: int, ax: plt.Axes, x: float):
     y1 = _mpl_line_to_y(qbit_line)
     y2 = _mpl_line_to_y(cbit_line)
-    
+
     color = "#A0A0A0"
-    gap = GATE_BOX_WIDTH/3
+    gap = GATE_BOX_WIDTH / 3
     rect = plt.Rectangle(
         (x - GATE_BOX_WIDTH / 2, y1 - GATE_BOX_HEIGHT / 2),
         GATE_BOX_WIDTH,
@@ -350,10 +382,20 @@ def _mpl_draw_measurement(qbit_line: int, cbit_line: int, idx: int, ax: plt.Axes
     ax.add_patch(rect)
     ax.text(x, y1, "M", ha="center", va="center")
     ax.vlines(
-        x=x - gap/10, ymin=min(y1, y2)+gap, ymax=max(y1, y2), color=color, linestyle="-", zorder=-1
+        x=x - gap / 10,
+        ymin=min(y1, y2) + gap,
+        ymax=max(y1, y2),
+        color=color,
+        linestyle="-",
+        zorder=-1,
     )
     ax.vlines(
-        x=x + gap/10, ymin=min(y1, y2)+gap, ymax=max(y1, y2), color=color, linestyle="-", zorder=-1
+        x=x + gap / 10,
+        ymin=min(y1, y2) + gap,
+        ymax=max(y1, y2),
+        color=color,
+        linestyle="-",
+        zorder=-1,
     )
     ax.plot(x, y2 + gap, "v", markersize=12, color=color)
     ax.text(x + gap, y2 + gap, str(idx), color=color, ha="left", va="bottom", fontsize=8)
@@ -362,14 +404,20 @@ def _mpl_draw_measurement(qbit_line: int, cbit_line: int, idx: int, ax: plt.Axes
 def _mpl_draw_barrier(lines: list[int], ax: plt.Axes, x: float):
     for line in lines:
         y = _mpl_line_to_y(line)
-        ax.vlines(x=x, ymin=y - GATE_BOX_HEIGHT/2 - LINE_SPACING/2, ymax=y + GATE_BOX_HEIGHT/2 + LINE_SPACING/2, color="black", linestyle="--")
+        ax.vlines(
+            x=x,
+            ymin=y - GATE_BOX_HEIGHT / 2 - LINE_SPACING / 2,
+            ymax=y + GATE_BOX_HEIGHT / 2 + LINE_SPACING / 2,
+            color="black",
+            linestyle="--",
+        )
         rect = plt.Rectangle(
-            (x - GATE_BOX_WIDTH / 4, y - GATE_BOX_HEIGHT / 2 - LINE_SPACING/2),
+            (x - GATE_BOX_WIDTH / 4, y - GATE_BOX_HEIGHT / 2 - LINE_SPACING / 2),
             GATE_BOX_WIDTH / 2,
             GATE_BOX_HEIGHT + LINE_SPACING,
             facecolor="lightgray",
             edgecolor="none",
             alpha=0.5,
-            zorder=-1
+            zorder=-1,
         )
         ax.add_patch(rect)

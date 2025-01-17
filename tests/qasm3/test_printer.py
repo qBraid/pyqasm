@@ -1,5 +1,4 @@
-# Copyright (C) 2024 qBraid
-#
+# Copyright (C) 2025 qBraid#
 # This file is part of pyqasm
 #
 # Pyqasm is free software released under the GNU General Public License v3
@@ -54,6 +53,7 @@ def test_custom_gate():
     circ = loads(qasm)
     fig = circ.draw()
     _check_fig(circ, fig)
+
 
 @pytest.mark.parametrize("_", range(10))
 def test_random(_):
