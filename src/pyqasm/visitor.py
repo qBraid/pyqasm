@@ -987,6 +987,10 @@ class QasmVisitor:
                 )
             )
 
+        operation.qubits = self._get_op_bits(
+            operation, reg_size_map=self._global_qreg_size_map, qubits=True
+        )
+
         # ctrl / pow / inv modifiers commute. so group them.
         exponent = 1
         ctrl_arg_ind = 0
@@ -1029,6 +1033,7 @@ class QasmVisitor:
                     )
                 # TODO: unroll ctrl qubits
                 ctrl_qubits = operation.qubits[ctrl_arg_ind : ctrl_arg_ind + count]
+                
                 # TODO: assert ctrl_qubits are single qubits
                 ctrl_arg_ind += count
                 ctrls.extend(ctrl_qubits)

@@ -468,14 +468,13 @@ def test_ctrl_in_for_loop():
     qubit[4] q;
 
     for int i in [0:2]{
-        ctrl @ x q[0], q[i+1];
+        ctrl @ x q[i], q[i+1];
     }
     """
-    # TODO: breaks if the index of the ctrl is not a compile-time constant
     result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 4
-    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (0, 2), (0, 3)], "cx")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
 def test_nested_gate_modifiers():
