@@ -50,23 +50,25 @@ TEXT_MARGIN = 0.6
 FRAME_PADDING = 0.2
 
 
-def draw(module: Qasm3Module, output="mpl"):
+def draw(module: Qasm3Module, output="mpl", **kwargs):
     if not mpl_installed:
         raise ImportError("matplotlib needs to be installed prior to running pyqasm.draw(). You can install matplotlib with:\n'pip install pyqasm[visualization]'")
 
     if output == "mpl":
         plt.ioff()
-        return _draw_mpl(module)
+        plt.close('all')
+        return _draw_mpl(module, **kwargs)
     else:
         raise NotImplementedError(f"{output} drawing for Qasm3Module is unsupported")
 
 
-def _draw_mpl(module: Qasm3Module) -> plt.Figure:
+def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
     module.unroll()
     module.remove_includes()
     module.remove_barriers()
+    
+    idle_wires = kwargs.get("idle_wires", True)
 
-    n_lines = module._num_qubits + module._num_clbits
     statements = module._statements
 
     # compute line numbers per qubit + max depth
@@ -127,6 +129,14 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
     for moment in moments:
         width += _mpl_get_moment_width(moment)
     width += TEXT_MARGIN
+    
+    if not idle_wires:
+        # remove all lines that are not used            
+        line_nums = {k: v for k, v in line_nums.items() if depths[k] >= 0}
+        for i, k in enumerate(line_nums.keys()):
+            line_nums[k] = i
+    
+    n_lines = max(line_nums.values()) + 1
 
     fig, ax = plt.subplots(
         figsize=(width, n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1))
@@ -146,12 +156,14 @@ def _draw_mpl(module: Qasm3Module) -> plt.Figure:
     x = 0
     for k in module._qubit_registers.keys():
         for i in range(module._qubit_registers[k]):
-            line_num = line_nums[(k, i)]
-            _mpl_draw_qubit_label((k, i), line_num, ax, x)
+            if (k, i) in line_nums:
+                line_num = line_nums[(k, i)]
+                _mpl_draw_qubit_label((k, i), line_num, ax, x)
     for k in module._classical_registers.keys():
         for i in range(module._classical_registers[k]):
-            line_num = line_nums[(k, i)]
-            _mpl_draw_clbit_label((k, i), line_num, ax, x)
+            if (k, i) in line_nums:
+                line_num = line_nums[(k, i)]
+                _mpl_draw_clbit_label((k, i), line_num, ax, x)
     x += TEXT_MARGIN
     x0 = x
     for moment in moments:

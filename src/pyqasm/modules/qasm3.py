@@ -50,6 +50,6 @@ class Qasm3Module(QasmModule):
 
         self._unrolled_ast.statements = final_stmt_list
 
-    def draw(self):
+    def draw(self, **kwargs):
         """Draw the module"""
-        return draw(self)
+        return draw(self, **kwargs)
