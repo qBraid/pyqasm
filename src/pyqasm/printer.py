@@ -13,18 +13,15 @@ Module with analysis functions for QASM visitor
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import openqasm3.ast as ast
 
 from pyqasm.expressions import Qasm3ExprEvaluator
-from pyqasm.maps import (
-    FIVE_QUBIT_OP_MAP,
-    FOUR_QUBIT_OP_MAP,
+from pyqasm.maps.gates import (
     ONE_QUBIT_OP_MAP,
     ONE_QUBIT_ROTATION_MAP,
     REV_CTRL_GATE_MAP,
-    THREE_QUBIT_OP_MAP,
     TWO_QUBIT_OP_MAP,
 )
 
@@ -119,8 +116,6 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
             depth = 1 + max([depths[q] for q in qubits])
             for q in qubits:
                 depths[q] = depth
-        elif isinstance(statement, ast.QuantumReset):
-            pass
         else:
             raise NotImplementedError(f"Unsupported statement: {statement}")
 
