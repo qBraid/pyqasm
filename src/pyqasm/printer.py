@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 DEFAULT_GATE_COLOR = "#d4b6e8"
 HADAMARD_GATE_COLOR = "#f0a6a6"
 
+MAX_WIDTH = 12
 GATE_BOX_WIDTH, GATE_BOX_HEIGHT = 0.6, 0.6
 GATE_SPACING = 0.2
 LINE_SPACING = 0.6
@@ -126,56 +127,75 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
             moments.append([])
         moments[depth].append(statement)
 
-    width = 0
-    for moment in moments:
-        width += _mpl_get_moment_width(moment)
-    width += TEXT_MARGIN
-
     if not idle_wires:
         # remove all lines that are not used            
         line_nums = {k: v for k, v in line_nums.items() if depths[k] >= 0}
         for i, k in enumerate(line_nums.keys()):
             line_nums[k] = i
+
+    sections = [[]]
     
+    width = TEXT_MARGIN
+    for moment in moments:
+        w = _mpl_get_moment_width(moment)
+        if width + w < MAX_WIDTH:
+            width += w
+        else:
+            width = TEXT_MARGIN
+            width = w
+            sections.append([])
+        sections[-1].append(moment)
+        
+    if len(sections) >= 1:
+        width = MAX_WIDTH
+
     n_lines = max(line_nums.values()) + 1
 
-    fig, ax = plt.subplots(
-        figsize=(width, n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1))
+    fig, axs = plt.subplots(
+        len(sections),
+        1,
+        sharex=True,
+        figsize=(width, len(sections)*(n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1)))
     )
-    ax.set_ylim(
-        -GATE_BOX_HEIGHT / 2 - FRAME_PADDING / 2,
-        n_lines * GATE_BOX_HEIGHT
-        + LINE_SPACING * (n_lines - 1)
-        - GATE_BOX_HEIGHT / 2
-        + FRAME_PADDING / 2,
-    )
-    ax.set_xlim(-FRAME_PADDING / 2, width)
-    ax.axis("off")
-    # ax.set_aspect('equal')
-    # plt.tight_layout()
+    if len(sections) == 1:
+        axs = [axs]
+    
+    for ax in axs:
+        ax.set_ylim(
+            -GATE_BOX_HEIGHT / 2 - FRAME_PADDING / 2,
+            n_lines * GATE_BOX_HEIGHT
+            + LINE_SPACING * (n_lines - 1)
+            - GATE_BOX_HEIGHT / 2
+            + FRAME_PADDING / 2,
+        )
+        ax.set_xlim(-FRAME_PADDING / 2, width)
+        ax.axis("off")
 
-    x = 0
-    for k in module._qubit_registers.keys():
-        for i in range(module._qubit_registers[k]):
-            if (k, i) in line_nums:
-                line_num = line_nums[(k, i)]
-                _mpl_draw_qubit_label((k, i), line_num, ax, x)
+    for sidx,moments in enumerate(sections):
+        ax = axs[sidx]
+        x = 0
+        if sidx == 0:
+            for k in module._qubit_registers.keys():
+                for i in range(module._qubit_registers[k]):
+                    if (k, i) in line_nums:
+                        line_num = line_nums[(k, i)]
+                        _mpl_draw_qubit_label((k, i), line_num, ax, x)
 
-    for k in module._classical_registers.keys():
-        _mpl_draw_creg_label(k, module._classical_registers[k], line_nums[(k, -1)], ax, x)
+            for k in module._classical_registers.keys():
+                _mpl_draw_creg_label(k, module._classical_registers[k], line_nums[(k, -1)], ax, x)
 
-    x += TEXT_MARGIN
-    x0 = x
-    for i,moment in enumerate(moments):
-        dx = _mpl_get_moment_width(moment)
-        _mpl_draw_lines(dx, line_nums, sizes, ax, x, start=i==0)
-        x += dx
-    x = x0
-    for moment in moments:
-        dx = _mpl_get_moment_width(moment)
-        for statement in moment:
-            _mpl_draw_statement(statement, line_nums, ax, x)
-        x += dx
+        x += TEXT_MARGIN
+        x0 = x
+        for i,moment in enumerate(moments):
+            dx = _mpl_get_moment_width(moment)
+            _mpl_draw_lines(dx, line_nums, sizes, ax, x, start=(i == 0 and sidx == 0))
+            x += dx
+        x = x0
+        for moment in moments:
+            dx = _mpl_get_moment_width(moment)
+            for statement in moment:
+                _mpl_draw_statement(statement, line_nums, ax, x)
+            x += dx
 
     return fig
 
