@@ -65,7 +65,6 @@ def draw(module: Qasm3Module, output="mpl", **kwargs):
 def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
     module.unroll()
     module.remove_includes()
-    module.remove_barriers()
     
     idle_wires = kwargs.get("idle_wires", True)
 
@@ -115,7 +114,10 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
             for k in [qubit_key, target_key]:
                 depths[k] = depth
         elif isinstance(statement, ast.QuantumBarrier):
-            pass
+            qubits = [_identifier_to_key(q) for q in statement.qubits]
+            depth = 1 + max([depths[q] for q in qubits])
+            for q in qubits:
+                depths[q] = depth
         elif isinstance(statement, ast.QuantumReset):
             pass
         else:
@@ -229,6 +231,9 @@ def _mpl_draw_statement(
         qubit_key = _identifier_to_key(statement.measure.qubit)
         target_key = _identifier_to_key(statement.target)
         _mpl_draw_measurement(line_nums[qubit_key], line_nums[target_key], ax, x)
+    elif isinstance(statement, ast.QuantumBarrier):
+        lines = [line_nums[_identifier_to_key(q)] for q in statement.qubits]
+        _mpl_draw_barrier(lines, ax, x)
     else:
         raise NotImplementedError(f"Unsupported statement: {statement}")
 
@@ -322,3 +327,19 @@ def _mpl_draw_measurement(qbit_line: int, cbit_line: int, ax: plt.Axes, x: float
         x=x + 0.025, ymin=min(y1, y2), ymax=max(y1, y2), color="gray", linestyle="-", zorder=-1
     )
     ax.plot(x, y2 + 0.1, "v", markersize=16, color="gray")
+
+
+def _mpl_draw_barrier(lines: list[int], ax: plt.Axes, x: float):
+    for line in lines:
+        y = _mpl_line_to_y(line)
+        ax.vlines(x=x, ymin=y - GATE_BOX_HEIGHT/2 - LINE_SPACING/2, ymax=y + GATE_BOX_HEIGHT/2 + LINE_SPACING/2, color="black", linestyle="--")
+        rect = plt.Rectangle(
+            (x - GATE_BOX_WIDTH / 4, y - GATE_BOX_HEIGHT / 2 - LINE_SPACING/2),
+            GATE_BOX_WIDTH / 2,
+            GATE_BOX_HEIGHT + LINE_SPACING,
+            facecolor="lightgray",
+            edgecolor="none",
+            alpha=0.5,
+            zorder=-1
+        )
+        ax.add_patch(rect)
