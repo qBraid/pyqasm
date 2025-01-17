@@ -255,8 +255,7 @@ def _draw_mpl_one_qubit_gate(
     if gate.name.name == "h":
         color = HADAMARD_GATE_COLOR
     text = gate.name.name.upper()
-    if len(args) > 0:
-        text += f"\n({', '.join([f'{a:.3f}' if isinstance(a, float) else str(a) for a in args])})"
+    
 
     y = _mpl_line_to_y(line)
     rect = plt.Rectangle(
@@ -267,7 +266,13 @@ def _draw_mpl_one_qubit_gate(
         edgecolor="none",
     )
     ax.add_patch(rect)
-    ax.text(x, y, text, ha="center", va="center")
+    
+    if len(args) > 0:
+        args_text = f"{', '.join([f'{a:.3f}' if isinstance(a, float) else str(a) for a in args])}"
+        ax.text(x, y + GATE_BOX_HEIGHT/8, text, ha="center", va="center", fontsize=12)
+        ax.text(x, y - GATE_BOX_HEIGHT/4, args_text, ha="center", va="center", fontsize=8)
+    else:
+        ax.text(x, y, text, ha="center", va="center", fontsize=12)
 
 
 def _draw_mpl_control(ctrl_line: int, target_line: int, ax: plt.Axes, x: float):
