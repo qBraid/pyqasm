@@ -452,12 +452,13 @@ def test_ctrl_in_if_block():
     qubit[2] q;
     bit[1] b;
     b[0] = measure q[0];
-    if (b == 1) {
+    if (b[0] == true) {
         cx q[0], q[1];
     }
     """
     result = loads(qasm3_string)
     result.unroll()
+    print(result)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 def test_ctrl_in_for_loop():

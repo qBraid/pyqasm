@@ -27,15 +27,9 @@ from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
-from pyqasm.maps import (
-    ARRAY_TYPE_MAP,
-    CONSTANTS_MAP,
-    MAX_ARRAY_DIMENSIONS,
-    SWITCH_BLACKLIST_STMTS,
-    map_qasm_ctrl_op_to_callable,
-    map_qasm_inv_op_to_callable,
-    map_qasm_op_to_callable,
-)
+from pyqasm.maps import SWITCH_BLACKLIST_STMTS
+from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
+from pyqasm.maps.gates import map_qasm_inv_op_to_callable, map_qasm_op_to_callable, map_qasm_ctrl_op_to_callable
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
@@ -1215,6 +1209,11 @@ class QasmVisitor:
                 init_value = self._evaluate_array_initialization(
                     statement.init_expression, final_dimensions, base_type
                 )
+            elif isinstance(statement.init_expression, qasm3_ast.QuantumMeasurement):
+                measurement, statement.init_expression = statement.init_expression, None
+                return self._visit_classical_declaration(statement) + self._visit_measurement(
+                    qasm3_ast.QuantumMeasurementStatement(measurement, statement.identifier)
+                )  # type: ignore
             else:
                 init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
                     statement.init_expression
@@ -1407,44 +1406,89 @@ class QasmVisitor:
             # here, the lhs CAN only be a classical register as QCs won't have
             # ability to evaluate expressions in the condition
 
-            reg_id, reg_name, rhs_value = Qasm3Transformer.get_branch_params(condition)
+            reg_idx, reg_name, op, rhs_value = Qasm3Transformer.get_branch_params(condition)
 
             if reg_name not in self._global_creg_size_map:
                 raise_qasm3_error(
                     f"Missing register declaration for {reg_name} in {condition}",
                     span=statement.span,
                 )
-            if reg_id is not None:
-                Qasm3Validator.validate_register_index(
-                    reg_id, self._global_creg_size_map[reg_name], qubit=False
-                )
 
-            new_lhs = (
-                qasm3_ast.IndexExpression(
-                    collection=qasm3_ast.Identifier(name=reg_name),
-                    index=[qasm3_ast.IntegerLiteral(reg_id)],
-                )
-                if reg_id is not None
-                else qasm3_ast.Identifier(name=reg_name)
-            )
             assert isinstance(rhs_value, (bool, int))
-            new_rhs = (
-                qasm3_ast.BooleanLiteral(rhs_value)
-                if isinstance(rhs_value, bool)
-                else qasm3_ast.IntegerLiteral(rhs_value)
-            )
 
-            new_if_block = qasm3_ast.BranchingStatement(
-                condition=qasm3_ast.BinaryExpression(
-                    op=qasm3_ast.BinaryOperator["=="],
-                    lhs=new_lhs,
-                    rhs=new_rhs,
-                ),
-                if_block=self.visit_basic_block(statement.if_block),
-                else_block=self.visit_basic_block(statement.else_block),
-            )
-            result.append(new_if_block)
+            if_block = self.visit_basic_block(statement.if_block)
+            else_block = self.visit_basic_block(statement.else_block)
 
+            if reg_idx is not None:
+                # single bit branch
+                Qasm3Validator.validate_register_index(
+                    reg_idx, self._global_creg_size_map[reg_name], qubit=False
+                )
+
+                new_if_block = qasm3_ast.BranchingStatement(
+                    condition=qasm3_ast.BinaryExpression(
+                        op=qasm3_ast.BinaryOperator["=="],
+                        lhs=qasm3_ast.IndexExpression(
+                            collection=qasm3_ast.Identifier(name=reg_name),
+                            index=[qasm3_ast.IntegerLiteral(reg_idx)],
+                        ),
+                        rhs=(
+                            qasm3_ast.BooleanLiteral(rhs_value)
+                            if isinstance(rhs_value, bool)
+                            else qasm3_ast.IntegerLiteral(rhs_value)
+                        ),
+                    ),
+                    if_block=if_block,
+                    else_block=else_block,
+                )
+                result.append(new_if_block)
+            else:
+                # unroll multi-bit branch
+                assert isinstance(rhs_value, int) and op in [
+                    qasm3_ast.BinaryOperator[o] for o in ["==", ">=", "<=", ">", "<"]
+                ]
+
+                if op == qasm3_ast.BinaryOperator[">"]:
+                    op = qasm3_ast.BinaryOperator[">="]
+                    rhs_value += 1
+                elif op == qasm3_ast.BinaryOperator["<"]:
+                    op = qasm3_ast.BinaryOperator["<="]
+                    rhs_value -= 1
+
+                size = self._global_creg_size_map[reg_name]
+                rhs_value_str = bin(int(rhs_value))[2:].zfill(size)
+                else_block = self.visit_basic_block(statement.else_block)
+
+                def ravel(bit_ind):
+                    """Unravel if statement from MSB to LSB"""
+                    r = rhs_value_str[bit_ind] == "1"
+                    if (op == qasm3_ast.BinaryOperator[">="] and not r) or (
+                        op == qasm3_ast.BinaryOperator["<="] and r
+                    ):
+                        # skip if bit condition is irrelevant.
+                        # ex. if op is >= and r = 0, both values reg[i]={0,1} satisfy the condition
+                        return if_block if bit_ind == len(rhs_value_str) - 1 else ravel(bit_ind + 1)
+
+                    return [
+                        qasm3_ast.BranchingStatement(
+                            condition=qasm3_ast.BinaryExpression(
+                                op=qasm3_ast.BinaryOperator["=="],
+                                lhs=qasm3_ast.IndexExpression(
+                                    collection=qasm3_ast.Identifier(name=reg_name),
+                                    index=[qasm3_ast.IntegerLiteral(bit_ind)],
+                                ),
+                                rhs=qasm3_ast.BooleanLiteral(r),
+                            ),
+                            if_block=(
+                                if_block
+                                if bit_ind == len(rhs_value_str) - 1
+                                else ravel(bit_ind + 1)
+                            ),
+                            else_block=else_block,
+                        )
+                    ]
+
+                result.extend(self.visit_basic_block(ravel(0)))  # type: ignore[arg-type]
         else:
             # here we can unroll the block depending on the condition
             positive_branching = Qasm3ExprEvaluator.evaluate_expression(condition)[0] != 0

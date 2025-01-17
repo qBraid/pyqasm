@@ -34,7 +34,7 @@ from openqasm3.ast import SizeOf, Statement, UnaryExpression
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.maps import CONSTANTS_MAP, qasm3_expression_op_map
+from pyqasm.maps.expressions import CONSTANTS_MAP, qasm3_expression_op_map
 from pyqasm.validator import Qasm3Validator
 
 
