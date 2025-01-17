@@ -109,6 +109,12 @@ def _draw_mpl(module: Qasm3Module, idle_wires=True) -> plt.Figure:
             depth = 1 + max(depths[qubit_key], depths[target_key])
             for k in [qubit_key, target_key]:
                 depths[k] = depth
+        elif isinstance(statement, ast.QuantumPhase):
+            qubits = [_identifier_to_key(q) for q in statement.qubits]
+            if len(qubits) > 0:
+                depth = 1 + max([depths[q] for q in qubits])
+                for q in qubits:
+                    depths[q] = depth
         elif isinstance(statement, ast.QuantumBarrier):
             qubits = [_identifier_to_key(q) for q in statement.qubits]
             depth = 1 + max([depths[q] for q in qubits])
@@ -284,6 +290,9 @@ def _mpl_draw_statement(
         _mpl_draw_measurement(
             line_nums[qubit_key], line_nums[(target_key[0], -1)], target_key[1], ax, x
         )
+    elif isinstance(statement, ast.QuantumPhase):
+        # TODO: draw gphase
+        pass
     elif isinstance(statement, ast.QuantumBarrier):
         lines = [line_nums[_identifier_to_key(q)] for q in statement.qubits]
         _mpl_draw_barrier(lines, ax, x)

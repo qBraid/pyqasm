@@ -55,7 +55,7 @@ def test_custom_gate():
     _check_fig(circ, fig)
 
 
-@pytest.mark.parametrize("_", range(10))
+@pytest.mark.parametrize("_", range(100))
 def test_random(_):
     circ = random_circuit("qiskit", measure=random.choice([True, False]))
     qasm_str = transpile(circ, random.choice(["qasm2", "qasm3"]))
