@@ -553,5 +553,5 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """
 
     @abstractmethod
-    def draw(self, **kwargs):
+    def draw(self, idle_wires=True):
         """Draw the module"""

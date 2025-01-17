@@ -47,7 +47,7 @@ TEXT_MARGIN = 0.6
 FRAME_PADDING = 0.2
 
 
-def draw(module: Qasm3Module, output="mpl", **kwargs):
+def draw(module: Qasm3Module, output="mpl", idle_wires=True):
     if not mpl_installed:
         raise ImportError(
             "matplotlib needs to be installed prior to running pyqasm.draw(). You can install matplotlib with:\n'pip install pyqasm[visualization]'"
@@ -56,16 +56,14 @@ def draw(module: Qasm3Module, output="mpl", **kwargs):
     if output == "mpl":
         plt.ioff()
         plt.close("all")
-        return _draw_mpl(module, **kwargs)
+        return _draw_mpl(module, idle_wires=idle_wires)
     else:
         raise NotImplementedError(f"{output} drawing for Qasm3Module is unsupported")
 
 
-def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
+def _draw_mpl(module: Qasm3Module, idle_wires=True) -> plt.Figure:
     module.unroll()
     module.remove_includes()
-
-    idle_wires = kwargs.get("idle_wires", True)
 
     statements = module._statements
 
