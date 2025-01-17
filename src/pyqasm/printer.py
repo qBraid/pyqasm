@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 DEFAULT_GATE_COLOR = "#d4b6e8"
 HADAMARD_GATE_COLOR = "#f0a6a6"
 
-MAX_WIDTH = 12
+FIG_MAX_WIDTH = 12
 GATE_BOX_WIDTH, GATE_BOX_HEIGHT = 0.6, 0.6
 GATE_SPACING = 0.2
 LINE_SPACING = 0.6
@@ -126,19 +126,19 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
         if depth >= len(moments):
             moments.append([])
         moments[depth].append(statement)
-
+    
     if not idle_wires:
         # remove all lines that are not used            
-        line_nums = {k: v for k, v in line_nums.items() if depths[k] >= 0}
-        for i, k in enumerate(line_nums.keys()):
-            line_nums[k] = i
+        ks = sorted(line_nums.keys(), key=lambda k: line_nums[k])
+        ks = [k for k in ks if depths[k] > 0]
+        line_nums = { k:i for i,k in enumerate(ks) }
 
     sections = [[]]
     
     width = TEXT_MARGIN
     for moment in moments:
         w = _mpl_get_moment_width(moment)
-        if width + w < MAX_WIDTH:
+        if width + w < FIG_MAX_WIDTH:
             width += w
         else:
             width = TEXT_MARGIN
@@ -146,8 +146,8 @@ def _draw_mpl(module: Qasm3Module, **kwargs) -> plt.Figure:
             sections.append([])
         sections[-1].append(moment)
         
-    if len(sections) >= 1:
-        width = MAX_WIDTH
+    if len(sections) > 1:
+        width = FIG_MAX_WIDTH
 
     n_lines = max(line_nums.values()) + 1
 
