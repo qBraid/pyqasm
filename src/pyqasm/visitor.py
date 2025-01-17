@@ -1033,6 +1033,7 @@ class QasmVisitor:
                         f"in gate operation {operation}",
                         span=operation.span,
                     )
+                # TODO: unroll ctrl qubits
                 ctrl_qubits = operation.qubits[ctrl_arg_ind : ctrl_arg_ind + count]
                 # TODO: assert ctrl_qubits are single qubits
                 ctrl_arg_ind += count
