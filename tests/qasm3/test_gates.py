@@ -494,6 +494,24 @@ def test_ctrl_unroll():
     result.unroll()
     check_unrolled_qasm(dumps(result), expected_qasm)
 
+def test_ctrl_gphase_eq_p():
+    qasm3_str_gphase = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit a;
+    ctrl @ gphase(1) a;
+    """
+    qasm3_str_p = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit a;
+    p(1) a;
+    """
+    result_gphase, result_p = loads(qasm3_str_gphase), loads(qasm3_str_p)
+    result_gphase.unroll()
+    result_p.unroll()
+    check_unrolled_qasm(dumps(result_gphase), dumps(result_p))
+
 def test_nested_gate_modifiers():
     qasm3_string = """
     OPENQASM 3;

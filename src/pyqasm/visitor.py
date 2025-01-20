@@ -930,8 +930,15 @@ class QasmVisitor:
         Returns:
             list[qasm3_ast.Statement]: The unrolled quantum phase operation.
         """
-        # TODO: phase = ctrl @ gphase. unify this w/ existing ctrl support
         logger.debug("Visiting phase operation '%s'", str(operation))
+
+        if len(ctrls) > 0:
+            return self._visit_basic_gate_operation(qasm3_ast.QuantumGate(
+                modifiers=[qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.ctrl, qasm3_ast.IntegerLiteral(len(ctrls)-1))],
+                name=qasm3_ast.Identifier("p"),
+                qubits=ctrls[0:1],
+                arguments=[operation.argument]
+            ), inverse, ctrls[:-1])
 
         evaluated_arg = Qasm3ExprEvaluator.evaluate_expression(operation.argument)[0]
         if inverse:
