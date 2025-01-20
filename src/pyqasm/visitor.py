@@ -881,7 +881,7 @@ class QasmVisitor:
             gate_qubit_count = len(self._custom_gates[gate_name].qubits)
         else:
             # Ignore result, this is just for validation
-            self._visit_basic_gate_operation(operation, inverse, ctrls)
+            self._visit_basic_gate_operation(operation)
             # Don't need to check if basic gate exists, since we just validated the call
             _, gate_qubit_count = map_qasm_op_to_callable(operation.name.name)
 
@@ -894,14 +894,16 @@ class QasmVisitor:
         # TODO: add ctrl @ support + testing
         modifiers = []
         if inverse:
-            modifiers = [qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)]
+            modifiers.append(qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None))
+        if len(ctrls) > 0:
+            modifiers.append(qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.ctrl, qasm3_ast.IntegerLiteral(len(ctrls))) if len(ctrls) > 0 else None)
 
         def gate_function(*qubits):
             return [
                 qasm3_ast.QuantumGate(
                     modifiers=modifiers,
                     name=qasm3_ast.Identifier(gate_name),
-                    qubits=list(qubits),
+                    qubits=ctrls + list(qubits),
                     arguments=list(op_parameters),
                 )
             ]
