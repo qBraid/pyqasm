@@ -458,7 +458,6 @@ def test_ctrl_in_if_block():
     """
     result = loads(qasm3_string)
     result.unroll()
-    print(result)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 def test_ctrl_in_for_loop():
@@ -476,6 +475,24 @@ def test_ctrl_in_for_loop():
     assert result.num_qubits == 4
     check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
+def test_ctrl_unroll():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] a;
+    qubit b;
+    ctrl (2) @ x a, b[0];
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] a;
+    qubit[1] b;
+    ccx a[0], a[1], b[0];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    check_unrolled_qasm(dumps(result), expected_qasm)
 
 def test_nested_gate_modifiers():
     qasm3_string = """
