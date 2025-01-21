@@ -63,7 +63,7 @@ DECOMPOSITION_RULES = {
         "sdg": [
             {"gate": "rz", "param": -CONSTANTS_MAP["pi"]/2}
         ],
-        "tgd": [
+        "tdg": [
             {"gate": "rz", "param": -CONSTANTS_MAP["pi"]/4}
         ],
         "cz": [
