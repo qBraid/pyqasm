@@ -283,7 +283,7 @@ def test_rebase_loop():
     check_single_qubit_gate_op(result.unrolled_ast, 8, [0, 0, 1, 1, 2, 2, 3, 3], "s")
 
 
-def test_rebase_qasm_module_methos():
+def test_rebase_qasm_module_methods():
     """Test that all other methods of Qasm Modules works as expected after rebase"""
 
     qasm = """

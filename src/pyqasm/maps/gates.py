@@ -1112,7 +1112,6 @@ BASIS_GATE_MAP = {
 }
 
 
-# Comment
 def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
     """
     Map a QASM operation to a callable.
