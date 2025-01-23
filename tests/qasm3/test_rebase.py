@@ -22,45 +22,21 @@ from tests.utils import check_single_qubit_gate_op, check_unrolled_qasm
 @pytest.mark.parametrize(
     "input_gates, decomposed_gates",
     [
-        (
-            "x q[0];",
-            "rx(3.141592653589793) q[0];"
-        ),
-        (
-            "y q[0];",
-            "ry(3.141592653589793) q[0];"
-        ),
-        (
-            "z q[0];",
-            "rz(3.141592653589793) q[0];"
-        ),
+        ("x q[0];", "rx(3.141592653589793) q[0];"),
+        ("y q[0];", "ry(3.141592653589793) q[0];"),
+        ("z q[0];", "rz(3.141592653589793) q[0];"),
         (
             "h q[0];",
             """
             ry(1.5707963267948966) q[0];
             rx(3.141592653589793) q[0];
-            """
+            """,
         ),
-        (
-            "s q[0];",
-            "rz(1.5707963267948966) q[0];"
-        ),
-        (
-            "t q[0];",
-            "rz(0.7853981633974483) q[0];"
-        ),
-        (
-            "sx q[0];",
-            "rx(1.5707963267948966) q[0];"
-        ),
-        (
-            "sdg q[0];",
-            "rz(-1.5707963267948966) q[0];"
-        ),
-        (
-            "tdg q[0];",
-            "rz(-0.7853981633974483) q[0];"
-        ),
+        ("s q[0];", "rz(1.5707963267948966) q[0];"),
+        ("t q[0];", "rz(0.7853981633974483) q[0];"),
+        ("sx q[0];", "rx(1.5707963267948966) q[0];"),
+        ("sdg q[0];", "rz(-1.5707963267948966) q[0];"),
+        ("tdg q[0];", "rz(-0.7853981633974483) q[0];"),
         (
             "cz q[0], q[1];",
             """
@@ -69,7 +45,7 @@ from tests.utils import check_single_qubit_gate_op, check_unrolled_qasm
             cx q[0], q[1];
             ry(1.5707963267948966) q[1];
             rx(3.141592653589793) q[1];
-            """
+            """,
         ),
         (
             "swap q[0], q[1];",
@@ -77,9 +53,9 @@ from tests.utils import check_single_qubit_gate_op, check_unrolled_qasm
             cx q[0], q[1];
             cx q[1], q[0];
             cx q[0], q[1];
-            """
-        )
-    ]
+            """,
+        ),
+    ],
 )
 def test_rebase_rotational_cx(input_gates, decomposed_gates):
     """Test that the rebasing gates to rotational-CX basis works as expected."""
@@ -104,6 +80,7 @@ def test_rebase_rotational_cx(input_gates, decomposed_gates):
     result.rebase(BasisSet.ROTATIONAL_CX)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
+
 @pytest.mark.parametrize(
     "input_gates, decomposed_gates",
     [
@@ -114,7 +91,7 @@ def test_rebase_rotational_cx(input_gates, decomposed_gates):
             s q[0];
             s q[0];
             h q[0];
-            """
+            """,
         ),
         (
             "y q[0];",
@@ -125,14 +102,14 @@ def test_rebase_rotational_cx(input_gates, decomposed_gates):
             s q[0];
             s q[0];
             h q[0];
-            """
+            """,
         ),
         (
             "z q[0];",
             """
             s q[0];
             s q[0];
-            """
+            """,
         ),
         (
             "sx q[0];",
@@ -144,7 +121,7 @@ def test_rebase_rotational_cx(input_gates, decomposed_gates):
             s q[0];
             s q[0];
             s q[0];
-            """
+            """,
         ),
         (
             "cz q[0], q[1];",
@@ -152,7 +129,7 @@ def test_rebase_rotational_cx(input_gates, decomposed_gates):
             h q[1];
             cx q[0], q[1];
             h q[1];
-            """
+            """,
         ),
         (
             "swap q[0], q[1];",
@@ -160,9 +137,9 @@ def test_rebase_rotational_cx(input_gates, decomposed_gates):
             cx q[0], q[1];
             cx q[1], q[0];
             cx q[0], q[1];
-            """
-        )
-    ]
+            """,
+        ),
+    ],
 )
 def test_rebase_clifford_t(input_gates, decomposed_gates):
     """Test that the rebasing gates to clifford-T basis works as expected"""
@@ -186,6 +163,7 @@ def test_rebase_clifford_t(input_gates, decomposed_gates):
     result = loads(qasm)
     result.rebase(BasisSet.CLIFFORD_T)
     check_unrolled_qasm(dumps(result), expected_qasm)
+
 
 def test_rebase_if():
     """Test converting a QASM3 program that contains if statements"""
@@ -263,6 +241,7 @@ def test_rebase_if():
     result.rebase(BasisSet.ROTATIONAL_CX)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
+
 def test_rebase_invalid_basis_set():
     qasm = """
         OPENQASM 3.0;
@@ -280,6 +259,7 @@ def test_rebase_invalid_basis_set():
 
     with pytest.raises(ValueError, match="Target basis set 'invalid_basis' is not defined."):
         result.rebase("invalid_basis")
+
 
 def test_rebase_loop():
     """Test converting a QASM3 program that contains a for loop"""
@@ -301,6 +281,7 @@ def test_rebase_loop():
     result = result.rebase(BasisSet.CLIFFORD_T)
 
     check_single_qubit_gate_op(result.unrolled_ast, 8, [0, 0, 1, 1, 2, 2, 3, 3], "s")
+
 
 def test_rebase_qasm_module_methos():
     """Test that all other methods of Qasm Modules works as expected after rebase"""

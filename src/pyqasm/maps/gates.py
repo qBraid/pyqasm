@@ -1101,7 +1101,7 @@ BASIS_GATE_MAP = {
         "s",
         "sx",
         "t",
-        "sdg",  
+        "sdg",
         "tdg",
         "cx",
         "cz",
@@ -1110,6 +1110,8 @@ BASIS_GATE_MAP = {
     BasisSet.ROTATIONAL_CX: {"rx", "ry", "rz", "cx"},
     BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
 }
+
+
 # Comment
 def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
     """

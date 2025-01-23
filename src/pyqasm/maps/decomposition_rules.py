@@ -18,10 +18,11 @@ from pyqasm.maps.expressions import CONSTANTS_MAP
 
 
 class AppliedQubit(Enum):
-    """Enum to represent the qubits that are involved in the decomposition of a gate.
-    """
+    """Enum to represent the qubits that are involved in the decomposition of a gate."""
+
     QUBIT1 = 0  # Control qubit
     QUBIT2 = 1  # Target qubit
+
 
 # Decomposition rules for the gates in the basis sets.
 # The rules are defined as a dictionary where the key is the gate name.
@@ -36,68 +37,43 @@ class AppliedQubit(Enum):
 #                   This key is only used for gates that operate on two qubits.
 #
 DECOMPOSITION_RULES = {
-
     BasisSet.ROTATIONAL_CX: {
-        "x": [
-            {"gate": "rx", "param": CONSTANTS_MAP["pi"]}
-        ],
-        "y": [
-            {"gate": "ry", "param": CONSTANTS_MAP["pi"]}
-        ],
-        "z": [
-            {"gate": "rz", "param": CONSTANTS_MAP["pi"]}
-        ],
+        "x": [{"gate": "rx", "param": CONSTANTS_MAP["pi"]}],
+        "y": [{"gate": "ry", "param": CONSTANTS_MAP["pi"]}],
+        "z": [{"gate": "rz", "param": CONSTANTS_MAP["pi"]}],
         "h": [
-            {"gate": "ry", "param": CONSTANTS_MAP["pi"]/2},
-            {"gate": "rx", "param": CONSTANTS_MAP["pi"]}
+            {"gate": "ry", "param": CONSTANTS_MAP["pi"] / 2},
+            {"gate": "rx", "param": CONSTANTS_MAP["pi"]},
         ],
-        "s": [
-            {"gate": "rz", "param": CONSTANTS_MAP["pi"]/2}
-        ],
-        "t": [
-            {"gate": "rz", "param": CONSTANTS_MAP["pi"]/4}
-        ],
-        "sx": [
-            {"gate": "rx", "param": CONSTANTS_MAP["pi"]/2}
-        ],
-        "sdg": [
-            {"gate": "rz", "param": -CONSTANTS_MAP["pi"]/2}
-        ],
-        "tdg": [
-            {"gate": "rz", "param": -CONSTANTS_MAP["pi"]/4}
-        ],
+        "s": [{"gate": "rz", "param": CONSTANTS_MAP["pi"] / 2}],
+        "t": [{"gate": "rz", "param": CONSTANTS_MAP["pi"] / 4}],
+        "sx": [{"gate": "rx", "param": CONSTANTS_MAP["pi"] / 2}],
+        "sdg": [{"gate": "rz", "param": -CONSTANTS_MAP["pi"] / 2}],
+        "tdg": [{"gate": "rz", "param": -CONSTANTS_MAP["pi"] / 4}],
         "cz": [
-            {"gate": "ry", "param": CONSTANTS_MAP["pi"]/2, "target_bit": AppliedQubit.QUBIT2},
+            {"gate": "ry", "param": CONSTANTS_MAP["pi"] / 2, "target_bit": AppliedQubit.QUBIT2},
             {"gate": "rx", "param": CONSTANTS_MAP["pi"], "target_bit": AppliedQubit.QUBIT2},
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
-            {"gate": "ry", "param": CONSTANTS_MAP["pi"]/2, "target_bit": AppliedQubit.QUBIT2},
-            {"gate": "rx", "param": CONSTANTS_MAP["pi"], "target_bit": AppliedQubit.QUBIT2}
+            {"gate": "ry", "param": CONSTANTS_MAP["pi"] / 2, "target_bit": AppliedQubit.QUBIT2},
+            {"gate": "rx", "param": CONSTANTS_MAP["pi"], "target_bit": AppliedQubit.QUBIT2},
         ],
         "swap": [
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT1},
-            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2}
-        ]
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
+        ],
     },
     BasisSet.CLIFFORD_T: {
-        "x": [
-            {"gate": "h"},
-            {"gate": "s"},
-            {"gate": "s"},
-            {"gate": "h"}
-        ],
+        "x": [{"gate": "h"}, {"gate": "s"}, {"gate": "s"}, {"gate": "h"}],
         "y": [
             {"gate": "s"},
             {"gate": "s"},
             {"gate": "h"},
             {"gate": "s"},
             {"gate": "s"},
-            {"gate": "h"}
+            {"gate": "h"},
         ],
-        "z": [
-            {"gate": "s"},
-            {"gate": "s"}
-        ],
+        "z": [{"gate": "s"}, {"gate": "s"}],
         "sx": [
             {"gate": "s"},
             {"gate": "s"},
@@ -105,7 +81,7 @@ DECOMPOSITION_RULES = {
             {"gate": "h"},
             {"gate": "s"},
             {"gate": "s"},
-            {"gate": "s"}
+            {"gate": "s"},
         ],
         "cz": [
             {"gate": "h", "target_bit": AppliedQubit.QUBIT2},
@@ -115,9 +91,9 @@ DECOMPOSITION_RULES = {
         "swap": [
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT1},
-            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2}
-        ]
-    }
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
+        ],
+    },
 }
 
 # """TODO: Implement the Solovay-Kitaev algorithm"""
