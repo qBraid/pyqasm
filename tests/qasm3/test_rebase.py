@@ -346,8 +346,10 @@ def test_rebase_qasm_module_methos():
     include "stdgates.inc";
     qubit[2] q;
     bit[3] c;
-    h q[1];
+    ry(1.5707963267948966) q[1];
+    rx(3.141592653589793) q[1];
     cx q[1], q[0];
     """
     result.reverse_qubit_order()
+    print(dumps(result))
     check_unrolled_qasm(dumps(result), expected_reverse_qubit_order_qasm)
