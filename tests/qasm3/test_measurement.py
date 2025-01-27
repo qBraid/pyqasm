@@ -1,12 +1,12 @@
-# Copyright (C) 2024 qBraid
+# Copyright (C) 2025 qBraid
 #
-# This file is part of pyqasm
+# This file is part of PyQASM
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
 Module containing unit tests for loading measurement operations.
@@ -125,6 +125,42 @@ def test_remove_measurement():
     module.unroll()
     module.remove_measurements()
 
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_init_measure():
+    qasm3_string = """
+    OPENQASM 3.0;
+    qubit a;
+    qubit[2] b;
+    qubit[4] e;
+    bit c = measure a;
+    bit[2] d = measure b;
+    bit[2] f = measure e[:2];
+    bit[2] g = measure e[{2, 3}];
+    """
+
+    expected_qasm = """
+    OPENQASM 3.0;
+    qubit[1] a;
+    qubit[2] b;
+    qubit[4] e;
+    bit[1] c;
+    c[0] = measure a[0];
+    bit[2] d;
+    d[0] = measure b[0];
+    d[1] = measure b[1];
+    bit[2] f;
+    f[0] = measure e[0];
+    f[1] = measure e[1];
+    bit[2] g;
+    g[0] = measure e[2];
+    g[1] = measure e[3];
+    """
+
+    module = loads(qasm3_string)
+    module.unroll()
+    print(dumps(module))
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 

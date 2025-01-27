@@ -1,12 +1,12 @@
-# Copyright (C) 2024 qBraid
+# Copyright (C) 2025 qBraid
 #
-# This file is part of pyqasm
+# This file is part of PyQASM
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 # pylint: disable=too-many-lines
 
@@ -1134,6 +1134,11 @@ class QasmVisitor:
                 init_value = self._evaluate_array_initialization(
                     statement.init_expression, final_dimensions, base_type
                 )
+            elif isinstance(statement.init_expression, qasm3_ast.QuantumMeasurement):
+                measurement, statement.init_expression = statement.init_expression, None
+                return self._visit_classical_declaration(statement) + self._visit_measurement(
+                    qasm3_ast.QuantumMeasurementStatement(measurement, statement.identifier)
+                )  # type: ignore
             else:
                 init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
                     statement.init_expression

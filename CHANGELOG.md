@@ -15,6 +15,23 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added support for classical declarations with measurement ([#120](https://github.com/qBraid/pyqasm/pull/120)). Usage example -
+
+```python
+In [1]: from pyqasm import loads, dumps
+
+In [2]: module = loads(
+   ...: """OPENQASM 3.0;
+   ...: qubit q;
+   ...: bit b = measure q;
+   ...: """)
+
+In [3]: module.unroll()
+
+In [4]: dumps(module).splitlines()
+Out[4]: ['OPENQASM 3.0;', 'qubit[1] q;', 'bit[1] b;', 'b[0] = measure q[0];']
+```
+
 - Added support for `gphase`, `toffoli`, `not`, `c3sx` and `c4x` gates ([#86](https://github.com/qBraid/pyqasm/pull/86))
 - Added a `remove_includes` method to `QasmModule` to remove include statements from the generated QASM code ([#100](https://github.com/qBraid/pyqasm/pull/100)). Usage example - 
 
@@ -73,7 +90,7 @@ if (c[0] == false) {
 ### Improved / Modified
  - Refactored the initialization of `QasmModule` to remove default include statements. Only user supplied include statements are now added to the generated QASM code ([#86](https://github.com/qBraid/pyqasm/pull/86))
 - Update the `pre-release.yml` workflow to multi-platform builds. Added the pre-release version bump to the `pre_build.sh` script. ([#99](https://github.com/qBraid/pyqasm/pull/99))
-
+- Bumped qBraid-CLI dep in `tox.ini` to fix `qbraid headers` command formatting bug ([#129](https://github.com/qBraid/pyqasm/pull/129))
 
 ### Deprecated
 
@@ -88,6 +105,7 @@ if (c[0] == false) {
 
 Archive of changelog entries from previous releases:
 
+- [v0.1.0](https://github.com/qBraid/pyqasm/releases/tag/v0.1.0)
 - [v0.1.0-alpha](https://github.com/qBraid/pyqasm/releases/tag/v0.1.0-alpha)
 - [v0.0.3](https://github.com/qBraid/pyqasm/releases/tag/v0.0.3)
 - [v0.0.2](https://github.com/qBraid/pyqasm/releases/tag/v0.0.2)
