@@ -1,12 +1,12 @@
-# Copyright (C) 2024 qBraid
+# Copyright (C) 2025 qBraid
 #
-# This file is part of pyqasm
+# This file is part of PyQASM
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
 Module containing the class for evaluating QASM expressions.
@@ -30,7 +30,11 @@ from openqasm3.ast import (
     IntegerLiteral,
 )
 from openqasm3.ast import IntType as Qasm3IntType
-from openqasm3.ast import SizeOf, Statement, UnaryExpression
+from openqasm3.ast import (
+    SizeOf,
+    Statement,
+    UnaryExpression,
+)
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
