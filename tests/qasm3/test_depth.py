@@ -109,6 +109,19 @@ def test_inv_gate_depth():
     assert result.depth() == 5
 
 
+def test_ctrl_depth():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[3] q;
+    ctrl @ x q[0], q[1]; 
+    ctrl @ x q[0], q[2];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.depth() == 2
+
+
 def test_qubit_depth_with_unrelated_measure_op():
     qasm3_string = """
     OPENQASM 3;
