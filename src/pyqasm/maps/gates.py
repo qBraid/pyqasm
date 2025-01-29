@@ -6,7 +6,7 @@
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3..
 
 # pylint: disable=too-many-lines
 
@@ -21,7 +21,7 @@ from typing import Callable, Union
 import numpy as np
 from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
 
-from pyqasm.elements import InversionOp
+from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
@@ -1085,6 +1085,30 @@ FOUR_QUBIT_OP_MAP = {"c3sx": c3sx_gate, "c3sqrtx": c3sx_gate}
 
 FIVE_QUBIT_OP_MAP = {
     "c4x": c4x_gate,
+}
+
+BASIS_GATE_MAP = {
+    # default basis set is the gate set of the stdgates.inc library file
+    BasisSet.DEFAULT: {
+        "id",
+        "rx",
+        "ry",
+        "rz",
+        "h",
+        "x",
+        "y",
+        "z",
+        "s",
+        "sx",
+        "t",
+        "sdg",
+        "tdg",
+        "cx",
+        "cz",
+        "swap",
+    },
+    BasisSet.ROTATIONAL_CX: {"rx", "ry", "rz", "cx"},
+    BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
 }
 
 
