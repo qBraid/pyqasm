@@ -86,6 +86,7 @@ if (c[0] == false) {
   }
 }
 ```
+- Add formatting check for Unix style line endings i.e. `\n`. For any other line endings, errors are raised. ([#130](https://github.com/qBraid/pyqasm/pull/130))
 
 ### Improved / Modified
  - Refactored the initialization of `QasmModule` to remove default include statements. Only user supplied include statements are now added to the generated QASM code ([#86](https://github.com/qBraid/pyqasm/pull/86))
