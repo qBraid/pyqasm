@@ -86,11 +86,12 @@ if (c[0] == false) {
   }
 }
 ```
+- Add formatting check for Unix style line endings i.e. `\n`. For any other line endings, errors are raised. ([#130](https://github.com/qBraid/pyqasm/pull/130))
 
 ### Improved / Modified
  - Refactored the initialization of `QasmModule` to remove default include statements. Only user supplied include statements are now added to the generated QASM code ([#86](https://github.com/qBraid/pyqasm/pull/86))
 - Update the `pre-release.yml` workflow to multi-platform builds. Added the pre-release version bump to the `pre_build.sh` script. ([#99](https://github.com/qBraid/pyqasm/pull/99))
-
+- Bumped qBraid-CLI dep in `tox.ini` to fix `qbraid headers` command formatting bug ([#129](https://github.com/qBraid/pyqasm/pull/129))
 
 ### Deprecated
 
@@ -105,6 +106,7 @@ if (c[0] == false) {
 
 Archive of changelog entries from previous releases:
 
+- [v0.1.0](https://github.com/qBraid/pyqasm/releases/tag/v0.1.0)
 - [v0.1.0-alpha](https://github.com/qBraid/pyqasm/releases/tag/v0.1.0-alpha)
 - [v0.0.3](https://github.com/qBraid/pyqasm/releases/tag/v0.0.3)
 - [v0.0.2](https://github.com/qBraid/pyqasm/releases/tag/v0.0.2)
