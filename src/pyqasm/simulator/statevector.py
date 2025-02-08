@@ -14,11 +14,11 @@ Statevector simulator for PyQASM.
 """
 
 from collections import Counter
+from dataclasses import dataclass, field
 
 import numpy as np
 from openqasm3.ast import QuantumGate
 from scipy import sparse
-from dataclasses import dataclass, field
 
 from pyqasm import loads
 from pyqasm.modules.base import QasmModule
@@ -96,9 +96,11 @@ NON_PARAMETERIZED_GATES: dict[str, np.ndarray] = {
     "tdg": np.array([[1, 0], [0, np.exp(-1j * np.pi / 4)]], dtype=complex),
 }
 
+
 @dataclass(frozen=True)
 class SimulatorResult:
     """Class to store the result of a statevector simulation."""
+
     probabilities: np.ndarray
     measurement_counts: Counter[str, int]
     final_statevector: np.ndarray
@@ -155,16 +157,18 @@ class Simulator:
             if control_qubit < 0 or control_qubit >= num_qubits:
                 raise ValueError(f"Invalid control qubit: {control_qubit}")
 
-            if gate_name == "swap":
-                control, target = sorted((control_qubit, target_qubit))  # Ensure correct order
-                for i in range(2**num_qubits):
-                    if (i >> control) & 1:  # If control qubit is |1>
-                        j = i ^ (1 << target)  # Flip the target qubit
-                        full_operator[i, j] = 1.0  # Apply CX gate
+            for i in range(2**num_qubits):
+                if gate_name == "swap":
+                    control, target = sorted((control_qubit, target_qubit))
+                    bit_c = (i >> control) & 1
+                    bit_t = (i >> target) & 1
+                    if bit_c != bit_t:  # If control and target don't match
+                        j = i ^ (1 << target)
+                        # j = i ^ ((1 << control) | (1 << target)) # Flip both bits to swap states
+                        full_operator[i, j] = 1.0  # Set off-diagonal element
                     else:
-                        full_operator[i, i] = 1.0  # Apply Identity
-            else:
-                for i in range(2**num_qubits):
+                        full_operator[i, i] = 1.0  # Set diagonal element
+                else:
                     if (i >> control_qubit) & 1:
                         # If the control qubit is |1>, flip the target qubit
                         j = i ^ (1 << target_qubit)  # XOR to flip the target qubit
