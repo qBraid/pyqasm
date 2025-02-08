@@ -1,4 +1,5 @@
 from collections import Counter
+
 import numpy as np
 from openqasm3.ast import QuantumGate
 from scipy import sparse
@@ -8,39 +9,49 @@ from pyqasm.modules.base import QasmModule
 
 def rz(theta: float) -> np.ndarray:
     """Parameterized Rz gate."""
-    return np.array([[np.exp(-1j * theta / 2), 0],
-                        [0, np.exp(1j * theta / 2)]], dtype=complex)
+    return np.array([[np.exp(-1j * theta / 2), 0], [0, np.exp(1j * theta / 2)]], dtype=complex)
+
 
 def ry(theta: float) -> np.ndarray:
     """Parameterized Ry gate."""
-    return np.array([
-        [np.cos(theta / 2), -np.sin(theta / 2)],
-        [np.sin(theta / 2), np.cos(theta / 2)]
-    ], dtype=complex)
+    return np.array(
+        [[np.cos(theta / 2), -np.sin(theta / 2)], [np.sin(theta / 2), np.cos(theta / 2)]],
+        dtype=complex,
+    )
+
 
 def rx(theta: float) -> np.ndarray:
     """Parameterized Rx gate."""
-    return np.array([
-        [np.cos(theta / 2), -1j * np.sin(theta / 2)],
-        [-1j * np.sin(theta / 2), np.cos(theta / 2)]
-    ], dtype=complex)
+    return np.array(
+        [
+            [np.cos(theta / 2), -1j * np.sin(theta / 2)],
+            [-1j * np.sin(theta / 2), np.cos(theta / 2)],
+        ],
+        dtype=complex,
+    )
 
 
 def crz(theta):
-    return np.array([
-        [1, 0,         0,                0],
-        [0, 1,         0,                0],
-        [0, 0, np.exp(-1j * theta / 2),   0],
-        [0, 0,         0, np.exp(1j * theta / 2)]
-    ], dtype=complex)
+    return np.array(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, np.exp(-1j * theta / 2), 0],
+            [0, 0, 0, np.exp(1j * theta / 2)],
+        ],
+        dtype=complex,
+    )
 
 
 def u(theta: float, phi: float, lam: float) -> np.ndarray:
     """Parameterized U gate (generic single-qubit rotation)."""
-    return np.array([
-        [np.cos(theta / 2), -np.exp(1j * lam) * np.sin(theta / 2)],
-        [np.exp(1j * phi) * np.sin(theta / 2), np.exp(1j * (phi + lam)) * np.cos(theta / 2)]
-    ], dtype=complex)
+    return np.array(
+        [
+            [np.cos(theta / 2), -np.exp(1j * lam) * np.sin(theta / 2)],
+            [np.exp(1j * phi) * np.sin(theta / 2), np.exp(1j * (phi + lam)) * np.cos(theta / 2)],
+        ],
+        dtype=complex,
+    )
 
 
 PARAMETERIZED_GATES = {
@@ -66,25 +77,22 @@ NON_PARAMETERIZED_GATES: dict[str, np.ndarray] = {
     "t": np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]], dtype=complex),
     "sdg": np.array([[1, 0], [0, -1j]], dtype=complex),
     "tdg": np.array([[1, 0], [0, np.exp(-1j * np.pi / 4)]], dtype=complex),
-} 
+}
 
 
 class Result:
 
-    def __init__(self, statevector: np.ndarray, counts: Counter[str, int] | None = None):
-        self._statevector = statevector
+    def __init__(self, probabilities: np.ndarray, counts: Counter[str, int] | None = None):
+        self._probabilities = probabilities
         self._counts = counts or Counter()
 
     @property
-    def statevector(self) -> np.ndarray:
-        return self._statevector
-    
+    def probabilities(self) -> np.ndarray:
+        return self._probabilities
+
     @property
     def measurement_counts(self) -> Counter:
         return self._counts
-
-    def probabilities(self) -> np.ndarray:
-        return np.abs(self.statevector) ** 2
 
 
 class Simulator:
@@ -198,16 +206,15 @@ class Simulator:
                     )
 
         sv = statevector.toarray()[0]
-        
+
         if shots < 0:
             raise ValueError("Shots must be greater than or equal to 0.")
-        
+
         probabilities = np.abs(sv) ** 2
         samples = self._rng.choice(len(probabilities), size=shots, p=probabilities)
         counts = Counter(format(s, f"0{num_qubits}b") for s in samples)
 
-        return Result(statevector, counts)
-
+        return Result(probabilities, counts)
 
 
 from pyqasm import loads
@@ -226,4 +233,5 @@ result = simulator.run(qasm, shots=1000)
 
 print(result.measurement_counts)
 
-print(result.probabilities())
+
+print(result.probabilities)
