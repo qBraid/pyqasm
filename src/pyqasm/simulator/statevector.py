@@ -1,33 +1,90 @@
 from collections import Counter
-
 import numpy as np
 from openqasm3.ast import QuantumGate
 from scipy import sparse
 
 from pyqasm.modules.base import QasmModule
 
-GATES: dict[str, np.ndarray] = {
+
+def rz(theta: float) -> np.ndarray:
+    """Parameterized Rz gate."""
+    return np.array([[np.exp(-1j * theta / 2), 0],
+                        [0, np.exp(1j * theta / 2)]], dtype=complex)
+
+def ry(theta: float) -> np.ndarray:
+    """Parameterized Ry gate."""
+    return np.array([
+        [np.cos(theta / 2), -np.sin(theta / 2)],
+        [np.sin(theta / 2), np.cos(theta / 2)]
+    ], dtype=complex)
+
+def rx(theta: float) -> np.ndarray:
+    """Parameterized Rx gate."""
+    return np.array([
+        [np.cos(theta / 2), -1j * np.sin(theta / 2)],
+        [-1j * np.sin(theta / 2), np.cos(theta / 2)]
+    ], dtype=complex)
+
+
+def crz(theta):
+    return np.array([
+        [1, 0,         0,                0],
+        [0, 1,         0,                0],
+        [0, 0, np.exp(-1j * theta / 2),   0],
+        [0, 0,         0, np.exp(1j * theta / 2)]
+    ], dtype=complex)
+
+
+def u(theta: float, phi: float, lam: float) -> np.ndarray:
+    """Parameterized U gate (generic single-qubit rotation)."""
+    return np.array([
+        [np.cos(theta / 2), -np.exp(1j * lam) * np.sin(theta / 2)],
+        [np.exp(1j * phi) * np.sin(theta / 2), np.exp(1j * (phi + lam)) * np.cos(theta / 2)]
+    ], dtype=complex)
+
+
+PARAMETERIZED_GATES = {
+    "rz": rz,
+    "ry": ry,
+    "rx": rx,
+    "crz": crz,
+    "u": u,
+    "u3": u,
+}
+
+NON_PARAMETERIZED_GATES: dict[str, np.ndarray] = {
     "x": np.array([[0, 1], [1, 0]], dtype=complex),
     "y": np.array([[0, -1j], [1j, 0]], dtype=complex),
     "z": np.array([[1, 0], [0, -1]], dtype=complex),
     "h": np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2),
     "id": np.array([[1, 0], [0, 1]], dtype=complex),
     "cx": np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]], dtype=complex),
+    "cy": np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, -1j], [0, 0, 1j, 0]], dtype=complex),
+    "cz": np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]], dtype=complex),
     "swap": np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=complex),
-}
+    "s": np.array([[1, 0], [0, 1j]], dtype=complex),
+    "t": np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]], dtype=complex),
+    "sdg": np.array([[1, 0], [0, -1j]], dtype=complex),
+    "tdg": np.array([[1, 0], [0, np.exp(-1j * np.pi / 4)]], dtype=complex),
+} 
 
 
 class Result:
 
-    def __init__(self, sv: np.ndarray, counts: Counter[str] | None):
-        self.sv = sv
-        self.counts = counts
+    def __init__(self, statevector: np.ndarray, counts: Counter[str, int] | None = None):
+        self._statevector = statevector
+        self._counts = counts or Counter()
+
+    @property
+    def statevector(self) -> np.ndarray:
+        return self._statevector
+    
+    @property
+    def measurement_counts(self) -> Counter:
+        return self._counts
 
     def probabilities(self) -> np.ndarray:
-        return np.abs(self.sv) ** 2
-
-    def get_counts(self) -> Counter:
-        return self.counts or Counter()
+        return np.abs(self.statevector) ** 2
 
 
 class Simulator:
@@ -46,11 +103,18 @@ class Simulator:
         target_qubit: int,
         control_qubit: int | None,
         num_qubits: int,
+        params: list[float | int] | None,
         statevector: sparse.csr_matrix,
     ) -> sparse.csr_matrix:
-        if gate_name not in GATES:
+        if gate_name in PARAMETERIZED_GATES:
+            required_params = PARAMETERIZED_GATES[gate_name].__code__.co_argcount
+            if not params or len(params) != required_params:
+                raise ValueError(f"Gate {gate_name} requires {required_params} parameter(s).")
+            gate = PARAMETERIZED_GATES[gate_name](*params)
+        elif gate_name in NON_PARAMETERIZED_GATES:
+            gate = NON_PARAMETERIZED_GATES[gate_name]
+        else:
             raise ValueError(f"Gate {gate_name} not supported")
-        gate = GATES[gate_name]
 
         if target_qubit < 0 or target_qubit >= num_qubits:
             raise ValueError(f"Invalid target qubit: {target_qubit}")
@@ -101,21 +165,26 @@ class Simulator:
         full_operator = full_operator.tocsr()
         return statevector.dot(full_operator)
 
-    def run(self, module: QasmModule, shots: int | None = None) -> Result:
-        module.unroll()
-        module.remove_idle_qubits()
+    def run(self, program: QasmModule | str, shots: int = 1) -> Result:
+        if isinstance(program, str):
+            program = loads(program)
 
-        num_qubits = module.num_qubits
+        program.unroll()
+        program.remove_idle_qubits()
+
+        num_qubits = program.num_qubits
         statevector = self._create_statevector(num_qubits)
 
-        for statement in module._unrolled_ast.statements:
+        for statement in program._unrolled_ast.statements:
             if isinstance(statement, QuantumGate):
+                params = [arg.value for arg in statement.arguments if hasattr(arg, "value")]
                 if len(statement.qubits) == 1:
                     statevector = self._apply_gate(
                         statement.name.name,
                         statement.qubits[0].indices[0][0].value,
                         None,
                         num_qubits,
+                        params,
                         statevector,
                     )
                 elif len(statement.qubits) == 2:
@@ -124,21 +193,21 @@ class Simulator:
                         statement.qubits[1].indices[0][0].value,
                         statement.qubits[0].indices[0][0].value,
                         num_qubits,
+                        params,
                         statevector,
                     )
 
         sv = statevector.toarray()[0]
-
-        counts = None
-        if shots is not None:
-            if shots > 0:
-                probabilities = np.abs(sv) ** 2
-                samples = self._rng.choice(len(probabilities), size=shots, p=probabilities)
-                counts = Counter(format(s, f"0{num_qubits}b") for s in samples)
-            elif shots < 0:
-                raise ValueError("Shots must be non-negative")
+        
+        if shots < 0:
+            raise ValueError("Shots must be greater than or equal to 0.")
+        
+        probabilities = np.abs(sv) ** 2
+        samples = self._rng.choice(len(probabilities), size=shots, p=probabilities)
+        counts = Counter(format(s, f"0{num_qubits}b") for s in samples)
 
         return Result(statevector, counts)
+
 
 
 from pyqasm import loads
@@ -151,10 +220,10 @@ h q[0];
 cx q[0], q[1];
 """
 
-program = loads(qasm)
-
 simulator = Simulator()
 
-result = simulator.run(program, shots=1000)
+result = simulator.run(qasm, shots=1000)
 
-print(result.get_counts())
+print(result.measurement_counts)
+
+print(result.probabilities())
