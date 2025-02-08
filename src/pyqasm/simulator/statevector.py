@@ -1,9 +1,26 @@
+# Copyright (C) 2025 qBraid
+#
+# This file is part of PyQASM
+#
+# PyQASM is free software released under the GNU General Public License v3
+# or later. You can redistribute and/or modify it under the terms of the GPL v3.
+# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+
+"""
+Statevector simulator for PyQASM.
+
+"""
+
 from collections import Counter
 
 import numpy as np
 from openqasm3.ast import QuantumGate
 from scipy import sparse
+from dataclasses import dataclass, field
 
+from pyqasm import loads
 from pyqasm.modules.base import QasmModule
 
 
@@ -31,7 +48,8 @@ def rx(theta: float) -> np.ndarray:
     )
 
 
-def crz(theta):
+def crz(theta: float) -> np.ndarray:
+    """Parameterized Controlled-Rz gate."""
     return np.array(
         [
             [1, 0, 0, 0],
@@ -43,8 +61,8 @@ def crz(theta):
     )
 
 
-def u(theta: float, phi: float, lam: float) -> np.ndarray:
-    """Parameterized U gate (generic single-qubit rotation)."""
+def u3(theta: float, phi: float, lam: float) -> np.ndarray:
+    """Parameterized U3 gate (generic single-qubit rotation)."""
     return np.array(
         [
             [np.cos(theta / 2), -np.exp(1j * lam) * np.sin(theta / 2)],
@@ -59,8 +77,7 @@ PARAMETERIZED_GATES = {
     "ry": ry,
     "rx": rx,
     "crz": crz,
-    "u": u,
-    "u3": u,
+    "u3": u3,
 }
 
 NON_PARAMETERIZED_GATES: dict[str, np.ndarray] = {
@@ -79,25 +96,29 @@ NON_PARAMETERIZED_GATES: dict[str, np.ndarray] = {
     "tdg": np.array([[1, 0], [0, np.exp(-1j * np.pi / 4)]], dtype=complex),
 }
 
-
-class Result:
-
-    def __init__(self, probabilities: np.ndarray, counts: Counter[str, int] | None = None):
-        self._probabilities = probabilities
-        self._counts = counts or Counter()
-
-    @property
-    def probabilities(self) -> np.ndarray:
-        return self._probabilities
-
-    @property
-    def measurement_counts(self) -> Counter:
-        return self._counts
+@dataclass(frozen=True)
+class SimulatorResult:
+    """Class to store the result of a statevector simulation."""
+    probabilities: np.ndarray
+    measurement_counts: Counter[str, int]
+    final_statevector: np.ndarray
 
 
 class Simulator:
+    """
+    Statevector simulator
 
-    def __init__(self, seed: int | None = None):
+    """
+
+    def __init__(self, seed: None | int = None):
+        """
+        Initialize the statevector simulator.
+
+        Parameters:
+            seed (None | int): A seed to initialize the `np.random.BitGenerator`.
+                If None, then fresh, unpredictable entropy will be pulled from
+                the OS using `np.random.SeedSequence`.
+        """
         self._rng = np.random.default_rng(seed)
 
     def _create_statevector(self, num_qubits: int) -> sparse.csr_matrix:
@@ -130,38 +151,38 @@ class Simulator:
         full_operator = sparse.lil_matrix((2**num_qubits, 2**num_qubits), dtype=complex)
 
         if control_qubit is not None:
+            # Two-qubit gate
             if control_qubit < 0 or control_qubit >= num_qubits:
                 raise ValueError(f"Invalid control qubit: {control_qubit}")
 
-            # Handle two-qubit gates (CNOT and SWAP)
-            for i in range(2 ** (num_qubits - 2)):
-                i0 = i + (
-                    i >> min(control_qubit, target_qubit) << (min(control_qubit, target_qubit) + 1)
-                )
-                i1 = i0 + (1 << min(control_qubit, target_qubit))
-                i2 = i0 + (1 << max(control_qubit, target_qubit))
-                i3 = i2 + (1 << min(control_qubit, target_qubit))
-
-                if gate_name == "cx":
-                    full_operator[i0, i0] = gate[0, 0]
-                    full_operator[i1, i1] = gate[1, 1]
-                    full_operator[i2, i2] = gate[2, 2]
-                    full_operator[i3, i3] = gate[3, 3]
-                    if control_qubit < target_qubit:
-                        full_operator[i2, i3] = gate[2, 3]
-                        full_operator[i3, i2] = gate[3, 2]
+            if gate_name == "swap":
+                control, target = sorted((control_qubit, target_qubit))  # Ensure correct order
+                for i in range(2**num_qubits):
+                    if (i >> control) & 1:  # If control qubit is |1>
+                        j = i ^ (1 << target)  # Flip the target qubit
+                        full_operator[i, j] = 1.0  # Apply CX gate
                     else:
-                        full_operator[i1, i3] = gate[1, 3]
-                        full_operator[i3, i1] = gate[3, 1]
-                elif gate_name == "swap":
-                    full_operator[i0, i0] = gate[0, 0]
-                    full_operator[i1, i2] = gate[1, 2]
-                    full_operator[i2, i1] = gate[2, 1]
-                    full_operator[i3, i3] = gate[3, 3]
+                        full_operator[i, i] = 1.0  # Apply Identity
+            else:
+                for i in range(2**num_qubits):
+                    if (i >> control_qubit) & 1:
+                        # If the control qubit is |1>, flip the target qubit
+                        j = i ^ (1 << target_qubit)  # XOR to flip the target qubit
+                        full_operator[i, j] = 1.0  # Apply CX gate
+                    else:
+                        full_operator[i, i] = 1.0  # Apply Identity
         else:
             # Single-qubit gate
             for i in range(2**num_qubits):
-                if (i & (1 << target_qubit)) != 0:
+                if gate_name == "ry":
+                    if (i & (1 << target_qubit)) == 0:
+                        i1 = i
+                        i0 = i1 ^ (1 << target_qubit)
+                        full_operator[i0, i0] = gate[0, 0]
+                        full_operator[i0, i1] = gate[0, 1]
+                        full_operator[i1, i0] = gate[1, 0]
+                        full_operator[i1, i1] = gate[1, 1]
+                elif (i & (1 << target_qubit)) != 0:
                     i1 = i
                     i0 = i1 ^ (1 << target_qubit)
                     full_operator[i0, i0] = gate[0, 0]
@@ -173,7 +194,20 @@ class Simulator:
         full_operator = full_operator.tocsr()
         return statevector.dot(full_operator)
 
-    def run(self, program: QasmModule | str, shots: int = 1) -> Result:
+    def run(self, program: QasmModule | str, shots: int = 1) -> SimulatorResult:
+        """Run the statevector simulator.
+
+        Args:
+            program (QasmModule | str): The program to simulate.
+            shots (int): The number of shots to simulate. Defaults to 1.
+
+        Returns:
+            SimulatorResult: The result of the simulation.
+
+        Raises:
+            ValueError: If shots is less than 0, or if the program contains
+                an unsupported gate or invalid syntax.
+        """
         if isinstance(program, str):
             program = loads(program)
 
@@ -212,26 +246,6 @@ class Simulator:
 
         probabilities = np.abs(sv) ** 2
         samples = self._rng.choice(len(probabilities), size=shots, p=probabilities)
-        counts = Counter(format(s, f"0{num_qubits}b") for s in samples)
+        counts = Counter(format(s, f"0{num_qubits}b")[::-1] for s in samples)
 
-        return Result(probabilities, counts)
-
-
-from pyqasm import loads
-
-qasm = """
-OPENQASM 3;
-include "stdgates.inc";
-qubit[2] q;
-h q[0];
-cx q[0], q[1];
-"""
-
-simulator = Simulator()
-
-result = simulator.run(qasm, shots=1000)
-
-print(result.measurement_counts)
-
-
-print(result.probabilities)
+        return SimulatorResult(probabilities, counts, sv)
