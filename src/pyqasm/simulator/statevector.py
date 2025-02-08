@@ -1,4 +1,4 @@
-from typing import Optional
+from collections import Counter
 
 import numpy as np
 from openqasm3.ast import QuantumGate
@@ -17,7 +17,23 @@ GATES: dict[str, np.ndarray] = {
 }
 
 
-class StatevectorSimulator:
+class Result:
+
+    def __init__(self, sv: np.ndarray, counts: Counter[str] | None):
+        self.sv = sv
+        self.counts = counts
+
+    def probabilities(self) -> np.ndarray:
+        return np.abs(self.sv) ** 2
+
+    def get_counts(self) -> Counter:
+        return self.counts or Counter()
+
+
+class Simulator:
+
+    def __init__(self, seed: int | None = None):
+        self._rng = np.random.default_rng(seed)
 
     def _create_statevector(self, num_qubits: int) -> sparse.csr_matrix:
         statevector = sparse.lil_matrix((1, 2**num_qubits), dtype=complex)
@@ -28,7 +44,7 @@ class StatevectorSimulator:
         self,
         gate_name: str,
         target_qubit: int,
-        control_qubit: Optional[int],
+        control_qubit: int | None,
         num_qubits: int,
         statevector: sparse.csr_matrix,
     ) -> sparse.csr_matrix:
@@ -85,7 +101,7 @@ class StatevectorSimulator:
         full_operator = full_operator.tocsr()
         return statevector.dot(full_operator)
 
-    def sample(self, module: QasmModule) -> np.ndarray:
+    def run(self, module: QasmModule, shots: int | None = None) -> Result:
         module.unroll()
         module.remove_idle_qubits()
 
@@ -111,7 +127,18 @@ class StatevectorSimulator:
                         statevector,
                     )
 
-        return statevector.toarray()[0]
+        sv = statevector.toarray()[0]
+
+        counts = None
+        if shots is not None:
+            if shots > 0:
+                probabilities = np.abs(sv) ** 2
+                samples = self._rng.choice(len(probabilities), size=shots, p=probabilities)
+                counts = Counter(format(s, f"0{num_qubits}b") for s in samples)
+            elif shots < 0:
+                raise ValueError("Shots must be non-negative")
+
+        return Result(statevector, counts)
 
 
 from pyqasm import loads
@@ -121,16 +148,13 @@ OPENQASM 3;
 include "stdgates.inc";
 qubit[2] q;
 h q[0];
-swap q[0], q[1];
 cx q[0], q[1];
 """
 
 program = loads(qasm)
 
-simulator = StatevectorSimulator()
+simulator = Simulator()
 
-sv = simulator.sample(program)
+result = simulator.run(program, shots=1000)
 
-probs = np.abs(sv) ** 2
-
-print(probs)
+print(result.get_counts())
