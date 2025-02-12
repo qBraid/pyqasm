@@ -29,7 +29,11 @@ from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
 from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
-from pyqasm.maps.gates import map_qasm_inv_op_to_callable, map_qasm_op_to_callable, map_qasm_ctrl_op_to_callable
+from pyqasm.maps.gates import (
+    map_qasm_ctrl_op_to_callable,
+    map_qasm_inv_op_to_callable,
+    map_qasm_op_to_callable,
+)
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
@@ -645,7 +649,7 @@ class QasmVisitor:
         self,
         gate_function: Callable,
         all_targets: list[list[qasm3_ast.IndexedIdentifier]],
-        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
+        ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Broadcasts the application of a gate onto multiple sets of target qubits.
 
@@ -660,6 +664,8 @@ class QasmVisitor:
             List of all executed gates.
         """
         result = []
+        if ctrls is None:
+            ctrls = []
         for targets in all_targets:
             result.extend(gate_function(*ctrls, *targets))
         return result
@@ -680,13 +686,15 @@ class QasmVisitor:
         for qubit_subset in all_targets:
             max_involved_depth = 0
             for qubit in qubit_subset + ctrls:
-                qubit_id = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]  # type: ignore
+                _qid_ = qubit.indices[0][0]
+                qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
                 qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
                 qubit_node.num_gates += 1
                 max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
 
             for qubit in qubit_subset + ctrls:
-                qubit_id = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]  # type: ignore
+                _qid_ = qubit.indices[0][0]
+                qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
                 qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
                 qubit_node.depth = max_involved_depth
 
@@ -694,7 +702,7 @@ class QasmVisitor:
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
+        ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Visit a gate operation element.
 
@@ -720,6 +728,9 @@ class QasmVisitor:
         """
         logger.debug("Visiting basic gate operation '%s'", str(operation))
         inverse_action = None
+        if ctrls is None:
+            ctrls = []
+
         if not inverse:
             if len(ctrls) > 0:
                 qasm_func, op_qubit_total_count = map_qasm_ctrl_op_to_callable(
@@ -752,7 +763,7 @@ class QasmVisitor:
                 [
                     g2
                     for g in self._broadcast_gate_operation(
-                        unrolled_gate_function, unrolled_targets, []
+                        unrolled_gate_function, unrolled_targets, None
                     )
                     for g2 in self._visit_basic_gate_operation(g, False, ctrls)
                 ]
@@ -772,7 +783,7 @@ class QasmVisitor:
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
+        ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
         """Visit a custom gate operation element recursively.
 
@@ -789,6 +800,8 @@ class QasmVisitor:
             None
         """
         logger.debug("Visiting custom gate operation '%s'", str(operation))
+        if ctrls is None:
+            ctrls = []
         gate_name: str = operation.name.name
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
         op_qubits: list[qasm3_ast.IndexedIdentifier] = (
@@ -854,7 +867,7 @@ class QasmVisitor:
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
+        ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Visit an external gate operation element.
 
@@ -873,6 +886,8 @@ class QasmVisitor:
 
         logger.debug("Visiting external gate operation '%s'", str(operation))
         gate_name: str = operation.name.name
+        if ctrls is None:
+            ctrls = []
 
         if gate_name in self._custom_gates:
             # Ignore result, this is just for validation
@@ -896,7 +911,13 @@ class QasmVisitor:
         if inverse:
             modifiers.append(qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None))
         if len(ctrls) > 0:
-            modifiers.append(qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.ctrl, qasm3_ast.IntegerLiteral(len(ctrls))) if len(ctrls) > 0 else None)
+            modifiers.append(
+                qasm3_ast.QuantumGateModifier(
+                    qasm3_ast.GateModifierName.ctrl, qasm3_ast.IntegerLiteral(len(ctrls))
+                )
+                if len(ctrls) > 0
+                else None
+            )
 
         def gate_function(*qubits):
             return [
@@ -921,7 +942,7 @@ class QasmVisitor:
         self,
         operation: qasm3_ast.QuantumPhase,
         inverse: bool = False,
-        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
+        ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[qasm3_ast.QuantumPhase]:
         """Visit a phase operation element.
 
@@ -933,14 +954,25 @@ class QasmVisitor:
             list[qasm3_ast.Statement]: The unrolled quantum phase operation.
         """
         logger.debug("Visiting phase operation '%s'", str(operation))
+        if ctrls is None:
+            ctrls = []
 
         if len(ctrls) > 0:
-            return self._visit_basic_gate_operation(qasm3_ast.QuantumGate(
-                modifiers=[qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.ctrl, qasm3_ast.IntegerLiteral(len(ctrls)-1))],
-                name=qasm3_ast.Identifier("p"),
-                qubits=ctrls[0:1],
-                arguments=[operation.argument]
-            ), inverse, ctrls[:-1])
+            return self._visit_basic_gate_operation(
+                qasm3_ast.QuantumGate(
+                    modifiers=[
+                        qasm3_ast.QuantumGateModifier(
+                            qasm3_ast.GateModifierName.ctrl,
+                            qasm3_ast.IntegerLiteral(len(ctrls) - 1),
+                        )
+                    ],
+                    name=qasm3_ast.Identifier("p"),
+                    qubits=ctrls[0:1],
+                    arguments=[operation.argument],
+                ),
+                inverse,
+                ctrls[:-1],
+            )
 
         evaluated_arg = Qasm3ExprEvaluator.evaluate_expression(operation.argument)[0]
         if inverse:
@@ -964,10 +996,10 @@ class QasmVisitor:
 
         return [operation]
 
-    def _visit_generic_gate_operation(
+    def _visit_generic_gate_operation(  # pylint: disable=too-many-branches
         self,
         operation: Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase],
-        ctrls: list[qasm3_ast.IndexedIdentifier] = [],
+        ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
         """Visit a gate operation element.
 
@@ -979,6 +1011,8 @@ class QasmVisitor:
         """
         operation, ctrls = copy.deepcopy(operation), copy.deepcopy(ctrls)
         negctrls = []
+        if ctrls is None:
+            ctrls = []
 
         # only needs to be done once for a gate operation
         if (
@@ -1041,7 +1075,7 @@ class QasmVisitor:
                         span=operation.span,
                     )
                 ctrl_qubits = operation.qubits[ctrl_arg_ind : ctrl_arg_ind + count]
-                
+
                 # TODO: assert ctrl_qubits are single qubits
                 ctrl_arg_ind += count
                 ctrls.extend(ctrl_qubits)
@@ -1065,14 +1099,13 @@ class QasmVisitor:
         result: list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]] = []
         for _ in range(power_value):
             if isinstance(operation, qasm3_ast.QuantumPhase):
-                r = self._visit_phase_operation(operation, inverse_value, ctrls)
+                result.extend(self._visit_phase_operation(operation, inverse_value, ctrls))
             elif operation.name.name in self._external_gates:
-                r = self._visit_external_gate_operation(operation, inverse_value, ctrls)
+                result.extend(self._visit_external_gate_operation(operation, inverse_value, ctrls))
             elif operation.name.name in self._custom_gates:
-                r = self._visit_custom_gate_operation(operation, inverse_value, ctrls)
+                result.extend(self._visit_custom_gate_operation(operation, inverse_value, ctrls))
             else:
-                r = self._visit_basic_gate_operation(operation, inverse_value, ctrls)
-            result.extend(r)
+                result.extend(self._visit_basic_gate_operation(operation, inverse_value, ctrls))
 
         # negctrl -> ctrl conversion
         negs = [

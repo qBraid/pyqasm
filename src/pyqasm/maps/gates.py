@@ -1,4 +1,3 @@
-
 # Copyright (C) 2025 qBraid
 #
 # This file is part of PyQASM
@@ -1168,6 +1167,7 @@ def map_qasm_inv_op_to_callable(op_name: str):
             InversionOp.INVERT_ROTATION,
         )
     raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
+
 
 CTRL_GATE_MAP = {
     "x": "cx",

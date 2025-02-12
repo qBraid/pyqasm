@@ -417,6 +417,7 @@ def test_negctrl_gate_modifier():
     check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "x")
     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
 
+
 def test_ctrl_in_custom_gate():
     qasm3_string = """
     OPENQASM 3.0;
@@ -435,6 +436,7 @@ def test_ctrl_in_custom_gate():
     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cx")
     check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 1, 2]], "ccx")
 
+
 def test_ctrl_in_subroutine():
     qasm3_string = """
     OPENQASM 3.0;
@@ -446,12 +448,13 @@ def test_ctrl_in_subroutine():
     qubit[2] q;
     f(q[0], q[1]);
     """
-    
+
     result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
     assert result.num_clbits == 0
     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cx")
+
 
 def test_ctrl_in_if_block():
     qasm3_string = """
@@ -478,6 +481,7 @@ def test_ctrl_in_if_block():
     result.unroll()
     check_unrolled_qasm(dumps(result), expected_qasm)
 
+
 def test_ctrl_in_for_loop():
     qasm3_string = """
     OPENQASM 3.0;
@@ -492,6 +496,7 @@ def test_ctrl_in_for_loop():
     result.unroll()
     assert result.num_qubits == 4
     check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
+
 
 def test_ctrl_unroll():
     qasm3_string = """
@@ -512,6 +517,7 @@ def test_ctrl_unroll():
     result.unroll()
     check_unrolled_qasm(dumps(result), expected_qasm)
 
+
 def test_ctrl_gphase_eq_p():
     qasm3_str_gphase = """
     OPENQASM 3.0;
@@ -529,6 +535,7 @@ def test_ctrl_gphase_eq_p():
     result_gphase.unroll()
     result_p.unroll()
     check_unrolled_qasm(dumps(result_gphase), dumps(result_p))
+
 
 def test_nested_gate_modifiers():
     qasm3_string = """
