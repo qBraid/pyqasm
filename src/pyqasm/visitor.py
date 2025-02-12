@@ -686,6 +686,7 @@ class QasmVisitor:
         for qubit_subset in all_targets:
             max_involved_depth = 0
             for qubit in qubit_subset + ctrls:
+                assert isinstance(qubit.indices[0], list)
                 _qid_ = qubit.indices[0][0]
                 qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
                 qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
@@ -693,6 +694,7 @@ class QasmVisitor:
                 max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
 
             for qubit in qubit_subset + ctrls:
+                assert isinstance(qubit.indices[0], list)
                 _qid_ = qubit.indices[0][0]
                 qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
                 qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
@@ -915,8 +917,6 @@ class QasmVisitor:
                 qasm3_ast.QuantumGateModifier(
                     qasm3_ast.GateModifierName.ctrl, qasm3_ast.IntegerLiteral(len(ctrls))
                 )
-                if len(ctrls) > 0
-                else None
             )
 
         def gate_function(*qubits):
@@ -967,9 +967,9 @@ class QasmVisitor:
                         )
                     ],
                     name=qasm3_ast.Identifier("p"),
-                    qubits=ctrls[0:1],
+                    qubits=ctrls[0:1],  # type: ignore
                     arguments=[operation.argument],
-                ),
+                ),  # type: ignore
                 inverse,
                 ctrls[:-1],
             )
@@ -1030,7 +1030,7 @@ class QasmVisitor:
                 )
             )
 
-        operation.qubits = self._get_op_bits(
+        operation.qubits = self._get_op_bits(  # type: ignore
             operation, reg_size_map=self._global_qreg_size_map, qubits=True
         )
 
@@ -1078,7 +1078,7 @@ class QasmVisitor:
 
                 # TODO: assert ctrl_qubits are single qubits
                 ctrl_arg_ind += count
-                ctrls.extend(ctrl_qubits)
+                ctrls.extend(ctrl_qubits)  # type: ignore
                 if modifier_name == qasm3_ast.GateModifierName.negctrl:
                     negctrls.extend(ctrl_qubits)
 
@@ -1111,7 +1111,7 @@ class QasmVisitor:
         negs = [
             qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls
         ]
-        result = negs + result + negs
+        result = negs + result + negs  # type: ignore
 
         if self._check_only:
             return []
