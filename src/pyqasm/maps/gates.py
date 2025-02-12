@@ -1191,3 +1191,48 @@ def map_qasm_inv_op_to_callable(op_name: str):
             InversionOp.INVERT_ROTATION,
         )
     raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
+
+
+CTRL_GATE_MAP = {
+    "x": "cx",
+    "y": "cy",
+    "z": "cz",
+    "rx": "crx",
+    "ry": "cry",
+    "rz": "crz",
+    "p": "cp",
+    "h": "ch",
+    "u": "cu",
+    "swap": "cswap",
+    "cx": "ccx",
+}
+
+
+def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
+    """
+    Map a controlled QASM operation to a callable.
+
+    Args:
+        op_name (str): The QASM operation name.
+        ctrl_count (int): The number of control qubits.
+
+    Returns:
+        tuple: A tuple containing the callable and the number of qubits the operation acts on.
+    """
+
+    ctrl_op_name, c = op_name, ctrl_count
+    while c > 0 and ctrl_op_name in CTRL_GATE_MAP:
+        ctrl_op_name = CTRL_GATE_MAP[ctrl_op_name]
+        c -= 1
+    if c == 0:
+        if ctrl_op_name in ONE_QUBIT_OP_MAP:
+            return ONE_QUBIT_OP_MAP[ctrl_op_name], 1
+        if ctrl_op_name in TWO_QUBIT_OP_MAP:
+            return TWO_QUBIT_OP_MAP[ctrl_op_name], 2
+        if ctrl_op_name in THREE_QUBIT_OP_MAP:
+            return THREE_QUBIT_OP_MAP[ctrl_op_name], 3
+
+    # TODO: decompose controls if not built in
+    raise ValidationError(
+        f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controls"
+    )
