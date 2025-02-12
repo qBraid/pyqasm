@@ -21,7 +21,7 @@ from typing import Callable, Union
 import numpy as np
 from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
 
-from pyqasm.elements import InversionOp
+from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
@@ -1085,6 +1085,30 @@ FOUR_QUBIT_OP_MAP = {"c3sx": c3sx_gate, "c3sqrtx": c3sx_gate}
 
 FIVE_QUBIT_OP_MAP = {
     "c4x": c4x_gate,
+}
+
+BASIS_GATE_MAP = {
+    # default basis set is the gate set of the stdgates.inc library file
+    BasisSet.DEFAULT: {
+        "id",
+        "rx",
+        "ry",
+        "rz",
+        "h",
+        "x",
+        "y",
+        "z",
+        "s",
+        "sx",
+        "t",
+        "sdg",
+        "tdg",
+        "cx",
+        "cz",
+        "swap",
+    },
+    BasisSet.ROTATIONAL_CX: {"rx", "ry", "rz", "cx"},
+    BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
 }
 
 

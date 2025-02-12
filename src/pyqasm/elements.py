@@ -98,3 +98,13 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     is_constant: bool = False
     is_register: bool = False
     readonly: bool = False
+
+
+class BasisSet(Enum):
+    """
+    Enum for the different basis sets in Qasm.
+    """
+
+    DEFAULT = 0
+    ROTATIONAL_CX = 1
+    CLIFFORD_T = 2
