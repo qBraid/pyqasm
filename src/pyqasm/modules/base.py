@@ -1,12 +1,12 @@
-# Copyright (C) 2024 qBraid
+# Copyright (C) 2025 qBraid
 #
-# This file is part of pyqasm
+# This file is part of PyQASM
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
 Definition of the base Qasm module
@@ -17,12 +17,14 @@ from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
-from openqasm3.ast import Program
+from openqasm3.ast import BranchingStatement, Program, QuantumGate
 
 from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.decomposer import Decomposer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
 from pyqasm.exceptions import UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
+from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
 from pyqasm.visitor import QasmVisitor
 
 
@@ -524,6 +526,55 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             self.num_qubits, self.num_clbits = -1, -1
             self._unrolled_ast = Program(statements=[], version=self.original_program.version)
             raise err
+
+    def rebase(self, target_basis_set, in_place=True):
+        """Rebase the AST to use a specified target basis set.
+
+        Will unroll the module if not already done.
+
+        Args:
+            target_basis_set: The target basis set to rebase the module to.
+            in_place (bool): Flag to indicate if the rebase operation should be done in place.
+
+        Returns:
+            QasmModule: The module with the gates rebased to the target basis set.
+        """
+        if target_basis_set not in DECOMPOSITION_RULES:
+            raise ValueError(f"Target basis set '{target_basis_set}' is not defined.")
+
+        qasm_module = self if in_place else self.copy()
+
+        if len(qasm_module._unrolled_ast.statements) == 0:
+            qasm_module.unroll()
+
+        rebased_statements = []
+
+        for statement in qasm_module._unrolled_ast.statements:
+            if isinstance(statement, QuantumGate):
+                gate_name = statement.name.name
+
+                # Decompose the gate
+                processed_gates_list = Decomposer.process_gate_statement(
+                    gate_name, statement, target_basis_set
+                )
+                for processed_gate in processed_gates_list:
+                    rebased_statements.append(processed_gate)
+
+            elif isinstance(statement, BranchingStatement):
+                # Recursively process the if_block and else_block
+
+                rebased_statements.append(
+                    Decomposer.process_branching_statement(statement, target_basis_set)
+                )
+
+            else:
+                # Non-gate statements are directly appended
+                rebased_statements.append(statement)
+
+        # Replace the unrolled AST with the rebased one
+        qasm_module._unrolled_ast.statements = rebased_statements
+
+        return qasm_module
 
     def __str__(self) -> str:
         """Return the string representation of the QASM program

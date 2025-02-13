@@ -1,12 +1,12 @@
-# Copyright (C) 2024 qBraid
+# Copyright (C) 2025 qBraid
 #
-# This file is part of pyqasm
+# This file is part of PyQASM
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
 Module containing unit tests for calculating program depth.
@@ -107,6 +107,19 @@ def test_inv_gate_depth():
     # Q2(1)-> CX  -> .....................-> CCX
 
     assert result.depth() == 5
+
+
+def test_ctrl_depth():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[3] q;
+    ctrl @ x q[0], q[1]; 
+    ctrl @ x q[0], q[2];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.depth() == 2
 
 
 def test_qubit_depth_with_unrelated_measure_op():

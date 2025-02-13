@@ -1,12 +1,12 @@
-# Copyright (C) 2024 qBraid
+# Copyright (C) 2025 qBraid
 #
-# This file is part of pyqasm
+# This file is part of PyQASM
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 # pylint: disable=too-many-lines
 
@@ -21,7 +21,7 @@ from typing import Callable, Union
 import numpy as np
 from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
 
-from pyqasm.elements import InversionOp
+from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
@@ -1087,6 +1087,30 @@ FIVE_QUBIT_OP_MAP = {
     "c4x": c4x_gate,
 }
 
+BASIS_GATE_MAP = {
+    # default basis set is the gate set of the stdgates.inc library file
+    BasisSet.DEFAULT: {
+        "id",
+        "rx",
+        "ry",
+        "rz",
+        "h",
+        "x",
+        "y",
+        "z",
+        "s",
+        "sx",
+        "t",
+        "sdg",
+        "tdg",
+        "cx",
+        "cz",
+        "swap",
+    },
+    BasisSet.ROTATIONAL_CX: {"rx", "ry", "rz", "cx"},
+    BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
+}
+
 
 def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
     """
@@ -1167,3 +1191,48 @@ def map_qasm_inv_op_to_callable(op_name: str):
             InversionOp.INVERT_ROTATION,
         )
     raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
+
+
+CTRL_GATE_MAP = {
+    "x": "cx",
+    "y": "cy",
+    "z": "cz",
+    "rx": "crx",
+    "ry": "cry",
+    "rz": "crz",
+    "p": "cp",
+    "h": "ch",
+    "u": "cu",
+    "swap": "cswap",
+    "cx": "ccx",
+}
+
+
+def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
+    """
+    Map a controlled QASM operation to a callable.
+
+    Args:
+        op_name (str): The QASM operation name.
+        ctrl_count (int): The number of control qubits.
+
+    Returns:
+        tuple: A tuple containing the callable and the number of qubits the operation acts on.
+    """
+
+    ctrl_op_name, c = op_name, ctrl_count
+    while c > 0 and ctrl_op_name in CTRL_GATE_MAP:
+        ctrl_op_name = CTRL_GATE_MAP[ctrl_op_name]
+        c -= 1
+    if c == 0:
+        if ctrl_op_name in ONE_QUBIT_OP_MAP:
+            return ONE_QUBIT_OP_MAP[ctrl_op_name], 1
+        if ctrl_op_name in TWO_QUBIT_OP_MAP:
+            return TWO_QUBIT_OP_MAP[ctrl_op_name], 2
+        if ctrl_op_name in THREE_QUBIT_OP_MAP:
+            return THREE_QUBIT_OP_MAP[ctrl_op_name], 3
+
+    # TODO: decompose controls if not built in
+    raise ValidationError(
+        f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controls"
+    )

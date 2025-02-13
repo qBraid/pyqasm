@@ -1,12 +1,12 @@
-# Copyright (C) 2024 qBraid
+# Copyright (C) 2025 qBraid
 #
-# This file is part of pyqasm
+# This file is part of PyQASM
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
 Module defining Qasm Converter elements.
@@ -98,3 +98,13 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     is_constant: bool = False
     is_register: bool = False
     readonly: bool = False
+
+
+class BasisSet(Enum):
+    """
+    Enum for the different basis sets in Qasm.
+    """
+
+    DEFAULT = 0
+    ROTATIONAL_CX = 1
+    CLIFFORD_T = 2
