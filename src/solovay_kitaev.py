@@ -44,11 +44,7 @@ def find_basic_approximation(target: SU2Matrix, basic_gates: List[SU2Matrix]) ->
     
     return best_gate
 
-def decompose_group_element(
-    target: SU2Matrix,
-    basic_gates: List[SU2Matrix],
-    depth: int
-) -> Tuple[List[SU2Matrix], float]:
+def decompose_group_element(target: SU2Matrix, basic_gates: List[SU2Matrix], depth: int) -> Tuple[List[SU2Matrix], float]:
     """
     Decompose a target unitary into a sequence of basic gates using Solovay-Kitaev.
     
@@ -68,6 +64,7 @@ def decompose_group_element(
     prev_sequence, prev_error = decompose_group_element(target, basic_gates, depth - 1)
     
     # If previous approximation is good enough, return it
+    # ERROR IS HARD CODED RIGHT NOW -> CHANGE THIS TO FIT USER-INPUT
     if prev_error < 1e-6:
         return prev_sequence, prev_error
     
@@ -79,27 +76,37 @@ def decompose_group_element(
     error = target * approx.dagger()
     
     # Find Va and Vb such that their group commutator approximates the error
-    # This is a simplified version - in practice, you'd need a more sophisticated search
-    best_va = None
-    best_vb = None
+    best_v = None
+    best_w = None
     best_error = float('inf')
     
-    for va in basic_gates:
-        for vb in basic_gates:
-            comm = group_commutator(va, vb)
+    for v in basic_gates:
+        for w in basic_gates:
+            comm = group_commutator(v, w)
             curr_error = error.distance(comm)
             if curr_error < best_error:
                 best_error = curr_error
-                best_va = va
-                best_vb = vb
-    
+                best_v = v
+                best_w = w
+
     # Construct the final sequence
     result_sequence = []
     result_sequence.extend(prev_sequence)
     
     # Add correction terms
-    if best_va is not None and best_vb is not None:
-        result_sequence.extend([best_va, best_vb, best_va.dagger(), best_vb.dagger()])
+    if best_v is not None and best_w is not None:
+        v_sequence, error  = decompose_group_element(best_v, basic_gates, depth - 1)
+        w_sequence, error = decompose_group_element(best_w, basic_gates, depth - 1)
+
+        v_approx = v_sequence[0]
+        for gate in v_sequence[1:]:
+            v_approx = v_approx * gate
+        
+        w_approx = w_sequence[0]
+        for gate in w_sequence[1:]:
+            w_approx = w_approx * gate
+
+        result_sequence.extend([best_v, best_w, v_approx.dagger(), w_approx.dagger()])
     
     # Calculate final error
     final_approx = result_sequence[0]
@@ -109,11 +116,7 @@ def decompose_group_element(
     
     return result_sequence, final_error
 
-def solovay_kitaev(
-    target: np.ndarray,
-    basic_gates: List[np.ndarray],
-    depth: int = 3
-) -> List[np.ndarray]:
+def solovay_kitaev(target: np.ndarray, basic_gates: List[np.ndarray], depth: int = 3) -> List[np.ndarray]:
     """
     Main function to run the Solovay-Kitaev algorithm.
     
@@ -135,24 +138,65 @@ def solovay_kitaev(
     # Convert back to numpy arrays
     return [gate.matrix for gate in sequence]
 
-# Example usage:
+def gate_to_name(gate: np.ndarray) -> str:
+        """Convert a gate (numpy array) to its standard name."""
+        # Helper function to check if matrices are equal within numerical precision
+        # I just made up a tolerance, does it matter too much? I thought this would make my life easier
+        def is_equal(A, B, tol=1e-10):
+            return np.allclose(A, B, rtol=tol, atol=tol)
+        
+        # Define gates and their names
+        gate_map = {
+            'X': X,
+            'Y': Y,
+            'Z': Z,
+            'H': H,
+            'S': S,
+            'S_dagger': S.conj().T,
+            'T': T,
+            'T_dagger': T.conj().T,
+        }
+        
+        # Check each known gate
+        for name, reference_gate in gate_map.items():
+            if is_equal(gate, reference_gate):
+                return name
+                
+        # If no match found, return a generic descriptor
+        return "U"  # Unknown gate
+
+# FOR TESTING - DELETE BEFORE MERGING
 if __name__ == "__main__":
-    # Define some basic gates (Pauli matrices and their combinations)
-    I = np.array([[1, 0], [0, 1]], dtype=complex)
     X = np.array([[0, 1], [1, 0]], dtype=complex)
     Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
     Z = np.array([[1, 0], [0, -1]], dtype=complex)
     H = np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2)
+    S = np.array([[1, 0], [0, 1j]], dtype=complex)
+    T = np.array([[1, 0], [0, np.exp((1j*np.pi)/4)]], dtype=complex)
     
-    basic_gates = [I, X, Y, Z, H]
+    basis_gates = [H, T, S, T.conj().T, S.conj().T]
     
     # Define a target unitary
-    theta = np.pi / 8
+    theta = np.pi / 4
     target = np.array([
-        [np.cos(theta), -np.sin(theta)],
-        [np.sin(theta), np.cos(theta)]
+        [np.cos(theta/2), -np.sin(theta/2)],
+        [np.sin(theta/2), np.cos(theta/2)]
     ], dtype=complex)
     
     # Run the algorithm
-    sequence = solovay_kitaev(target, basic_gates, depth=3)
-    print(f"Found sequence of {len(sequence)} gates")
+    sequence = solovay_kitaev(target, basis_gates, depth=3)
+
+    sequence_to_string = ""
+
+    for matrix in sequence:
+        sequence_to_string += gate_to_name(matrix) + " "
+
+    # Compare target matrix and approx matrix
+    print(target)
+
+    approx = sequence[0]
+    for gate in sequence[1:]:
+        approx = approx * gate
+    print(approx)
+
+    print(sequence_to_string)
