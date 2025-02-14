@@ -28,7 +28,6 @@ from openqasm3.ast import (
     QuantumMeasurementStatement,
     RangeDefinition,
 )
-from openqasm3.parser import QASM3ParsingError
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
 
@@ -209,8 +208,8 @@ class Qasm3Analyzer:
             )
         return bit_list
 
-    @staticmethod
-    def extract_qasm_version(qasm: str) -> float:
+    @staticmethod  # pylint: disable-next=inconsistent-return-statements
+    def extract_qasm_version(qasm: str) -> float:  # type: ignore[return]
         """
         Extracts the OpenQASM version from a given OpenQASM string.
 
