@@ -15,7 +15,7 @@ import pyqasm
 # -- Project information -----------------------------------------------------
 
 project = "qBraid"
-copyright = "2024, qBraid Development Team"
+copyright = "2025, qBraid Development Team"
 author = "qBraid Development Team"
 
 # The full version, including alpha/beta/rc tags
@@ -41,7 +41,7 @@ extensions = [
 # set_type_checking_flag = True
 autodoc_member_order = "bysource"
 autoclass_content = "both"
-autodoc_mock_imports = ["openqasm3"]
+autodoc_mock_imports = ["openqasm3", "matplotlib"]
 napoleon_numpy_docstring = False
 todo_include_todos = True
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

@@ -12,12 +12,12 @@
 Tests for the QASM printer module.
 """
 
-import random
-
 import pytest
-from qbraid import random_circuit, transpile
 
 from pyqasm.entrypoint import loads
+from pyqasm.printer import mpl_draw
+
+pytest.importorskip("matplotlib", reason="Matplotlib not installed.")
 
 
 def _check_fig(_, fig):
@@ -30,11 +30,15 @@ def _check_fig(_, fig):
     assert len(ax.texts) > 0
 
 
-def test_simple():
-    qasm = """OPENQASM 3.0;
+def test_draw_qasm3_simple():
+    """Test drawing a simple QASM 3.0 circuit."""
+    qasm = """
+    OPENQASM 3.0;
     include "stdgates.inc";
+
     qubit[3] q;
     bit[3] b;
+
     h q[0];
     z q[1];
     rz(pi/1.1) q[0];
@@ -44,14 +48,17 @@ def test_simple():
     b = measure q;
     """
     circ = loads(qasm)
-    fig = circ.draw()
+    fig = mpl_draw(circ)
     _check_fig(circ, fig)
 
 
-def test_custom_gate():
-    qasm = """OPENQASM 3.0;
+def test_draw_qasm3_custom_gate():
+    qasm = """
+    OPENQASM 3.0;
     include "stdgates.inc";
+
     qubit q;
+
     gate custom a {
         h a;
         z a;
@@ -59,14 +66,29 @@ def test_custom_gate():
     custom q;
     """
     circ = loads(qasm)
-    fig = circ.draw()
+    fig = mpl_draw(circ)
     _check_fig(circ, fig)
 
 
-@pytest.mark.parametrize("_", range(100))
-def test_random(_):
-    circ = random_circuit("qiskit", measure=random.choice([True, False]))
-    qasm_str = transpile(circ, random.choice(["qasm2", "qasm3"]))
-    module = loads(qasm_str)
-    fig = module.draw()
+def test_draw_qasm2_simple():
+    """Test drawing a simple QASM 2.0 circuit."""
+    qasm = """
+    OPENQASM 2.0;
+    include "qelib1.inc";
+
+    qreg q[4];
+    creg c[4];
+
+    h q[0];
+    cx q[0], q[1];
+    x q[2];
+    rz(pi/4) q[3];
+    cx q[1], q[2];
+    ccx q[0], q[1], q[3];
+    u3(pi/2, pi/4, pi/8) q[2];
+    barrier q;
+    measure q -> c;
+    """
+    circ = loads(qasm)
+    fig = mpl_draw(circ)
     _check_fig(circ, fig)

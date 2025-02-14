@@ -602,7 +602,3 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             visitor (QasmVisitor): The visitor to accept
         """
-
-    @abstractmethod
-    def draw(self, idle_wires=True):
-        """Draw the module"""

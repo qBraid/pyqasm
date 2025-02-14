@@ -8,15 +8,17 @@
 #
 # THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
+# pylint: disable=import-outside-toplevel
+
 """
 Module with analysis functions for QASM visitor
 
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
-from matplotlib import pyplot as plt
 from openqasm3 import ast
 
 from pyqasm.expressions import Qasm3ExprEvaluator
@@ -27,13 +29,11 @@ from pyqasm.maps.gates import (
     TWO_QUBIT_OP_MAP,
 )
 
-try:
-    MPL_INSTALLED = True
-except ImportError:
-    MPL_INSTALLED = False
-
 if TYPE_CHECKING:
-    from pyqasm.modules.base import Qasm3Module
+    import matplotlib.pyplot as plt
+
+    from pyqasm.modules.base import QasmModule
+
 
 # Constants
 DEFAULT_GATE_COLOR = "#d4b6e8"
@@ -46,46 +46,81 @@ GATE_SPACING = 0.2
 LINE_SPACING = 0.6
 TEXT_MARGIN = 0.6
 FRAME_PADDING = 0.2
+BOX_STYLE = "round,pad=0.02,rounding_size=0.05"
+
+Declaration = (
+    ast.CalibrationGrammarDeclaration
+    | ast.ClassicalDeclaration
+    | ast.ConstantDeclaration
+    | ast.ExternDeclaration
+    | ast.IODeclaration
+    | ast.QubitDeclaration
+)
+QuantumStatement = (
+    ast.QuantumGate | ast.QuantumMeasurementStatement | ast.QuantumBarrier | ast.QuantumReset
+)
+
+QubitIdentifier = ast.Identifier | ast.IndexedIdentifier
 
 
-def draw(module: Qasm3Module, output: str = "mpl", idle_wires: bool = True) -> plt.Figure:
+def draw(
+    program: str | QasmModule,
+    output: Literal["mpl"] = "mpl",
+    idle_wires: bool = True,
+    **kwargs: Any,
+) -> None:
     """Draw the quantum circuit.
 
     Args:
-        module: The quantum module to draw
-        output: The output format, currently only "mpl" supported
-        idle_wires: Whether to show idle wires
+        module (QasmModule): The quantum module to draw
+        output (str): The output format. Defaults to "mpl".
+        idle_wires (bool): Whether to show idle wires. Defaults to True.
 
     Returns:
-        The matplotlib figure
+        None: The drawing is displayed or saved to a file.
     """
-    if not MPL_INSTALLED:
-        raise ImportError(
-            "matplotlib needs to be installed prior to running pyqasm.draw(). "
-            "Install with: 'pip install pyqasm[visualization]'"
-        )
+    if isinstance(program, str):
+        from pyqasm.entrypoint import loads
 
-    if output != "mpl":
-        raise NotImplementedError(f"{output} drawing for Qasm3Module is unsupported")
+        program = loads(program)
 
-    plt.ioff()
-    plt.close("all")
-    return _draw_mpl(module, idle_wires=idle_wires)
+    if output == "mpl":
+        mpl_draw(program, idle_wires=idle_wires, **kwargs)
+    else:
+        raise ValueError(f"Unsupported output format: {output}")
 
 
-def _draw_mpl(module: Qasm3Module, idle_wires: bool = True) -> plt.Figure:
+def mpl_draw(
+    program: str | QasmModule, idle_wires: bool = True, filename: str | Path | None = None
+) -> plt.Figure:
     """Internal matplotlib drawing implementation."""
-    module.unroll()
-    module.remove_includes()
+    if isinstance(program, str):
+        from pyqasm.entrypoint import loads
 
-    line_nums, sizes = _compute_line_nums(module)
+        program = loads(program)
 
-    global_phase = sum(
-        Qasm3ExprEvaluator.evaluate_expression(s.argument)[0]
-        for s in module._statements
-        if isinstance(s, ast.QuantumPhase)
-    )
-    statements = [s for s in module._statements if not isinstance(s, ast.QuantumPhase)]
+    try:
+        # pylint: disable-next=unused-import
+        import matplotlib.pyplot as plt
+    except ImportError as e:
+        raise ImportError(
+            "matplotlib needs to be installed prior to running pyqasm.mpl_draw(). "
+            "You can install matplotlib with:\n'pip install matplotlib'"
+        ) from e
+
+    program.unroll()
+    program.remove_includes()
+
+    line_nums, sizes = _compute_line_nums(program)
+
+    global_phase = 0
+    statements: list[ast.Statement] = []
+
+    for s in program._statements:
+        if isinstance(s, ast.QuantumPhase):
+            global_phase += Qasm3ExprEvaluator.evaluate_expression(s.argument)[0]
+        else:
+            statements.append(s)
 
     # Compute moments
     moments, depths = _compute_moments(statements, line_nums)
@@ -96,13 +131,17 @@ def _draw_mpl(module: Qasm3Module, idle_wires: bool = True) -> plt.Figure:
         ks = [k for k in ks if depths[k] > 0]
         line_nums = {k: i for i, k in enumerate(ks)}
 
-    fig = _mpl_draw(module, moments, line_nums, sizes, global_phase)
+    fig = _mpl_draw(program, moments, line_nums, sizes, global_phase)
+
+    if filename is not None:
+        raise NotImplementedError("Saving to file not yet supported.")
+
     return fig
 
 
 def _compute_line_nums(
-    module: Qasm3Module,
-) -> tuple[dict[tuple[str, int], int], dict[tuple[str, int], int], int]:
+    module: QasmModule,
+) -> tuple[dict[tuple[str, int], int], dict[tuple[str, int], int]]:
     """Compute line number and register size lookup table for the circuit."""
     line_nums = {}
     sizes = {}
@@ -129,17 +168,20 @@ def _compute_line_nums(
     return line_nums, sizes
 
 
+# pylint: disable-next=too-many-branches
 def _compute_moments(
-    statements: list[ast.QuantumStatement], line_nums: dict[tuple[str, int], int]
-) -> tuple[list[list[ast.QuantumStatement]], dict[tuple[str, int], int]]:
+    statements: list[ast.Statement], line_nums: dict[tuple[str, int], int]
+) -> tuple[list[list[QuantumStatement]], dict[tuple[str, int], int]]:
     depths = {}
     for k in line_nums:
         depths[k] = -1
 
-    moments = []
+    moments: list[list[QuantumStatement]] = []
     for statement in statements:
-        if "Declaration" in str(type(statement)):
+        if isinstance(statement, Declaration):
             continue
+        if not isinstance(statement, QuantumStatement):
+            raise ValueError(f"Unsupported statement: {statement}")
         if isinstance(statement, ast.QuantumGate):
             qubits = [_identifier_to_key(q) for q in statement.qubits]
             depth = 1 + max(depths[q] for q in qubits)
@@ -147,12 +189,23 @@ def _compute_moments(
                 depths[q] = depth
         elif isinstance(statement, ast.QuantumMeasurementStatement):
             qubit_key = _identifier_to_key(statement.measure.qubit)
+            if statement.target is None:
+                raise NotImplementedError("Stand-alone measurement statements not yet supported.")
             target_key = _identifier_to_key(statement.target)[0], -1
             depth = 1 + max(depths[qubit_key], depths[target_key])
             for k in [qubit_key, target_key]:
                 depths[k] = depth
         elif isinstance(statement, ast.QuantumBarrier):
-            qubits = [_identifier_to_key(q) for q in statement.qubits]
+            qubits = []
+            for expr in statement.qubits:
+                # https://github.com/openqasm/openqasm/issues/461
+                if not isinstance(expr, QubitIdentifier):
+                    raise ValueError(
+                        f"Unsupported qubit type '{type(expr).__name__}' in "
+                        f"'{type(statement).__name__}' statement. "
+                        f"Expected a qubit of type {QubitIdentifier}."
+                    )
+                qubits.append(_identifier_to_key(expr))
             depth = 1 + max(depths[q] for q in qubits)
             for q in qubits:
                 depths[q] = depth
@@ -160,11 +213,10 @@ def _compute_moments(
             qubit_key = _identifier_to_key(statement.qubits)
             depth = 1 + depths[qubit_key]
             depths[qubit_key] = depth
-        else:
-            raise NotImplementedError(f"Unsupported statement: {statement}")
 
         if depth >= len(moments):
             moments.append([])
+
         moments[depth].append(statement)
 
     return moments, depths
@@ -174,16 +226,20 @@ def _identifier_to_key(identifier: ast.Identifier | ast.IndexedIdentifier) -> tu
     if isinstance(identifier, ast.Identifier):
         return identifier.name, -1
 
-    return (
-        identifier.name.name,
-        Qasm3ExprEvaluator.evaluate_expression(identifier.indices[0][0])[0],
-    )
+    indices = identifier.indices
+    if len(indices) >= 1 and isinstance(indices[0], list) and len(indices[0]) >= 1:
+        return (
+            identifier.name.name,
+            Qasm3ExprEvaluator.evaluate_expression(indices[0][0])[0],
+        )
+
+    raise ValueError(f"Unsupported identifier: {identifier}")
 
 
 def _compute_sections(
-    moments: list[list[ast.QuantumStatement]],
-) -> list[list[ast.QuantumStatement]]:
-    sections = [[]]
+    moments: list[list[QuantumStatement]],
+) -> tuple[list[list[list[QuantumStatement]]], float]:
+    sections: list[list[list[QuantumStatement]]] = [[]]
 
     width = TEXT_MARGIN
     for moment in moments:
@@ -203,15 +259,14 @@ def _compute_sections(
 
 
 def _mpl_draw(
-    module: Qasm3Module,
-    moments: list[list[ast.QuantumStatement]],
+    module: QasmModule,
+    moments: list[list[QuantumStatement]],
     line_nums: dict[tuple[str, int], int],
     sizes: dict[tuple[str, int], int],
     global_phase: float,
 ):
     sections, width = _compute_sections(moments)
     n_lines = max(line_nums.values()) + 1
-
     fig, axs = _mpl_setup_figure(sections, width, n_lines)
 
     for sidx, ms in enumerate(sections):
@@ -221,15 +276,20 @@ def _mpl_draw(
     return fig
 
 
-def _mpl_setup_figure(sections: list[list[ast.QuantumStatement]], width: float, n_lines: int):
-    fig, axs = plt.subplots(
+def _mpl_setup_figure(
+    sections: list[list[list[QuantumStatement]]], width: float, n_lines: int
+) -> tuple[plt.Figure, list[plt.Axes]]:
+    import matplotlib.pyplot as plt
+
+    fig_ax_tuple: tuple[plt.Figure, list[plt.Axes] | plt.Axes] = plt.subplots(
         len(sections),
         1,
         sharex=True,
         figsize=(width, len(sections) * (n_lines * GATE_BOX_HEIGHT + LINE_SPACING * (n_lines - 1))),
     )
-    if len(sections) == 1:
-        axs = [axs]
+
+    fig, axs = fig_ax_tuple
+    axs = axs if isinstance(axs, list) else [axs]
 
     for ax in axs:
         ax.set_ylim(
@@ -245,16 +305,16 @@ def _mpl_setup_figure(sections: list[list[ast.QuantumStatement]], width: float, 
     return fig, axs
 
 
-# pylint: disable=too-many-arguments
+# pylint: disable-next=too-many-arguments
 def _mpl_draw_section(
-    module: Qasm3Module,
-    moments: list[list[ast.QuantumStatement]],
+    module: QasmModule,
+    moments: list[list[QuantumStatement]],
     line_nums: dict[tuple[str, int], int],
     sizes: dict[tuple[str, int], int],
     ax: plt.Axes,
     global_phase: float,
 ):
-    x = 0
+    x = 0.0
     if global_phase != 0:
         _mpl_draw_global_phase(global_phase, ax, x)
     for k in module._qubit_registers.keys():
@@ -296,7 +356,7 @@ def _mpl_draw_creg_label(creg: str, line_num: int, ax: plt.Axes, x: float):
     ax.text(x, _mpl_line_to_y(line_num), f"{creg[0]}", ha="right", va="center")
 
 
-# pylint: disable=too-many-arguments
+# pylint: disable-next=too-many-arguments
 def _mpl_draw_lines(
     width,
     line_nums: dict[tuple[str, int], int],
@@ -344,16 +404,16 @@ def _mpl_draw_lines(
             )
 
 
-def _mpl_get_moment_width(moment: list[ast.QuantumStatement]) -> float:
+def _mpl_get_moment_width(moment: list[QuantumStatement]) -> float:
     return max(_mpl_get_statement_width(s) for s in moment)
 
 
-def _mpl_get_statement_width(_: ast.QuantumStatement) -> float:
+def _mpl_get_statement_width(_: QuantumStatement) -> float:
     return GATE_BOX_WIDTH + GATE_SPACING
 
 
 def _mpl_draw_statement(
-    statement: ast.QuantumStatement, line_nums: dict[tuple[str, int], int], ax: plt.Axes, x: float
+    statement: QuantumStatement, line_nums: dict[tuple[str, int], int], ax: plt.Axes, x: float
 ):
     if isinstance(statement, ast.QuantumGate):
         args = [Qasm3ExprEvaluator.evaluate_expression(arg)[0] for arg in statement.arguments]
@@ -361,12 +421,22 @@ def _mpl_draw_statement(
         _mpl_draw_gate(statement, args, lines, ax, x)
     elif isinstance(statement, ast.QuantumMeasurementStatement):
         qubit_key = _identifier_to_key(statement.measure.qubit)
-        target_key = _identifier_to_key(statement.target)
-        _mpl_draw_measurement(
-            line_nums[qubit_key], line_nums[(target_key[0], -1)], target_key[1], ax, x
-        )
+        if statement.target is None:
+            raise NotImplementedError("Stand-alone measurement statements not yet supported.")
+        name, idx = _identifier_to_key(statement.target)
+        _mpl_draw_measurement(line_nums[qubit_key], line_nums[(name, -1)], idx, ax, x)
     elif isinstance(statement, ast.QuantumBarrier):
-        lines = [line_nums[_identifier_to_key(q)] for q in statement.qubits]
+        lines = []
+        for q in statement.qubits:
+            # https://github.com/openqasm/openqasm/issues/461
+            if not isinstance(q, QubitIdentifier):
+                raise ValueError(
+                    f"Unsupported qubit type '{type(q).__name__}' in "
+                    f"'{type(statement).__name__}' statement. "
+                    f"Expected a qubit of type {QubitIdentifier}."
+                )
+            lines.append(line_nums[_identifier_to_key(q)])
+
         _mpl_draw_barrier(lines, ax, x)
     elif isinstance(statement, ast.QuantumReset):
         _mpl_draw_reset(line_nums[_identifier_to_key(statement.qubits)], ax, x)
@@ -401,18 +471,22 @@ def _mpl_draw_gate(
 def _draw_mpl_one_qubit_gate(
     gate: ast.QuantumGate, args: list[Any], line: int, ax: plt.Axes, x: float
 ):
+    from matplotlib.patches import FancyBboxPatch
+
     color = DEFAULT_GATE_COLOR
     if gate.name.name == "h":
         color = HADAMARD_GATE_COLOR
     text = gate.name.name.upper()
 
     y = _mpl_line_to_y(line)
-    rect = plt.Rectangle(
+
+    rect = FancyBboxPatch(
         (x - GATE_BOX_WIDTH / 2, y - GATE_BOX_HEIGHT / 2),
         GATE_BOX_WIDTH,
         GATE_BOX_HEIGHT,
         facecolor=color,
         edgecolor="none",
+        boxstyle=BOX_STYLE,
     )
     ax.add_patch(rect)
 
@@ -440,17 +514,20 @@ def _draw_mpl_swap(line1: int, line2: int, ax: plt.Axes, x: float):
 
 
 def _mpl_draw_measurement(qbit_line: int, cbit_line: int, idx: int, ax: plt.Axes, x: float):
+    from matplotlib.patches import FancyBboxPatch
+
     y1 = _mpl_line_to_y(qbit_line)
     y2 = _mpl_line_to_y(cbit_line)
 
     color = "#A0A0A0"
     gap = GATE_BOX_WIDTH / 3
-    rect = plt.Rectangle(
+    rect = FancyBboxPatch(
         (x - GATE_BOX_WIDTH / 2, y1 - GATE_BOX_HEIGHT / 2),
         GATE_BOX_WIDTH,
         GATE_BOX_HEIGHT,
         facecolor=color,
         edgecolor="none",
+        boxstyle=BOX_STYLE,
     )
     ax.add_patch(rect)
     ax.text(x, y1, "M", ha="center", va="center")
@@ -475,6 +552,8 @@ def _mpl_draw_measurement(qbit_line: int, cbit_line: int, idx: int, ax: plt.Axes
 
 
 def _mpl_draw_barrier(lines: list[int], ax: plt.Axes, x: float):
+    import matplotlib.pyplot as plt
+
     for line in lines:
         y = _mpl_line_to_y(line)
         ax.vlines(
@@ -497,6 +576,8 @@ def _mpl_draw_barrier(lines: list[int], ax: plt.Axes, x: float):
 
 
 def _mpl_draw_reset(line: int, ax: plt.Axes, x: float):
+    import matplotlib.pyplot as plt
+
     y = _mpl_line_to_y(line)
     rect = plt.Rectangle(
         (x - GATE_BOX_WIDTH / 2, y - GATE_BOX_HEIGHT / 2),
