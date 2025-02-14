@@ -9,7 +9,7 @@
 # THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
-Module containing unit tests for transformations on qasm3 programs 
+Module containing unit tests for transformations on qasm3 programs
 
 """
 
