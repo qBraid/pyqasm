@@ -1,0 +1,4 @@
+# Ref : https://docs.github.com/en/get-started/getting-started-with-git/configuring-git-to-handle-line-endings#per-repository-settings
+
+# Set line endings to lf 
+* text eol=lf
