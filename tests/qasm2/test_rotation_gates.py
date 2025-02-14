@@ -9,7 +9,7 @@
 # THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
-Module containing unit tests for parsing and unrolling programs that contain quantum 
+Module containing unit tests for parsing and unrolling programs that contain quantum
 rotations in qasm2 format.
 
 """

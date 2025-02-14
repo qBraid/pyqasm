@@ -1,11 +1,16 @@
-# Copyright (C) 2025 qBraid#
-# This file is part of pyqasm
+# Copyright (C) 2025 qBraid
 #
-# Pyqasm is free software released under the GNU General Public License v3
+# This file is part of PyQASM
+#
+# PyQASM is free software released under the GNU General Public License v3
 # or later. You can redistribute and/or modify it under the terms of the GPL v3.
 # See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+
+"""
+Tests for the QASM printer module.
+"""
 
 import random
 
@@ -15,11 +20,14 @@ from qbraid import random_circuit, transpile
 from pyqasm.entrypoint import loads
 
 
-def _check_fig(circ, fig):
+def _check_fig(_, fig):
+    """Verify the matplotlib figure contains expected elements.
+
+    Args:
+        fig: a matplotlib figure
+    """
     ax = fig.gca()
-    # plt.savefig("test.png")
     assert len(ax.texts) > 0
-    # assert False
 
 
 def test_simple():

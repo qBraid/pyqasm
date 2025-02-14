@@ -8,8 +8,7 @@
 #
 # THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
-"""Module containing imports for unit test resources
-"""
+"""Module containing imports for unit test resources"""
 
 # pylint: disable=wildcard-import, unused-wildcard-import
 

@@ -1169,6 +1169,7 @@ def map_qasm_inv_op_to_callable(op_name: str):
         )
     raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
 
+
 REV_CTRL_GATE_MAP = {
     "cx": "x",
     "cy": "y",
@@ -1182,4 +1183,3 @@ REV_CTRL_GATE_MAP = {
     "cswap": "swap",
     "ccx": "cx",
 }
-
