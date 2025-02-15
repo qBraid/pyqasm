@@ -343,8 +343,11 @@ class QasmVisitor:
         original_size_map = reg_size_map
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
-            assert operation.target is not None
-            bit_list = [operation.measure.qubit] if qubits else [operation.target]
+            if qubits:
+                bit_list = [operation.measure.qubit]
+            else:
+                assert operation.target is not None
+                bit_list = [operation.target]
         elif isinstance(operation, qasm3_ast.QuantumPhase) and operation.qubits is None:
             for reg_name, reg_size in reg_size_map.items():
                 bit_list.append(
@@ -440,7 +443,6 @@ class QasmVisitor:
 
         source = statement.measure.qubit
         target = statement.target
-        assert source and target
 
         # # TODO: handle in-function measurements
         source_name: str = (
@@ -453,51 +455,67 @@ class QasmVisitor:
                 span=statement.span,
             )
 
-        target_name: str = (
-            target.name if isinstance(target, qasm3_ast.Identifier) else target.name.name
-        )
-        if target_name not in self._global_creg_size_map:
-            raise_qasm3_error(
-                f"Missing register declaration for {target_name} in measurement "
-                f"operation {statement}",
-                span=statement.span,
-            )
-
         source_ids = self._get_op_bits(
             statement, reg_size_map=self._global_qreg_size_map, qubits=True
         )
-        target_ids = self._get_op_bits(
-            statement, reg_size_map=self._global_creg_size_map, qubits=False
-        )
 
-        if len(source_ids) != len(target_ids):
-            raise_qasm3_error(
-                f"Register sizes of {source_name} and {target_name} do not match "
-                "for measurement operation",
-                span=statement.span,
-            )
         unrolled_measurements = []
-        for src_id, tgt_id in zip(source_ids, target_ids):
-            unrolled_measure = qasm3_ast.QuantumMeasurementStatement(
-                measure=qasm3_ast.QuantumMeasurement(qubit=src_id), target=tgt_id
+
+        if not target:
+            for src_id in source_ids:
+                unrolled_measurements.append(
+                    qasm3_ast.QuantumMeasurementStatement(
+                        measure=qasm3_ast.QuantumMeasurement(qubit=src_id), target=None
+                    )
+                )
+                src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
+                qubit_node = self._module._qubit_depths[(src_name, src_id)]
+                qubit_node.depth += 1
+                qubit_node.num_measurements += 1
+        else:
+            target_name: str = (
+                target.name if isinstance(target, qasm3_ast.Identifier) else target.name.name
             )
-            src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
-            tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
+            if target_name not in self._global_creg_size_map:
+                raise_qasm3_error(
+                    f"Missing register declaration for {target_name} in measurement "
+                    f"operation {statement}",
+                    span=statement.span,
+                )
 
-            qubit_node, clbit_node = (
-                self._module._qubit_depths[(src_name, src_id)],
-                self._module._clbit_depths[(tgt_name, tgt_id)],
+            target_ids = self._get_op_bits(
+                statement, reg_size_map=self._global_creg_size_map, qubits=False
             )
-            qubit_node.depth += 1
-            qubit_node.num_measurements += 1
 
-            clbit_node.depth += 1
-            clbit_node.num_measurements += 1
+            if len(source_ids) != len(target_ids):
+                raise_qasm3_error(
+                    f"Register sizes of {source_name} and {target_name} do not match "
+                    "for measurement operation",
+                    span=statement.span,
+                )
 
-            qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
-            clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
+            for src_id, tgt_id in zip(source_ids, target_ids):
+                unrolled_measure = qasm3_ast.QuantumMeasurementStatement(
+                    measure=qasm3_ast.QuantumMeasurement(qubit=src_id),
+                    target=tgt_id if target else None,
+                )
+                src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
+                tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
 
-            unrolled_measurements.append(unrolled_measure)
+                qubit_node, clbit_node = (
+                    self._module._qubit_depths[(src_name, src_id)],
+                    self._module._clbit_depths[(tgt_name, tgt_id)],
+                )
+                qubit_node.depth += 1
+                qubit_node.num_measurements += 1
+
+                clbit_node.depth += 1
+                clbit_node.num_measurements += 1
+
+                qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
+                clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
+
+                unrolled_measurements.append(unrolled_measure)
 
         if self._check_only:
             return []
