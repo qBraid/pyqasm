@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added support for standalone measurements that do not store the result in a classical register ([#141](https://github.com/qBraid/pyqasm/pull/141)).
 
 ### Improved / Modified
 - Re-wrote the `QasmAnalyzer.extract_qasm_version` method so that it extracts the program version just by looking at the [first non-comment line](https://github.com/openqasm/openqasm/blob/bb923eb9a84fdffe1ba6fc3c20d0b47a131523d9/source/language/comments.rst#version-string), instead of parsing the entire program ([#140](https://github.com/qBraid/pyqasm/pull/140)).

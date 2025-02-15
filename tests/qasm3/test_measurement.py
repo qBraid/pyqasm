@@ -160,7 +160,28 @@ def test_init_measure():
 
     module = loads(qasm3_string)
     module.unroll()
-    print(dumps(module))
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_standalone_measurement():
+    qasm3_string = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    h q;
+    measure q;
+    """
+
+    expected_qasm = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    h q[0];
+    h q[1];
+    measure q[0];
+    measure q[1];
+    """
+
+    module = loads(qasm3_string)
+    module.unroll()
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
