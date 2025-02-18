@@ -102,6 +102,8 @@ def mpl_draw(
     try:
         # pylint: disable-next=unused-import
         import matplotlib.pyplot as plt
+
+        plt.ioff()
     except ImportError as e:
         raise ImportError(
             "matplotlib needs to be installed prior to running pyqasm.mpl_draw(). "
@@ -134,7 +136,7 @@ def mpl_draw(
     fig = _mpl_draw(program, moments, line_nums, sizes, global_phase)
 
     if filename is not None:
-        raise NotImplementedError("Saving to file not yet supported.")
+        plt.savefig(filename)
 
     return fig
 
@@ -188,12 +190,13 @@ def _compute_moments(
             for q in qubits:
                 depths[q] = depth
         elif isinstance(statement, ast.QuantumMeasurementStatement):
-            qubit_key = _identifier_to_key(statement.measure.qubit)
-            if statement.target is None:
-                raise NotImplementedError("Stand-alone measurement statements not yet supported.")
-            target_key = _identifier_to_key(statement.target)[0], -1
-            depth = 1 + max(depths[qubit_key], depths[target_key])
-            for k in [qubit_key, target_key]:
+            keys = [_identifier_to_key(statement.measure.qubit)]
+            if statement.target:
+                target_key = _identifier_to_key(statement.target)[0], -1
+                keys.append(target_key)
+            print(keys)
+            depth = 1 + max(depths[k] for k in keys)
+            for k in keys:
                 depths[k] = depth
         elif isinstance(statement, ast.QuantumBarrier):
             qubits = []
@@ -422,7 +425,8 @@ def _mpl_draw_statement(
     elif isinstance(statement, ast.QuantumMeasurementStatement):
         qubit_key = _identifier_to_key(statement.measure.qubit)
         if statement.target is None:
-            raise NotImplementedError("Stand-alone measurement statements not yet supported.")
+            _mpl_draw_measurement(line_nums[qubit_key], -1, -1, ax, x)
+            return
         name, idx = _identifier_to_key(statement.target)
         _mpl_draw_measurement(line_nums[qubit_key], line_nums[(name, -1)], idx, ax, x)
     elif isinstance(statement, ast.QuantumBarrier):
@@ -517,7 +521,6 @@ def _mpl_draw_measurement(qbit_line: int, cbit_line: int, idx: int, ax: plt.Axes
     from matplotlib.patches import FancyBboxPatch
 
     y1 = _mpl_line_to_y(qbit_line)
-    y2 = _mpl_line_to_y(cbit_line)
 
     color = "#A0A0A0"
     gap = GATE_BOX_WIDTH / 3
@@ -531,24 +534,27 @@ def _mpl_draw_measurement(qbit_line: int, cbit_line: int, idx: int, ax: plt.Axes
     )
     ax.add_patch(rect)
     ax.text(x, y1, "M", ha="center", va="center")
-    ax.vlines(
-        x=x - gap / 10,
-        ymin=min(y1, y2) + gap,
-        ymax=max(y1, y2),
-        color=color,
-        linestyle="-",
-        zorder=-1,
-    )
-    ax.vlines(
-        x=x + gap / 10,
-        ymin=min(y1, y2) + gap,
-        ymax=max(y1, y2),
-        color=color,
-        linestyle="-",
-        zorder=-1,
-    )
-    ax.plot(x, y2 + gap, "v", markersize=12, color=color)
-    ax.text(x + gap, y2 + gap, str(idx), color=color, ha="left", va="bottom", fontsize=8)
+
+    if cbit_line >= 0 and idx >= 0:
+        y2 = _mpl_line_to_y(cbit_line)
+        ax.vlines(
+            x=x - gap / 10,
+            ymin=min(y1, y2) + gap,
+            ymax=max(y1, y2),
+            color=color,
+            linestyle="-",
+            zorder=-1,
+        )
+        ax.vlines(
+            x=x + gap / 10,
+            ymin=min(y1, y2) + gap,
+            ymax=max(y1, y2),
+            color=color,
+            linestyle="-",
+            zorder=-1,
+        )
+        ax.plot(x, y2 + gap, "v", markersize=12, color=color)
+        ax.text(x + gap, y2 + gap, str(idx), color=color, ha="left", va="bottom", fontsize=8)
 
 
 def _mpl_draw_barrier(lines: list[int], ax: plt.Axes, x: float):
