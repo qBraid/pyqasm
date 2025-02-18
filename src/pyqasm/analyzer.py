@@ -14,10 +14,10 @@ Module with analysis functions for QASM visitor
 """
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
-from openqasm3 import parse
 from openqasm3.ast import (
     DiscreteSet,
     Expression,
@@ -28,7 +28,6 @@ from openqasm3.ast import (
     QuantumMeasurementStatement,
     RangeDefinition,
 )
-from openqasm3.parser import QASM3ParsingError
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
 
@@ -209,27 +208,29 @@ class Qasm3Analyzer:
             )
         return bit_list
 
-    @staticmethod
-    def extract_qasm_version(qasm: str) -> int:  # type: ignore # pylint: disable=R1710
+    @staticmethod  # pylint: disable-next=inconsistent-return-statements
+    def extract_qasm_version(qasm: str) -> float:  # type: ignore[return]
         """
-        Parses an OpenQASM program string to determine its major version, either 2 or 3.
+        Extracts the OpenQASM version from a given OpenQASM string.
 
         Args:
-            qasm (str): The OpenQASM program string.
+            qasm (str): The OpenQASM program as a string.
 
         Returns:
-            int: The OpenQASM version as an integer.
-
-        Raises:
-            QasmError: If the string does not represent a valid OpenQASM program.
+            The semantic version as a float.
         """
-        try:
-            # TODO: optimize this to just check the start of the program for version
-            parsed_program = parse(qasm)
-            assert parsed_program.version is not None
-            version = int(float(parsed_program.version))
-            return version
-        except (QASM3ParsingError, ValueError, TypeError):
-            raise_qasm3_error(
-                "Could not determine the OpenQASM version.", err_type=QasmParsingError
-            )
+        qasm = re.sub(r"//.*", "", qasm)
+        qasm = re.sub(r"/\*.*?\*/", "", qasm, flags=re.DOTALL)
+
+        lines = qasm.strip().splitlines()
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith("OPENQASM"):
+                match = re.match(r"OPENQASM\s+(\d+)(?:\.(\d+))?;", line)
+                if match:
+                    major = int(match.group(1))
+                    minor = int(match.group(2)) if match.group(2) else 0
+                    return float(f"{major}.{minor}")
+
+        raise_qasm3_error("Could not determine the OpenQASM version.", err_type=QasmParsingError)
