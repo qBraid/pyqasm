@@ -28,7 +28,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-src/pyqasm/_version.py
 
 
 # PyInstaller

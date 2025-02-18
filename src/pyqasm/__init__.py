@@ -48,8 +48,7 @@ Exceptions
 import warnings
 
 try:
-    # Injected in _version.py during the build process.
-    from ._version import __version__  # type: ignore
+    from ._version import __version__
 except ImportError:  # pragma: no cover
     warnings.warn("Importing 'pyqasm' outside a proper installation.")
     __version__ = "dev"

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=74.1", "setuptools_scm", "Cython>=3.0", "numpy"]
+requires = ["setuptools>=74.1", "Cython>=3.0", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyqasm"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation."
 authors = [{name = "qBraid Development Team"}, {email = "contact@qbraid.com"}]
 readme = "README.md"
@@ -44,9 +44,6 @@ test = ["pytest", "pytest-cov"]
 lint = ["black", "isort>=6.0.0", "pylint", "mypy", "qbraid-cli>=0.8.5"]
 docs = ["sphinx>=7.3.7,<8.2.0", "sphinx-autodoc-typehints>=1.24,<3.1", "sphinx-rtd-theme>=2.0.0,<4.0.0", "docutils<0.22", "sphinx-copybutton"]
 
-[tool.setuptools_scm]
-write_to = "src/pyqasm/_version.py"
-
 [tool.setuptools.package-data]
 pyqasm = ["py.typed", "*.pyx"]
 
@@ -55,6 +52,9 @@ packages = {find = {where = ["src"]}}
 ext-modules = [
   {name = "pyqasm.accelerate.linalg", sources = ["src/pyqasm/accelerate/linalg.pyx"], include-dirs = ["numpy"]}
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "pyqasm._version.__version__"}
 
 [project.scripts]
 pyqasm = "pyqasm.cli.main:app"
