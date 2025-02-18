@@ -23,7 +23,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: 'main'
+          ref: 'change-version-handling'
 
       - name: Create feature branch
         run: git checkout -b qbraid-bot/${{ github.run_id }}
