@@ -23,6 +23,10 @@ echo "Running pre_build.sh"
 # Script has an argument which is the project path 
 project=$1
 
+# Reset any uncommitted changes which may have been made
+git reset --hard HEAD 
+git clean -xdf
+
 # Upgrade pip
 python -m pip install --upgrade pip
 
