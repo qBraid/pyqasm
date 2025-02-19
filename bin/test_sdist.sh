@@ -30,6 +30,9 @@ SCRIPT_DIR="$TARGET_PATH/bin"
 
 "$SCRIPT_DIR/install_wheel_extras.sh" "$TARGET_PATH/dist" --type sdist --extra cli --extra test
 
+# Check the installed version
+python -c "import pyqasm; print('Installed pyqasm version:', pyqasm.__version__)"
+
 # Run the tests on the installed source distribution
 pytest "$TARGET_PATH/tests"
 
