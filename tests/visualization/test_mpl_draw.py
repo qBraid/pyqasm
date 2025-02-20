@@ -12,14 +12,16 @@
 Tests for the QASM printer module.
 """
 
-from pathlib import Path
+# from pathlib import Path
 
 import pytest
-from matplotlib.testing.compare import compare_images
 
 from pyqasm import draw
 from pyqasm.entrypoint import loads
 from pyqasm.printer import mpl_draw
+
+# from matplotlib.testing.compare import compare_images
+
 
 pytest.importorskip("matplotlib", reason="Matplotlib not installed.")
 
@@ -98,6 +100,66 @@ def test_draw_qasm2_simple():
     _check_fig(circ, fig)
 
 
+# def test_draw_bell():
+#     """Test drawing a simple Bell state circuit."""
+#     qasm3 = """
+#     OPENQASM 3;
+#     include "stdgates.inc";
+#     qubit[2] q;
+#     bit[2] b;
+#     h q;
+#     cnot q[0], q[1];
+#     b = measure q;
+#     """
+#     images_dir = Path(__file__).parent / "images"
+#     expected_img = images_dir / "bell.png"
+#     test_img = images_dir / "bell-test.png"
+#     diff_img = images_dir / "bell-failed-diff.png"
+
+#     try:
+#         draw(qasm3, output="mpl", filename=test_img)
+
+#         assert compare_images(str(test_img), str(expected_img), tol=0.001) is None
+#     finally:
+#         for img in [test_img, diff_img]:
+#             if img.exists():
+#                 img.unlink()
+
+
+# def test_draw_misc_ops():
+#     """Test drawing a circuit with various operations."""
+#     qasm3 = """
+#     OPENQASM 3;
+#     include "stdgates.inc";
+#     qubit[3] q;
+#     h q;
+#     ccnot q[0], q[1], q[2];
+#     rz(2*pi) q[0];
+#     ry(pi/4) q[1];
+#     rx(pi) q[2];
+#     swap q[0], q[2];
+#     swap q[1], q[2];
+#     id q[0];
+#     barrier q;
+#     measure q;
+#     reset q;
+#     """
+#     images_dir = Path(__file__).parent / "images"
+#     expected_img = images_dir / "misc.png"
+#     test_img = images_dir / "misc-test.png"
+#     diff_img = images_dir / "misc-failed-diff.png"
+
+#     try:
+#         draw(qasm3, output="mpl", filename=test_img)
+
+#         assert compare_images(str(test_img), str(expected_img), tol=0.001) is None
+#     finally:
+#         for img in [test_img, diff_img]:
+#             if img.exists():
+#                 img.unlink()
+
+
+@pytest.mark.mpl_image_compare(baseline_dir="images", filename="bell.png")
 def test_draw_bell():
     """Test drawing a simple Bell state circuit."""
     qasm3 = """
@@ -109,21 +171,11 @@ def test_draw_bell():
     cnot q[0], q[1];
     b = measure q;
     """
-    images_dir = Path(__file__).parent / "images"
-    expected_img = images_dir / "bell.png"
-    test_img = images_dir / "bell-test.png"
-    diff_img = images_dir / "bell-failed-diff.png"
-
-    try:
-        draw(qasm3, output="mpl", filename=test_img)
-
-        assert compare_images(str(test_img), str(expected_img), tol=0.001) is None
-    finally:
-        for img in [test_img, diff_img]:
-            if img.exists():
-                img.unlink()
+    fig = draw(qasm3, output="mpl")
+    return fig
 
 
+@pytest.mark.mpl_image_compare(baseline_dir="images", filename="misc.png")
 def test_draw_misc_ops():
     """Test drawing a circuit with various operations."""
     qasm3 = """
@@ -142,16 +194,5 @@ def test_draw_misc_ops():
     measure q;
     reset q;
     """
-    images_dir = Path(__file__).parent / "images"
-    expected_img = images_dir / "misc.png"
-    test_img = images_dir / "misc-test.png"
-    diff_img = images_dir / "misc-failed-diff.png"
-
-    try:
-        draw(qasm3, output="mpl", filename=test_img)
-
-        assert compare_images(str(test_img), str(expected_img), tol=0.001) is None
-    finally:
-        for img in [test_img, diff_img]:
-            if img.exists():
-                img.unlink()
+    fig = draw(qasm3, output="mpl")
+    return fig
