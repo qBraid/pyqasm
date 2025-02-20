@@ -116,7 +116,7 @@ def mpl_draw(
     line_nums, sizes = _compute_line_nums(program)
 
     global_phase = 0
-    statements: list[ast.Statement] = []
+    statements: list[ast.Statement | ast.Pragma] = []
 
     for s in program._statements:
         if isinstance(s, ast.QuantumPhase):
@@ -136,7 +136,7 @@ def mpl_draw(
     fig = _mpl_draw(program, moments, line_nums, sizes, global_phase)
 
     if filename is not None:
-        plt.savefig(filename)
+        plt.savefig(filename, bbox_inches="tight", dpi=300)
 
     return fig
 
@@ -172,7 +172,7 @@ def _compute_line_nums(
 
 # pylint: disable-next=too-many-branches
 def _compute_moments(
-    statements: list[ast.Statement], line_nums: dict[tuple[str, int], int]
+    statements: list[ast.Statement | ast.Pragma], line_nums: dict[tuple[str, int], int]
 ) -> tuple[list[list[QuantumStatement]], dict[tuple[str, int], int]]:
     depths = {}
     for k in line_nums:
@@ -194,7 +194,6 @@ def _compute_moments(
             if statement.target:
                 target_key = _identifier_to_key(statement.target)[0], -1
                 keys.append(target_key)
-            print(keys)
             depth = 1 + max(depths[k] for k in keys)
             for k in keys:
                 depths[k] = depth
@@ -582,15 +581,16 @@ def _mpl_draw_barrier(lines: list[int], ax: plt.Axes, x: float):
 
 
 def _mpl_draw_reset(line: int, ax: plt.Axes, x: float):
-    import matplotlib.pyplot as plt
+    from matplotlib.patches import FancyBboxPatch
 
     y = _mpl_line_to_y(line)
-    rect = plt.Rectangle(
+    rect = FancyBboxPatch(
         (x - GATE_BOX_WIDTH / 2, y - GATE_BOX_HEIGHT / 2),
         GATE_BOX_WIDTH,
         GATE_BOX_HEIGHT,
         facecolor="lightgray",
         edgecolor="none",
+        boxstyle=BOX_STYLE,
     )
     ax.add_patch(rect)
     ax.text(x, y, "∣0⟩", ha="center", va="center", fontsize=12)
