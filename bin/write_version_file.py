@@ -16,7 +16,11 @@ with the version in pyproject.toml.
 
 import pathlib
 import sys
-import tomllib
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 
 def get_version_from_pyproject(pyproject_path: pathlib.Path) -> str:
