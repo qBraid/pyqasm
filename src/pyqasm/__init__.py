@@ -52,7 +52,7 @@ try:
     # Injected in _version.py during the build process.
     from ._version import __version__  # type: ignore
 except (ImportError, ModuleNotFoundError):  # pragma: no cover
-    warnings.warn("Importing 'pyqasm' outside a proper installation.")
+    warnings.warn("Importing 'pyqasm' outside a proper installation.", UserWarning)
     __version__ = version("pyqasm")
 
 from .entrypoint import dump, dumps, load, loads

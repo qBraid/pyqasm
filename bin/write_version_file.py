@@ -90,6 +90,5 @@ if __name__ == "__main__":
     pyproject_toml = root / "pyproject.toml"
     version_file = "src" / "pyqasm" / "_version.py"
 
-    version = get_version_from_pyproject(pyproject_toml)
-    write_version_file(version_file, version)
-
+    version_str = get_version_from_pyproject(pyproject_toml)
+    write_version_file(version_file, version_str)
