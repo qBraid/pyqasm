@@ -48,6 +48,7 @@ jobs:
         run: |
           BUMP_TYPE=${{ github.event.inputs.bump_type }}
           VERSION=$(python3 bin/bump_version.py pyqasm $BUMP_TYPE)
+          python3 bin/update_citation.py $VERSION
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           git commit -am "Bump $BUMP_TYPE version to $VERSION"
           git push origin qbraid-bot/${{ github.run_id }}
