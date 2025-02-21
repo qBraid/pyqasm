@@ -129,6 +129,8 @@ jobs:
         run: bash bin/build_sdist.sh
 
       - name: Test source distribution
+        env:
+          RELEASE_BUILD: "true"
         run: bash bin/test_sdist.sh
 
       - name: Store artifacts

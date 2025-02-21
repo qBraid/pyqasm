@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=74.1", "setuptools_scm", "Cython>=3.0", "numpy"]
+requires = ["setuptools>=74.1", "Cython>=3.0", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyqasm"
-version = "0.2.0"
+version = "0.2.1"
 description = "Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation."
 authors = [{name = "qBraid Development Team"}, {email = "contact@qbraid.com"}]
 readme = "README.md"
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 keywords = ["quantum", "openqasm", "symantic-analyzer", "compiler", "qbraid"]
 license = {text = "GNU General Public License v3.0"}
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
@@ -42,12 +42,9 @@ dependencies = ["numpy", "openqasm3[parser]>=1.0.0,<2.0.0"]
 [project.optional-dependencies]
 cli = ["typer>=0.12.1", "rich>=10.11.0", "typing-extensions"]
 test = ["pytest", "pytest-cov", "pytest-mpl", "matplotlib"]
-lint = ["black", "isort>=6.0.0", "pylint", "mypy", "qbraid-cli>=0.8.5"]
+lint = ["black", "isort>=6.0.0", "pylint", "mypy", "qbraid-cli>=0.10.2"]
 docs = ["sphinx>=7.3.7,<8.2.0", "sphinx-autodoc-typehints>=1.24,<3.1", "sphinx-rtd-theme>=2.0.0,<4.0.0", "docutils<0.22", "sphinx-copybutton"]
 visualization = ["matplotlib"]
-
-[tool.setuptools_scm]
-write_to = "src/pyqasm/_version.py"
 
 [tool.setuptools.package-data]
 pyqasm = ["py.typed", "*.pyx"]

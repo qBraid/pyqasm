@@ -23,13 +23,17 @@ echo "Running pre_build.sh"
 # Script has an argument which is the project path 
 project=$1
 
+# Reset any uncommitted changes which may have been made
+git reset --hard HEAD 
+git clean -xdf
+
 # Upgrade pip
 python -m pip install --upgrade pip
 
 # Install required packages
-pip install setuptools wheel cython
+pip install setuptools wheel cython tomli
 
-# Test if we are running the build for pre-release version 
+# Test if we are running the build for pre-release version
 if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
     echo "Running pre-release changes"
 
@@ -66,5 +70,6 @@ if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
 
 fi
 
+python $project/bin/write_version_file.py
 
 echo "Finished running pre_build.sh"
