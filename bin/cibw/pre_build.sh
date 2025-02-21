@@ -70,5 +70,6 @@ if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
 
 fi
 
+python $project/bin/write_version_file.py
 
 echo "Finished running pre_build.sh"

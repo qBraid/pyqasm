@@ -83,9 +83,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Write version file
-        run: python bin/write_version_file.py
-
       - name: Build and Test Wheels
         env: 
           CIBW_BUILD: "cp${{ matrix.python }}-${{ matrix.platform_id }}"
@@ -116,9 +113,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Write version file
-        run: python bin/write_version_file.py
 
       - name: Build source distribution
         run: bash bin/build_sdist.sh

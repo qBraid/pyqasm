@@ -23,13 +23,16 @@ TARGET_PATH="${1:-$(pwd)}"
 git reset --hard HEAD
 git clean -xdf
 
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+python $PROJECT_ROOT/bin/write_version_file.py
+
 # Create a temporary dir, XXXXX will be replaced by a random string
 # of 5 chars to make the directory unique
 TEMP_ENV_DIR=$(mktemp -d -t build_env_XXXXX)
 python -m venv "$TEMP_ENV_DIR"
 source "$TEMP_ENV_DIR/bin/activate"
 
-# Install the necessary packages for building sdist 
+# Install the necessary packages for building sdist
 # NOTE: project deps are not reqd as we are just making a source distribution
 python -m pip install twine build
 
