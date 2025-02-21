@@ -87,6 +87,8 @@ if ! python -c "import build" 2>/dev/null; then
     exit 1
 fi
 
+python $REPO_DIR/bin/write_version_file.py
+
 # Build the project
 echo "Building the project..."
 python -m build --outdir "${OUT_DIR}"
