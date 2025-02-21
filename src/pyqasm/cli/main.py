@@ -36,7 +36,7 @@ def version_callback(value: bool):
     """Show the version and exit."""
     if value:
         # pylint: disable-next=import-outside-toplevel
-        from pyqasm._version import __version__  # type: ignore
+        from pyqasm import __version__  # type: ignore
 
         typer.echo(f"pyqasm/{__version__}")
         raise typer.Exit(0)
