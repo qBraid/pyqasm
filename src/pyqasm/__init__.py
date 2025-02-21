@@ -23,6 +23,7 @@ Functions
    loads
    dump
    dumps
+   draw
 
 Classes
 ---------
@@ -58,6 +59,7 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover
 from .entrypoint import dump, dumps, load, loads
 from .exceptions import PyQasmError, QasmParsingError, ValidationError
 from .modules import Qasm2Module, Qasm3Module, QasmModule
+from .printer import draw
 
 __all__ = [
     "PyQasmError",
@@ -67,6 +69,7 @@ __all__ = [
     "loads",
     "dump",
     "dumps",
+    "draw",
     "QasmModule",
     "Qasm2Module",
     "Qasm3Module",
