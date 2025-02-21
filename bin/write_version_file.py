@@ -88,7 +88,7 @@ __version_tuple__ = version_tuple = {version_tuple}
 if __name__ == "__main__":
     root = pathlib.Path(__file__).parent.parent.resolve()
     pyproject_toml = root / "pyproject.toml"
-    version_file = "src" / "pyqasm" / "_version.py"
+    version_file = root / "src" / "pyqasm" / "_version.py"
 
     version_str = get_version_from_pyproject(pyproject_toml)
     write_version_file(version_file, version_str)
