@@ -24,7 +24,6 @@ git reset --hard HEAD
 git clean -xdf
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-python $PROJECT_ROOT/bin/write_version_file.py
 
 # Create a temporary dir, XXXXX will be replaced by a random string
 # of 5 chars to make the directory unique
@@ -34,7 +33,10 @@ source "$TEMP_ENV_DIR/bin/activate"
 
 # Install the necessary packages for building sdist
 # NOTE: project deps are not reqd as we are just making a source distribution
-python -m pip install twine build
+python -m pip install --upgrade pip
+python -m pip install twine build tomli
+
+python $PROJECT_ROOT/bin/write_version_file.py
 
 python -m build --sdist --outdir "$TARGET_PATH/dist" "$TARGET_PATH"
 
