@@ -36,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "qbraid-core>=0.1.17" yaml
+          python -m pip install "qbraid-core>=0.1.17" pyyaml
 
       - name: Setup Git config
         run: |
