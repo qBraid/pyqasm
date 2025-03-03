@@ -16,7 +16,8 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
 from pyqasm.exceptions import RebaseError
-from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES, AppliedQubit
+from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES, AppliedQubit, ROTATIONAL_LOOKUP_RULES
+from pyqasm.maps.expressions import CONSTANTS_MAP
 from pyqasm.maps.gates import BASIS_GATE_MAP
 
 
@@ -38,6 +39,7 @@ class Decomposer:
             list: The processed gates based on the target basis set.
         """
         decomposition_rules = DECOMPOSITION_RULES[target_basis_set]
+        rotational_lookup_rules = ROTATIONAL_LOOKUP_RULES[target_basis_set]
         target_basis_gate_list = BASIS_GATE_MAP[target_basis_set]
 
         processed_gates_list = []
@@ -51,6 +53,14 @@ class Decomposer:
                 decomposition_rules, statement, gate_name
             )
         elif gate_name in {"rx", "ry", "rz"}:
+            # Use lookup table if ∅ is pi, pi/2 or pi/4
+            theta = statement.arguments[0].value
+            if theta in [CONSTANTS_MAP["pi"], CONSTANTS_MAP["pi"]/2, CONSTANTS_MAP["pi"]/4]:
+                gate_name = cls._get_rotational_gate_name(gate_name, theta)
+                processed_gates_list = cls._get_decomposed_gates(
+                    rotational_lookup_rules, statement, gate_name
+                )
+            
             # Approximate parameterized gates using Solovay-Kitaev
             # Example -
             # approx_gates = solovay_kitaev_algo(
@@ -159,3 +169,15 @@ class Decomposer:
             else:
                 qubits = [qubits[1]]
         return qubits
+
+    @classmethod
+    def _get_rotational_gate_name(cls, gate_name, theta):
+        theta_string = ""
+        if theta == CONSTANTS_MAP["pi"]:
+            theta_string = "(pi)"
+        elif theta == CONSTANTS_MAP["pi"]/2:
+            theta_string = "(pi)/2"
+        elif theta == CONSTANTS_MAP["pi"]/4:
+            theta_string = "(pi)/4"
+            
+        return gate_name + theta_string
