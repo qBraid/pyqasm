@@ -338,7 +338,6 @@ class QasmVisitor:
             list[qasm3_ast.IndexedIdentifier] : The bits for the operation.
         """
         openqasm_bits = []
-        visited_bits = set()
         bit_list = []
         original_size_map = reg_size_map
 
@@ -413,16 +412,6 @@ class QasmVisitor:
                 )
                 for bit_id in bit_ids
             ]
-            # check for duplicate bits
-            for bit_id in new_bits:
-                bit_name, bit_value = bit_id.name.name, bit_id.indices[0][0].value
-                if tuple((bit_name, bit_value)) in visited_bits:
-                    raise_qasm3_error(
-                        f"Duplicate {'qubit' if qubits else 'clbit'} "
-                        f"{bit_name}[{bit_value}] argument",
-                        span=operation.span,
-                    )
-                visited_bits.add((bit_name, bit_value))
 
             openqasm_bits.extend(new_bits)
 
@@ -794,6 +783,11 @@ class QasmVisitor:
             )
 
             self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
+
+        # check for duplicate bits
+        for final_gate in result:
+            Qasm3Analyzer.verify_gate_qubits(final_gate, operation.span)
+
         if self._check_only:
             return []
 
@@ -949,6 +943,10 @@ class QasmVisitor:
 
         all_targets = self._unroll_multiple_target_qubits(operation, gate_qubit_count)
         result = self._broadcast_gate_operation(gate_function, all_targets)
+
+        # check for any duplicates
+        for final_gate in result:
+            Qasm3Analyzer.verify_gate_qubits(final_gate, operation.span)
 
         self._restore_context()
         if self._check_only:
