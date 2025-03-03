@@ -333,6 +333,23 @@ def test_inverse_global_phase():
     check_unrolled_qasm(dumps(module), qasm3_expected)
 
 
+def test_duplicate_qubit_broadcast():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    
+    cx q[0], q[1], q[1], q[2];"""
+
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 3
+    assert module.num_clbits == 0
+
+    check_two_qubit_gate_op(module.unrolled_ast, 2, [[0, 1], [1, 2]], "cx")
+
+
 @pytest.mark.parametrize("test_name", custom_op_tests)
 def test_custom_ops_with_external_gates(test_name, request):
     qasm3_string = request.getfixturevalue(test_name)

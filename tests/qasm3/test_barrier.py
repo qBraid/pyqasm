@@ -146,14 +146,3 @@ def test_incorrect_barrier():
         ValidationError, match="Index 3 out of range for register of size 2 in qubit"
     ):
         loads(out_of_bounds).validate()
-
-    duplicate = """
-    OPENQASM 3.0;
-
-    qubit[2] q1;
-
-    barrier q1, q1;
-    """
-
-    with pytest.raises(ValidationError, match=r"Duplicate qubit .*argument"):
-        loads(duplicate).validate()

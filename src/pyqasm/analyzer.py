@@ -22,11 +22,14 @@ from openqasm3.ast import (
     DiscreteSet,
     Expression,
     Identifier,
+    IndexedIdentifier,
     IndexExpression,
     IntegerLiteral,
     IntType,
+    QuantumGate,
     QuantumMeasurementStatement,
     RangeDefinition,
+    Span,
 )
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
@@ -234,3 +237,48 @@ class Qasm3Analyzer:
                     return float(f"{major}.{minor}")
 
         raise_qasm3_error("Could not determine the OpenQASM version.", err_type=QasmParsingError)
+
+    @staticmethod
+    def extract_duplicate_qubit(qubit_list: list[IndexedIdentifier]):
+        """
+        Extracts the duplicate qubit from a list of qubits.
+
+        Args:
+            qubit_list (list[IndexedIdentifier]): The list of qubits.
+
+        Returns:
+            tuple(string, int): The duplicate qubit name and id.
+        """
+        qubit_set = set()
+        for qubit in qubit_list:
+            assert isinstance(qubit, IndexedIdentifier)
+            qubit_name = qubit.name.name
+            qubit_id = qubit.indices[0][0].value  # type: ignore
+            if (qubit_name, qubit_id) in qubit_set:
+                return (qubit_name, qubit_id)
+            qubit_set.add((qubit_name, qubit_id))
+        return None
+
+    @staticmethod
+    def verify_gate_qubits(gate: QuantumGate, span: Optional[Span] = None):
+        """
+        Verify the qubits for a quantum gate.
+
+        Args:
+            gate (QuantumGate): The quantum gate.
+            span (Span, optional): The span of the gate.
+
+        Raises:
+            ValidationError: If qubits are duplicated.
+
+        Returns:
+            None
+        """
+        # 1. check for duplicate bits
+        duplicate_qubit = Qasm3Analyzer.extract_duplicate_qubit(gate.qubits)  # type: ignore
+        if duplicate_qubit:
+            qubit_name, qubit_id = duplicate_qubit
+            raise_qasm3_error(
+                f"Duplicate qubit {qubit_name}[{qubit_id}] in gate {gate.name.name}",
+                span=span,
+            )
