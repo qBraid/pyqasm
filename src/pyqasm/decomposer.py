@@ -39,7 +39,6 @@ class Decomposer:
             list: The processed gates based on the target basis set.
         """
         decomposition_rules = DECOMPOSITION_RULES[target_basis_set]
-        rotational_lookup_rules = ROTATIONAL_LOOKUP_RULES[target_basis_set]
         target_basis_gate_list = BASIS_GATE_MAP[target_basis_set]
 
         processed_gates_list = []
@@ -54,6 +53,7 @@ class Decomposer:
             )
         elif gate_name in {"rx", "ry", "rz"}:
             # Use lookup table if ∅ is pi, pi/2 or pi/4
+            rotational_lookup_rules = ROTATIONAL_LOOKUP_RULES[target_basis_set]
             theta = statement.arguments[0].value
             if theta in [CONSTANTS_MAP["pi"], CONSTANTS_MAP["pi"]/2, CONSTANTS_MAP["pi"]/4]:
                 gate_name = cls._get_rotational_gate_name(gate_name, theta)
