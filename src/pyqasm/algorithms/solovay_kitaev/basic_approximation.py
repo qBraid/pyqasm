@@ -9,7 +9,7 @@ import os
 def basic_approximation(U, target_gate_set, accuracy=0.001, max_tree_depth=10):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     gate_set_files = {
-        BasisSet.CLIFFORD_T: os.path.join(current_dir, "cache", "clifford-t_depth-10.pkl"),
+        BasisSet.CLIFFORD_T: os.path.join(current_dir, "cache", "clifford-t_depth-5.pkl"),
     }
 
     if target_gate_set not in gate_set_files:
