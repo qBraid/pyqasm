@@ -33,8 +33,8 @@ def basic_approximation(U, target_gate_set, accuracy=0.001, max_tree_depth=10):
         if tree_depth > max_tree_depth:
             break
 
-        trace_diff = np.abs(np.trace(np.dot(gate_matrix.conj().T, U) - np.identity(2)))
-
+        # trace_diff = np.abs(np.trace(np.dot(gate_matrix.conj().T, U) - np.identity(2)))
+        trace_diff = np.linalg.norm(gate_matrix - U, 2)
         if trace_diff < accuracy:
             return gate
 
