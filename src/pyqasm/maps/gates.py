@@ -1111,6 +1111,55 @@ BASIS_GATE_MAP = {
     BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
 }
 
+GATE_ENTITY_DATA = {
+    BasisSet.CLIFFORD_T: [
+        {
+            "name": "h",
+            "identity": {
+                "group": "h",
+                "weight": 0.5
+            },
+            "matrix": (1 / np.sqrt(2)) * np.array([[1, 1], [1, -1]]),
+            "used_for_basic_approximation": True,
+        },
+        {
+            "name": "s",
+            "identity": {
+                "group": "s-t",
+                "weight": 0.25
+            },
+            "matrix": np.array([[1, 0], [0, 1j]]),
+            "used_for_basic_approximation": True,
+        },
+        {
+            "name": "t",
+            "identity": {
+                "group": "s-t",
+                "weight": 0.125
+            },
+            "matrix": np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]]),
+            "used_for_basic_approximation": True,
+        },
+        {
+            "name": "sdg",
+            "identity": {
+                "group": "sdg-tdg",
+                "weight": 0.25
+            },
+            "matrix": np.array([[1, 0], [0, 1j]]).conj().T,
+            "used_for_basic_approximation": False,
+        },
+        {
+            "name": "tdg",
+            "identity": {
+                "group": "sdg-tdg",
+                "weight": 0.125
+            },
+            "matrix": np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]]).conj().T,
+            "used_for_basic_approximation": False,
+        },
+    ]
+}
 
 def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
     """
@@ -1158,7 +1207,6 @@ U_INV_ROTATION_MAP = {
     "U2": u2_inv_gate,
     "u2": u2_inv_gate,
 }
-TWO_QUBIT_OP_SET = {"cx", "cz", "swap"}
 
 
 def map_qasm_inv_op_to_callable(op_name: str):

@@ -1,52 +1,73 @@
-from math import pi
-import pickle
 import numpy as np
 
 from pyqasm.elements import BasisSet
-import os
+from pyqasm.algorithms.solovay_kitaev.utils import TU2Matrix, get_TU2Matrix_for_basic_approximation
 
 
-def basic_approximation(U, target_gate_set, accuracy=0.001, max_tree_depth=10):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    gate_set_files = {
-        BasisSet.CLIFFORD_T: os.path.join(current_dir, "cache", "clifford-t_depth-5.pkl"),
-    }
+# Constants
+best_gate = None
+closest_gate = None
+closest_diff = float("inf")
 
-    if target_gate_set not in gate_set_files:
-        raise ValueError(f"Unknown target gate set: {target_gate_set}")
-
-    pkl_file_name = gate_set_files[target_gate_set]
-    try:
-        with open(pkl_file_name, "rb") as file:
-            gate_list = pickle.load(file)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Pickle file not found: {pkl_file_name}")
-
-    closest_gate = None
-    closest_trace_diff = float("inf")
-
-    for gate in gate_list:
-        gate_matrix = gate["matrix"]
-        tree_depth = gate["depth"]
-
-        # Stop if the maximum depth is exceeded
-        if tree_depth > max_tree_depth:
-            break
-
-        # trace_diff = np.abs(np.trace(np.dot(gate_matrix.conj().T, U) - np.identity(2)))
-        trace_diff = np.linalg.norm(gate_matrix - U, 2)
-        if trace_diff < accuracy:
-            return gate
-
+def rescursive_traversal(U, A,  target_gate_set_list, current_depth, accuracy=0.001, max_tree_depth=3):
+    if current_depth >= max_tree_depth:
+        return
+    
+    global closest_diff, closest_gate, best_gate
+    
+    if best_gate:
+        return
+    
+    for gate in target_gate_set_list:
+        if not A.can_multiple(gate):
+            continue
+        A_copy = A.copy()
+        A = A*gate
+        
+        diff = A.get_diff(U)
+        if diff < accuracy:
+            best_gate = A.copy()
+            return best_gate
+        
         # Update the closest gate if the current one is closer
-        if trace_diff < closest_trace_diff:
-            closest_trace_diff = trace_diff
-            closest_gate = gate
+        if diff < closest_diff:
+            closest_diff = diff
+            closest_gate = A.copy()
+            
+        # print(A.name)
+        # if A.name == ['s', 'h', 's']:
+        #     print(A)
+        #     print(diff)
+        rescursive_traversal(U, A.copy(), target_gate_set_list, current_depth+1, accuracy, max_tree_depth)
+        A = A_copy.copy()
+        
+    pass
 
-    return closest_gate
+def basic_approximation(U, target_gate_set, accuracy=0.001, max_tree_depth=3):
+    global closest_diff, closest_gate, best_gate
+    
+    A = TU2Matrix(np.identity(2), [], None, None)
+    target_gate_set_list = get_TU2Matrix_for_basic_approximation(target_gate_set)
+    current_depth = 0
+    rescursive_traversal(U, A.copy(), target_gate_set_list,current_depth, accuracy, max_tree_depth)
+    
+    result = None
+    
+    if best_gate:
+        result = best_gate.copy()
+    else:
+        result = closest_gate.copy()
+        
+    # Reset global variables
+    best_gate = None
+    closest_gate = None
+    closest_diff = float("inf")
+    
+    return result
 
 
 if __name__ == "__main__":
     U = np.array([[0.70711,  0.70711j],
                   [0.70711j, 0.70711]])
-    print(basic_approximation(U, BasisSet.CLIFFORD_T, 0.001, 10))
+    
+    print(basic_approximation(U, BasisSet.CLIFFORD_T, 0.0001, 3))
