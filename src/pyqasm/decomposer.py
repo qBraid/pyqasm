@@ -169,15 +169,3 @@ class Decomposer:
             else:
                 qubits = [qubits[1]]
         return qubits
-
-    @classmethod
-    def _get_rotational_gate_name(cls, gate_name, theta):
-        theta_string = ""
-        if theta == CONSTANTS_MAP["pi"]:
-            theta_string = "(pi)"
-        elif theta == CONSTANTS_MAP["pi"]/2:
-            theta_string = "(pi)/2"
-        elif theta == CONSTANTS_MAP["pi"]/4:
-            theta_string = "(pi)/4"
-            
-        return gate_name + theta_string
