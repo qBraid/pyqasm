@@ -16,7 +16,11 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
 from pyqasm.exceptions import RebaseError
-from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES, AppliedQubit, ROTATIONAL_LOOKUP_RULES
+from pyqasm.maps.decomposition_rules import (
+    DECOMPOSITION_RULES,
+    ROTATIONAL_LOOKUP_RULES,
+    AppliedQubit,
+)
 from pyqasm.maps.expressions import CONSTANTS_MAP
 from pyqasm.maps.gates import BASIS_GATE_MAP
 
@@ -49,19 +53,15 @@ class Decomposer:
         elif gate_name in decomposition_rules:
             # Decompose the gates
             rule_list = decomposition_rules[gate_name]
-            processed_gates_list = cls._get_decomposed_gates(
-                rule_list, statement
-            )
+            processed_gates_list = cls._get_decomposed_gates(rule_list, statement)
         elif gate_name in {"rx", "ry", "rz"}:
             # Use lookup table if ∅ is pi, pi/2 or pi/4
             theta = statement.arguments[0].value
-            if theta in [CONSTANTS_MAP["pi"], CONSTANTS_MAP["pi"]/2, CONSTANTS_MAP["pi"]/4]:
+            if theta in [CONSTANTS_MAP["pi"], CONSTANTS_MAP["pi"] / 2, CONSTANTS_MAP["pi"] / 4]:
                 rotational_lookup_rules = ROTATIONAL_LOOKUP_RULES[target_basis_set]
                 rule_list = rotational_lookup_rules[gate_name][theta]
-                processed_gates_list = cls._get_decomposed_gates(
-                    rule_list, statement
-                )
-            
+                processed_gates_list = cls._get_decomposed_gates(rule_list, statement)
+
             # Approximate parameterized gates using Solovay-Kitaev
             # Example -
             # approx_gates = solovay_kitaev_algo(
