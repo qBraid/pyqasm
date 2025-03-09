@@ -48,17 +48,18 @@ class Decomposer:
             processed_gates_list = [statement]
         elif gate_name in decomposition_rules:
             # Decompose the gates
+            rule_list = decomposition_rules[gate_name]
             processed_gates_list = cls._get_decomposed_gates(
-                decomposition_rules, statement, gate_name
+                rule_list, statement
             )
         elif gate_name in {"rx", "ry", "rz"}:
             # Use lookup table if ∅ is pi, pi/2 or pi/4
-            rotational_lookup_rules = ROTATIONAL_LOOKUP_RULES[target_basis_set]
             theta = statement.arguments[0].value
             if theta in [CONSTANTS_MAP["pi"], CONSTANTS_MAP["pi"]/2, CONSTANTS_MAP["pi"]/4]:
-                gate_name = cls._get_rotational_gate_name(gate_name, theta)
+                rotational_lookup_rules = ROTATIONAL_LOOKUP_RULES[target_basis_set]
+                rule_list = rotational_lookup_rules[gate_name][theta]
                 processed_gates_list = cls._get_decomposed_gates(
-                    rotational_lookup_rules, statement, gate_name
+                    rule_list, statement
                 )
             
             # Approximate parameterized gates using Solovay-Kitaev
@@ -118,20 +119,19 @@ class Decomposer:
         )
 
     @classmethod
-    def _get_decomposed_gates(cls, decomposition_rules, statement, gate):
+    def _get_decomposed_gates(cls, rule_list, statement):
         """Apply the decomposed gates based on the decomposition rules.
 
         Args:
-            decomposition_rules: The decomposition rules to apply.
+            rule_list: The decomposition rules to apply.
             statement: The statement to apply the decomposition rules to.
-            gate: The name of the gate to apply the decomposition rules to.
 
         Returns:
             list: The decomposed gates to be applied.
         """
         decomposed_gates = []
 
-        for rule in decomposition_rules[gate]:
+        for rule in rule_list:
             qubits = cls._get_qubits_for_gate(statement.qubits, rule)
             arguments = [qasm3_ast.FloatLiteral(value=rule["param"])] if "param" in rule else []
 

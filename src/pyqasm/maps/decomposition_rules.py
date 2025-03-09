@@ -98,58 +98,64 @@ DECOMPOSITION_RULES = {
 
 ROTATIONAL_LOOKUP_RULES = {
     BasisSet.CLIFFORD_T: {
-        "rz(pi)": [
-            {"gate": "s"},
-            {"gate": "s"},
-        ],
-        "rz(pi)/2": [
-            {"gate": "s"}
-        ],
-        "rz(pi)/4": [
-            {"gate": "t"}
-        ],
+        "rz": {
+            CONSTANTS_MAP['pi']: [
+                {"gate": "s"},
+                {"gate": "s"},
+            ],
+            CONSTANTS_MAP['pi']/2 :[
+                {"gate": "s"}
+            ],
+            CONSTANTS_MAP['pi']/4 :[
+                {"gate": "t"}
+            ]
+        },
         
         # Rx(∅) = H.Rz(∅).H
-        "rx(pi)": [
-            {"gate": "h"},
-            {"gate": "s"},
-            {"gate": "s"},
-            {"gate": "h"},
-        ],
-        "rx(pi)/2": [
-            {"gate": "h"},
-            {"gate": "s"},
-            {"gate": "h"},
-        ],
-        "rx(pi)/4": [
-            {"gate": "h"},
-            {"gate": "t"},
-            {"gate": "h"},
-        ],
-
+        "rx": {
+            CONSTANTS_MAP['pi']: [
+                {"gate": "h"},
+                {"gate": "s"},
+                {"gate": "s"},
+                {"gate": "h"},
+            ],
+            CONSTANTS_MAP['pi']/2 :[
+                {"gate": "h"},
+                {"gate": "s"},
+                {"gate": "h"},
+            ],
+            CONSTANTS_MAP['pi']/4 :[
+                {"gate": "h"},
+                {"gate": "t"},
+                {"gate": "h"},
+            ]
+        },
+        
         # Ry(∅) = S†.H.Rz(∅).H.S
-        "ry(pi)": [
-            {"gate": "sdg"},
-            {"gate": "h"},
-            {"gate": "s"},
-            {"gate": "s"},
-            {"gate": "h"},
-            {"gate": "s"},
-        ],
-        "ry(pi)/2": [
-            {"gate": "sdg"},
-            {"gate": "h"},
-            {"gate": "s"},
-            {"gate": "h"},
-            {"gate": "s"},
-        ],
-        "ry(pi)/4": [
-            {"gate": "sdg"},
-            {"gate": "h"},
-            {"gate": "t"},
-            {"gate": "h"},
-            {"gate": "s"},
-        ],
+        "ry": {
+            CONSTANTS_MAP['pi']: [
+                {"gate": "sdg"},
+                {"gate": "h"},
+                {"gate": "s"},
+                {"gate": "s"},
+                {"gate": "h"},
+                {"gate": "s"},
+            ],
+            CONSTANTS_MAP['pi']/2 :[
+                {"gate": "sdg"},
+                {"gate": "h"},
+                {"gate": "s"},
+                {"gate": "h"},
+                {"gate": "s"},
+            ],
+            CONSTANTS_MAP['pi']/4 :[
+                {"gate": "sdg"},
+                {"gate": "h"},
+                {"gate": "t"},
+                {"gate": "h"},
+                {"gate": "s"},
+            ]
+        },
     }
 }
 
