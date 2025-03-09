@@ -2,8 +2,8 @@ import numpy as np
 from typing import List, Tuple
 
 from pyqasm.algorithms.solovay_kitaev.generator import gate_sets
-from pyqasm.algorithms.solovay_kitaev.optimizer import optimize_gate_sequnce
-from pyqasm.maps.gates import BASIS_GATE_MAP, SELF_INVERTING_ONE_QUBIT_OP_SET, ST_GATE_INV_MAP
+from pyqasm.algorithms.solovay_kitaev.optimizer import optimize_gate_sequence
+from pyqasm.maps.gates import BASIS_GATE_MAP, SELF_INVERTING_ONE_QUBIT_OP_SET, ST_GATE_INV_MAP, TWO_QUBIT_OP_SET
 from pyqasm.algorithms.solovay_kitaev.basic_approximation import basic_approximation
 from pyqasm.elements import BasisSet
 
@@ -117,14 +117,14 @@ def solovay_kitaev(target: np.ndarray, target_basis_set, depth: int = 3) -> List
     target_su2 = SU2Matrix(target, [])
     
     target_basis_gate_list = BASIS_GATE_MAP[target_basis_set]
-    basic_gates_su2 = [SU2Matrix(gate_matrix[gate], [gate]) for gate in target_basis_gate_list if gate != "cx"]
+    basic_gates_su2 = [SU2Matrix(gate_matrix[gate], [gate]) for gate in target_basis_gate_list if gate not in TWO_QUBIT_OP_SET]
 
 
     # Run the decomposition
     sequence, error = decompose_group_element(target_su2, target_basis_set, basic_gates_su2, depth)
 
     return sequence
-    # return optimize_gate_sequnce(sequence, target_basis_set)
+    # return optimize_gate_sequence(sequence, target_basis_set)
         
 if __name__ == '__main__':  
     U = np.array([[0.70711,  0.70711j],
@@ -144,4 +144,4 @@ if __name__ == '__main__':
     print(np.allclose(r2.matrix, r0.matrix))    # Output: True
     
     # Test optimizer
-    print(optimize_gate_sequnce(r2.name, BasisSet.CLIFFORD_T))
+    print(optimize_gate_sequence(r2.name, BasisSet.CLIFFORD_T))

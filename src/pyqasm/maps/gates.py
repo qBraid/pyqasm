@@ -1158,6 +1158,7 @@ U_INV_ROTATION_MAP = {
     "U2": u2_inv_gate,
     "u2": u2_inv_gate,
 }
+TWO_QUBIT_OP_SET = {"cx", "cz", "swap"}
 
 
 def map_qasm_inv_op_to_callable(op_name: str):

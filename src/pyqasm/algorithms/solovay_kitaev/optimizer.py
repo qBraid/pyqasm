@@ -26,15 +26,18 @@ IDENTITY_WEIGHT_GROUP = {
     }
 }
 
-def optimize_gate_sequnce(seq: list[str], target_basis_set):
+def optimize_gate_sequence(seq: list[str], target_basis_set):
     target_identity_weight_group = IDENTITY_WEIGHT_GROUP[target_basis_set]
-    while True:
+    for _ in range(int(1e6)):
         current_group = None
         current_weight = 0
         start_index = 0
         changed = False
 
         for i, gate_name in enumerate(seq):
+            if gate_name not in target_identity_weight_group:
+                continue
+                
             gate = target_identity_weight_group[gate_name]
             new_group = gate["group"]
             new_weight = gate["weight"]
@@ -69,8 +72,8 @@ if __name__ == '__main__':
     s4 = ['h', 's', 's', 't', 't', 's', 'h'] # []
     s5 = ['h', 's', 's', 't', 'h', 'h', 't', 's', 'h', 't'] # ['t']
     
-    print(optimize_gate_sequnce(s1, BasisSet.CLIFFORD_T) == ['s', 'h', 's'])
-    print(optimize_gate_sequnce(s2, BasisSet.CLIFFORD_T) == ['s', 'h', 's'])
-    print(optimize_gate_sequnce(s3, BasisSet.CLIFFORD_T) == ['h', 't'])
-    print(optimize_gate_sequnce(s4, BasisSet.CLIFFORD_T) == [])
-    print(optimize_gate_sequnce(s5, BasisSet.CLIFFORD_T) == ['t'])
+    print(optimize_gate_sequence(s1, BasisSet.CLIFFORD_T) == ['s', 'h', 's'])
+    print(optimize_gate_sequence(s2, BasisSet.CLIFFORD_T) == ['s', 'h', 's'])
+    print(optimize_gate_sequence(s3, BasisSet.CLIFFORD_T) == ['h', 't'])
+    print(optimize_gate_sequence(s4, BasisSet.CLIFFORD_T) == [])
+    print(optimize_gate_sequence(s5, BasisSet.CLIFFORD_T) == ['t'])
