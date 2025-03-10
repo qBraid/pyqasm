@@ -1,20 +1,21 @@
-import numpy as np
+"""
+Definition of the optimizer for the Solovay-Kitaev theorem.
+"""
 
+from pyqasm.algorithms.solovay_kitaev.utils import get_identity_weight_group_for_optimizer
 from pyqasm.elements import BasisSet
-
-IDENTITY_WEIGHT_GROUP = {
-    BasisSet.CLIFFORD_T: {
-        "h": {"group": "h", "weight": 0.5},
-        "s": {"group": "s-t", "weight": 0.25},
-        "t": {"group": "s-t", "weight": 0.125},
-        "sdg": {"group": "sdg-tdg", "weight": 0.25},
-        "tdg": {"group": "sdg-tdg", "weight": 0.125},
-    }
-}
 
 
 def optimize_gate_sequence(seq: list[str], target_basis_set):
-    target_identity_weight_group = IDENTITY_WEIGHT_GROUP[target_basis_set]
+    """Optimize a gate sequence based on the identity weight group.
+    Args:
+        seq (list[str]): The gate sequence to optimize.
+        target_basis_set (BasisSet): The target basis set.
+
+    Returns:
+        list[str]: The optimized gate sequence.
+    """
+    target_identity_weight_group = get_identity_weight_group_for_optimizer(target_basis_set)
     for _ in range(int(1e6)):
         current_group = None
         current_weight = 0
@@ -40,7 +41,7 @@ def optimize_gate_sequence(seq: list[str], target_basis_set):
                 seq = seq[:start_index] + seq[i + 1 :]
                 changed = True
                 break
-            elif current_weight > 1:
+            if current_weight > 1:
                 remaining_weight = current_weight - 1
                 for key, value in target_identity_weight_group.items():
                     if value["group"] == current_group and value["weight"] == remaining_weight:
@@ -51,6 +52,8 @@ def optimize_gate_sequence(seq: list[str], target_basis_set):
 
         if not changed:
             return seq
+
+    return seq
 
 
 if __name__ == "__main__":

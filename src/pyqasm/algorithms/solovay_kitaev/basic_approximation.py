@@ -1,60 +1,90 @@
+"""
+Definition of the basic approximation algorithm for the Solovay-Kitaev theorem.
+"""
+
 import numpy as np
 
-from pyqasm.algorithms.solovay_kitaev.utils import TU2Matrix, get_TU2Matrix_for_basic_approximation
+from pyqasm.algorithms.solovay_kitaev.utils import TU2Matrix, get_tu2matrix_for_basic_approximation
 from pyqasm.elements import BasisSet
-
-# Constants
-best_gate = None
-closest_gate = None
-closest_diff = float("inf")
 
 
 def rescursive_traversal(
-    U, A, target_gate_set_list, current_depth, accuracy=0.001, max_tree_depth=3
+    target_matrix, approximated_matrix, target_gate_set_list, current_depth, params
 ):
-    if current_depth >= max_tree_depth:
-        return
+    """Recursively traverse the tree to find the best approximation of the target matrix.
+    Args:
+        target_matrix (np.ndarray): The target matrix to approximate.
+        approximated_matrix (TU2Matrix): The approximated matrix.
+        target_gate_set_list (list): The list of target gates to approximate.
+        current_depth (int): The current depth of the tree.
+        params (tuple): The parameters for the approximation.
 
-    global closest_diff, closest_gate, best_gate
+    Returns:
+        float: The closest difference between the target and approximated matrix.
+        TU2Matrix: The closest approximated matrix.
+        TU2Matrix: The best approx
+
+    """
+    accuracy, max_tree_depth, closest_diff, closest_gate, best_gate = params
+
+    if current_depth >= max_tree_depth:
+        return closest_diff, closest_gate, best_gate
 
     if best_gate:
-        return
+        return closest_diff, closest_gate, best_gate
 
     for gate in target_gate_set_list:
-        if not A.can_multiple(gate):
+        if not approximated_matrix.can_multiple(gate):
             continue
-        A_copy = A.copy()
-        A = A * gate
+        approximated_matrix_copy = approximated_matrix.copy()
+        approximated_matrix = approximated_matrix * gate
 
-        diff = A.get_diff(U)
+        diff = approximated_matrix.distance(target_matrix)
         if diff < accuracy:
-            best_gate = A.copy()
-            return best_gate
+            best_gate = approximated_matrix.copy()
+            return closest_diff, closest_gate, best_gate
 
         # Update the closest gate if the current one is closer
         if diff < closest_diff:
             closest_diff = diff
-            closest_gate = A.copy()
+            closest_gate = approximated_matrix.copy()
 
-        # print(A.name)
-        # if A.name == ['s', 'h', 's']:
-        #     print(A)
-        #     print(diff)
-        rescursive_traversal(
-            U, A.copy(), target_gate_set_list, current_depth + 1, accuracy, max_tree_depth
+        closest_diff, closest_gate, best_gate = rescursive_traversal(
+            target_matrix,
+            approximated_matrix.copy(),
+            target_gate_set_list,
+            current_depth + 1,
+            (accuracy, max_tree_depth, closest_diff, closest_gate, best_gate),
         )
-        A = A_copy.copy()
+        approximated_matrix = approximated_matrix_copy.copy()
 
-    pass
+    return closest_diff, closest_gate, best_gate
 
 
-def basic_approximation(U, target_gate_set, accuracy=0.001, max_tree_depth=3):
-    global closest_diff, closest_gate, best_gate
+def basic_approximation(target_matrix, target_gate_set, accuracy=0.001, max_tree_depth=3):
+    """Approximate the target matrix using the basic approximation algorithm.
 
-    A = TU2Matrix(np.identity(2), [], None, None)
-    target_gate_set_list = get_TU2Matrix_for_basic_approximation(target_gate_set)
+    Args:
+        target_matrix (np.ndarray): The target matrix to approximate.
+        target_gate_set (BasisSet): The target gate set to approximate.
+        accuracy (float): The accuracy of the approximation.
+        max_tree_depth (int): The maximum depth of the tree.
+
+    Returns:
+        TU2Matrix: The approximated matrix.
+    """
+    approximated_matrix = TU2Matrix(np.identity(2), [], None, None)
+    target_gate_set_list = get_tu2matrix_for_basic_approximation(target_gate_set)
     current_depth = 0
-    rescursive_traversal(U, A.copy(), target_gate_set_list, current_depth, accuracy, max_tree_depth)
+    closest_diff = float("inf")
+    closest_gate = None
+    best_gate = None
+
+    params = (accuracy, max_tree_depth, closest_diff, closest_gate, best_gate)
+
+    closest_diff, closest_gate, best_gate = rescursive_traversal(
+        target_matrix, approximated_matrix.copy(), target_gate_set_list, current_depth, params
+    )
 
     result = None
 
@@ -63,15 +93,10 @@ def basic_approximation(U, target_gate_set, accuracy=0.001, max_tree_depth=3):
     else:
         result = closest_gate.copy()
 
-    # Reset global variables
-    best_gate = None
-    closest_gate = None
-    closest_diff = float("inf")
-
     return result
 
 
 if __name__ == "__main__":
-    U = np.array([[0.70711, 0.70711j], [0.70711j, 0.70711]])
+    target_matrix_U = np.array([[0.70711, 0.70711j], [0.70711j, 0.70711]])
 
-    print(basic_approximation(U, BasisSet.CLIFFORD_T, 0.0001, 3))
+    print(basic_approximation(target_matrix_U, BasisSet.CLIFFORD_T, 0.0001, 3))
