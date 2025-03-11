@@ -14,21 +14,23 @@ Module with analysis functions for QASM visitor
 """
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
-from openqasm3 import parse
 from openqasm3.ast import (
     DiscreteSet,
     Expression,
     Identifier,
+    IndexedIdentifier,
     IndexExpression,
     IntegerLiteral,
     IntType,
+    QuantumGate,
     QuantumMeasurementStatement,
     RangeDefinition,
+    Span,
 )
-from openqasm3.parser import QASM3ParsingError
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
 
@@ -209,27 +211,74 @@ class Qasm3Analyzer:
             )
         return bit_list
 
-    @staticmethod
-    def extract_qasm_version(qasm: str) -> int:  # type: ignore # pylint: disable=R1710
+    @staticmethod  # pylint: disable-next=inconsistent-return-statements
+    def extract_qasm_version(qasm: str) -> float:  # type: ignore[return]
         """
-        Parses an OpenQASM program string to determine its major version, either 2 or 3.
+        Extracts the OpenQASM version from a given OpenQASM string.
 
         Args:
-            qasm (str): The OpenQASM program string.
+            qasm (str): The OpenQASM program as a string.
 
         Returns:
-            int: The OpenQASM version as an integer.
+            The semantic version as a float.
+        """
+        qasm = re.sub(r"//.*", "", qasm)
+        qasm = re.sub(r"/\*.*?\*/", "", qasm, flags=re.DOTALL)
+
+        lines = qasm.strip().splitlines()
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith("OPENQASM"):
+                match = re.match(r"OPENQASM\s+(\d+)(?:\.(\d+))?;", line)
+                if match:
+                    major = int(match.group(1))
+                    minor = int(match.group(2)) if match.group(2) else 0
+                    return float(f"{major}.{minor}")
+
+        raise_qasm3_error("Could not determine the OpenQASM version.", err_type=QasmParsingError)
+
+    @staticmethod
+    def extract_duplicate_qubit(qubit_list: list[IndexedIdentifier]):
+        """
+        Extracts the duplicate qubit from a list of qubits.
+
+        Args:
+            qubit_list (list[IndexedIdentifier]): The list of qubits.
+
+        Returns:
+            tuple(string, int): The duplicate qubit name and id.
+        """
+        qubit_set = set()
+        for qubit in qubit_list:
+            assert isinstance(qubit, IndexedIdentifier)
+            qubit_name = qubit.name.name
+            qubit_id = qubit.indices[0][0].value  # type: ignore
+            if (qubit_name, qubit_id) in qubit_set:
+                return (qubit_name, qubit_id)
+            qubit_set.add((qubit_name, qubit_id))
+        return None
+
+    @staticmethod
+    def verify_gate_qubits(gate: QuantumGate, span: Optional[Span] = None):
+        """
+        Verify the qubits for a quantum gate.
+
+        Args:
+            gate (QuantumGate): The quantum gate.
+            span (Span, optional): The span of the gate.
 
         Raises:
-            QasmError: If the string does not represent a valid OpenQASM program.
+            ValidationError: If qubits are duplicated.
+
+        Returns:
+            None
         """
-        try:
-            # TODO: optimize this to just check the start of the program for version
-            parsed_program = parse(qasm)
-            assert parsed_program.version is not None
-            version = int(float(parsed_program.version))
-            return version
-        except (QASM3ParsingError, ValueError, TypeError):
+        # 1. check for duplicate bits
+        duplicate_qubit = Qasm3Analyzer.extract_duplicate_qubit(gate.qubits)  # type: ignore
+        if duplicate_qubit:
+            qubit_name, qubit_id = duplicate_qubit
             raise_qasm3_error(
-                "Could not determine the OpenQASM version.", err_type=QasmParsingError
+                f"Duplicate qubit {qubit_name}[{qubit_id}] in gate {gate.name.name}",
+                span=span,
             )

@@ -304,6 +304,16 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         """,
         "Undefined identifier a in.*",
     ),
+    "duplicate_qubits": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        qubit[2] q1;
+        cx q1[0] , q1[0];  // duplicate qubit
+        """,
+        r"Duplicate qubit q1\[0\] in gate cx",
+    ),
 }
 
 # qasm_input, expected_error

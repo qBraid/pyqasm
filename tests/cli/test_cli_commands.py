@@ -16,10 +16,15 @@ Module containing unit tests for PyQASM CLI commands.
 import os
 import re
 import shutil
+import warnings
 
 import pytest
 import typer
 from typer.testing import CliRunner
+
+warnings.filterwarnings(
+    "ignore", "Importing 'pyqasm' outside a proper installation.", category=UserWarning
+)
 
 from pyqasm.cli.main import app
 from pyqasm.cli.validate import validate_qasm
