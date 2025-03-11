@@ -30,6 +30,10 @@ Types of changes:
 
 ### Dependencies
 
+### Other
+- Updated license from [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) to [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) ([#158](https://github.com/qBraid/pyqasm/pull/158))
+- Added GitHub actions for publishing to GitHub pages, and updated docs pages from Readthedocs to GitHub pages links. ([#158](https://github.com/qBraid/pyqasm/pull/158))
+
 ## Past Release Notes
 
 Archive of changelog entries from previous releases:
