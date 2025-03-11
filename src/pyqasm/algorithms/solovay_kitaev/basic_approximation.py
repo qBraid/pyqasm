@@ -25,10 +25,10 @@ def rescursive_traversal(
         TU2Matrix: The best approx
 
     """
-    accuracy, max_tree_depth, closest_diff, closest_gate, best_gate = params
+    accuracy, max_tree_depth, best_gate = params
 
-    if current_depth >= max_tree_depth or best_gate:
-        return closest_diff, closest_gate, best_gate
+    if current_depth >= max_tree_depth :
+        return best_gate
 
     for gate in target_gate_set_list:
         if not approximated_matrix.can_multiple(gate):
@@ -39,23 +39,22 @@ def rescursive_traversal(
         diff = approximated_matrix.distance(target_matrix)
         if diff < accuracy:
             best_gate = approximated_matrix.copy()
-            return closest_diff, closest_gate, best_gate
+            return  best_gate
 
         # Update the closest gate if the current one is closer
-        if diff < closest_diff:
-            closest_diff = diff
-            closest_gate = approximated_matrix.copy()
+        if diff < best_gate.distance(target_matrix):
+            best_gate = approximated_matrix.copy()
 
-        closest_diff, closest_gate, best_gate = rescursive_traversal(
+        best_gate = rescursive_traversal(
             target_matrix,
             approximated_matrix.copy(),
             target_gate_set_list,
             current_depth + 1,
-            (accuracy, max_tree_depth, closest_diff, closest_gate, best_gate),
+            (accuracy, max_tree_depth, best_gate),
         )
         approximated_matrix = approximated_matrix_copy.copy()
 
-    return closest_diff, closest_gate, best_gate
+    return best_gate
 
 
 def basic_approximation(target_matrix, target_gate_set, accuracy=0.001, max_tree_depth=3):
@@ -73,24 +72,24 @@ def basic_approximation(target_matrix, target_gate_set, accuracy=0.001, max_tree
     approximated_matrix = TU2Matrix(np.identity(2), [], None, None)
     target_gate_set_list = get_tu2matrix_for_basic_approximation(target_gate_set)
     current_depth = 0
-    closest_diff = float("inf")
-    closest_gate = None
-    best_gate = None
+    best_gate = TU2Matrix(np.identity(2), [], None, None)
 
-    params = (accuracy, max_tree_depth, closest_diff, closest_gate, best_gate)
+    params = (accuracy, max_tree_depth, best_gate)
 
-    closest_diff, closest_gate, best_gate = rescursive_traversal(
+    best_gate = rescursive_traversal(
         target_matrix, approximated_matrix.copy(), target_gate_set_list, current_depth, params
     )
+    
+    return best_gate
 
-    result = None
+    # result = None
 
-    if best_gate:
-        result = best_gate.copy()
-    else:
-        result = closest_gate.copy()
+    # if best_gate:
+    #     result = best_gate.copy()
+    # else:
+    #     result = closest_gate.copy()
 
-    return result
+    # return result
 
 
 if __name__ == "__main__":
