@@ -1113,9 +1113,9 @@ BASIS_GATE_MAP = {
 
 # Gate Optimization Data is used by Solovay-Kitaev algorithm to optimize the gate set
 # The data is a dictionary with the basis set as the key and a list of dictionaries as the value
-# Each dictionary in the list contains the following keys:  
+# Each dictionary in the list contains the following keys:
 # - name: the name of the gate
-# - identity: 
+# - identity:
 #       The dot product of sequence of some gates becomes Identity matrix.
 #       The `identity` key is used to determine such sequences of gates.
 #       It stores the following keys:

@@ -27,7 +27,7 @@ def rescursive_traversal(
     """
     accuracy, max_tree_depth, best_gate = params
 
-    if current_depth >= max_tree_depth :
+    if current_depth >= max_tree_depth:
         return best_gate
 
     for gate in target_gate_set_list:
@@ -39,7 +39,7 @@ def rescursive_traversal(
         diff = approximated_matrix.distance(target_matrix)
         if diff < accuracy:
             best_gate = approximated_matrix.copy()
-            return  best_gate
+            return best_gate
 
         # Update the closest gate if the current one is closer
         if diff < best_gate.distance(target_matrix):
@@ -79,7 +79,7 @@ def basic_approximation(target_matrix, target_gate_set, accuracy=0.001, max_tree
     best_gate = rescursive_traversal(
         target_matrix, approximated_matrix.copy(), target_gate_set_list, current_depth, params
     )
-    
+
     return best_gate
 
     # result = None

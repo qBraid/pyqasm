@@ -138,9 +138,7 @@ class Decomposer:
 
             new_gate = qasm3_ast.QuantumGate(
                 modifiers=[],
-                name=qasm3_ast.Identifier(
-                    name=rule if isinstance(rule, str) else rule["gate"]
-                ),
+                name=qasm3_ast.Identifier(name=rule if isinstance(rule, str) else rule["gate"]),
                 arguments=arguments,
                 qubits=qubits,
             )
@@ -176,14 +174,14 @@ class Decomposer:
     @classmethod
     def _process_rotational_gate(cls, gate_name, statement, target_basis_set, depth, accuracy):
         """Process the rotational gates based on the target basis set.
-        
+
         Args:
             gate_name: The name of the gate.
             statement: The statement to process.
             target_basis_set: The target basis set to rebase the module to.
             depth: The depth of the approximation.
             accuracy: The accuracy of the approximation.
-            
+
         Returns:
             list: The processed gates based on the target basis set.
         """
