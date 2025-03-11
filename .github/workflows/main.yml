@@ -81,7 +81,7 @@ jobs:
           
 
     steps:
-      - name: Checkout Pyqasm
+      - name: Checkout PyQASM
         uses: actions/checkout@v4
 
       - name: Install Python
@@ -118,6 +118,7 @@ jobs:
 
   build_sdist:
     name: Source distribution
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
     steps:
