@@ -1241,3 +1241,31 @@ def map_qasm_inv_op_to_callable(op_name: str):
             InversionOp.INVERT_ROTATION,
         )
     raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
+
+
+def get_target_matrix_for_rotational_gates(gate_name, theta):
+    """
+    Get the target matrix for the rotational gates based on the gate name and theta.
+
+    Args:
+        gate_name: The name of the gate.
+        theta: The angle of rotation.
+
+    Returns:
+        np.ndarray: The target matrix for the rotational gates.
+    """
+    if gate_name == "rx":
+        target_matrix = np.array(
+            [
+                [np.cos(theta / 2), -1j * np.sin(theta / 2)],
+                [-1j * np.sin(theta / 2), np.cos(theta / 2)],
+            ]
+        )
+    elif gate_name == "ry":
+        target_matrix = np.array(
+            [[np.cos(theta / 2), -np.sin(theta / 2)], [np.sin(theta / 2), np.cos(theta / 2)]]
+        )
+    else:
+        target_matrix = np.array([[np.exp(-1j * theta / 2), 0], [0, np.exp(1j * theta / 2)]])
+
+    return target_matrix

@@ -12,7 +12,6 @@
 Definition of the Decomposer class
 """
 
-import numpy as np
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
@@ -24,7 +23,7 @@ from pyqasm.maps.decomposition_rules import (
     AppliedQubit,
 )
 from pyqasm.maps.expressions import CONSTANTS_MAP
-from pyqasm.maps.gates import BASIS_GATE_MAP
+from pyqasm.maps.gates import BASIS_GATE_MAP, get_target_matrix_for_rotational_gates
 
 
 class Decomposer:
@@ -196,7 +195,7 @@ class Decomposer:
 
         # Use Solovay-Kitaev's Algorithm for gate approximation
         else:
-            target_matrix = cls._get_target_matrix_for_rotational_gates(gate_name, theta)
+            target_matrix = get_target_matrix_for_rotational_gates(gate_name, theta)
             approximated_gates = solovay_kitaev(target_matrix, target_basis_set, depth, accuracy)
 
             for approximated_gate_name in approximated_gates.name:
@@ -209,31 +208,3 @@ class Decomposer:
 
                 processed_gates_list.append(new_gate)
         return processed_gates_list
-
-    @classmethod
-    def _get_target_matrix_for_rotational_gates(cls, gate_name, theta):
-        """
-        Get the target matrix for the rotational gates based on the gate name and theta.
-
-        Args:
-            gate_name: The name of the gate.
-            theta: The angle of rotation.
-
-        Returns:
-            np.ndarray: The target matrix for the rotational gates.
-        """
-        if gate_name == "rx":
-            target_matrix = np.array(
-                [
-                    [np.cos(theta / 2), -1j * np.sin(theta / 2)],
-                    [-1j * np.sin(theta / 2), np.cos(theta / 2)],
-                ]
-            )
-        elif gate_name == "ry":
-            target_matrix = np.array(
-                [[np.cos(theta / 2), -np.sin(theta / 2)], [np.sin(theta / 2), np.cos(theta / 2)]]
-            )
-        else:
-            target_matrix = np.array([[np.exp(-1j * theta / 2), 0], [0, np.exp(1j * theta / 2)]])
-
-        return target_matrix
