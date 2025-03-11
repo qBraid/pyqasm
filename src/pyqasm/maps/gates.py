@@ -1111,7 +1111,22 @@ BASIS_GATE_MAP = {
     BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
 }
 
-GATE_ENTITY_DATA = {
+# Gate Optimization Data is used by Solovay-Kitaev algorithm to optimize the gate set
+# The data is a dictionary with the basis set as the key and a list of dictionaries as the value
+# Each dictionary in the list contains the following keys:  
+# - name: the name of the gate
+# - identity: 
+#       The dot product of sequence of some gates becomes Identity matrix.
+#       The `identity` key is used to determine such sequences of gates.
+#       It stores the following keys:
+#           - group: the group to which the gate belongs.
+#           - weight: the weightage given to that gate.
+#       If gates belong to smae group, their weights can be added.
+#       Once the total weight reaches 1, the resultant dot product of sequnce
+#       becomes Identity Matrix
+# - matrix: the matrix representation of the gate
+# - used_for_basic_approximation: whether the gate is used for basic approximation
+GATE_OPT_DATA = {
     BasisSet.CLIFFORD_T: [
         {
             "name": "h",

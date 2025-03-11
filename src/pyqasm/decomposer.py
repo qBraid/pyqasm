@@ -138,7 +138,9 @@ class Decomposer:
 
             new_gate = qasm3_ast.QuantumGate(
                 modifiers=[],
-                name=qasm3_ast.Identifier(name=rule["gate"]),
+                name=qasm3_ast.Identifier(
+                    name=rule if isinstance(rule, str) else rule["gate"]
+                ),
                 arguments=arguments,
                 qubits=qubits,
             )

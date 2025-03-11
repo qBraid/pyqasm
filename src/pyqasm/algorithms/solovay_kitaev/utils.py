@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 
 from pyqasm.elements import BasisSet
-from pyqasm.maps.gates import GATE_ENTITY_DATA, SELF_INVERTING_ONE_QUBIT_OP_SET, ST_GATE_INV_MAP
+from pyqasm.maps.gates import GATE_OPT_DATA, SELF_INVERTING_ONE_QUBIT_OP_SET, ST_GATE_INV_MAP
 
 
 class SU2Matrix:
@@ -102,10 +102,7 @@ class TU2Matrix:
         if self.identity_group != other.identity_group:
             return True
 
-        if self.identity_weight + other.identity_weight < 1:
-            return True
-
-        return False
+        return self.identity_weight + other.identity_weight < 1
 
     def distance(self, other):
         """Calculates the operator norm distance between two matrices."""
@@ -128,7 +125,7 @@ def get_su2matrix_for_solovay_kitaev_algorithm(target_basis_set) -> List[SU2Matr
     """Returns a list of SU2Matrix objects for the given basis set.
     This list is used for the Solovay-Kitaev algorithm.
     """
-    gate_list = GATE_ENTITY_DATA[target_basis_set]
+    gate_list = GATE_OPT_DATA[target_basis_set]
     return [SU2Matrix(gate["matrix"], [gate["name"]]) for gate in gate_list]
 
 
@@ -136,7 +133,7 @@ def get_tu2matrix_for_basic_approximation(target_basis_set) -> List[TU2Matrix]:
     """Returns a list of TU2Matrix objects for the given basis set.
     This list is used for the basic approximation algorithm.
     """
-    whole_gate_list = GATE_ENTITY_DATA[target_basis_set]
+    whole_gate_list = GATE_OPT_DATA[target_basis_set]
     required_gate_list = [gate for gate in whole_gate_list if gate["used_for_basic_approximation"]]
 
     return [
@@ -151,7 +148,7 @@ def get_identity_weight_group_for_optimizer(target_basis_set):
     """Returns the identity weight group for the given basis set.
     This is used for the optimization of the gate sequence.
     """
-    gate_list = GATE_ENTITY_DATA[target_basis_set]
+    gate_list = GATE_OPT_DATA[target_basis_set]
     identity_weight_group = {}
 
     for gate in gate_list:

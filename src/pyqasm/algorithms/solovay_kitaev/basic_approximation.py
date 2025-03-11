@@ -27,10 +27,7 @@ def rescursive_traversal(
     """
     accuracy, max_tree_depth, closest_diff, closest_gate, best_gate = params
 
-    if current_depth >= max_tree_depth:
-        return closest_diff, closest_gate, best_gate
-
-    if best_gate:
+    if current_depth >= max_tree_depth or best_gate:
         return closest_diff, closest_gate, best_gate
 
     for gate in target_gate_set_list:
