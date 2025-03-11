@@ -16,7 +16,7 @@ import numpy as np
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
-from pyqasm.algorithms.solovay_kitaev.solovay_kitaev import solovay_kitaev
+from pyqasm.algorithms import solovay_kitaev
 from pyqasm.exceptions import RebaseError
 from pyqasm.maps.decomposition_rules import (
     DECOMPOSITION_RULES,
