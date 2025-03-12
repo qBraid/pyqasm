@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/qBraid/pyqasm/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/qBraid/pyqasm/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/qBraid/pyqasm/graph/badge.svg?token=92YURMR8T8)](https://codecov.io/gh/qBraid/pyqasm)
-[![Documentation Status](https://readthedocs.com/projects/qbraid-pyqasm/badge/?version=latest&token=d5432c6f40d942b391982fc88183389938a0e930ae5e588cf579e9ab1e3319a0)](https://qbraid-pyqasm.readthedocs-hosted.com/en/latest/?badge=latest)
+[![GitHub Pages](https://img.shields.io/github/actions/workflow/status/qBraid/pyqasm/gh-pages.yml?label=docs)](https://sdk.qbraid.com/pyqasm/)
 [![PyPI version](https://img.shields.io/pypi/v/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
 [![Python verions](https://img.shields.io/pypi/pyversions/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
 [![License](https://img.shields.io/github/license/qBraid/pyqasm.svg?color=purple)](https://www.apache.org/licenses/LICENSE-2.0)
