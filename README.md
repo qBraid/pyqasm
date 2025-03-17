@@ -4,15 +4,15 @@
 
 [![CI](https://github.com/qBraid/pyqasm/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/qBraid/pyqasm/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/qBraid/pyqasm/graph/badge.svg?token=92YURMR8T8)](https://codecov.io/gh/qBraid/pyqasm)
-[![Documentation Status](https://readthedocs.com/projects/qbraid-pyqasm/badge/?version=latest&token=d5432c6f40d942b391982fc88183389938a0e930ae5e588cf579e9ab1e3319a0)](https://qbraid-pyqasm.readthedocs-hosted.com/en/latest/?badge=latest)
+[![GitHub Pages](https://img.shields.io/github/actions/workflow/status/qBraid/pyqasm/gh-pages.yml?label=docs)](https://sdk.qbraid.com/pyqasm/)
 [![PyPI version](https://img.shields.io/pypi/v/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
 [![Python verions](https://img.shields.io/pypi/pyversions/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
-[![License](https://img.shields.io/github/license/qBraid/pyqasm.svg?color=purple)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![License](https://img.shields.io/github/license/qBraid/pyqasm.svg?color=purple)](https://www.apache.org/licenses/LICENSE-2.0)
 
 Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation.
 
 ## Motivation
-[OpenQASM](https://openqasm.com/) is a powerful language for expressing hybrid quantum-classical programs, but it lacks a comprehensive tool supporting the full capabilities of the language. PyQASM aims to fill this gap by building upon the [`openqasm3.parser`](https://github.com/openqasm/openqasm/blob/ast-py/v1.0.0/source/openqasm/openqasm3/parser.py), and providing support for semantic analysis and utilities for program compilation.
+[OpenQASM](https://openqasm.com/) is a powerful language for expressing hybrid quantum-classical programs, but it lacks a comprehensive tool supporting the full capabilities of the language. PyQASM aims to fill this gap by building upon the [`openqasm3.parser`](https://github.com/openqasm/openqasm/blob/ast-py/v1.0.1/source/openqasm/openqasm3/parser.py), and providing support for semantic analysis and utilities for program compilation.
 
 ## Installation
 
@@ -44,7 +44,7 @@ You can view the version of pyqasm you have installed within a Python shell as f
 
 ## Resources
 
-- [API Reference](https://sdk.qbraid.com/projects/pyqasm/en/stable/): Developer documentation.
+- [API Reference](https://qbraid.github.io/pyqasm/api/pyqasm.html): Developer documentation.
 - [Usage Examples](examples): Scripts and Markdown examples demonstrating core functionality.
 - [Supported Operations](pyqasm/README.md#supported-operations): OpenQASM language features supported, in progress, and planned for future support.
 
@@ -67,4 +67,4 @@ You can view the version of pyqasm you have installed within a Python shell as f
 
 ## License
 
-[GNU General Public License v3.0](LICENSE)
+[Apache-2.0 License](LICENSE)

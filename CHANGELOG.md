@@ -27,8 +27,40 @@ Types of changes:
 
 ### Fixed
 - Fixed bug in release workflow(s) that caused discrepancy between `pyqasm.__version__` and `importlib.metadata.version` ([#147](https://github.com/qBraid/pyqasm/pull/147))
+- Fixed a bug in broadcast operation for duplicate qubits so that the following  - 
+
+```qasm
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] q;
+qubit[2] q2;
+cx q[0], q[1], q[1], q[2];
+cx q2, q2;
+```
+
+will unroll correctly to - 
+
+```qasm
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] q;
+qubit[2] q2;
+// cx q[0], q[1], q[1], q[2];
+cx q[0], q[1];
+cx q[1], q[2];
+
+// cx q2, q2;
+cx q2[0], q2[1];
+cx q2[0], q2[1];
+```
+
+The logic for duplicate qubit detection is moved out of the `QasmVisitor._get_op_bits` into `Qasm3Analyzer` class and is executed post gate broadcast operation ([#155](https://github.com/qBraid/pyqasm/pull/155)).
 
 ### Dependencies
+
+### Other
+- Updated license from [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) to [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) ([#158](https://github.com/qBraid/pyqasm/pull/158))
+- Added GitHub actions for publishing to GitHub pages, and updated docs pages from Readthedocs to GitHub pages links. ([#158](https://github.com/qBraid/pyqasm/pull/158))
 
 ## Past Release Notes
 

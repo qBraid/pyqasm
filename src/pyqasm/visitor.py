@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # pylint: disable=too-many-lines
 
@@ -338,7 +342,6 @@ class QasmVisitor:
             list[qasm3_ast.IndexedIdentifier] : The bits for the operation.
         """
         openqasm_bits = []
-        visited_bits = set()
         bit_list = []
         original_size_map = reg_size_map
 
@@ -413,16 +416,6 @@ class QasmVisitor:
                 )
                 for bit_id in bit_ids
             ]
-            # check for duplicate bits
-            for bit_id in new_bits:
-                bit_name, bit_value = bit_id.name.name, bit_id.indices[0][0].value
-                if tuple((bit_name, bit_value)) in visited_bits:
-                    raise_qasm3_error(
-                        f"Duplicate {'qubit' if qubits else 'clbit'} "
-                        f"{bit_name}[{bit_value}] argument",
-                        span=operation.span,
-                    )
-                visited_bits.add((bit_name, bit_value))
 
             openqasm_bits.extend(new_bits)
 
@@ -794,6 +787,11 @@ class QasmVisitor:
             )
 
             self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
+
+        # check for duplicate bits
+        for final_gate in result:
+            Qasm3Analyzer.verify_gate_qubits(final_gate, operation.span)
+
         if self._check_only:
             return []
 
@@ -949,6 +947,10 @@ class QasmVisitor:
 
         all_targets = self._unroll_multiple_target_qubits(operation, gate_qubit_count)
         result = self._broadcast_gate_operation(gate_function, all_targets)
+
+        # check for any duplicates
+        for final_gate in result:
+            Qasm3Analyzer.verify_gate_qubits(final_gate, operation.span)
 
         self._restore_context()
         if self._check_only:

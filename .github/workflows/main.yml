@@ -81,7 +81,7 @@ jobs:
           
 
     steps:
-      - name: Checkout Pyqasm
+      - name: Checkout PyQASM
         uses: actions/checkout@v4
 
       - name: Install Python
@@ -118,6 +118,7 @@ jobs:
 
   build_sdist:
     name: Source distribution
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
     steps:
@@ -171,7 +172,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.python == 311 }}
-        uses: codecov/codecov-action@v4.4.1
+        uses: codecov/codecov-action@v5.4.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false

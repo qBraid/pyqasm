@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module with analysis functions for QASM visitor
@@ -22,11 +26,14 @@ from openqasm3.ast import (
     DiscreteSet,
     Expression,
     Identifier,
+    IndexedIdentifier,
     IndexExpression,
     IntegerLiteral,
     IntType,
+    QuantumGate,
     QuantumMeasurementStatement,
     RangeDefinition,
+    Span,
 )
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
@@ -234,3 +241,48 @@ class Qasm3Analyzer:
                     return float(f"{major}.{minor}")
 
         raise_qasm3_error("Could not determine the OpenQASM version.", err_type=QasmParsingError)
+
+    @staticmethod
+    def extract_duplicate_qubit(qubit_list: list[IndexedIdentifier]):
+        """
+        Extracts the duplicate qubit from a list of qubits.
+
+        Args:
+            qubit_list (list[IndexedIdentifier]): The list of qubits.
+
+        Returns:
+            tuple(string, int): The duplicate qubit name and id.
+        """
+        qubit_set = set()
+        for qubit in qubit_list:
+            assert isinstance(qubit, IndexedIdentifier)
+            qubit_name = qubit.name.name
+            qubit_id = qubit.indices[0][0].value  # type: ignore
+            if (qubit_name, qubit_id) in qubit_set:
+                return (qubit_name, qubit_id)
+            qubit_set.add((qubit_name, qubit_id))
+        return None
+
+    @staticmethod
+    def verify_gate_qubits(gate: QuantumGate, span: Optional[Span] = None):
+        """
+        Verify the qubits for a quantum gate.
+
+        Args:
+            gate (QuantumGate): The quantum gate.
+            span (Span, optional): The span of the gate.
+
+        Raises:
+            ValidationError: If qubits are duplicated.
+
+        Returns:
+            None
+        """
+        # 1. check for duplicate bits
+        duplicate_qubit = Qasm3Analyzer.extract_duplicate_qubit(gate.qubits)  # type: ignore
+        if duplicate_qubit:
+            qubit_name, qubit_id = duplicate_qubit
+            raise_qasm3_error(
+                f"Duplicate qubit {qubit_name}[{qubit_id}] in gate {gate.name.name}",
+                span=span,
+            )
