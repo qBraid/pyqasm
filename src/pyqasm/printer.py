@@ -15,7 +15,7 @@
 # pylint: disable=import-outside-toplevel
 
 """
-Module with analysis functions for QASM visitor
+Functions for drawing quantum circuits.
 
 """
 from __future__ import annotations

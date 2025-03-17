@@ -32,7 +32,6 @@ classifiers = [
     "Operating System :: Unix",
     "Operating System :: MacOS",
 ]
-
 dependencies = ["numpy", "openqasm3[parser]>=1.0.0,<2.0.0"]
 
 [project.urls]
