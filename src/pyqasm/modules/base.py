@@ -518,7 +518,23 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._validated_program = True
 
     def unroll(self, **kwargs):
-        """Unroll the module into basic qasm operations"""
+        """Unroll the module into basic qasm operations.
+
+        Args:
+            **kwargs: Additional arguments to pass to the QasmVisitor.
+                external_gates (list[str]): List of gates that should not be unrolled.
+                unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
+                check_only (bool): If True, only check the program without executing it.
+                                   Defaults to False.
+
+        Raises:
+            ValidationError: If the module fails validation during unrolling.
+            UnrollError: If an error occurs during the unrolling process.
+
+        Notes:
+            This method resets the module's qubit and classical bit counts before unrolling,
+            and sets them to -1 if an error occurs during unrolling.
+        """
         if not kwargs:
             kwargs = {}
         try:
