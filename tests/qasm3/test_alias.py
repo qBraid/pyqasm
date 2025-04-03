@@ -283,7 +283,7 @@ def test_alias_out_of_scope():
     """Test converting OpenQASM 3 program with alias out of scope."""
     with pytest.raises(
         ValidationError,
-        match=r"Variable alias not in scope for operation .*",
+        match="Variable 'alias' not in scope for QuantumGate 'cx'",
     ):
         qasm3_alias_program = """
         OPENQASM 3;

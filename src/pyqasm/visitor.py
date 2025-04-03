@@ -334,8 +334,12 @@ class QasmVisitor:
         for scope_level in range(0, self._curr_scope + 1):
             if name in self._label_scope_level[scope_level]:
                 return
+
+        operation_type = type(operation).__name__
+        operation_name = operation.name.name if hasattr(operation.name, "name") else operation.name
         raise_qasm3_error(
-            f"Variable {name} not in scope for operation {operation}", span=operation.span
+            f"Variable '{name}' not in scope for {operation_type} '{operation_name}'",
+            span=operation.span,
         )
 
     # pylint: disable-next=too-many-locals,too-many-branches
@@ -390,8 +394,12 @@ class QasmVisitor:
                     replace_alias = True
                     reg_size_map = self._global_alias_size_map
                 else:
+                    err_msg = (
+                        f"Missing {'qubit' if qubits else 'clbit'} register declaration "
+                        f"for '{reg_name}' in {type(operation).__name__}"
+                    )
                     raise_qasm3_error(
-                        f"Missing register declaration for {reg_name} in operation {operation}",
+                        err_msg,
                         span=operation.span,
                     )
             self._check_if_name_in_scope(reg_name, operation)
@@ -639,7 +647,7 @@ class QasmVisitor:
         """
         gate_name = definition.name.name
         if gate_name in self._custom_gates:
-            raise_qasm3_error(f"Duplicate gate definition for {gate_name}", span=definition.span)
+            raise_qasm3_error(f"Duplicate quantum gate definition for '{gate_name}'", span=definition.span)
         self._custom_gates[gate_name] = definition
 
         return []
@@ -877,7 +885,7 @@ class QasmVisitor:
                 # in case the gate is reapplied
                 if isinstance(gate_op, qasm3_ast.QuantumGate) and gate_op.name.name == gate_name:
                     raise_qasm3_error(
-                        f"Recursive definitions not allowed for gate {gate_name}", span=gate_op.span
+                        f"Recursive definitions not allowed for gate '{gate_name}'", span=gate_op.span
                     )
                 Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
                 Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
@@ -891,7 +899,7 @@ class QasmVisitor:
             else:
                 # TODO: add control flow support
                 raise_qasm3_error(
-                    f"Unsupported gate definition statement {gate_op}", span=gate_op.span
+                    f"Unsupported statement in gate definition '{type(gate_op).__name__}'", span=gate_op.span
                 )
 
         self._restore_context()
@@ -1025,7 +1033,7 @@ class QasmVisitor:
         # if args are provided in global scope, then we should raise error
         if self._in_global_scope() and len(operation.qubits) != 0:
             raise_qasm3_error(
-                f"Qubit arguments not allowed for phase operation {str(operation)} in global scope",
+                f"Qubit arguments not allowed for 'gphase' operation in global scope",
                 span=operation.span,
             )
 

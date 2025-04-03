@@ -255,7 +255,7 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         h q2;  // undeclared register
         """,
-        "Missing register declaration for q2 .*",
+        "Missing qubit register declaration for 'q2' in QuantumGate",
     ),
     "undeclared_1qubit_op": (
         """
@@ -328,7 +328,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit q;
         gphase(pi) q;
         """,
-        r"Qubit arguments not allowed for phase operation",
+        r"Qubit arguments not allowed for 'gphase' operation",
     ),
     "undeclared_custom": (
         """
@@ -431,6 +431,6 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         custom_gate(0.5, 0.5) q1;  // duplicate definition
         """,
-        "Duplicate gate definition for custom_gate",
+        "Duplicate quantum gate definition for 'custom_gate'",
     ),
 }
