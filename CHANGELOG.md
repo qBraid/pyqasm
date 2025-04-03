@@ -15,6 +15,39 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added support for conditionally unrolling barrier statements in the `unroll` method with the `unroll_barriers` flag. ([#166](https://github.com/qBraid/pyqasm/pull/166)) - 
+
+```python
+In [1]: import pyqasm
+
+In [2]: qasm_str = """
+   ...:     OPENQASM 3.0;
+   ...:     include "stdgates.inc";
+   ...: 
+   ...:     qubit[2] q1;
+   ...:     qubit[3] q2;
+   ...:     qubit q3;
+   ...: 
+   ...:     // barriers
+   ...:     barrier q1, q2, q3;
+   ...:     barrier q2[:3];
+   ...:     barrier q3[0];
+   ...: """
+
+In [3]: module = pyqasm.loads(qasm_str)
+
+In [4]: module.unroll(unroll_barriers = False)
+
+In [5]: print(module)
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q1;
+qubit[3] q2;
+qubit[1] q3;
+barrier q1, q2, q3;
+barrier q2[:3];
+barrier q3[0];
+```
 
 ### Improved / Modified
 
