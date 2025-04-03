@@ -55,9 +55,17 @@ class QasmVisitor:
         initialize_runtime (bool): If True, quantum runtime will be initialized. Defaults to True.
         record_output (bool): If True, output of the circuit will be recorded. Defaults to True.
         external_gates (list[str]): List of gates that should not be unrolled.
+        unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
+        check_only (bool): If True, only check the program without executing it. Defaults to False.
     """
 
-    def __init__(self, module, check_only: bool = False, external_gates: list[str] | None = None):
+    def __init__(
+        self,
+        module,
+        check_only: bool = False,
+        external_gates: list[str] | None = None,
+        unroll_barriers: bool = True,
+    ):
         self._module = module
         self._scope: deque = deque([{}])
         self._context: deque = deque([Context.GLOBAL])
@@ -74,6 +82,7 @@ class QasmVisitor:
         self._external_gates: list[str] = [] if external_gates is None else external_gates
         self._subroutine_defns: dict[str, qasm3_ast.SubroutineDefinition] = {}
         self._check_only: bool = check_only
+        self._unroll_barriers: bool = unroll_barriers
         self._curr_scope: int = 0
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
 
@@ -596,6 +605,9 @@ class QasmVisitor:
 
         if self._check_only:
             return []
+
+        if not self._unroll_barriers:
+            return [barrier]
 
         return unrolled_barriers
 

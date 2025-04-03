@@ -125,6 +125,36 @@ def test_remove_barriers():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_unroll_barrier():
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[2] q1;
+    qubit[3] q2;
+    qubit q3;
+
+    // barriers
+    barrier q1, q2, q3;
+    barrier q2[:3];
+    barrier q3[0];
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q1;
+    qubit[3] q2;
+    qubit[1] q3;
+    barrier q1, q2, q3;
+    barrier q2[:3];
+    barrier q3[0];
+    """
+    module = loads(qasm_str)
+    assert module.has_barriers() is True
+    module.unroll(unroll_barriers=False)
+    assert module.has_barriers() is True
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
 def test_incorrect_barrier():
 
     undeclared = """
