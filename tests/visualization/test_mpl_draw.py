@@ -16,6 +16,9 @@
 Tests for the QASM printer module.
 """
 
+import os
+import unittest.mock
+
 import pytest
 
 from pyqasm.entrypoint import loads
@@ -151,3 +154,54 @@ def test_draw_raises_unsupported_format_error():
 
     with pytest.raises(ValueError, match=r"Unsupported output format"):
         draw(circ, output="unsupported_format")
+
+
+def test_saved_figure():
+    """Test that the saved figure is not None."""
+    qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q;
+    cnot q[0], q[1];
+    measure q;
+    """
+
+    circ = loads(qasm)
+    fig = mpl_draw(circ, filename="test_img.png")
+    assert fig is not None
+
+    # check the file exists
+    assert os.path.exists("test_img.png")
+
+    # clean up the file
+    os.remove("test_img.png")
+
+
+@pytest.mark.parametrize("is_interactive", [True, False])
+def test_matplotlib_interactive_behavior(is_interactive):
+    """Test plt.show() behavior depending on matplotlib's interactive mode."""
+    qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q;
+    cnot q[0], q[1];
+    measure q;
+    """
+
+    with unittest.mock.patch(
+        "matplotlib.pyplot.isinteractive", return_value=is_interactive
+    ) as mock_isinteractive:
+        with unittest.mock.patch("matplotlib.pyplot.show") as mock_show:
+            # Call draw function
+            draw(qasm, output="mpl")
+
+            # Verify isinteractive was called
+            mock_isinteractive.assert_called()
+
+            # When not interactive, show should be called; otherwise it shouldn't
+            if is_interactive:
+                mock_show.assert_not_called()
+            else:
+                mock_show.assert_called_once()
