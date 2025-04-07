@@ -56,6 +56,7 @@ barrier q3[0];
 ### Removed
 
 ### Fixed
+- Resolved the inconsistency in `pyqasm.printer.draw` and `pyqasm.printer.mpl_draw` behaviour for multiple function calls. See issue [#165](https://github.com/qBraid/pyqasm/issues/165) for bug details. ([#168](https://github.com/qBraid/pyqasm/pull/168))
 
 ### Dependencies
 
