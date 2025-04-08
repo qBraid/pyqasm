@@ -89,13 +89,21 @@ def draw(
         program = loads(program)
 
     if output == "mpl":
-        mpl_draw(program, idle_wires=idle_wires, **kwargs)
+        _ = mpl_draw(program, idle_wires=idle_wires, external_draw=False, **kwargs)
+
+        import matplotlib.pyplot as plt
+
+        if not plt.isinteractive():
+            plt.show()
     else:
         raise ValueError(f"Unsupported output format: {output}")
 
 
-def mpl_draw(
-    program: str | QasmModule, idle_wires: bool = True, filename: str | Path | None = None
+def mpl_draw(  # pylint: disable=too-many-locals
+    program: str | QasmModule,
+    idle_wires: bool = True,
+    filename: str | Path | None = None,
+    external_draw: bool = True,
 ) -> plt.Figure:
     """Internal matplotlib drawing implementation."""
     if isinstance(program, str):
@@ -141,6 +149,9 @@ def mpl_draw(
 
     if filename is not None:
         plt.savefig(filename, bbox_inches="tight", dpi=300)
+
+    if external_draw:
+        plt.close(fig)
 
     return fig
 
