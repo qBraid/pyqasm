@@ -50,7 +50,23 @@ barrier q3[0];
 ```
 
 ### Improved / Modified
+- Improved the error messages for the parameter mismatch errors in basic quantum gates ([#169](https://github.com/qBraid/pyqasm/issues/169)). Following error is raised on parameter count mismatch - 
 
+```python
+In [1]: import pyqasm
+   ...: 
+   ...: qasm = """
+   ...: OPENQASM 3;
+   ...: include "stdgates.inc";
+   ...: qubit[2] q;
+   ...: rx(0.5, 1) q[1];
+   ...: """
+   ...: program = pyqasm.loads(qasm)
+   ...: program.validate()
+
+......
+ValidationError: Expected 1 parameter for gate 'rx', but got 2  
+```
 ### Deprecated
 
 ### Removed
