@@ -16,7 +16,7 @@
 Module containing the class for validating QASM3 subroutines.
 
 """
-from typing import Optional, Union
+from typing import Optional
 
 from openqasm3.ast import (
     AccessControl,
@@ -50,11 +50,11 @@ class Qasm3SubroutineProcessor:
         cls.visitor_obj = visitor_obj
 
     @staticmethod
-    def get_fn_actual_arg_name(actual_arg: Union[Identifier, IndexExpression]) -> Optional[str]:
+    def get_fn_actual_arg_name(actual_arg: Identifier | IndexExpression) -> Optional[str]:
         """Get the name of the actual argument passed to a function.
 
         Args:
-            actual_arg (Union[Identifier, IndexExpression]): The actual argument passed to the
+            actual_arg (Identifier | IndexExpression): The actual argument passed to the
                                                              function.
 
         Returns:

@@ -18,7 +18,7 @@ Module defining Qasm Converter elements.
 """
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import numpy as np
 
@@ -88,7 +88,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
         base_type (Any): Base type of the variable.
         base_size (int): Base size of the variable.
         dims (Optional[List[int]]): Dimensions of the variable.
-        value (Optional[Union[int, float, np.ndarray]]): Value of the variable.
+        value (Optional[int | float | np.ndarray]): Value of the variable.
         is_constant (bool): Flag indicating if the variable is constant.
         is_register (bool): Flag indicating if the variable is a register.
         readonly (bool): Flag indicating if the variable is readonly.
@@ -98,7 +98,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     base_type: Any
     base_size: int
     dims: Optional[list[int]] = None
-    value: Optional[Union[int, float, np.ndarray]] = None
+    value: Optional[int | float | np.ndarray] = None
     is_constant: bool = False
     is_register: bool = False
     readonly: bool = False

@@ -17,7 +17,7 @@ Module with transformation functions for QASM3 visitor
 
 """
 from copy import deepcopy
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, NamedTuple, Optional
 
 import numpy as np
 from openqasm3.ast import (
@@ -57,8 +57,8 @@ BranchParams = NamedTuple(
     [
         ("reg_idx", Optional[int]),
         ("reg_name", str),
-        ("op", Optional[Union[BinaryOperator, UnaryOperator]]),
-        ("rhs_val", Optional[Union[bool, int]]),
+        ("op", Optional[BinaryOperator | UnaryOperator]),
+        ("rhs_val", Optional[bool | int]),
     ],
 )
 
@@ -150,7 +150,7 @@ class Qasm3Transformer:
 
     @staticmethod
     def transform_gate_qubits(
-        gate_op: Union[QuantumGate, QuantumPhase], qubit_map: dict[str, IndexedIdentifier]
+        gate_op: QuantumGate | QuantumPhase, qubit_map: dict[str, IndexedIdentifier]
     ) -> None:
         """Transform the qubits of a gate operation with a qubit map.
 
@@ -175,7 +175,7 @@ class Qasm3Transformer:
             gate_op.qubits[i] = qubit_map[gate_qubit_name]
 
     @staticmethod
-    def transform_expression(expression, variable_map: dict[str, Union[int, float, bool]]):
+    def transform_expression(expression, variable_map: dict[str, int | float | bool]):
         """Transform an expression by replacing variables with their values.
 
         Args:
@@ -215,13 +215,13 @@ class Qasm3Transformer:
 
     @staticmethod
     def transform_gate_params(
-        gate_op: Union[QuantumGate, QuantumPhase], param_map: dict[str, Union[int, float, bool]]
+        gate_op: QuantumGate | QuantumPhase, param_map: dict[str, int | float | bool]
     ) -> None:
         """Transform the parameters of a gate operation with a parameter map.
 
         Args:
             gate_op (QuantumGate): The gate operation to transform.
-            param_map (dict[str, Union[int, float, bool]]): The parameter map to use
+            param_map (dict[str, int |float |bool]): The parameter map to use
                                                             for transformation.
 
         Returns:
@@ -320,7 +320,7 @@ class Qasm3Transformer:
     @classmethod
     def transform_function_qubits(
         cls,
-        q_op: Union[QuantumGate, QuantumBarrier, QuantumReset, QuantumPhase],
+        q_op: QuantumGate | QuantumBarrier | QuantumReset | QuantumPhase,
         formal_qreg_sizes: dict[str, int],
         qubit_map: dict[tuple, tuple],
     ) -> list[IndexedIdentifier]:
@@ -356,7 +356,7 @@ class Qasm3Transformer:
     @classmethod
     def get_target_qubits(
         cls,
-        target: Union[Identifier, IndexExpression],
+        target: Identifier | IndexExpression,
         qreg_size_map: dict[str, int],
         target_name: str,
     ) -> tuple:
