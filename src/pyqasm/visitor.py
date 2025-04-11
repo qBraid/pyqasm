@@ -36,6 +36,7 @@ from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIM
 from pyqasm.maps.gates import (
     map_qasm_ctrl_op_to_callable,
     map_qasm_inv_op_to_callable,
+    map_qasm_op_num_params,
     map_qasm_op_to_callable,
 )
 from pyqasm.subroutines import Qasm3SubroutineProcessor
@@ -769,13 +770,20 @@ class QasmVisitor:
             qasm_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_callable(
                 operation.name.name
             )
-
         op_parameters = []
+        actual_num_params = map_qasm_op_num_params(operation.name.name)
 
         if len(operation.arguments) > 0:  # parametric gate
             op_parameters = self._get_op_parameters(operation)
             if inverse_action == InversionOp.INVERT_ROTATION:
                 op_parameters = [-1 * param for param in op_parameters]
+
+        if len(op_parameters) != actual_num_params:
+            raise_qasm3_error(
+                f"Expected {op_qubit_count} parameter{'s' if op_qubit_count > 1 else ''}"
+                f" for gate '{operation.name.name}', but got {len(op_parameters)}",
+                span=operation.span,
+            )
 
         result = []
         unrolled_targets = self._unroll_multiple_target_qubits(operation, op_qubit_count)

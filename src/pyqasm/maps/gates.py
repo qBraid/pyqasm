@@ -1091,6 +1091,39 @@ FIVE_QUBIT_OP_MAP = {
     "c4x": c4x_gate,
 }
 
+PARAMS_OP_SET = {
+    1: {
+        "rx",
+        "ry",
+        "rz",
+        "phaseshift",
+        "p",
+        "gpi",
+        "gpi2",
+        "xx",
+        "rxx",
+        "yy",
+        "ryy",
+        "zz",
+        "rzz",
+        "xy",
+        "pswap",
+        "cp",
+        "cu1",
+        "crx",
+        "cry",
+        "crz",
+        "cphaseshift",
+        "cp10",
+        "cphaseshift01",
+        "cp01",
+        "cp00",
+        "cphaseshift00",
+    },
+    2: {"xx_plus_yy", "u2", "U2"},
+    3: {"ms", "cu3", "u", "U", "u3", "U3"},
+    4: {"cu"},
+}
 BASIS_GATE_MAP = {
     # default basis set is the gate set of the stdgates.inc library file
     BasisSet.DEFAULT: {
@@ -1114,6 +1147,25 @@ BASIS_GATE_MAP = {
     BasisSet.ROTATIONAL_CX: {"rx", "ry", "rz", "cx"},
     BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
 }
+
+
+def map_qasm_op_num_params(op_name: str) -> int:
+    """
+    Map a basic QASM operation to the number of parameters it takes.
+
+    Args:
+        op_name (str): The QASM operation name.
+
+    Returns:
+        int: The number of parameters the operation takes.
+
+    Raises:
+        ValidationError: If the QASM operation is unsupported or undeclared.
+    """
+    for num_params, op_set in PARAMS_OP_SET.items():
+        if op_name in op_set:
+            return num_params
+    return 0
 
 
 def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:

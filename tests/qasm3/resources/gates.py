@@ -340,7 +340,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         """,
         "Unsupported / undeclared QASM operation: custom_gate",
     ),
-    "parameter_mismatch": (
+    "parameter_mismatch_1": (
         """
         OPENQASM 3;
         include "stdgates.inc";
@@ -354,6 +354,20 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         custom_gate(0.5) q1;  // parameter count mismatch
         """,
         "Parameter count mismatch for gate custom_gate: expected 2 arguments, but got 1 instead.",
+    ),
+    "parameter_mismatch_2": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        qubit[2] q;
+
+        rx(0.5) q[1];
+
+        // too many parameters
+        rz(0.5, 0.0) q[0];
+        """,
+        "Expected 1 parameter for gate 'rz', but got 2",
     ),
     "qubit_mismatch": (
         """
