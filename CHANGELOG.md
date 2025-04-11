@@ -70,6 +70,7 @@ ValidationError: Expected 1 parameter for gate 'rx', but got 2
 ### Deprecated
 
 ### Removed
+- Removed the dependency on `Union` for typing by replacing it with `|` ([#170](https://github.com/qBraid/pyqasm/pull/170)).
 
 ### Fixed
 - Resolved the inconsistency in `pyqasm.printer.draw` and `pyqasm.printer.mpl_draw` behaviour for multiple function calls. See issue [#165](https://github.com/qBraid/pyqasm/issues/165) for bug details. ([#168](https://github.com/qBraid/pyqasm/pull/168))

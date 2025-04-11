@@ -16,7 +16,7 @@
 Module with utility functions for QASM visitor
 
 """
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import numpy as np
 from openqasm3.ast import ArrayType, ClassicalDeclaration, FloatType
@@ -121,8 +121,8 @@ class Qasm3Validator:
         # For each type we will have a "castable" type set and its corresponding cast operation
         type_casted_value = qasm_variable_type_cast(qasm_type, variable.name, base_size, value)
 
-        left: Union[int, float] = 0
-        right: Union[int, float] = 0
+        left: int | float = 0
+        right: int | float = 0
         # check 2 - range match , if bits mentioned in base size
         if type_to_match == int:
             base_size = variable.base_size

@@ -18,7 +18,6 @@ Defines a module for handling OpenQASM 2.0 programs.
 
 import re
 from copy import deepcopy
-from typing import Union
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
@@ -78,7 +77,7 @@ class Qasm2Module(QasmModule):
         raw_qasm = dumps(qasm_ast, old_measurement=True)
         return self._format_declarations(raw_qasm)
 
-    def to_qasm3(self, as_str: bool = False) -> Union[str, Qasm3Module]:
+    def to_qasm3(self, as_str: bool = False) -> str | Qasm3Module:
         """Convert the module to openqasm3 format
 
         Args:
@@ -87,7 +86,7 @@ class Qasm2Module(QasmModule):
                            Default is False.
 
         Returns:
-            Union[str, Qasm3Module]: The module in openqasm3 format.
+            str | Qasm3Module: The module in openqasm3 format.
         """
         qasm_program = deepcopy(self._original_program)
         # replace the include with stdgates.inc

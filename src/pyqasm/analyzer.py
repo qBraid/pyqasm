@@ -19,7 +19,7 @@ Module with analysis functions for QASM visitor
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 from openqasm3.ast import (
@@ -144,7 +144,7 @@ class Qasm3Analyzer:
     @staticmethod
     def analyze_index_expression(
         index_expr: IndexExpression,
-    ) -> tuple[str, list[Union[Any, Expression, RangeDefinition]]]:
+    ) -> tuple[str, list[Any | Expression | RangeDefinition]]:
         """Analyze an index expression to get the variable name and indices.
 
         Args:

@@ -20,7 +20,7 @@ Module mapping supported QASM gates to lower level gate operations.
 """
 
 
-from typing import Callable, Union
+from typing import Callable
 
 import numpy as np
 from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
@@ -32,9 +32,9 @@ from pyqasm.maps.expressions import CONSTANTS_MAP
 
 
 def u3_gate(
-    theta: Union[int, float],
-    phi: Union[int, float],
-    lam: Union[int, float],
+    theta: int | float,
+    phi: int | float,
+    lam: int | float,
     qubit_id,
 ) -> list[QuantumGate]:
     """
@@ -44,9 +44,9 @@ def u3_gate(
 
     Args:
         name (str): The name of the gate.
-        theta (Union[int, float]): The theta parameter.
-        phi (Union[int, float]): The phi parameter.
-        lam (Union[int, float]): The lambda parameter.
+        theta (int | float): The theta parameter.
+        phi (int | float): The phi parameter.
+        lam (int | float): The lambda parameter.
         qubit_id (IndexedIdentifier): The qubit on which to apply the gate.
 
     Returns:
@@ -63,9 +63,9 @@ def u3_gate(
 
 
 def u3_inv_gate(
-    theta: Union[int, float],
-    phi: Union[int, float],
-    lam: Union[int, float],
+    theta: int | float,
+    phi: int | float,
+    lam: int | float,
     qubits,
 ) -> list[QuantumGate]:
     """
@@ -165,7 +165,7 @@ def ch_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quantu
 
 
 def xy_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """Implements the XXPlusYY gate matrix as defined by braket.
 
@@ -177,8 +177,8 @@ def xy_gate(
 
 
 def xx_plus_yy_gate(
-    theta: Union[int, float],
-    phi: Union[int, float],
+    theta: int | float,
+    phi: int | float,
     qubit0: IndexedIdentifier,
     qubit1: IndexedIdentifier,
 ) -> list[QuantumGate]:
@@ -224,7 +224,7 @@ def xx_plus_yy_gate(
 
 
 def ryy_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the YY gate as a decomposition of other gates.
@@ -260,7 +260,7 @@ def ryy_gate(
 
 
 def zz_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the ZZ gate as a decomposition of other gates.
@@ -274,7 +274,7 @@ def zz_gate(
     return result
 
 
-def phaseshift_gate(theta: Union[int, float], qubit: IndexedIdentifier) -> list[QuantumGate]:
+def phaseshift_gate(theta: int | float, qubit: IndexedIdentifier) -> list[QuantumGate]:
     """
     Implements the phase shift gate as a decomposition of other gates.
     """
@@ -313,7 +313,7 @@ def cswap_gate(
 
 
 def pswap_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the PSWAP gate as a decomposition of other gates.
@@ -345,7 +345,7 @@ def iswap_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Qua
 
 
 def crx_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the CRX gate as a decomposition of other gates.
@@ -378,7 +378,7 @@ def crx_gate(
 
 
 def cry_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the CRY gate as a decomposition of other gates.
@@ -410,7 +410,7 @@ def cry_gate(
 
 
 def crz_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the CRZ gate as a decomposition of other gates.
@@ -443,10 +443,10 @@ def crz_gate(
 
 
 def cu_gate(  # pylint: disable=too-many-arguments
-    theta: Union[int, float],
-    phi: Union[int, float],
-    lam: Union[int, float],
-    gamma: Union[int, float],
+    theta: int | float,
+    phi: int | float,
+    lam: int | float,
+    gamma: int | float,
     qubit0: IndexedIdentifier,
     qubit1: IndexedIdentifier,
 ) -> list[QuantumGate]:
@@ -489,9 +489,9 @@ def cu_gate(  # pylint: disable=too-many-arguments
 
 
 def cu3_gate(  # pylint: disable=too-many-arguments
-    theta: Union[int, float],
-    phi: Union[int, float],
-    lam: Union[int, float],
+    theta: int | float,
+    phi: int | float,
+    lam: int | float,
     qubit0: IndexedIdentifier,
     qubit1: IndexedIdentifier,
 ) -> list[QuantumGate]:
@@ -528,7 +528,7 @@ def cu3_gate(  # pylint: disable=too-many-arguments
 
 
 def cu1_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the CU1 gate as a decomposition of other gates.
@@ -600,13 +600,13 @@ def csx_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quant
 
 
 def rxx_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
-) -> list[Union[QuantumGate, QuantumPhase]]:
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate | QuantumPhase]:
     """
     Implements the RXX gate as a decomposition of other gates.
     """
 
-    result: list[Union[QuantumGate, QuantumPhase]] = []
+    result: list[QuantumGate | QuantumPhase] = []
     result.extend(global_phase_gate(-theta / 2, [qubit0, qubit1]))
     result.extend(one_qubit_gate_op("h", qubit0))
     result.extend(one_qubit_gate_op("h", qubit1))
@@ -637,8 +637,8 @@ def rccx_gate(
 
 
 def rzz_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
-) -> list[Union[QuantumGate, QuantumPhase]]:
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate | QuantumPhase]:
     """
     Implements the RZZ gate as a decomposition of other gates.
 
@@ -661,7 +661,7 @@ def rzz_gate(
         q_1: ┤ X ├┤ U3(0,0,theta) ├┤ X ├
              └───┘└───────────────┘└───┘
     """
-    result: list[Union[QuantumGate, QuantumPhase]] = []
+    result: list[QuantumGate | QuantumPhase] = []
 
     result.extend(global_phase_gate(-theta / 2, [qubit0, qubit1]))
     result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
@@ -672,7 +672,7 @@ def rzz_gate(
 
 
 def cphaseshift_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift gate as a decomposition of other gates.
@@ -706,7 +706,7 @@ def cphaseshift_gate(
 
 
 def cphaseshift00_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 00 gate as a decomposition of other gates.
@@ -725,7 +725,7 @@ def cphaseshift00_gate(
 
 
 def cphaseshift01_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 01 gate as a decomposition of other gates.
@@ -742,7 +742,7 @@ def cphaseshift01_gate(
 
 
 def cphaseshift10_gate(
-    theta: Union[int, float], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+    theta: int | float, qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 10 gate as a decomposition of other gates.

@@ -22,7 +22,7 @@ import copy
 import logging
 from collections import deque
 from functools import partial
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
@@ -176,7 +176,7 @@ class QasmVisitor:
                     return True
         return False
 
-    def _get_from_visible_scope(self, var_name: str) -> Union[Variable, None]:
+    def _get_from_visible_scope(self, var_name: str) -> Variable | None:
         """
         Retrieves a variable from the visible scope.
 
@@ -184,7 +184,7 @@ class QasmVisitor:
             var_name (str): The name of the variable to retrieve.
 
         Returns:
-            Union[Variable, None]: The variable if found, None otherwise.
+            Variable | None: The variable if found, None otherwise.
         """
         global_scope = self._get_global_scope()
         curr_scope = self._get_curr_scope()
@@ -822,7 +822,7 @@ class QasmVisitor:
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
-    ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
+    ) -> list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase]:
         """Visit a custom gate operation element recursively.
 
         Args:
@@ -1038,9 +1038,9 @@ class QasmVisitor:
 
     def _visit_generic_gate_operation(  # pylint: disable=too-many-branches
         self,
-        operation: Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase],
+        operation: qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase,
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
-    ) -> list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]]:
+    ) -> list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase]:
         """Visit a gate operation element.
 
         Args:
@@ -1136,7 +1136,7 @@ class QasmVisitor:
             )
 
         # get controlled? inverted? operation x power times
-        result: list[Union[qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase]] = []
+        result: list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase] = []
         for _ in range(power_value):
             if isinstance(operation, qasm3_ast.QuantumPhase):
                 result.extend(self._visit_phase_operation(operation, inverse_value, ctrls))
@@ -1373,7 +1373,7 @@ class QasmVisitor:
             raise_qasm3_error(
                 f"Assignment to constant variable {lvar_name} not allowed", span=statement.span
             )
-        binary_op: Union[str, None, qasm3_ast.BinaryOperator] = None
+        binary_op: str | None | qasm3_ast.BinaryOperator = None
         if statement.op != qasm3_ast.AssignmentOperator["="]:
             # eg. j += 1 -> broken down to j = j + 1
             binary_op = statement.op.name.removesuffix("=")
