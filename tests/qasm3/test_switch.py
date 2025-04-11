@@ -416,7 +416,7 @@ def test_non_int_variable_expression():
     """
     with pytest.raises(
         ValidationError,
-        match=r"Invalid type of variable .* for required type <class 'openqasm3.ast.IntType'>",
+        match=r"Invalid type .* of variable 'f' for required type <class 'openqasm3.ast.IntType'>",
     ):
         qasm3_switch_program = base_invalid_program
         loads(qasm3_switch_program).validate()
@@ -443,6 +443,8 @@ def test_non_constant_expression_case():
     }
     """
 
-    with pytest.raises(ValidationError, match=r"Variable .* is not a constant in given expression"):
+    with pytest.raises(
+        ValidationError, match=r"Expected variable .* to be constant in given expression"
+    ):
         qasm3_switch_program = base_invalid_program
         loads(qasm3_switch_program).validate()

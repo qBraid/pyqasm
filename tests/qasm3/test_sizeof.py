@@ -96,7 +96,7 @@ def test_unsupported_target():
 def test_sizeof_on_non_array():
     """Test sizeof on a non-array"""
     with pytest.raises(
-        ValidationError, match="Invalid sizeof usage, variable my_int is not an array."
+        ValidationError, match="Invalid sizeof usage, variable 'my_int' is not an array."
     ):
         qasm3_string = """
         OPENQASM 3;
@@ -112,7 +112,7 @@ def test_sizeof_on_non_array():
 def test_out_of_bounds_reference():
     """Test sizeof on an out of bounds reference"""
     with pytest.raises(
-        ValidationError, match="Index 3 out of bounds for array my_ints with 2 dimensions"
+        ValidationError, match="Index 3 out of bounds for array 'my_ints' with 2 dimensions"
     ):
         qasm3_string = """
         OPENQASM 3;

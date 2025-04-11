@@ -181,7 +181,7 @@ class Qasm3SubroutineProcessor:
         if actual_arg_name is None:
             raise_qasm3_error(
                 array_expected_type_msg
-                + f"Literal {Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]} "
+                + f"Literal '{Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]}' "
                 + "found in function call",
                 span=span,
             )

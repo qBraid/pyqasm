@@ -165,7 +165,7 @@ def test_clbit_redeclaration_error():
 def test_non_constant_size():
     """Test non-constant size in qubit and clbit declarations"""
     with pytest.raises(
-        ValidationError, match=r"Variable 'N' is not a constant in given expression"
+        ValidationError, match=r"Expected variable 'N' to be constant in given expression"
     ):
         qasm3_string = """
         OPENQASM 3.0;
@@ -176,7 +176,7 @@ def test_non_constant_size():
         loads(qasm3_string).validate()
 
     with pytest.raises(
-        ValidationError, match=r"Variable 'size' is not a constant in given expression"
+        ValidationError, match=r"Expected variable 'size' to be constant in given expression"
     ):
         qasm3_string = """
         OPENQASM 3.0;

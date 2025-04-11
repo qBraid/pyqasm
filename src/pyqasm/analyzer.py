@@ -87,7 +87,7 @@ class Qasm3Analyzer:
             if index < 0 or index >= dimension:
                 raise_qasm3_error(
                     message=f"Index {index} out of bounds for dimension {dim_num} "
-                    f"of variable {var_name}",
+                    f"of variable '{var_name}'. Expected index in range [0, {dimension-1}]",
                     err_type=ValidationError,
                     span=span,
                 )
@@ -105,8 +105,8 @@ class Qasm3Analyzer:
         for i, index in enumerate(indices):
             if not isinstance(index, (Identifier, Expression, RangeDefinition, IntegerLiteral)):
                 raise_qasm3_error(
-                    message=f"Unsupported index type {type(index)} for "
-                    f"classical variable {var.name}",
+                    message=f"Unsupported index type '{type(index)}' for "
+                    f"classical variable '{var.name}'",
                     err_type=ValidationError,
                     span=index.span,
                 )
@@ -283,6 +283,6 @@ class Qasm3Analyzer:
         if duplicate_qubit:
             qubit_name, qubit_id = duplicate_qubit
             raise_qasm3_error(
-                f"Duplicate qubit {qubit_name}[{qubit_id}] in gate {gate.name.name}",
+                f"Duplicate qubit '{qubit_name}[{qubit_id}]' arg in gate {gate.name.name}",
                 span=span,
             )

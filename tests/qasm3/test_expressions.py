@@ -84,8 +84,8 @@ def test_incorrect_expressions():
     with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
         loads("OPENQASM 3; qubit q; rx(~1.3+5im) q;").validate()
 
-    with pytest.raises(ValidationError, match="Undefined identifier x in expression"):
+    with pytest.raises(ValidationError, match="Undefined identifier 'x' in expression"):
         loads("OPENQASM 3; qubit q; rx(x) q;").validate()
 
-    with pytest.raises(ValidationError, match="Uninitialized variable x in expression"):
+    with pytest.raises(ValidationError, match="Uninitialized variable 'x' in expression"):
         loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()

@@ -165,7 +165,9 @@ def test_incorrect_barrier():
     barrier q2;
     """
 
-    with pytest.raises(ValidationError, match=r"Missing register declaration for q2 .*"):
+    with pytest.raises(
+        ValidationError, match="Missing qubit register declaration for 'q2' in QuantumBarrier"
+    ):
         loads(undeclared).validate()
 
     out_of_bounds = """

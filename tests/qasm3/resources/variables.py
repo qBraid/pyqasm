@@ -77,7 +77,7 @@ DECLARATION_TESTS = {
         include "stdgates.inc";
         int[32.1] x;
         """,
-        "Invalid base size 32.1 for variable x",
+        "Invalid base size 32.1 for variable 'x'",
     ),
     "invalid_const_int_size": (
         """
@@ -85,7 +85,7 @@ DECLARATION_TESTS = {
         include "stdgates.inc";
         const int[32.1] x = 3;
         """,
-        "Invalid base size 32.1 for variable x",
+        "Invalid base size 32.1 for variable 'x'",
     ),
     "const_declaration_with_non_const": (
         """
@@ -94,7 +94,7 @@ DECLARATION_TESTS = {
         int[32] x = 5;
         const int[32] y = x + 5;
         """,
-        "Variable 'x' is not a constant in given expression",
+        "Expected variable 'x' to be constant in given expression",
     ),
     "const_declaration_with_non_const_size": (
         """
@@ -103,7 +103,7 @@ DECLARATION_TESTS = {
         int[32] x = 5;
         const int[x] y = 5;
         """,
-        "Variable 'x' is not a constant in given expression",
+        "Expected variable 'x' to be constant in given expression",
     ),
     "invalid_float_size": (
         """
@@ -112,7 +112,7 @@ DECLARATION_TESTS = {
 
         float[23] x;
         """,
-        "Invalid base size 23 for float variable x",
+        "Invalid base size 23 for float variable 'x'",
     ),
     "unsupported_types": (
         """
@@ -121,7 +121,7 @@ DECLARATION_TESTS = {
 
         angle x = 3.4;
         """,
-        "Invalid type <class 'openqasm3.ast.AngleType'> for variable x",
+        "Invalid type <class 'openqasm3.ast.AngleType'> for variable 'x'",
     ),
     "imaginary_variable": (
         """
@@ -139,7 +139,7 @@ DECLARATION_TESTS = {
 
         array[int[32], 1, 2.1] x;
         """,
-        "Invalid dimension size 2.1 in array declaration for x",
+        "Invalid dimension size 2.1 in array declaration for 'x'",
     ),
     "extra_array_dimensions": (
         """
@@ -148,7 +148,7 @@ DECLARATION_TESTS = {
 
         array[int[32], 1, 2, 3, 4, 5, 6, 7, 8] x;
         """,
-        "Invalid dimensions 8 for array declaration for x. Max allowed dimensions is 7",
+        "Invalid dimensions 8 for array declaration for 'x'. Max allowed dimensions is 7",
     ),
     "dimension_mismatch_1": (
         """
@@ -157,7 +157,7 @@ DECLARATION_TESTS = {
 
         array[int[32], 1, 2] x = {1,2,3};
         """,
-        "Invalid dimensions for array assignment to variable x. Expected 1 but got 3",
+        "Invalid dimensions for array assignment to variable 'x'. Expected 1 but got 3",
     ),
     "dimension_mismatch_2": (
         """
@@ -240,7 +240,7 @@ ASSIGNMENT_TESTS = {
 
         float[32] x = 123456789123456789123456789123456789123456789.1;
         """,
-        "Value .* out of limits for variable x with base size 32",
+        "Value .* out of limits for variable 'x' with base size 32",
     ),
     "indexing_non_array": (
         """
@@ -281,6 +281,6 @@ ASSIGNMENT_TESTS = {
         array[int[32], 3] x;
         x[3] = 3;
         """,
-        "Index 3 out of bounds for dimension 0 of variable x",
+        "Index 3 out of bounds for dimension 0 of variable 'x'",
     ),
 }

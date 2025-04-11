@@ -255,7 +255,7 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         h q2;  // undeclared register
         """,
-        "Missing register declaration for q2 .*",
+        "Missing qubit register declaration for 'q2' in QuantumGate",
     ),
     "undeclared_1qubit_op": (
         """
@@ -306,7 +306,7 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         rx(a) q1; // unsupported parameter type
         """,
-        "Undefined identifier a in.*",
+        "Undefined identifier 'a' in.*",
     ),
     "duplicate_qubits": (
         """
@@ -316,7 +316,7 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         cx q1[0] , q1[0];  // duplicate qubit
         """,
-        r"Duplicate qubit q1\[0\] in gate cx",
+        r"Duplicate qubit 'q1\[0\]' arg in gate cx",
     ),
 }
 
@@ -328,7 +328,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit q;
         gphase(pi) q;
         """,
-        r"Qubit arguments not allowed for phase operation",
+        r"Qubit arguments not allowed for 'gphase' operation",
     ),
     "undeclared_custom": (
         """
@@ -353,7 +353,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         custom_gate(0.5) q1;  // parameter count mismatch
         """,
-        "Parameter count mismatch for gate custom_gate: expected 2 arguments, but got 1 instead.",
+        "Parameter count mismatch for gate 'custom_gate': expected 2 arguments, but got 1 instead.",
     ),
     "parameter_mismatch_2": (
         """
@@ -382,7 +382,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[3] q1;
         custom_gate(0.5, 0.5) q1;  // qubit count mismatch
         """,
-        "Qubit count mismatch for gate custom_gate: expected 2 qubits, but got 3 instead.",
+        "Qubit count mismatch for gate 'custom_gate': expected 2 qubits, but got 3 instead.",
     ),
     "indexing_not_supported": (
         """
@@ -431,6 +431,6 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         custom_gate(0.5, 0.5) q1;  // duplicate definition
         """,
-        "Duplicate gate definition for custom_gate",
+        "Duplicate quantum gate definition for 'custom_gate'",
     ),
 }
