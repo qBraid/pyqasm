@@ -647,7 +647,9 @@ class QasmVisitor:
         """
         gate_name = definition.name.name
         if gate_name in self._custom_gates:
-            raise_qasm3_error(f"Duplicate quantum gate definition for '{gate_name}'", span=definition.span)
+            raise_qasm3_error(
+                f"Duplicate quantum gate definition for '{gate_name}'", span=definition.span
+            )
         self._custom_gates[gate_name] = definition
 
         return []
@@ -885,7 +887,8 @@ class QasmVisitor:
                 # in case the gate is reapplied
                 if isinstance(gate_op, qasm3_ast.QuantumGate) and gate_op.name.name == gate_name:
                     raise_qasm3_error(
-                        f"Recursive definitions not allowed for gate '{gate_name}'", span=gate_op.span
+                        f"Recursive definitions not allowed for gate '{gate_name}'",
+                        span=gate_op.span,
                     )
                 Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
                 Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
@@ -899,7 +902,8 @@ class QasmVisitor:
             else:
                 # TODO: add control flow support
                 raise_qasm3_error(
-                    f"Unsupported statement in gate definition '{type(gate_op).__name__}'", span=gate_op.span
+                    f"Unsupported statement in gate definition '{type(gate_op).__name__}'",
+                    span=gate_op.span,
                 )
 
         self._restore_context()
@@ -1033,7 +1037,7 @@ class QasmVisitor:
         # if args are provided in global scope, then we should raise error
         if self._in_global_scope() and len(operation.qubits) != 0:
             raise_qasm3_error(
-                f"Qubit arguments not allowed for 'gphase' operation in global scope",
+                "Qubit arguments not allowed for 'gphase' operation in global scope",
                 span=operation.span,
             )
 
@@ -1205,7 +1209,7 @@ class QasmVisitor:
                 ]
                 if not isinstance(base_size, int) or base_size <= 0:
                     raise_qasm3_error(
-                        f"Invalid base size {base_size} for variable {var_name}",
+                        f"Invalid base size {base_size} for variable '{var_name}'",
                         span=statement.span,
                     )
 
@@ -1281,7 +1285,7 @@ class QasmVisitor:
                 )
             if len(dimensions) > MAX_ARRAY_DIMENSIONS:
                 raise_qasm3_error(
-                    f"Invalid dimensions {len(dimensions)} for array declaration for {var_name}. "
+                    f"Invalid dimensions {len(dimensions)} for array declaration for '{var_name}'. "
                     f"Max allowed dimensions is {MAX_ARRAY_DIMENSIONS}",
                     span=statement.span,
                 )
@@ -1290,7 +1294,7 @@ class QasmVisitor:
                 dim_value = Qasm3ExprEvaluator.evaluate_expression(dim, const_expr=True)[0]
                 if not isinstance(dim_value, int) or dim_value <= 0:
                     raise_qasm3_error(
-                        f"Invalid dimension size {dim_value} in array declaration for {var_name}",
+                        f"Invalid dimension size {dim_value} in array declaration for '{var_name}'",
                         span=statement.span,
                     )
                 final_dimensions.append(dim_value)

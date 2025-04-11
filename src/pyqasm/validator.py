@@ -67,7 +67,7 @@ class Qasm3Validator:
         if stmt_type in blacklisted_stmts:
             if stmt_type != ClassicalDeclaration:
                 raise_qasm3_error(
-                    f"Unsupported statement {stmt_type} in {construct} block",
+                    f"Unsupported statement '{stmt_type}' in {construct} block",
                     span=statement.span,
                 )
 
@@ -116,7 +116,9 @@ class Qasm3Validator:
         try:
             type_to_match = VARIABLE_TYPE_MAP[qasm_type]
         except KeyError as err:
-            raise ValidationError(f"Invalid type {qasm_type} for variable {variable.name}") from err
+            raise ValidationError(
+                f"Invalid type {qasm_type} for variable '{variable.name}'"
+            ) from err
 
         # For each type we will have a "castable" type set and its corresponding cast operation
         type_casted_value = qasm_variable_type_cast(qasm_type, variable.name, base_size, value)
@@ -150,14 +152,14 @@ class Qasm3Validator:
 
             if type_casted_value < left or type_casted_value > right:
                 raise_qasm3_error(
-                    f"Value {value} out of limits for variable {variable.name} with "
+                    f"Value {value} out of limits for variable '{variable.name}' with "
                     f"base size {base_size}",
                 )
         elif type_to_match == bool:
             pass
         else:
             raise_qasm3_error(
-                f"Invalid type {type_to_match} for variable {variable.name}", TypeError
+                f"Invalid type {type_to_match} for variable '{variable.name}'", TypeError
             )
 
         return type_casted_value
@@ -176,11 +178,11 @@ class Qasm3Validator:
             ValidationError: If the type or size is invalid.
         """
         if not isinstance(base_size, int) or base_size <= 0:
-            raise_qasm3_error(f"Invalid base size {base_size} for variable {var_name}", span=span)
+            raise_qasm3_error(f"Invalid base size {base_size} for variable '{var_name}'", span=span)
 
         if isinstance(base_type, FloatType) and base_size not in [32, 64]:
             raise_qasm3_error(
-                f"Invalid base size {base_size} for float variable {var_name}", span=span
+                f"Invalid base size {base_size} for float variable '{var_name}'", span=span
             )
 
     @staticmethod
@@ -200,7 +202,7 @@ class Qasm3Validator:
         # recursively check the array
         if values.shape[0] != dimensions[0]:
             raise_qasm3_error(
-                f"Invalid dimensions for array assignment to variable {variable.name}. "
+                f"Invalid dimensions for array assignment to variable '{variable.name}'. "
                 f"Expected {dimensions[0]} but got {values.shape[0]}",
             )
         for i, value in enumerate(values):
@@ -235,7 +237,7 @@ class Qasm3Validator:
         if op_num_args != gate_def_num_args:
             s = "" if gate_def_num_args == 1 else "s"
             raise_qasm3_error(
-                f"Parameter count mismatch for gate {operation.name.name}: "
+                f"Parameter count mismatch for gate '{operation.name.name}': "
                 f"expected {gate_def_num_args} argument{s}, but got {op_num_args} instead.",
                 span=operation.span,
             )
@@ -244,7 +246,7 @@ class Qasm3Validator:
         if qubits_in_op != gate_def_num_qubits:
             s = "" if gate_def_num_qubits == 1 else "s"
             raise_qasm3_error(
-                f"Qubit count mismatch for gate {operation.name.name}: "
+                f"Qubit count mismatch for gate '{operation.name.name}': "
                 f"expected {gate_def_num_qubits} qubit{s}, but got {qubits_in_op} instead.",
                 span=operation.span,
             )

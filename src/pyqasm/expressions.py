@@ -67,7 +67,7 @@ class Qasm3ExprEvaluator:
 
         if not cls.visitor_obj._check_in_scope(var_name):
             raise_qasm3_error(
-                f"Undefined identifier {var_name} in expression",
+                f"Undefined identifier '{var_name}' in expression",
                 ValidationError,
                 expression.span,
             )
@@ -88,7 +88,7 @@ class Qasm3ExprEvaluator:
         const_var = cls.visitor_obj._get_from_visible_scope(var_name).is_constant
         if const_expr and not const_var:
             raise_qasm3_error(
-                f"Variable '{var_name}' is not a constant in given expression",
+                f"Expected variable '{var_name}' to be constant in given expression",
                 ValidationError,
                 expression.span,
             )
@@ -106,12 +106,11 @@ class Qasm3ExprEvaluator:
         Raises:
             ValidationError: If the variable has an invalid type for the required type.
         """
-
-        if not Qasm3Validator.validate_variable_type(
-            cls.visitor_obj._get_from_visible_scope(var_name), reqd_type
-        ):
+        var = cls.visitor_obj._get_from_visible_scope(var_name)
+        if not Qasm3Validator.validate_variable_type(var, reqd_type):
             raise_qasm3_error(
-                f"Invalid type of variable {var_name} for required type {reqd_type}",
+                f"Invalid type '{var.base_type}' of variable '{var_name}' for "
+                f"required type {reqd_type}",
                 ValidationError,
                 expression.span,
             )
@@ -130,7 +129,7 @@ class Qasm3ExprEvaluator:
 
         if var_value is None:
             raise_qasm3_error(
-                f"Uninitialized variable {var_name} in expression",
+                f"Uninitialized variable '{var_name}' in expression",
                 ValidationError,
                 expression.span,
             )
@@ -207,7 +206,7 @@ class Qasm3ExprEvaluator:
                 if not reqd_type or reqd_type == Qasm3FloatType:
                     return _check_and_return_value(CONSTANTS_MAP[var_name])
                 raise_qasm3_error(
-                    f"Constant {var_name} not allowed in non-float expression",
+                    f"Constant '{var_name}' not allowed in non-float expression",
                     ValidationError,
                     expression.span,
                 )
@@ -229,14 +228,14 @@ class Qasm3ExprEvaluator:
                 ).dims
             else:
                 raise_qasm3_error(
-                    message=f"Unsupported target type {type(target)} for sizeof expression",
+                    message=f"Unsupported target type '{type(target)}' for sizeof expression",
                     err_type=ValidationError,
                     span=expression.span,
                 )
 
             if dimensions is None or len(dimensions) == 0:
                 raise_qasm3_error(
-                    message=f"Invalid sizeof usage, variable {var_name} is not an array.",
+                    message=f"Invalid sizeof usage, variable '{var_name}' is not an array.",
                     err_type=ValidationError,
                     span=expression.span,
                 )
@@ -250,7 +249,7 @@ class Qasm3ExprEvaluator:
             assert index is not None and isinstance(index, int)
             if index < 0 or index >= len(dimensions):
                 raise_qasm3_error(
-                    f"Index {index} out of bounds for array {var_name} with "
+                    f"Index {index} out of bounds for array '{var_name}' with "
                     f"{len(dimensions)} dimensions",
                     ValidationError,
                     expression.span,
@@ -279,7 +278,7 @@ class Qasm3ExprEvaluator:
             )
             if expression.op.name == "~" and not isinstance(operand, int):
                 raise_qasm3_error(
-                    f"Unsupported expression type {type(operand)} in ~ operation",
+                    f"Unsupported expression type '{type(operand)}' in ~ operation",
                     ValidationError,
                     expression.span,
                 )

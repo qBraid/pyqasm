@@ -271,7 +271,7 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         my_function(q, 5);
         """,
         r"Expecting type 'array\[int\[8\],...\]' for 'my_arr' in function 'my_function'."
-        r" Literal 5 found in function call",
+        r" Literal '5' found in function call",
     ),
     "type_mismatch_in_array": (
         """

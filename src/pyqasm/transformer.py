@@ -111,7 +111,7 @@ class Qasm3Transformer:
         for value in discrete_set.values:
             if not isinstance(value, IntegerLiteral):
                 raise_qasm3_error(
-                    f"Unsupported discrete set value {value} in discrete set",
+                    f"Unsupported discrete set value '{value}' in discrete set",
                     span=discrete_set.span,
                 )
             values.append(value.value)
@@ -167,7 +167,8 @@ class Qasm3Transformer:
         for i, qubit in enumerate(gate_op.qubits):
             if isinstance(qubit, IndexedIdentifier):
                 raise_qasm3_error(
-                    f"Indexing '{qubit.name.name}' not supported in gate definition",
+                    f"Indexing '{qubit.name.name}' not supported in gate definition "
+                    f"for gate {gate_op.name}",
                     span=qubit.span,
                 )
             gate_qubit_name = qubit.name

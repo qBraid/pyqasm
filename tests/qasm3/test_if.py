@@ -224,7 +224,7 @@ def test_incorrect_if():
            """
         ).validate()
 
-    with pytest.raises(ValidationError, match=r"Undefined identifier c2 in expression"):
+    with pytest.raises(ValidationError, match=r"Undefined identifier 'c2' in expression"):
         loads(
             """
             OPENQASM 3.0;
