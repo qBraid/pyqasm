@@ -68,6 +68,7 @@ class Qasm3Validator:
             if stmt_type != ClassicalDeclaration:
                 raise_qasm3_error(
                     f"Unsupported statement '{stmt_type}' in {construct} block",
+                    error_node=statement,
                     span=statement.span,
                 )
 
@@ -75,6 +76,7 @@ class Qasm3Validator:
                 raise_qasm3_error(
                     f"Unsupported statement {stmt_type} with {statement.type.__class__}"
                     f" in {construct} block",
+                    error_node=statement,
                     span=statement.span,
                 )
 
@@ -138,7 +140,7 @@ class Qasm3Validator:
                 left, right = 0, 2**base_size - 1
             if type_casted_value < left or type_casted_value > right:
                 raise_qasm3_error(
-                    f"Value {value} out of limits for variable {variable.name} with "
+                    f"Value {value} out of limits for variable '{variable.name}' with "
                     f"base size {base_size}",
                 )
 
@@ -239,6 +241,7 @@ class Qasm3Validator:
             raise_qasm3_error(
                 f"Parameter count mismatch for gate '{operation.name.name}': "
                 f"expected {gate_def_num_args} argument{s}, but got {op_num_args} instead.",
+                error_node=operation,
                 span=operation.span,
             )
 
@@ -248,6 +251,7 @@ class Qasm3Validator:
             raise_qasm3_error(
                 f"Qubit count mismatch for gate '{operation.name.name}': "
                 f"expected {gate_def_num_qubits} qubit{s}, but got {qubits_in_op} instead.",
+                error_node=operation,
                 span=operation.span,
             )
 
@@ -276,6 +280,7 @@ class Qasm3Validator:
                 raise_qasm3_error(
                     f"Return type mismatch for subroutine '{subroutine_def.name.name}'."
                     f" Expected void but got {type(return_value)}",
+                    error_node=return_statement,
                     span=return_statement.span,
                 )
         else:
@@ -283,6 +288,7 @@ class Qasm3Validator:
                 raise_qasm3_error(
                     f"Return type mismatch for subroutine '{subroutine_def.name.name}'."
                     f" Expected {subroutine_def.return_type} but got void",
+                    error_node=return_statement,
                     span=return_statement.span,
                 )
             base_size = 1

@@ -122,6 +122,7 @@ class Qasm3SubroutineProcessor:
                 raise_qasm3_error(
                     f"Expecting classical argument for '{formal_arg.name.name}'. "
                     f"Qubit register '{actual_arg_name}' found for function '{fn_name}'",
+                    error_node=actual_arg,
                     span=span,
                 )
 
@@ -131,6 +132,7 @@ class Qasm3SubroutineProcessor:
                 raise_qasm3_error(
                     f"Undefined variable '{actual_arg_name}' used"
                     f" for function call '{fn_name}'",
+                    error_node=actual_arg,
                     span=span,
                 )
         actual_arg_value = Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]
@@ -183,6 +185,7 @@ class Qasm3SubroutineProcessor:
                 array_expected_type_msg
                 + f"Literal '{Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]}' "
                 + "found in function call",
+                error_node=actual_arg,
                 span=span,
             )
 
@@ -190,6 +193,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 array_expected_type_msg
                 + f"Qubit register '{actual_arg_name}' found for function call",
+                error_node=actual_arg,
                 span=span,
             )
 
@@ -197,6 +201,7 @@ class Qasm3SubroutineProcessor:
         if not cls.visitor_obj._check_in_scope(actual_arg_name):
             raise_qasm3_error(
                 f"Undefined variable '{actual_arg_name}' used for function call '{fn_name}'",
+                error_node=actual_arg,
                 span=span,
             )
 
@@ -208,6 +213,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 array_expected_type_msg
                 + f"Variable '{actual_arg_name}' has type '{actual_type_string}'.",
+                error_node=actual_arg,
                 span=span,
             )
 
@@ -219,6 +225,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 array_expected_type_msg
                 + f"Variable '{actual_arg_name}' has type '{actual_type_string}'.",
+                error_node=actual_arg,
                 span=span,
             )
 
@@ -241,6 +248,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 f"Invalid number of dimensions {num_formal_dimensions}"
                 f" for '{formal_arg.name.name}' in function '{fn_name}'",
+                error_node=formal_arg,
                 span=span,
             )
 
@@ -249,6 +257,7 @@ class Qasm3SubroutineProcessor:
                 f"Dimension mismatch for '{formal_arg.name.name}' in function '{fn_name}'. "
                 f"Expected {num_formal_dimensions} dimensions but"
                 f" variable '{actual_arg_name}' has {len(actual_dimensions)}",
+                error_node=formal_arg,
                 span=span,
             )
         formal_dimensions = []
@@ -268,6 +277,7 @@ class Qasm3SubroutineProcessor:
                     raise_qasm3_error(
                         f"Invalid dimension size {formal_dim} for '{formal_arg.name.name}'"
                         f" in function '{fn_name}'",
+                        error_node=formal_arg,
                         span=span,
                     )
                 if actual_dim < formal_dim:
@@ -275,6 +285,7 @@ class Qasm3SubroutineProcessor:
                         f"Dimension mismatch for '{formal_arg.name.name}'"
                         f" in function '{fn_name}'. Expected dimension {idx} with size"
                         f" >= {formal_dim} but got {actual_dim}",
+                        error_node=actual_arg,
                         span=span,
                     )
                 formal_dimensions.append(formal_dim)
@@ -341,6 +352,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 f"Invalid qubit size {formal_qubit_size} for variable '{formal_reg_name}'"
                 f" in function '{fn_name}'",
+                error_node=formal_arg,
                 span=span,
             )
         formal_qreg_size_map[formal_reg_name] = formal_qubit_size
@@ -352,6 +364,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 f"Expecting qubit argument for '{formal_reg_name}'. "
                 f"Qubit register '{actual_arg_name}' not found for function '{fn_name}'",
+                error_node=actual_arg,
                 span=span,
             )
         cls.visitor_obj._label_scope_level[cls.visitor_obj._curr_scope].add(formal_reg_name)
@@ -365,6 +378,7 @@ class Qasm3SubroutineProcessor:
                 f"Qubit register size mismatch for function '{fn_name}'. "
                 f"Expected {formal_qubit_size} in variable '{formal_reg_name}' "
                 f"but got {actual_qubits_size}",
+                error_node=actual_arg,
                 span=span,
             )
 
@@ -374,6 +388,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 f"Duplicate qubit argument for register '{actual_arg_name}' "
                 f"in function call for '{fn_name}'",
+                error_node=actual_arg,
                 span=span,
             )
 

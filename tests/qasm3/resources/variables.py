@@ -231,7 +231,7 @@ ASSIGNMENT_TESTS = {
 
         int[32] x = 1<<64;
         """,
-        f"Value {2**64} out of limits for variable x with base size 32",
+        f"Value {2**64} out of limits for variable 'x' with base size 32",
     ),
     "float32_out_of_range": (
         """

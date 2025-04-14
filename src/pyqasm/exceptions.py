@@ -18,10 +18,21 @@ Module defining base PyQASM exceptions.
 """
 
 import logging
+import os
+import sys
 from typing import Optional, Type
 
-from openqasm3.ast import Span
+from openqasm3.ast import QASMNode, Span
 from openqasm3.parser import QASM3ParsingError
+from openqasm3.printer import dumps
+
+# Define a custom logger for the module
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s: %(message)s"))
+
+logger = logging.getLogger("pyqasm")
+logger.addHandler(handler)
+logger.setLevel(logging.WARNING)
 
 
 class PyQasmError(Exception):
@@ -48,6 +59,7 @@ class QasmParsingError(QASM3ParsingError):
 def raise_qasm3_error(
     message: Optional[str] = None,
     err_type: Type[Exception] = ValidationError,
+    error_node: Optional[QASMNode] = None,
     span: Optional[Span] = None,
     raised_from: Optional[Exception] = None,
 ) -> None:
@@ -56,17 +68,33 @@ def raise_qasm3_error(
     Args:
         message: The error message. If not provided, a default message will be used.
         err_type: The type of error to raise.
+        error_node: The QASM node that caused the error.
         span: The span (location) in the QASM file where the error occurred.
         raised_from: Optional exception from which this error was raised (chaining).
 
     Raises:
         err_type: The error type initialized with the specified message and chained exception.
     """
+    error_parts = []
+
     if span:
-        logging.error(
-            "Error at line %s, column %s in QASM file", span.start_line, span.start_column
+        error_parts.append(
+            f"Error at line {span.start_line}, column {span.start_column} in QASM file"
         )
 
+    if error_node:
+        try:
+            error_parts.append("\n >>>>>> " + dumps(error_node, indent="    "))
+        except Exception as _:  # pylint: disable = broad-exception-caught
+            error_parts.append("\n >>>>>> " + str(error_node))
+
+    if error_parts:
+        logger.error("\n".join(error_parts))
+
+    if os.environ.get("PYQASM_EXPAND_TRACEBACK") == "0":
+        sys.tracebacklimit = 0  # Disable traceback for cleaner output
+
+    # Extract the latest message from the traceback if raised_from is provided
     if raised_from:
         raise err_type(message) from raised_from
     raise err_type(message)

@@ -68,8 +68,9 @@ class Qasm3ExprEvaluator:
         if not cls.visitor_obj._check_in_scope(var_name):
             raise_qasm3_error(
                 f"Undefined identifier '{var_name}' in expression",
-                ValidationError,
-                expression.span,
+                err_type=ValidationError,
+                error_node=expression,
+                span=expression.span,
             )
 
     @classmethod
@@ -89,8 +90,9 @@ class Qasm3ExprEvaluator:
         if const_expr and not const_var:
             raise_qasm3_error(
                 f"Expected variable '{var_name}' to be constant in given expression",
-                ValidationError,
-                expression.span,
+                err_type=ValidationError,
+                error_node=expression,
+                span=expression.span,
             )
 
     @classmethod
@@ -109,10 +111,11 @@ class Qasm3ExprEvaluator:
         var = cls.visitor_obj._get_from_visible_scope(var_name)
         if not Qasm3Validator.validate_variable_type(var, reqd_type):
             raise_qasm3_error(
-                f"Invalid type '{var.base_type}' of variable '{var_name}' for "
+                message=f"Invalid type '{var.base_type}' of variable '{var_name}' for "
                 f"required type {reqd_type}",
-                ValidationError,
-                expression.span,
+                err_type=ValidationError,
+                error_node=expression,
+                span=expression.span,
             )
 
     @staticmethod
@@ -130,8 +133,9 @@ class Qasm3ExprEvaluator:
         if var_value is None:
             raise_qasm3_error(
                 f"Uninitialized variable '{var_name}' in expression",
-                ValidationError,
-                expression.span,
+                err_type=ValidationError,
+                error_node=expression,
+                span=expression.span,
             )
 
     @classmethod
@@ -183,8 +187,9 @@ class Qasm3ExprEvaluator:
         if isinstance(expression, (ImaginaryLiteral, DurationLiteral)):
             raise_qasm3_error(
                 f"Unsupported expression type {type(expression)}",
-                ValidationError,
-                expression.span,
+                err_type=ValidationError,
+                error_node=expression,
+                span=expression.span,
             )
 
         def _check_and_return_value(value):
@@ -207,8 +212,9 @@ class Qasm3ExprEvaluator:
                     return _check_and_return_value(CONSTANTS_MAP[var_name])
                 raise_qasm3_error(
                     f"Constant '{var_name}' not allowed in non-float expression",
-                    ValidationError,
-                    expression.span,
+                    err_type=ValidationError,
+                    error_node=expression,
+                    span=expression.span,
                 )
             return _process_variable(var_name)
 
@@ -230,6 +236,7 @@ class Qasm3ExprEvaluator:
                 raise_qasm3_error(
                     message=f"Unsupported target type '{type(target)}' for sizeof expression",
                     err_type=ValidationError,
+                    error_node=expression,
                     span=expression.span,
                 )
 
@@ -237,6 +244,7 @@ class Qasm3ExprEvaluator:
                 raise_qasm3_error(
                     message=f"Invalid sizeof usage, variable '{var_name}' is not an array.",
                     err_type=ValidationError,
+                    error_node=expression,
                     span=expression.span,
                 )
 
@@ -251,8 +259,9 @@ class Qasm3ExprEvaluator:
                 raise_qasm3_error(
                     f"Index {index} out of bounds for array '{var_name}' with "
                     f"{len(dimensions)} dimensions",
-                    ValidationError,
-                    expression.span,
+                    err_type=ValidationError,
+                    error_node=expression,
+                    span=expression.span,
                 )
             return _check_and_return_value(dimensions[index])
 
@@ -267,8 +276,9 @@ class Qasm3ExprEvaluator:
                 raise_qasm3_error(
                     f"Invalid value {expression.value} with type {type(expression)} "
                     f"for required type {reqd_type}",
-                    ValidationError,
-                    expression.span,
+                    err_type=ValidationError,
+                    error_node=expression,
+                    span=expression.span,
                 )
             return _check_and_return_value(expression.value)
 
@@ -279,8 +289,9 @@ class Qasm3ExprEvaluator:
             if expression.op.name == "~" and not isinstance(operand, int):
                 raise_qasm3_error(
                     f"Unsupported expression type '{type(operand)}' in ~ operation",
-                    ValidationError,
-                    expression.span,
+                    err_type=ValidationError,
+                    error_node=expression,
+                    span=expression.span,
                 )
             op_name = "UMINUS" if expression.op.name == "-" else expression.op.name
             statements.extend(returned_stats)
@@ -307,7 +318,10 @@ class Qasm3ExprEvaluator:
             return _check_and_return_value(ret_value)
 
         raise_qasm3_error(
-            f"Unsupported expression type {type(expression)}", ValidationError, expression.span
+            f"Unsupported expression type {type(expression)}",
+            err_type=ValidationError,
+            error_node=expression,
+            span=expression.span,
         )
 
     @classmethod

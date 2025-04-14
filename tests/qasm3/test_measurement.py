@@ -202,7 +202,7 @@ def test_incorrect_measure():
         bit[2] c1;
         c1[0] = measure q2[0];  // undeclared register
     """,
-        r"Missing register declaration for q2 .*",
+        r"Missing register declaration for 'q2' .*",
     )
 
     # Test for undeclared register c2
@@ -213,7 +213,7 @@ def test_incorrect_measure():
         bit[2] c1;
         measure q1 -> c2;  // undeclared register
     """,
-        r"Missing register declaration for c2 .*",
+        r"Missing register declaration for 'c2' .*",
     )
 
     # Test for size mismatch between q1 and c2

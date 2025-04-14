@@ -112,6 +112,7 @@ class Qasm3Transformer:
             if not isinstance(value, IntegerLiteral):
                 raise_qasm3_error(
                     f"Unsupported discrete set value '{value}' in discrete set",
+                    error_node=discrete_set,
                     span=discrete_set.span,
                 )
             values.append(value.value)
@@ -169,6 +170,7 @@ class Qasm3Transformer:
                 raise_qasm3_error(
                     f"Indexing '{qubit.name.name}' not supported in gate definition "
                     f"for gate {gate_op.name}",
+                    error_node=gate_op,
                     span=qubit.span,
                 )
             gate_qubit_name = qubit.name
@@ -257,12 +259,14 @@ class Qasm3Transformer:
             raise_qasm3_error(
                 message="Only simple comparison supported in branching condition with "
                 "classical register",
+                error_node=condition,
                 span=condition.span,
             )
         if isinstance(condition, UnaryExpression):
             if condition.op != UnaryOperator["!"]:
                 raise_qasm3_error(
                     message="Only '!' supported in branching condition with classical register",
+                    error_node=condition,
                     span=condition.span,
                 )
             return BranchParams(
@@ -276,6 +280,7 @@ class Qasm3Transformer:
                 raise_qasm3_error(
                     message="Only {==, >=, <=, >, <} supported in branching condition "
                     "with classical register",
+                    error_node=condition,
                     span=condition.span,
                 )
 
@@ -301,12 +306,14 @@ class Qasm3Transformer:
             if isinstance(condition.index, DiscreteSet):
                 raise_qasm3_error(
                     message="DiscreteSet not supported in branching condition",
+                    error_node=condition,
                     span=condition.span,
                 )
             if isinstance(condition.index, list):
                 if isinstance(condition.index[0], RangeDefinition):
                     raise_qasm3_error(
                         message="RangeDefinition not supported in branching condition",
+                        error_node=condition,
                         span=condition.span,
                     )
                 return BranchParams(
