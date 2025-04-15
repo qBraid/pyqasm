@@ -184,7 +184,7 @@ SUBROUTINE_INCORRECT_TESTS = {
         qubit[4] q;
         my_function(q);
         """,
-        "Invalid qubit size -3 for variable 'q' in function 'my_function'",
+        "Invalid qubit size '-3' for variable 'q' in function 'my_function'",
     ),
     "test_type_mismatch_for_function": (
         """

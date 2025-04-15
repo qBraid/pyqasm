@@ -145,7 +145,7 @@ def test_alias_invalid_discrete_indexing():
     """Test converting OpenQASM 3 program with invalid alias discrete indexing."""
     with pytest.raises(
         ValidationError,
-        match=r"Unsupported discrete set value .*",
+        match=r"Unsupported value .*",
     ):
         qasm3_alias_program = """
         OPENQASM 3.0;

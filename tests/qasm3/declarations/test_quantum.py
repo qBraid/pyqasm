@@ -152,7 +152,7 @@ def test_invalid_qubit_name():
 
 def test_clbit_redeclaration_error():
     """Test redeclaration of clbit"""
-    with pytest.raises(ValidationError, match=r"Re-declaration of variable c1"):
+    with pytest.raises(ValidationError, match=r"Re-declaration of variable 'c1'"):
         qasm3_string = """
         OPENQASM 3.0;
         include "stdgates.inc";

@@ -396,7 +396,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 f"Qubit register size mismatch for function '{fn_name}'. "
                 f"Expected {formal_qubit_size} in variable '{formal_reg_name}' "
-                f"but got {actual_qubits_size}\n",
+                f"but got {actual_qubits_size}\n"
                 f"Usage: {fn_name} ( {formal_args_desc} )\n",
                 error_node=fn_call,
                 span=fn_call.span,

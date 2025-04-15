@@ -130,7 +130,7 @@ DECLARATION_TESTS = {
 
         int x = 1 + 3im;
         """,
-        "Unsupported expression type <class 'openqasm3.ast.ImaginaryLiteral'>",
+        "Unsupported expression type '<class 'openqasm3.ast.ImaginaryLiteral'>'",
     ),
     "invalid_array_dimensions": (
         """
