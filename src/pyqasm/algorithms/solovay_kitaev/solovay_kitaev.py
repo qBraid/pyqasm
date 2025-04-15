@@ -7,13 +7,14 @@ from typing import List, Tuple
 import numpy as np
 
 from pyqasm.algorithms.solovay_kitaev.basic_approximation import basic_approximation
+from pyqasm.algorithms.solovay_kitaev.gc_decompose import gc_decomp
 from pyqasm.algorithms.solovay_kitaev.optimizer import optimize_gate_sequence
 from pyqasm.algorithms.solovay_kitaev.utils import (
     SU2Matrix,
     get_su2matrix_for_solovay_kitaev_algorithm,
 )
 from pyqasm.elements import BasisSet
-
+count = 1093
 
 def group_commutator(a: SU2Matrix, b: SU2Matrix) -> SU2Matrix:
     """Compute the group commutator [a,b] = aba^{-1}b^{-1}."""
@@ -62,7 +63,10 @@ def decompose_group_element(
     Returns:
         Tuple[List[SU2Matrix], float]: The sequence of basic gates and the error.
     """
-
+    # global count
+    # count -= 1
+    # print(count)
+    
     if depth == 0:
         best_approx = find_basic_approximation(
             target.matrix, target_gate_set, use_optimization=use_optimization
@@ -79,23 +83,25 @@ def decompose_group_element(
     if prev_error < accuracy:
         return prev_sequence, prev_error
 
-    error = target * prev_sequence.dagger()
+    # error = target * prev_sequence.dagger()
 
-    # Find Va and Vb such that their group commutator approximates the error
-    best_v = None
-    best_w = None
-    best_error = float("inf")
+    # # Find Va and Vb such that their group commutator approximates the error
+    # best_v = None
+    # best_w = None
+    # best_error = float("inf")
 
-    for v in basic_gates:
-        for w in basic_gates:
-            comm = group_commutator(v, w)
-            curr_error = error.distance(comm)
-            if curr_error < best_error:
-                best_error = curr_error
-                best_v = v
-                best_w = w
+    # for v in basic_gates:
+    #     for w in basic_gates:
+    #         comm = group_commutator(v, w)
+    #         curr_error = error.distance(comm)
+    #         if curr_error < best_error:
+    #             best_error = curr_error
+    #             best_v = v
+    #             best_w = w
 
     result = prev_sequence
+    
+    best_v, best_w = gc_decomp((target * prev_sequence.dagger()).matrix)
 
     # Add correction terms
     if best_v is not None and best_w is not None:
@@ -109,7 +115,6 @@ def decompose_group_element(
         result = group_commutator(v_sequence, w_sequence) * prev_sequence
 
     final_error = target.distance(result)
-
     return result, final_error
 
 
@@ -146,24 +151,32 @@ def solovay_kitaev(
     return sequence
 
 
-if __name__ == "__main__":
-    target_matrix_U = np.array([[0.70711, 0.70711j], [0.70711j, 0.70711]])
+# if __name__ == "__main__":
+#     target_matrix_U = np.array([[0.70711, 0.70711j], [0.70711j, 0.70711]])
 
-    r0 = solovay_kitaev(target_matrix_U, BasisSet.CLIFFORD_T, depth=0)
-    print(r0.name)  # Output: ['s', 'h', 's']
+#     r0 = solovay_kitaev(target_matrix_U, BasisSet.CLIFFORD_T, depth=0)
+#     print(r0.name)  # Output: ['s', 'h', 's']
 
-    r1 = solovay_kitaev(target_matrix_U, BasisSet.CLIFFORD_T, depth=1)
-    print(
-        r1.name
-    )  # Output: ['s', 's', 's', 't', 't', 'tdg', 'sdg', 'sdg', 'sdg', 'tdg', 's', 'h', 's']
+#     r1 = solovay_kitaev(target_matrix_U, BasisSet.CLIFFORD_T, depth=1)
+#     print(
+#         r1.name
+#     )  # Output: ['s', 's', 's', 't', 't', 'tdg', 'sdg', 'sdg', 'sdg', 'tdg', 's', 'h', 's']
 
-    r2 = solovay_kitaev(target_matrix_U, BasisSet.CLIFFORD_T, depth=2)
-    print(r2.name)  # Output: ['t', 's', 's', 's', 't',
-    #             'tdg', 'tdg', 'sdg', 'sdg', 'sdg',
-    #             't', 's', 's', 's', 't',
-    #             'tdg', 'tdg', 'sdg', 'sdg', 'sdg',
-    #             's', 'h', 's']
+#     r2 = solovay_kitaev(target_matrix_U, BasisSet.CLIFFORD_T, depth=2)
+#     print(r2.name)  # Output: ['t', 's', 's', 's', 't',
+#     #             'tdg', 'tdg', 'sdg', 'sdg', 'sdg',
+#     #             't', 's', 's', 's', 't',
+#     #             'tdg', 'tdg', 'sdg', 'sdg', 'sdg',
+#     #             's', 'h', 's']
 
-    print(np.allclose(r0.matrix, r1.matrix))  # Output: True
-    print(np.allclose(r1.matrix, r2.matrix))  # Output: True
-    print(np.allclose(r2.matrix, r0.matrix))  # Output: True
+#     print(np.allclose(r0.matrix, r1.matrix))  # Output: True
+#     print(np.allclose(r1.matrix, r2.matrix))  # Output: True
+#     print(np.allclose(r2.matrix, r0.matrix))  # Output: True
+
+if __name__ == '__main__':
+    U = np.array([[-0.8987577 +0.j, -0.31607208+0.30386352j],[-0.14188982-0.41485163j,  0.79903828+0.41146473j]])
+    r0 = solovay_kitaev(U, BasisSet.CLIFFORD_T, depth=2)
+    print("----------------")
+    print(r0.distance(SU2Matrix(U, [])))
+    print(r0.matrix)
+    # print(r0.name)
