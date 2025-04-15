@@ -19,9 +19,19 @@ Module with utility functions for QASM visitor
 from typing import Any, Optional
 
 import numpy as np
-from openqasm3.ast import ArrayType, ClassicalDeclaration, FloatType
+from openqasm3.ast import (
+    ArrayType,
+    ClassicalDeclaration,
+    FloatType,
+)
 from openqasm3.ast import IntType as Qasm3IntType
-from openqasm3.ast import QuantumGate, QuantumGateDefinition, ReturnStatement, SubroutineDefinition
+from openqasm3.ast import (
+    QASMNode,
+    QuantumGate,
+    QuantumGateDefinition,
+    ReturnStatement,
+    SubroutineDefinition,
+)
 
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
@@ -32,7 +42,9 @@ class Qasm3Validator:
     """Class with validation functions for QASM visitor"""
 
     @staticmethod
-    def validate_register_index(index: Optional[int], size: int, qubit: bool = False) -> None:
+    def validate_register_index(
+        index: Optional[int], size: int, qubit: bool = False, op_node: Optional[Any] = None
+    ) -> None:
         """Validate the index for a register.
 
         Args:
@@ -44,11 +56,13 @@ class Qasm3Validator:
             ValidationError: If the index is out of range.
         """
         if index is None or 0 <= index < size:
-            return None
+            return
 
-        raise ValidationError(
-            f"Index {index} out of range for register of size {size} in "
-            f"{'qubit' if qubit else 'clbit'}"
+        raise_qasm3_error(
+            message=f"Index {index} out of range for register of size {size} in "
+            f"{'qubit' if qubit else 'clbit'}",
+            error_node=op_node,
+            span=op_node.span if op_node else None,
         )
 
     @staticmethod
@@ -98,7 +112,9 @@ class Qasm3Validator:
         return isinstance(variable.base_type, reqd_type)
 
     @staticmethod
-    def validate_variable_assignment_value(variable: Variable, value) -> Any:
+    def validate_variable_assignment_value(
+        variable: Variable, value, op_node: Optional[QASMNode] = None
+    ) -> Any:
         """Validate the assignment of a value to a variable.
 
         Args:
@@ -142,6 +158,8 @@ class Qasm3Validator:
                 raise_qasm3_error(
                     f"Value {value} out of limits for variable '{variable.name}' with "
                     f"base size {base_size}",
+                    error_node=op_node,
+                    span=op_node.span if op_node else None,
                 )
 
         elif type_to_match == float:
@@ -156,12 +174,17 @@ class Qasm3Validator:
                 raise_qasm3_error(
                     f"Value {value} out of limits for variable '{variable.name}' with "
                     f"base size {base_size}",
+                    error_node=op_node,
+                    span=op_node.span if op_node else None,
                 )
         elif type_to_match == bool:
             pass
         else:
             raise_qasm3_error(
-                f"Invalid type {type_to_match} for variable '{variable.name}'", TypeError
+                f"Invalid type {type_to_match} for variable '{variable.name}'",
+                TypeError,
+                error_node=op_node,
+                span=op_node.span if op_node else None,
             )
 
         return type_casted_value
@@ -304,6 +327,7 @@ class Qasm3Validator:
                     None,
                 ),
                 return_value,
+                op_node=return_statement,
             )
 
     @staticmethod

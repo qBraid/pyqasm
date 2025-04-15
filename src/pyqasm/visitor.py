@@ -418,7 +418,7 @@ class QasmVisitor:
                 else:
                     bit_id = Qasm3ExprEvaluator.evaluate_expression(bit.indices[0][0])[0]
                     Qasm3Validator.validate_register_index(
-                        bit_id, reg_size_map[reg_name], qubit=qubits
+                        bit_id, reg_size_map[reg_name], qubit=qubits, op_node=operation
                     )
                     bit_ids = [bit_id]
             else:
@@ -1211,7 +1211,9 @@ class QasmVisitor:
             )
         if self._check_in_scope(var_name):
             raise_qasm3_error(
-                f"Re-declaration of variable {var_name}", error_node=statement, span=statement.span
+                f"Re-declaration of variable '{var_name}'",
+                error_node=statement,
+                span=statement.span,
             )
         init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
             statement.init_expression, const_expr=True
@@ -1238,7 +1240,9 @@ class QasmVisitor:
         variable = Variable(var_name, base_type, base_size, [], init_value, is_constant=True)
 
         # cast + validation
-        variable.value = Qasm3Validator.validate_variable_assignment_value(variable, init_value)
+        variable.value = Qasm3Validator.validate_variable_assignment_value(
+            variable, init_value, op_node=statement
+        )
 
         self._add_var_in_scope(variable)
 
@@ -1276,7 +1280,7 @@ class QasmVisitor:
                 pass
             else:
                 raise_qasm3_error(
-                    f"Re-declaration of variable {var_name}",
+                    f"Re-declaration of variable '{var_name}'",
                     error_node=statement,
                     span=statement.span,
                 )
@@ -1366,7 +1370,7 @@ class QasmVisitor:
                 Qasm3Validator.validate_array_assignment_values(variable, variable.dims, init_value)
             else:
                 variable.value = Qasm3Validator.validate_variable_assignment_value(
-                    variable, init_value
+                    variable, init_value, op_node=statement
                 )
         self._add_var_in_scope(variable)
 
@@ -1446,7 +1450,7 @@ class QasmVisitor:
         if not isinstance(rvalue_raw, np.ndarray):
             # rhs is a scalar
             rvalue_eval = Qasm3Validator.validate_variable_assignment_value(
-                lvar, rvalue_raw  # type: ignore[arg-type]
+                lvar, rvalue_raw, op_node=statement  # type: ignore[arg-type]
             )
         else:  # rhs is a list
             rvalue_dimensions = list(rvalue_raw.shape)
@@ -1560,7 +1564,7 @@ class QasmVisitor:
             if reg_idx is not None:
                 # single bit branch
                 Qasm3Validator.validate_register_index(
-                    reg_idx, self._global_creg_size_map[reg_name], qubit=False
+                    reg_idx, self._global_creg_size_map[reg_name], qubit=False, op_node=condition
                 )
 
                 new_if_block = qasm3_ast.BranchingStatement(
@@ -1789,7 +1793,7 @@ class QasmVisitor:
                         duplicate_qubit_detect_map,
                         qubit_transform_map,
                         fn_name,
-                        statement.span,
+                        statement,
                     )
                 )
 
@@ -1906,7 +1910,10 @@ class QasmVisitor:
                 qids = Qasm3Transformer.extract_values_from_discrete_set(value.index)
                 for i, qid in enumerate(qids):
                     Qasm3Validator.validate_register_index(
-                        qid, self._global_qreg_size_map[aliased_reg_name], qubit=True
+                        qid,
+                        self._global_qreg_size_map[aliased_reg_name],
+                        qubit=True,
+                        op_node=statement,
                     )
                     self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, qid)
                 alias_reg_size = len(qids)
@@ -1921,7 +1928,7 @@ class QasmVisitor:
             elif isinstance(value.index[0], qasm3_ast.IntegerLiteral):  # "let alias = q[0];"
                 qid = value.index[0].value
                 Qasm3Validator.validate_register_index(
-                    qid, self._global_qreg_size_map[aliased_reg_name], qubit=True
+                    qid, self._global_qreg_size_map[aliased_reg_name], qubit=True, op_node=statement
                 )
                 self._alias_qubit_labels[(alias_reg_name, 0)] = (
                     aliased_reg_name,

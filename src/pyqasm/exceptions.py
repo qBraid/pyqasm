@@ -84,7 +84,13 @@ def raise_qasm3_error(
 
     if error_node:
         try:
-            error_parts.append("\n >>>>>> " + dumps(error_node, indent="    "))
+            if isinstance(error_node, QASMNode):
+                error_parts.append("\n >>>>>> " + dumps(error_node, indent="    ") + "\n")
+            elif isinstance(error_node, list):
+                error_parts.append(
+                    "\n >>>>>> "
+                    + " , ".join(dumps(node, indent="    ") for node in error_node + "\n")
+                )
         except Exception as _:  # pylint: disable = broad-exception-caught
             error_parts.append("\n >>>>>> " + str(error_node))
 

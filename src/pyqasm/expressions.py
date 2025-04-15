@@ -186,7 +186,7 @@ class Qasm3ExprEvaluator:
 
         if isinstance(expression, (ImaginaryLiteral, DurationLiteral)):
             raise_qasm3_error(
-                f"Unsupported expression type {type(expression)}",
+                f"Unsupported expression type '{type(expression)}'",
                 err_type=ValidationError,
                 error_node=expression,
                 span=expression.span,

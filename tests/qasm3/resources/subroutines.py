@@ -55,7 +55,7 @@ SUBROUTINE_INCORRECT_TESTS = {
         qubit q;
         my_function(q);
         """,
-        "Re-declaration of variable q",
+        "Re-declaration of variable 'q'",
     ),
     "incorrect_param_count_1": (
         """

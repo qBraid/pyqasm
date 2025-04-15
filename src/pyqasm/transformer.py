@@ -111,7 +111,8 @@ class Qasm3Transformer:
         for value in discrete_set.values:
             if not isinstance(value, IntegerLiteral):
                 raise_qasm3_error(
-                    f"Unsupported discrete set value '{value}' in discrete set",
+                    f"Unsupported value '{Qasm3ExprEvaluator.evaluate_expression(value)[0]}' "
+                    "in discrete set",
                     error_node=discrete_set,
                     span=discrete_set.span,
                 )
@@ -145,8 +146,12 @@ class Qasm3Transformer:
             if range_def.step is None
             else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
         )
-        Qasm3Validator.validate_register_index(start_qid, qreg_size, qubit=is_qubit_reg)
-        Qasm3Validator.validate_register_index(end_qid - 1, qreg_size, qubit=is_qubit_reg)
+        Qasm3Validator.validate_register_index(
+            start_qid, qreg_size, qubit=is_qubit_reg, op_node=range_def
+        )
+        Qasm3Validator.validate_register_index(
+            end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=range_def
+        )
         return list(range(start_qid, end_qid, step))
 
     @staticmethod
@@ -390,13 +395,13 @@ class Qasm3Transformer:
                 target_qids = Qasm3Transformer.extract_values_from_discrete_set(target.index)
                 for qid in target_qids:
                     Qasm3Validator.validate_register_index(
-                        qid, qreg_size_map[target_name], qubit=True
+                        qid, qreg_size_map[target_name], qubit=True, op_node=target
                     )
                 target_qubits_size = len(target_qids)
             elif isinstance(target.index[0], (IntegerLiteral, Identifier)):  # "(q[0]); OR (q[i]);"
                 target_qids = [Qasm3ExprEvaluator.evaluate_expression(target.index[0])[0]]
                 Qasm3Validator.validate_register_index(
-                    target_qids[0], qreg_size_map[target_name], qubit=True
+                    target_qids[0], qreg_size_map[target_name], qubit=True, op_node=target
                 )
                 target_qubits_size = 1
             elif isinstance(target.index[0], RangeDefinition):  # "(q[0:1:2]);"

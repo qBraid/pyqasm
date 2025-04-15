@@ -42,7 +42,7 @@ DECLARATION_TESTS = {
         float y = 3.4;
         uint x;
         """,
-        "Re-declaration of variable x",
+        "Re-declaration of variable 'x'",
     ),
     "variable_redeclaration_with_qubits_1": (
         """
@@ -60,7 +60,7 @@ DECLARATION_TESTS = {
         qubit x;
         int x;
         """,
-        "Re-declaration of variable x",
+        "Re-declaration of variable 'x'",
     ),
     "const_variable_redeclaration": (
         """
@@ -69,7 +69,7 @@ DECLARATION_TESTS = {
         const int x = 3;
         const float x = 3.4;
         """,
-        "Re-declaration of variable x",
+        "Re-declaration of variable 'x'",
     ),
     "invalid_int_size": (
         """
