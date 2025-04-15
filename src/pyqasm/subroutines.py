@@ -381,7 +381,7 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 f"Expecting qubit argument for '{formal_reg_name}'. "
                 f"{arg_desc}found for function '{fn_name}'\n"
-                f"Usage: {fn_name} ( {formal_args_desc} )\n",
+                f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
                 error_node=fn_call,
                 span=fn_call.span,
             )
@@ -395,9 +395,9 @@ class Qasm3SubroutineProcessor:
             formal_args_desc = " , ".join(dumps(arg, indent="    ") for arg in fn_defn.arguments)
             raise_qasm3_error(
                 f"Qubit register size mismatch for function '{fn_name}'. "
-                f"Expected {formal_qubit_size} in variable '{formal_reg_name}' "
+                f"Expected {formal_qubit_size} qubits in variable '{formal_reg_name}' "
                 f"but got {actual_qubits_size}\n"
-                f"Usage: {fn_name} ( {formal_args_desc} )\n",
+                f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
                 error_node=fn_call,
                 span=fn_call.span,
             )

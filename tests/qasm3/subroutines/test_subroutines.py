@@ -365,7 +365,7 @@ def test_qubit_size_arg_mismatch(qubit_params):
     with pytest.raises(
         ValidationError,
         match="Qubit register size mismatch for function 'my_function'. "
-        "Expected 3 in variable 'q' but got 2",
+        "Expected 3 qubits in variable 'q' but got 2",
     ):
         loads(qasm_str).validate()
 

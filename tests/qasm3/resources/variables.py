@@ -121,7 +121,7 @@ DECLARATION_TESTS = {
 
         angle x = 3.4;
         """,
-        "Invalid type <class 'openqasm3.ast.AngleType'> for variable 'x'",
+        "Invalid type '<class 'openqasm3.ast.AngleType'>' for variable 'x'",
     ),
     "imaginary_variable": (
         """

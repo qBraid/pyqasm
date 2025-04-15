@@ -1,23 +1,19 @@
-# Copyright 2025 qBraid
+# Copyright (C) 2025 qBraid
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# This file is part of PyQASM
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# PyQASM is free software released under the GNU General Public License v3
+# or later. You can redistribute and/or modify it under the terms of the GPL v3.
+# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
 
 """
 Module mapping supported QASM expressions to lower level gate operations.
 
 """
 
-from typing import Callable
+from typing import Callable, Union
 
 import numpy as np
 from openqasm3.ast import AngleType, BitType, BoolType, ComplexType, FloatType, IntType, UintType
@@ -25,10 +21,10 @@ from openqasm3.ast import AngleType, BitType, BoolType, ComplexType, FloatType, 
 from pyqasm.exceptions import ValidationError
 
 # Define the type for the operator functions
-OperatorFunction = (
-    Callable[[int | float | bool], int | float | bool]
-    | Callable[[int | float | bool, int | float | bool], int | float | bool]
-)
+OperatorFunction = Union[
+    Callable[[Union[int, float, bool]], Union[int, float, bool]],
+    Callable[[Union[int, float, bool], Union[int, float, bool]], Union[int, float, bool]],
+]
 
 
 OPERATOR_MAP: dict[str, OperatorFunction] = {
@@ -56,18 +52,18 @@ OPERATOR_MAP: dict[str, OperatorFunction] = {
 }
 
 
-def qasm3_expression_op_map(op_name: str, *args) -> float | int | bool:
+def qasm3_expression_op_map(op_name: str, *args) -> Union[float, int, bool]:
     """
     Return the result of applying the given operator to the given operands.
 
     Args:
         op_name (str): The operator name.
-        *args: The operands of type int | float | bool
+        *args: The operands of type Union[int, float, bool]
                 1. For unary operators, a single operand (e.g., ~3)
                 2. For binary operators, two operands (e.g., 3 + 2)
 
     Returns:
-        (float | int | bool): The result of applying the operator to the operands.
+        (Union[float, int, bool]): The result of applying the operator to the operands.
     """
     try:
         operator = OPERATOR_MAP[op_name]

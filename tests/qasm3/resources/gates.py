@@ -353,7 +353,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         custom_gate(0.5) q1;  // parameter count mismatch
         """,
-        "Parameter count mismatch for gate 'custom_gate': expected 2 arguments, but got 1 instead.",
+        "Parameter count mismatch for gate 'custom_gate'. Expected 2 arguments, but got 1 instead.",
     ),
     "parameter_mismatch_2": (
         """
@@ -382,7 +382,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[3] q1;
         custom_gate(0.5, 0.5) q1;  // qubit count mismatch
         """,
-        "Qubit count mismatch for gate 'custom_gate': expected 2 qubits, but got 3 instead.",
+        "Qubit count mismatch for gate 'custom_gate'. Expected 2 qubits, but got 3 instead.",
     ),
     "indexing_not_supported": (
         """

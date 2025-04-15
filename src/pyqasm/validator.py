@@ -134,9 +134,13 @@ class Qasm3Validator:
         try:
             type_to_match = VARIABLE_TYPE_MAP[qasm_type]
         except KeyError as err:
-            raise ValidationError(
-                f"Invalid type {qasm_type} for variable '{variable.name}'"
-            ) from err
+            raise_qasm3_error(
+                f"Invalid type '{qasm_type}' for variable '{variable.name}'",
+                err_type=ValidationError,
+                raised_from=err,
+                error_node=op_node,
+                span=op_node.span if op_node else None,
+            )
 
         # For each type we will have a "castable" type set and its corresponding cast operation
         type_casted_value = qasm_variable_type_cast(qasm_type, variable.name, base_size, value)
@@ -262,8 +266,8 @@ class Qasm3Validator:
         if op_num_args != gate_def_num_args:
             s = "" if gate_def_num_args == 1 else "s"
             raise_qasm3_error(
-                f"Parameter count mismatch for gate '{operation.name.name}': "
-                f"expected {gate_def_num_args} argument{s}, but got {op_num_args} instead.",
+                f"Parameter count mismatch for gate '{operation.name.name}'. "
+                f"Expected {gate_def_num_args} argument{s}, but got {op_num_args} instead.",
                 error_node=operation,
                 span=operation.span,
             )
@@ -272,8 +276,8 @@ class Qasm3Validator:
         if qubits_in_op != gate_def_num_qubits:
             s = "" if gate_def_num_qubits == 1 else "s"
             raise_qasm3_error(
-                f"Qubit count mismatch for gate '{operation.name.name}': "
-                f"expected {gate_def_num_qubits} qubit{s}, but got {qubits_in_op} instead.",
+                f"Qubit count mismatch for gate '{operation.name.name}'. "
+                f"Expected {gate_def_num_qubits} qubit{s}, but got {qubits_in_op} instead.",
                 error_node=operation,
                 span=operation.span,
             )

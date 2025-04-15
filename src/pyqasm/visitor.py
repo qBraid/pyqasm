@@ -1650,6 +1650,7 @@ class QasmVisitor:
 
     def _visit_forin_loop(self, statement: qasm3_ast.ForInLoop) -> list[qasm3_ast.Statement]:
         # Compute loop variable values
+        irange = []
         if isinstance(statement.set_declaration, qasm3_ast.RangeDefinition):
             init_exp = statement.set_declaration.start
             startval = Qasm3ExprEvaluator.evaluate_expression(init_exp)[0]
@@ -1668,8 +1669,10 @@ class QasmVisitor:
                 for exp in statement.set_declaration.values
             ]
         else:
-            raise ValidationError(
-                f"Unexpected type {type(statement.set_declaration)} of set_declaration in loop."
+            raise_qasm3_error(
+                f"Unexpected type {type(statement.set_declaration)} of set_declaration in loop.",
+                error_node=statement,
+                span=statement.span,
             )
 
         i: Optional[Variable]  # will store iteration Variable to update to loop scope
