@@ -97,7 +97,7 @@ def raise_qasm3_error(
     if error_parts:
         logger.error("\n".join(error_parts))
 
-    if os.environ.get("PYQASM_EXPAND_TRACEBACK") == "0":
+    if os.environ.get("PYQASM_EXPAND_TRACEBACK") == "false":
         sys.tracebacklimit = 0  # Disable traceback for cleaner output
 
     # Extract the latest message from the traceback if raised_from is provided
