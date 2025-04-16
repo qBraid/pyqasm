@@ -74,18 +74,41 @@ def test_bit_in_expression():
     check_measure_op(result.unrolled_ast, 1, meas_pairs)
 
 
-def test_incorrect_expressions():
+def test_incorrect_expressions(caplog):
     with pytest.raises(ValidationError, match=r"Unsupported expression type .*"):
-        loads("OPENQASM 3; qubit q; rz(1 - 2 + 32im) q;").validate()
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; rz(1 - 2 + 32im) q;").validate()
+    assert "Error at line 1, column 32" in caplog.text
+    assert "32.0im" in caplog.text
+
+    caplog.clear()
 
     with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
-        loads("OPENQASM 3; qubit q; rx(~1.3) q;").validate()
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; rx(~1.3) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "~1.3" in caplog.text
+
+    caplog.clear()
 
     with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
-        loads("OPENQASM 3; qubit q; rx(~1.3+5im) q;").validate()
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; rx(~1.3+5im) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "~1.3" in caplog.text
+
+    caplog.clear()
 
     with pytest.raises(ValidationError, match="Undefined identifier 'x' in expression"):
-        loads("OPENQASM 3; qubit q; rx(x) q;").validate()
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; rx(x) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "x" in caplog.text
+
+    caplog.clear()
 
     with pytest.raises(ValidationError, match="Uninitialized variable 'x' in expression"):
-        loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "x" in caplog.text

@@ -34,6 +34,7 @@ from openqasm3.ast import (
 )
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
+    QASMNode,
     QuantumBarrier,
     QuantumGate,
     QuantumPhase,
@@ -98,7 +99,9 @@ class Qasm3Transformer:
         multi_dim_arr[slicing] = value
 
     @staticmethod
-    def extract_values_from_discrete_set(discrete_set: DiscreteSet) -> list[int]:
+    def extract_values_from_discrete_set(
+        discrete_set: DiscreteSet, op_node: Optional[QASMNode] = None
+    ) -> list[int]:
         """Extract the values from a discrete set.
 
         Args:
@@ -113,21 +116,25 @@ class Qasm3Transformer:
                 raise_qasm3_error(
                     f"Unsupported value '{Qasm3ExprEvaluator.evaluate_expression(value)[0]}' "
                     "in discrete set",
-                    error_node=discrete_set,
-                    span=discrete_set.span,
+                    error_node=op_node if op_node else discrete_set,
+                    span=op_node.span if op_node else discrete_set.span,
                 )
             values.append(value.value)
         return values
 
     @staticmethod
     def get_qubits_from_range_definition(
-        range_def: RangeDefinition, qreg_size: int, is_qubit_reg: bool
+        range_def: RangeDefinition,
+        qreg_size: int,
+        is_qubit_reg: bool,
+        op_node: Optional[QASMNode] = None,
     ) -> list[int]:
         """Get the qubits from a range definition.
         Args:
             range_def (RangeDefinition): The range definition to get qubits from.
             qreg_size (int): The size of the register.
             is_qubit_reg (bool): Whether the register is a qubit register.
+            op_node (Optional[QASMNode]): The operation node.
         Returns:
             list[int]: The list of qubit identifiers.
         """
@@ -147,10 +154,10 @@ class Qasm3Transformer:
             else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
         )
         Qasm3Validator.validate_register_index(
-            start_qid, qreg_size, qubit=is_qubit_reg, op_node=range_def
+            start_qid, qreg_size, qubit=is_qubit_reg, op_node=op_node
         )
         Qasm3Validator.validate_register_index(
-            end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=range_def
+            end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=op_node
         )
         return list(range(start_qid, end_qid, step))
 

@@ -79,47 +79,56 @@ def test_sizeof_multiple_types():
     check_single_qubit_rotation_op(result.unrolled_ast, 2, [1, 1], [2, 3], "rx")
 
 
-def test_unsupported_target():
+def test_unsupported_target(caplog):
     """Test sizeof over index expressions"""
     with pytest.raises(ValidationError, match=r"Unsupported target type .*"):
-        qasm3_string = """
-        OPENQASM 3;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_string = """
+            OPENQASM 3;
+            include "stdgates.inc";
 
-        array[int[32], 3, 2] my_ints;
+            array[int[32], 3, 2] my_ints;
 
-        int[32] size1 = sizeof(my_ints[0]); // this is invalid
-        """
-        loads(qasm3_string).validate()
+            int[32] size1 = sizeof(my_ints[0]); // this is invalid
+            """
+            loads(qasm3_string).validate()
+    assert "Error at line 7, column 28" in caplog.text
+    assert "sizeof(my_ints[0])" in caplog.text
 
 
-def test_sizeof_on_non_array():
+def test_sizeof_on_non_array(caplog):
     """Test sizeof on a non-array"""
     with pytest.raises(
         ValidationError, match="Invalid sizeof usage, variable 'my_int' is not an array."
     ):
-        qasm3_string = """
-        OPENQASM 3;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_string = """
+            OPENQASM 3;
+            include "stdgates.inc";
 
-        int[32] my_int = 3;
+            int[32] my_int = 3;
 
-        int[32] size1 = sizeof(my_int); // this is invalid
-        """
-        loads(qasm3_string).validate()
+            int[32] size1 = sizeof(my_int); // this is invalid
+            """
+            loads(qasm3_string).validate()
+    assert "Error at line 7, column 28" in caplog.text
+    assert "sizeof(my_int)" in caplog.text
 
 
-def test_out_of_bounds_reference():
+def test_out_of_bounds_reference(caplog):
     """Test sizeof on an out of bounds reference"""
     with pytest.raises(
         ValidationError, match="Index 3 out of bounds for array 'my_ints' with 2 dimensions"
     ):
-        qasm3_string = """
-        OPENQASM 3;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_string = """
+            OPENQASM 3;
+            include "stdgates.inc";
 
-        array[int[32], 3, 2] my_ints;
+            array[int[32], 3, 2] my_ints;
 
-        int[32] size1 = sizeof(my_ints, 3); // this is invalid
-        """
-        loads(qasm3_string).validate()
+            int[32] size1 = sizeof(my_ints, 3); // this is invalid
+            """
+            loads(qasm3_string).validate()
+    assert "Error at line 7, column 28" in caplog.text
+    assert "sizeof(my_ints, 3)" in caplog.text

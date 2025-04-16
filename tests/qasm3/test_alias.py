@@ -119,7 +119,7 @@ def test_valid_alias_redefinition():
     check_single_qubit_gate_op(result.unrolled_ast, 1, [2], "x")
 
 
-def test_alias_wrong_indexing():
+def test_alias_wrong_indexing(caplog):
     """Test converting OpenQASM 3 program with wrong alias indexing."""
     with pytest.raises(
         ValidationError,
@@ -128,90 +128,110 @@ def test_alias_wrong_indexing():
             "a comma-separated list of integers contained in braces {a,b,c,…}, or a range"
         ),
     ):
-        qasm3_alias_program = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_alias_program = """
+            OPENQASM 3.0;
+            include "stdgates.inc";
 
-        qubit[5] q;
+            qubit[5] q;
 
-        let myqreg = q[1,2];
+            let myqreg = q[1,2];
 
-        x myqreg[0];
-        """
-        loads(qasm3_alias_program).validate()
+            x myqreg[0];
+            """
+            loads(qasm3_alias_program).validate()
+
+    assert "Error at line 7, column 12" in caplog.text
+    assert "let myqreg = q[1, 2];" in caplog.text
 
 
-def test_alias_invalid_discrete_indexing():
+def test_alias_invalid_discrete_indexing(caplog):
     """Test converting OpenQASM 3 program with invalid alias discrete indexing."""
     with pytest.raises(
         ValidationError,
         match=r"Unsupported value .*",
     ):
-        qasm3_alias_program = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_alias_program = """
+            OPENQASM 3.0;
+            include "stdgates.inc";
 
-        qubit[5] q;
+            qubit[5] q;
 
-        let myqreg = q[{0.1}];
+            let myqreg = q[{0.1}];
 
-        x myqreg[0];
-        """
-        loads(qasm3_alias_program).validate()
+            x myqreg[0];
+            """
+            loads(qasm3_alias_program).validate()
+
+    assert "Error at line 7, column 12" in caplog.text
+    assert "let myqreg = q[{0.1}];" in caplog.text
 
 
-def test_invalid_alias_redefinition():
+def test_invalid_alias_redefinition(caplog):
     """Test converting OpenQASM 3 program with redefined alias."""
     with pytest.raises(
         ValidationError,
         match=re.escape(r"Re-declaration of variable 'alias'"),
     ):
-        qasm3_alias_program = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_alias_program = """
+            OPENQASM 3.0;
+            include "stdgates.inc";
 
-        qubit[5] q;
-        float[32] alias = 4.2;
+            qubit[5] q;
+            float[32] alias = 4.2;
 
-        let alias = q[2];
+            let alias = q[2];
 
-        x alias;
-        """
-        loads(qasm3_alias_program).validate()
+            x alias;
+            """
+            loads(qasm3_alias_program).validate()
+
+    assert "Error at line 8, column 12" in caplog.text
+    assert "let alias = q[2];" in caplog.text
 
 
-def test_alias_defined_before():
+def test_alias_defined_before(caplog):
     """Test converting OpenQASM 3 program with alias defined before the qubit register."""
     with pytest.raises(
         ValidationError,
         match=re.escape(r"Qubit register q2 not found for aliasing"),
     ):
-        qasm3_alias_program = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_alias_program = """
+            OPENQASM 3.0;
+            include "stdgates.inc";
 
-        qubit[5] q1;
+            qubit[5] q1;
 
-        let myqreg = q2[1];
-        """
-        loads(qasm3_alias_program).validate()
+            let myqreg = q2[1];
+            """
+            loads(qasm3_alias_program).validate()
+
+    assert "Error at line 7, column 12" in caplog.text
+    assert "let myqreg = q2[1];" in caplog.text
 
 
-def test_unsupported_alias():
+def test_unsupported_alias(caplog):
     """Test converting OpenQASM 3 program with unsupported alias."""
     with pytest.raises(
         ValidationError,
         match=r"Unsupported aliasing .*",
     ):
-        qasm3_alias_program = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            qasm3_alias_program = """
+            OPENQASM 3.0;
+            include "stdgates.inc";
 
-        qubit[5] q;
+            qubit[5] q;
 
-        let myqreg = q[0] ++ q[1];
-        """
-        loads(qasm3_alias_program).validate()
+            let myqreg = q[0] ++ q[1];
+            """
+            loads(qasm3_alias_program).validate()
+
+    assert "Error at line 7, column 12" in caplog.text
+    assert "let myqreg = q[0] ++ q[1];" in caplog.text
 
 
 # def test_alias_in_scope_1():
@@ -279,32 +299,36 @@ def test_unsupported_alias():
 #     compare_reference_ir(result.bitcode, simple_file)
 
 
-def test_alias_out_of_scope():
+def test_alias_out_of_scope(caplog):
     """Test converting OpenQASM 3 program with alias out of scope."""
     with pytest.raises(
         ValidationError,
         match="Variable 'alias' not in scope for QuantumGate 'cx'",
     ):
-        qasm3_alias_program = """
-        OPENQASM 3;
-        include "stdgates.inc";
-        qubit[4] q;
-        bit[4] c;
+        with caplog.at_level("ERROR"):
+            qasm3_alias_program = """
+            OPENQASM 3;
+            include "stdgates.inc";
+            qubit[4] q;
+            bit[4] c;
 
-        h q;
-        measure q -> c;
-        if(c[0]){
-            let alias = q[0:2];
-            x alias[0];
-            cx alias[0], alias[1];
-        }
+            h q;
+            measure q -> c;
+            if(c[0]){
+                let alias = q[0:2];
+                x alias[0];
+                cx alias[0], alias[1];
+            }
 
-        if(c[1] == 1){
-            cx alias[1], q[2];
-        }
+            if(c[1] == 1){
+                cx alias[1], q[2];
+            }
 
-        if(!c[2]){
-            h q[2];
-        }
-        """
-        loads(qasm3_alias_program).validate()
+            if(!c[2]){
+                h q[2];
+            }
+            """
+            loads(qasm3_alias_program).validate()
+
+    assert "Error at line 16, column 16" in caplog.text
+    assert "cx alias[1], q[2];" in caplog.text

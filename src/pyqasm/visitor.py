@@ -410,10 +410,15 @@ class QasmVisitor:
 
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
                 if isinstance(bit.indices[0], qasm3_ast.DiscreteSet):
-                    bit_ids = Qasm3Transformer.extract_values_from_discrete_set(bit.indices[0])
+                    bit_ids = Qasm3Transformer.extract_values_from_discrete_set(
+                        bit.indices[0], operation
+                    )
                 elif isinstance(bit.indices[0][0], qasm3_ast.RangeDefinition):
                     bit_ids = Qasm3Transformer.get_qubits_from_range_definition(
-                        bit.indices[0][0], reg_size_map[reg_name], is_qubit_reg=qubits
+                        bit.indices[0][0],
+                        reg_size_map[reg_name],
+                        is_qubit_reg=qubits,
+                        op_node=operation,
                     )
                 else:
                     bit_id = Qasm3ExprEvaluator.evaluate_expression(bit.indices[0][0])[0]
@@ -1910,7 +1915,7 @@ class QasmVisitor:
             alias_reg_size = aliased_reg_size
         elif isinstance(value, qasm3_ast.IndexExpression):
             if isinstance(value.index, qasm3_ast.DiscreteSet):  # "let alias = q[{0,1}];"
-                qids = Qasm3Transformer.extract_values_from_discrete_set(value.index)
+                qids = Qasm3Transformer.extract_values_from_discrete_set(value.index, statement)
                 for i, qid in enumerate(qids):
                     Qasm3Validator.validate_register_index(
                         qid,
