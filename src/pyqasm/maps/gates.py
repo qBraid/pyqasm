@@ -23,10 +23,16 @@ Module mapping supported QASM gates to lower level gate operations.
 from typing import Callable
 
 import numpy as np
-from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
+from openqasm3.ast import (
+    FloatLiteral,
+    Identifier,
+    IndexedIdentifier,
+    QuantumGate,
+    QuantumPhase,
+)
 
 from pyqasm.elements import BasisSet, InversionOp
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
@@ -1168,12 +1174,13 @@ def map_qasm_op_num_params(op_name: str) -> int:
     return 0
 
 
-def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
+# pylint: disable-next=inconsistent-return-statements
+def map_qasm_op_to_callable(op_node: QuantumGate) -> tuple[Callable, int]:  # type: ignore[return]
     """
     Map a QASM operation to a callable.
 
     Args:
-        op_name (str): The QASM operation name.
+        op_node (QuantumGate): The QASM operation.
 
     Returns:
         tuple: A tuple containing the callable and the number of qubits the operation acts on.
@@ -1181,6 +1188,8 @@ def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
     Raises:
         ValidationError: If the QASM operation is unsupported or undeclared.
     """
+    op_name = op_node.name.name
+
     op_maps: list[tuple[dict, int]] = [
         (ONE_QUBIT_OP_MAP, 1),
         (ONE_QUBIT_ROTATION_MAP, 1),
@@ -1196,7 +1205,9 @@ def map_qasm_op_to_callable(op_name: str) -> tuple[Callable, int]:
         except KeyError:
             continue
 
-    raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
+    raise_qasm3_error(
+        f"Unsupported / undeclared QASM operation: {op_name}", error_node=op_node, span=op_node.span
+    )
 
 
 SELF_INVERTING_ONE_QUBIT_OP_SET = {"id", "h", "x", "y", "z"}

@@ -26,6 +26,7 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
+from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
@@ -642,8 +643,16 @@ class QasmVisitor:
         """
         param_list = []
         for param in operation.arguments:
-            param_value = Qasm3ExprEvaluator.evaluate_expression(param)[0]
-            param_list.append(param_value)
+            try:
+                param_value = Qasm3ExprEvaluator.evaluate_expression(param)[0]
+                param_list.append(param_value)
+            except ValidationError as err:
+                raise_qasm3_error(
+                    f"Invalid parameter '{dumps(param)}' for gate '{operation.name.name}'",
+                    error_node=operation,
+                    span=operation.span,
+                    raised_from=err,
+                )
 
         return param_list
 
@@ -788,7 +797,7 @@ class QasmVisitor:
                 )
                 op_qubit_count = op_qubit_total_count - len(ctrls)
             else:
-                qasm_func, op_qubit_count = map_qasm_op_to_callable(operation.name.name)
+                qasm_func, op_qubit_count = map_qasm_op_to_callable(operation)
         else:
             # in basic gates, inverse action only affects the rotation gates
             qasm_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_callable(
@@ -965,7 +974,7 @@ class QasmVisitor:
             # Ignore result, this is just for validation
             self._visit_basic_gate_operation(operation)
             # Don't need to check if basic gate exists, since we just validated the call
-            _, gate_qubit_count = map_qasm_op_to_callable(operation.name.name)
+            _, gate_qubit_count = map_qasm_op_to_callable(operation)
 
         op_parameters = [
             qasm3_ast.FloatLiteral(param) for param in self._get_op_parameters(operation)
