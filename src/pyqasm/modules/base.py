@@ -16,7 +16,6 @@
 Definition of the base Qasm module
 """
 
-import os
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Optional
@@ -505,12 +504,11 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         # 4. return the module
         return qasm_module
 
-    def validate(self, expand_traceback: Optional[bool] = False):
+    def validate(self):
         """Validate the module"""
         if self._validated_program is True:
             return
         try:
-            os.environ["PYQASM_EXPAND_TRACEBACK"] = "true" if expand_traceback else "false"
             self.num_qubits, self.num_clbits = 0, 0
             visitor = QasmVisitor(self, check_only=True)
             self.accept(visitor)
@@ -528,7 +526,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
                 check_only (bool): If True, only check the program without executing it.
                                    Defaults to False.
-                expand_traceback (bool): If True, expand the traceback for verbose error messages.
 
         Raises:
             ValidationError: If the module fails validation during unrolling.
@@ -541,10 +538,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         if not kwargs:
             kwargs = {}
         try:
-            os.environ["PYQASM_EXPAND_TRACEBACK"] = (
-                "true" if kwargs.pop("expand_traceback", False) else "false"
-            )
-
             self.num_qubits, self.num_clbits = 0, 0
             visitor = QasmVisitor(module=self, **kwargs)
             self.accept(visitor)
