@@ -17,7 +17,6 @@ Module defining base PyQASM exceptions.
 
 """
 
-import logging
 import os
 import sys
 from typing import Optional, Type
@@ -26,13 +25,7 @@ from openqasm3.ast import QASMNode, Span
 from openqasm3.parser import QASM3ParsingError
 from openqasm3.printer import dumps
 
-# Define a custom logger for the module
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s: %(message)s"))
-
-logger = logging.getLogger("pyqasm")
-logger.addHandler(handler)
-logger.setLevel(logging.WARNING)
+from ._logging import logger
 
 
 class PyQasmError(Exception):

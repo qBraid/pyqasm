@@ -45,6 +45,7 @@ from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
 
 logger = logging.getLogger(__name__)
+logger.propagate = False
 
 
 # pylint: disable-next=too-many-instance-attributes
