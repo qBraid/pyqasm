@@ -320,7 +320,7 @@ class Qasm3Validator:
             if return_value is None:
                 raise_qasm3_error(
                     f"Return type mismatch for subroutine '{subroutine_def.name.name}'."
-                    f" Expected {subroutine_def.return_type} but got void",
+                    f" Expected {type(subroutine_def.return_type)} but got void",
                     error_node=return_statement,
                     span=return_statement.span,
                 )

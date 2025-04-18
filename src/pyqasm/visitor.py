@@ -1865,7 +1865,7 @@ class QasmVisitor:
             if isinstance(formal_arg, qasm3_ast.ClassicalArgument):
                 classical_vars.append(
                     Qasm3SubroutineProcessor.process_classical_arg(
-                        formal_arg, actual_arg, fn_name, statement.span
+                        formal_arg, actual_arg, fn_name, statement
                     )
                 )
             else:

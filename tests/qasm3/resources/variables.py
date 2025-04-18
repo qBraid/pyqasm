@@ -291,7 +291,7 @@ ASSIGNMENT_TESTS = {
 
         int[32] x = 1<<64;
         """,
-        f"Invalid initialization value for variable 'x'",
+        "Invalid initialization value for variable 'x'",
         5,
         8,
         "int[32] x = 1 << 64;",

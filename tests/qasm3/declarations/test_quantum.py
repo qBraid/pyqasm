@@ -189,6 +189,7 @@ def test_qubit_clbit_declarations():
         ),
     ],
 )
+# pylint: disable-next=too-many-arguments
 def test_quantum_declarations_errors(qasm_code, error_message, line_num, col_num, err_line, caplog):
     """Test various error cases with qubit and bit declarations"""
     with pytest.raises(ValidationError, match=error_message):
