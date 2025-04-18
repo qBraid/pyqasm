@@ -277,13 +277,22 @@ class QasmVisitor:
         logger.debug("Visiting register '%s'", str(register))
 
         current_size = len(self._qubit_labels)
-        register_size = (
-            1
-            if register.size is None
-            else Qasm3ExprEvaluator.evaluate_expression(register.size, const_expr=True)[
-                0
-            ]  # type: ignore[attr-defined]
-        )
+        try:
+            register_size = (
+                1
+                if register.size is None
+                else Qasm3ExprEvaluator.evaluate_expression(register.size, const_expr=True)[
+                    0
+                ]  # type: ignore[attr-defined]
+            )
+        except ValidationError as err:
+            raise_qasm3_error(
+                f"Invalid size '{dumps(register.size)}' for quantum "  # type: ignore[arg-type]
+                f"register '{register.qubit.name}'",
+                error_node=register,
+                span=register.span,
+                raised_from=err,
+            )
         register.size = qasm3_ast.IntegerLiteral(register_size)
         register_name = register.qubit.name  # type: ignore[union-attr]
 
@@ -1230,9 +1239,18 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
-        init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-            statement.init_expression, const_expr=True
-        )
+        try:
+            init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
+                statement.init_expression, const_expr=True
+            )
+        except ValidationError as err:
+            raise_qasm3_error(
+                f"Invalid initialization value for constant '{var_name}'",
+                error_node=statement,
+                span=statement.span,
+                raised_from=err,
+            )
+
         statements.extend(stmts)
 
         base_type = statement.type
@@ -1242,14 +1260,20 @@ class QasmVisitor:
             if base_type.size is None:
                 base_size = 32  # default for now
             else:
-                base_size = Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[
-                    0
-                ]
-                if not isinstance(base_size, int) or base_size <= 0:
+                try:
+                    base_size = Qasm3ExprEvaluator.evaluate_expression(
+                        base_type.size, const_expr=True
+                    )[0]
+                    if not isinstance(base_size, int) or base_size <= 0:
+                        raise ValidationError(
+                            f"Invalid base size {base_size} for variable '{var_name}'"
+                        )
+                except ValidationError as err:
                     raise_qasm3_error(
-                        f"Invalid base size {base_size} for variable '{var_name}'",
+                        f"Invalid base size for constant '{var_name}'",
                         error_node=statement,
                         span=statement.span,
+                        raised_from=err,
                     )
 
         variable = Variable(var_name, base_type, base_size, [], init_value, is_constant=True)
@@ -1312,12 +1336,20 @@ class QasmVisitor:
         base_size = 1
         if not isinstance(base_type, qasm3_ast.BoolType):
             initial_size = 1 if isinstance(base_type, qasm3_ast.BitType) else 32
-            base_size = (
-                initial_size
-                if not hasattr(base_type, "size") or base_type.size is None
-                else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
-            )
-        Qasm3Validator.validate_classical_type(base_type, base_size, var_name, statement.span)
+            try:
+                base_size = (
+                    initial_size
+                    if not hasattr(base_type, "size") or base_type.size is None
+                    else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
+                )
+            except ValidationError as err:
+                raise_qasm3_error(
+                    f"Invalid base size for variable '{var_name}'",
+                    error_node=statement,
+                    span=statement.span,
+                    raised_from=err,
+                )
+        Qasm3Validator.validate_classical_type(base_type, base_size, var_name, statement)
 
         # initialize the bit register
         if isinstance(base_type, qasm3_ast.BitType):
@@ -1364,10 +1396,18 @@ class QasmVisitor:
                     qasm3_ast.QuantumMeasurementStatement(measurement, statement.identifier)
                 )  # type: ignore
             else:
-                init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                    statement.init_expression
-                )
-                statements.extend(stmts)
+                try:
+                    init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
+                        statement.init_expression
+                    )
+                    statements.extend(stmts)
+                except ValidationError as err:
+                    raise_qasm3_error(
+                        f"Invalid initialization value for variable '{var_name}'",
+                        error_node=statement,
+                        span=statement.span,
+                        raised_from=err,
+                    )
 
         variable = Variable(
             var_name,
@@ -1382,13 +1422,32 @@ class QasmVisitor:
         if statement.init_expression:
             if isinstance(init_value, np.ndarray):
                 assert variable.dims is not None
-                Qasm3Validator.validate_array_assignment_values(variable, variable.dims, init_value)
+                try:
+                    Qasm3Validator.validate_array_assignment_values(
+                        variable, variable.dims, init_value
+                    )
+                except ValidationError as err:
+                    raise_qasm3_error(
+                        f"Invalid initialization value for array '{var_name}'",
+                        error_node=statement,
+                        span=statement.span,
+                        raised_from=err,
+                    )
             else:
-                variable.value = Qasm3Validator.validate_variable_assignment_value(
-                    variable, init_value, op_node=statement
-                )
+                try:
+                    variable.value = Qasm3Validator.validate_variable_assignment_value(
+                        variable, init_value, op_node=statement
+                    )
+                except ValidationError as err:
+                    raise_qasm3_error(
+                        f"Invalid initialization value for variable '{var_name}'",
+                        error_node=statement,
+                        span=statement.span,
+                        raised_from=err,
+                    )
         self._add_var_in_scope(variable)
 
+        # special handling for bit[...]
         if isinstance(base_type, qasm3_ast.BitType):
             self._global_creg_size_map[var_name] = base_size
             current_classical_size = len(self._clbit_labels)
@@ -1492,10 +1551,17 @@ class QasmVisitor:
                 l_indices = lvalue.indices[0]
             else:
                 l_indices = [idx[0] for idx in lvalue.indices]  # type: ignore[assignment, index]
-
-            validated_l_indices = Qasm3Analyzer.analyze_classical_indices(
-                l_indices, lvar, Qasm3ExprEvaluator  # type: ignore[arg-type]
-            )
+            try:
+                validated_l_indices = Qasm3Analyzer.analyze_classical_indices(
+                    l_indices, lvar, Qasm3ExprEvaluator  # type: ignore[arg-type]
+                )
+            except ValidationError as err:
+                raise_qasm3_error(
+                    f"Invalid index for variable '{lvar_name}'",
+                    error_node=statement,
+                    span=statement.span,
+                    raised_from=err,
+                )
             Qasm3Transformer.update_array_element(
                 multi_dim_arr=lvar.value,  # type: ignore[union-attr, arg-type]
                 indices=validated_l_indices,

@@ -194,24 +194,30 @@ class Qasm3Validator:
         return type_casted_value
 
     @staticmethod
-    def validate_classical_type(base_type, base_size, var_name, span) -> None:
+    def validate_classical_type(base_type, base_size, var_name, op_node) -> None:
         """Validate the type and size of a classical variable.
 
         Args:
             base_type (Any): The base type of the variable.
             base_size (int): The size of the variable.
             var_name (str): The name of the variable.
-            span (Span): The span of the variable.
+            op_node (QASMNode): The operation node.
 
         Raises:
             ValidationError: If the type or size is invalid.
         """
         if not isinstance(base_size, int) or base_size <= 0:
-            raise_qasm3_error(f"Invalid base size {base_size} for variable '{var_name}'", span=span)
+            raise_qasm3_error(
+                f"Invalid base size {base_size} for variable '{var_name}'",
+                error_node=op_node,
+                span=op_node.span,
+            )
 
         if isinstance(base_type, FloatType) and base_size not in [32, 64]:
             raise_qasm3_error(
-                f"Invalid base size {base_size} for float variable '{var_name}'", span=span
+                f"Invalid base size {base_size} for float variable '{var_name}'",
+                error_node=op_node,
+                span=op_node.span,
             )
 
     @staticmethod

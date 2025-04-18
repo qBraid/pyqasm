@@ -81,7 +81,7 @@ def test_sizeof_multiple_types():
 
 def test_unsupported_target(caplog):
     """Test sizeof over index expressions"""
-    with pytest.raises(ValidationError, match=r"Unsupported target type .*"):
+    with pytest.raises(ValidationError, match=r"Invalid initialization value for variable 'size1'"):
         with caplog.at_level("ERROR"):
             qasm3_string = """
             OPENQASM 3;
@@ -98,9 +98,7 @@ def test_unsupported_target(caplog):
 
 def test_sizeof_on_non_array(caplog):
     """Test sizeof on a non-array"""
-    with pytest.raises(
-        ValidationError, match="Invalid sizeof usage, variable 'my_int' is not an array."
-    ):
+    with pytest.raises(ValidationError, match="Invalid initialization value for variable 'size1'"):
         with caplog.at_level("ERROR"):
             qasm3_string = """
             OPENQASM 3;
@@ -117,9 +115,7 @@ def test_sizeof_on_non_array(caplog):
 
 def test_out_of_bounds_reference(caplog):
     """Test sizeof on an out of bounds reference"""
-    with pytest.raises(
-        ValidationError, match="Index 3 out of bounds for array 'my_ints' with 2 dimensions"
-    ):
+    with pytest.raises(ValidationError, match="Invalid initialization value for variable 'size1'"):
         with caplog.at_level("ERROR"):
             qasm3_string = """
             OPENQASM 3;
