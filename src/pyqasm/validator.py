@@ -19,9 +19,19 @@ Module with utility functions for QASM visitor
 from typing import Any, Optional
 
 import numpy as np
-from openqasm3.ast import ArrayType, ClassicalDeclaration, FloatType
+from openqasm3.ast import (
+    ArrayType,
+    ClassicalDeclaration,
+    FloatType,
+)
 from openqasm3.ast import IntType as Qasm3IntType
-from openqasm3.ast import QuantumGate, QuantumGateDefinition, ReturnStatement, SubroutineDefinition
+from openqasm3.ast import (
+    QASMNode,
+    QuantumGate,
+    QuantumGateDefinition,
+    ReturnStatement,
+    SubroutineDefinition,
+)
 
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
@@ -32,7 +42,9 @@ class Qasm3Validator:
     """Class with validation functions for QASM visitor"""
 
     @staticmethod
-    def validate_register_index(index: Optional[int], size: int, qubit: bool = False) -> None:
+    def validate_register_index(
+        index: Optional[int], size: int, qubit: bool = False, op_node: Optional[Any] = None
+    ) -> None:
         """Validate the index for a register.
 
         Args:
@@ -44,11 +56,13 @@ class Qasm3Validator:
             ValidationError: If the index is out of range.
         """
         if index is None or 0 <= index < size:
-            return None
+            return
 
-        raise ValidationError(
-            f"Index {index} out of range for register of size {size} in "
-            f"{'qubit' if qubit else 'clbit'}"
+        raise_qasm3_error(
+            message=f"Index {index} out of range for register of size {size} in "
+            f"{'qubit' if qubit else 'clbit'}",
+            error_node=op_node,
+            span=op_node.span if op_node else None,
         )
 
     @staticmethod
@@ -67,7 +81,8 @@ class Qasm3Validator:
         if stmt_type in blacklisted_stmts:
             if stmt_type != ClassicalDeclaration:
                 raise_qasm3_error(
-                    f"Unsupported statement {stmt_type} in {construct} block",
+                    f"Unsupported statement '{stmt_type}' in {construct} block",
+                    error_node=statement,
                     span=statement.span,
                 )
 
@@ -75,6 +90,7 @@ class Qasm3Validator:
                 raise_qasm3_error(
                     f"Unsupported statement {stmt_type} with {statement.type.__class__}"
                     f" in {construct} block",
+                    error_node=statement,
                     span=statement.span,
                 )
 
@@ -96,7 +112,9 @@ class Qasm3Validator:
         return isinstance(variable.base_type, reqd_type)
 
     @staticmethod
-    def validate_variable_assignment_value(variable: Variable, value) -> Any:
+    def validate_variable_assignment_value(
+        variable: Variable, value, op_node: Optional[QASMNode] = None
+    ) -> Any:
         """Validate the assignment of a value to a variable.
 
         Args:
@@ -116,7 +134,13 @@ class Qasm3Validator:
         try:
             type_to_match = VARIABLE_TYPE_MAP[qasm_type]
         except KeyError as err:
-            raise ValidationError(f"Invalid type {qasm_type} for variable {variable.name}") from err
+            raise_qasm3_error(
+                f"Invalid type '{qasm_type}' for variable '{variable.name}'",
+                err_type=ValidationError,
+                raised_from=err,
+                error_node=op_node,
+                span=op_node.span if op_node else None,
+            )
 
         # For each type we will have a "castable" type set and its corresponding cast operation
         type_casted_value = qasm_variable_type_cast(qasm_type, variable.name, base_size, value)
@@ -136,8 +160,10 @@ class Qasm3Validator:
                 left, right = 0, 2**base_size - 1
             if type_casted_value < left or type_casted_value > right:
                 raise_qasm3_error(
-                    f"Value {value} out of limits for variable {variable.name} with "
+                    f"Value {value} out of limits for variable '{variable.name}' with "
                     f"base size {base_size}",
+                    error_node=op_node,
+                    span=op_node.span if op_node else None,
                 )
 
         elif type_to_match == float:
@@ -150,37 +176,48 @@ class Qasm3Validator:
 
             if type_casted_value < left or type_casted_value > right:
                 raise_qasm3_error(
-                    f"Value {value} out of limits for variable {variable.name} with "
+                    f"Value {value} out of limits for variable '{variable.name}' with "
                     f"base size {base_size}",
+                    error_node=op_node,
+                    span=op_node.span if op_node else None,
                 )
         elif type_to_match == bool:
             pass
         else:
             raise_qasm3_error(
-                f"Invalid type {type_to_match} for variable {variable.name}", TypeError
+                f"Invalid type {type_to_match} for variable '{variable.name}'",
+                TypeError,
+                error_node=op_node,
+                span=op_node.span if op_node else None,
             )
 
         return type_casted_value
 
     @staticmethod
-    def validate_classical_type(base_type, base_size, var_name, span) -> None:
+    def validate_classical_type(base_type, base_size, var_name, op_node) -> None:
         """Validate the type and size of a classical variable.
 
         Args:
             base_type (Any): The base type of the variable.
             base_size (int): The size of the variable.
             var_name (str): The name of the variable.
-            span (Span): The span of the variable.
+            op_node (QASMNode): The operation node.
 
         Raises:
             ValidationError: If the type or size is invalid.
         """
         if not isinstance(base_size, int) or base_size <= 0:
-            raise_qasm3_error(f"Invalid base size {base_size} for variable {var_name}", span=span)
+            raise_qasm3_error(
+                f"Invalid base size {base_size} for variable '{var_name}'",
+                error_node=op_node,
+                span=op_node.span,
+            )
 
         if isinstance(base_type, FloatType) and base_size not in [32, 64]:
             raise_qasm3_error(
-                f"Invalid base size {base_size} for float variable {var_name}", span=span
+                f"Invalid base size {base_size} for float variable '{var_name}'",
+                error_node=op_node,
+                span=op_node.span,
             )
 
     @staticmethod
@@ -200,7 +237,7 @@ class Qasm3Validator:
         # recursively check the array
         if values.shape[0] != dimensions[0]:
             raise_qasm3_error(
-                f"Invalid dimensions for array assignment to variable {variable.name}. "
+                f"Invalid dimensions for array assignment to variable '{variable.name}'. "
                 f"Expected {dimensions[0]} but got {values.shape[0]}",
             )
         for i, value in enumerate(values):
@@ -235,8 +272,9 @@ class Qasm3Validator:
         if op_num_args != gate_def_num_args:
             s = "" if gate_def_num_args == 1 else "s"
             raise_qasm3_error(
-                f"Parameter count mismatch for gate {operation.name.name}: "
-                f"expected {gate_def_num_args} argument{s}, but got {op_num_args} instead.",
+                f"Parameter count mismatch for gate '{operation.name.name}'. "
+                f"Expected {gate_def_num_args} argument{s}, but got {op_num_args} instead.",
+                error_node=operation,
                 span=operation.span,
             )
 
@@ -244,8 +282,9 @@ class Qasm3Validator:
         if qubits_in_op != gate_def_num_qubits:
             s = "" if gate_def_num_qubits == 1 else "s"
             raise_qasm3_error(
-                f"Qubit count mismatch for gate {operation.name.name}: "
-                f"expected {gate_def_num_qubits} qubit{s}, but got {qubits_in_op} instead.",
+                f"Qubit count mismatch for gate '{operation.name.name}'. "
+                f"Expected {gate_def_num_qubits} qubit{s}, but got {qubits_in_op} instead.",
+                error_node=operation,
                 span=operation.span,
             )
 
@@ -274,13 +313,15 @@ class Qasm3Validator:
                 raise_qasm3_error(
                     f"Return type mismatch for subroutine '{subroutine_def.name.name}'."
                     f" Expected void but got {type(return_value)}",
+                    error_node=return_statement,
                     span=return_statement.span,
                 )
         else:
             if return_value is None:
                 raise_qasm3_error(
                     f"Return type mismatch for subroutine '{subroutine_def.name.name}'."
-                    f" Expected {subroutine_def.return_type} but got void",
+                    f" Expected {type(subroutine_def.return_type)} but got void",
+                    error_node=return_statement,
                     span=return_statement.span,
                 )
             base_size = 1
@@ -296,6 +337,7 @@ class Qasm3Validator:
                     None,
                 ),
                 return_value,
+                op_node=return_statement,
             )
 
     @staticmethod

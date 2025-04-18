@@ -155,7 +155,7 @@ def test_unroll_barrier():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
-def test_incorrect_barrier():
+def test_incorrect_barrier(caplog):
 
     undeclared = """
     OPENQASM 3.0;
@@ -165,8 +165,16 @@ def test_incorrect_barrier():
     barrier q2;
     """
 
-    with pytest.raises(ValidationError, match=r"Missing register declaration for q2 .*"):
-        loads(undeclared).validate()
+    with pytest.raises(
+        ValidationError, match="Missing qubit register declaration for 'q2' in QuantumBarrier"
+    ):
+        with caplog.at_level("ERROR"):
+            loads(undeclared).validate()
+
+    assert "Error at line 6, column 4" in caplog.text
+    assert "barrier q2;" in caplog.text
+
+    caplog.clear()
 
     out_of_bounds = """
     OPENQASM 3.0;
@@ -179,4 +187,8 @@ def test_incorrect_barrier():
     with pytest.raises(
         ValidationError, match="Index 3 out of range for register of size 2 in qubit"
     ):
-        loads(out_of_bounds).validate()
+        with caplog.at_level("ERROR"):
+            loads(out_of_bounds).validate()
+
+    assert "Error at line 6, column 4" in caplog.text
+    assert "barrier q1[:4];" in caplog.text

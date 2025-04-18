@@ -303,7 +303,7 @@ def test_loop_in_nested_function_call():
     check_single_qubit_rotation_op(result.unrolled_ast, 3, [0, 0, 0], [0, 3, 6], "rx")
 
 
-def test_convert_qasm3_for_loop_unsupported_type():
+def test_convert_qasm3_for_loop_unsupported_type(caplog):
     """Test correct error when converting a QASM3 program that contains a for loop initialized from
     an unsupported type."""
     with pytest.raises(
@@ -313,18 +313,22 @@ def test_convert_qasm3_for_loop_unsupported_type():
             " of set_declaration in loop."
         ),
     ):
-        loads(
-            """
-            OPENQASM 3.0;
-            include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            loads(
+                """
+                OPENQASM 3.0;
+                include "stdgates.inc";
 
-            qubit[4] q;
-            bit[4] c;
+                qubit[4] q;
+                bit[4] c;
 
-            h q;
-            for bit b in "001" {
-                x q[b];
-            }
-            measure q->c;
-            """,
-        ).validate()
+                h q;
+                for bit b in "001" {
+                    x q[b];
+                }
+                measure q->c;
+                """,
+            ).validate()
+
+    assert "Error at line 9, column 16" in caplog.text
+    assert 'for bit b in "001"' in caplog.text

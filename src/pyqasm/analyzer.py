@@ -53,7 +53,7 @@ class Qasm3Analyzer:
         """Validate the indices for a classical variable.
 
         Args:
-            indices (list[list[Any]]): The indices to validate.
+            indices (list[Any]): The indices to validate.
             var (Variable): The variable to verify
 
         Raises:
@@ -70,6 +70,7 @@ class Qasm3Analyzer:
             raise_qasm3_error(
                 message=f"Indexing error. Variable {var.name} is not an array",
                 err_type=ValidationError,
+                error_node=indices[0],
                 span=indices[0].span,
             )
         if isinstance(indices, DiscreteSet):
@@ -80,34 +81,38 @@ class Qasm3Analyzer:
                 message=f"Invalid number of indices for variable {var.name}. "
                 f"Expected {len(var_dimensions)} but got {len(indices)}",  # type: ignore[arg-type]
                 err_type=ValidationError,
+                error_node=indices[0],
                 span=indices[0].span,
             )
 
-        def _validate_index(index, dimension, var_name, span, dim_num):
+        def _validate_index(index, dimension, var_name, index_node, dim_num):
             if index < 0 or index >= dimension:
                 raise_qasm3_error(
                     message=f"Index {index} out of bounds for dimension {dim_num} "
-                    f"of variable {var_name}",
+                    f"of variable '{var_name}'. Expected index in range [0, {dimension-1}]",
                     err_type=ValidationError,
-                    span=span,
+                    error_node=index_node,
+                    span=index_node.span,
                 )
 
-        def _validate_step(start_id, end_id, step, span):
+        def _validate_step(start_id, end_id, step, index_node):
             if (step < 0 and start_id < end_id) or (step > 0 and start_id > end_id):
                 direction = "less than" if step < 0 else "greater than"
                 raise_qasm3_error(
                     message=f"Index {start_id} is {direction} {end_id} but step"
                     f" is {'negative' if step < 0 else 'positive'}",
                     err_type=ValidationError,
-                    span=span,
+                    error_node=index_node,
+                    span=index_node.span,
                 )
 
         for i, index in enumerate(indices):
             if not isinstance(index, (Identifier, Expression, RangeDefinition, IntegerLiteral)):
                 raise_qasm3_error(
-                    message=f"Unsupported index type {type(index)} for "
-                    f"classical variable {var.name}",
+                    message=f"Unsupported index type '{type(index)}' for "
+                    f"classical variable '{var.name}'",
                     err_type=ValidationError,
+                    error_node=index,
                     span=index.span,
                 )
 
@@ -126,16 +131,16 @@ class Qasm3Analyzer:
                 if index.step is not None:
                     step = expr_evaluator.evaluate_expression(index.step, reqd_type=IntType)[0]
 
-                _validate_index(start_id, var_dimensions[i], var.name, index.span, i)
-                _validate_index(end_id, var_dimensions[i], var.name, index.span, i)
-                _validate_step(start_id, end_id, step, index.span)
+                _validate_index(start_id, var_dimensions[i], var.name, index, i)
+                _validate_index(end_id, var_dimensions[i], var.name, index, i)
+                _validate_step(start_id, end_id, step, index)
 
                 indices_list.append((start_id, end_id, step))
 
             if isinstance(index, (Identifier, IntegerLiteral, Expression)):
                 index_value = expr_evaluator.evaluate_expression(index, reqd_type=IntType)[0]
                 curr_dimension = var_dimensions[i]  # type: ignore[index]
-                _validate_index(index_value, curr_dimension, var.name, index.span, i)
+                _validate_index(index_value, curr_dimension, var.name, index, i)
 
                 indices_list.append((index_value, index_value, 1))
 
@@ -283,6 +288,7 @@ class Qasm3Analyzer:
         if duplicate_qubit:
             qubit_name, qubit_id = duplicate_qubit
             raise_qasm3_error(
-                f"Duplicate qubit {qubit_name}[{qubit_id}] in gate {gate.name.name}",
+                f"Duplicate qubit '{qubit_name}[{qubit_id}]' arg in gate {gate.name.name}",
+                error_node=gate,
                 span=span,
             )

@@ -159,7 +159,13 @@ def test_pass_multiple_arrays_to_function():
 
 
 @pytest.mark.parametrize("test_name", SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS.keys())
-def test_incorrect_custom_ops_with_arrays(test_name):
-    qasm_input, error_message = SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS[test_name]
+def test_incorrect_custom_ops_with_arrays(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, err_line = SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS[
+        test_name
+    ]
     with pytest.raises(ValidationError, match=error_message):
-        loads(qasm_input).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_input).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text

@@ -24,12 +24,14 @@ from openqasm3.ast import (
     Identifier,
     IndexExpression,
     IntType,
+    QASMNode,
     QubitDeclaration,
 )
+from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import Variable
-from pyqasm.exceptions import raise_qasm3_error
+from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
@@ -73,7 +75,7 @@ class Qasm3SubroutineProcessor:
         return actual_arg_name
 
     @classmethod
-    def process_classical_arg(cls, formal_arg, actual_arg, fn_name, span):
+    def process_classical_arg(cls, formal_arg, actual_arg, fn_name, fn_call):
         """Process the classical argument for a function call.
 
         Args:
@@ -89,15 +91,15 @@ class Qasm3SubroutineProcessor:
 
         if isinstance(formal_arg.type, ArrayReferenceType):
             return cls._process_classical_arg_by_reference(
-                formal_arg, actual_arg, actual_arg_name, fn_name, span
+                formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
             )
         return cls._process_classical_arg_by_value(
-            formal_arg, actual_arg, actual_arg_name, fn_name, span
+            formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
         )
 
     @classmethod  # pylint: disable-next=too-many-arguments
     def _process_classical_arg_by_value(
-        cls, formal_arg, actual_arg, actual_arg_name, fn_name, span
+        cls, formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
     ):
         """
         Process the classical argument for a function call.
@@ -117,12 +119,21 @@ class Qasm3SubroutineProcessor:
         # 1. variable mapping is equivalent to declaring the variable
         #     with the formal argument name and doing classical assignment
         #     in the scope of the function
+
+        fn_defn = cls.visitor_obj._subroutine_defns.get(fn_name)
+        formal_args_desc = " , ".join(dumps(arg, indent="    ") for arg in fn_defn.arguments)
+
         if actual_arg_name:  # actual arg is a variable not literal
             if actual_arg_name in cls.visitor_obj._global_qreg_size_map:
+                formal_args_desc = " , ".join(
+                    dumps(arg, indent="    ") for arg in fn_defn.arguments
+                )
                 raise_qasm3_error(
                     f"Expecting classical argument for '{formal_arg.name.name}'. "
-                    f"Qubit register '{actual_arg_name}' found for function '{fn_name}'",
-                    span=span,
+                    f"Qubit register '{actual_arg_name}' found for function '{fn_name}'\n"
+                    f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                    error_node=fn_call,
+                    span=fn_call.span,
                 )
 
             # 2. as we have pushed the scope for fn, we need to check in parent
@@ -130,8 +141,10 @@ class Qasm3SubroutineProcessor:
             if not cls.visitor_obj._check_in_scope(actual_arg_name):
                 raise_qasm3_error(
                     f"Undefined variable '{actual_arg_name}' used"
-                    f" for function call '{fn_name}'",
-                    span=span,
+                    f" for function call '{fn_name}'\n"
+                    f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                    error_node=fn_call,
+                    span=fn_call.span,
                 )
         actual_arg_value = Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]
 
@@ -147,7 +160,7 @@ class Qasm3SubroutineProcessor:
 
     @classmethod  # pylint: disable-next=too-many-arguments,too-many-locals,too-many-branches
     def _process_classical_arg_by_reference(
-        cls, formal_arg, actual_arg, actual_arg_name, fn_name, span
+        cls, formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
     ):
         """Process the classical args by reference in the QASM3 visitor.
             Currently being used for array references only.
@@ -171,6 +184,8 @@ class Qasm3SubroutineProcessor:
         formal_arg_base_size = Qasm3ExprEvaluator.evaluate_expression(
             formal_arg.type.base_type.size
         )[0]
+        fn_defn = cls.visitor_obj._subroutine_defns.get(fn_name)
+
         array_expected_type_msg = (
             "Expecting type 'array["
             f"{formal_arg.type.base_type.__class__.__name__.lower().removesuffix('type')}"
@@ -178,26 +193,34 @@ class Qasm3SubroutineProcessor:
             f" in function '{fn_name}'. "
         )
 
+        formal_args_desc = " , ".join(dumps(arg, indent="    ") for arg in fn_defn.arguments)
+
         if actual_arg_name is None:
             raise_qasm3_error(
                 array_expected_type_msg
-                + f"Literal {Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]} "
-                + "found in function call",
-                span=span,
+                + f"Literal '{Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]}' "
+                + "found in function call\n"
+                + f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
 
         if actual_arg_name in cls.visitor_obj._global_qreg_size_map:
             raise_qasm3_error(
                 array_expected_type_msg
-                + f"Qubit register '{actual_arg_name}' found for function call",
-                span=span,
+                + f"Qubit register '{actual_arg_name}' found for function call\n"
+                + f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
 
         # verify actual argument is defined in the parent scope of function call
         if not cls.visitor_obj._check_in_scope(actual_arg_name):
             raise_qasm3_error(
-                f"Undefined variable '{actual_arg_name}' used for function call '{fn_name}'",
-                span=span,
+                f"Undefined variable '{actual_arg_name}' used for function call '{fn_name}'\n"
+                + f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
 
         array_reference = cls.visitor_obj._get_from_visible_scope(actual_arg_name)
@@ -207,8 +230,10 @@ class Qasm3SubroutineProcessor:
         if not array_reference.dims:
             raise_qasm3_error(
                 array_expected_type_msg
-                + f"Variable '{actual_arg_name}' has type '{actual_type_string}'.",
-                span=span,
+                + f"Variable '{actual_arg_name}' has type '{actual_type_string}'\n"
+                + f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
 
         # The base types of the elements in array should match
@@ -218,8 +243,10 @@ class Qasm3SubroutineProcessor:
         if formal_arg.type.base_type != actual_arg_type or formal_arg_base_size != actual_arg_size:
             raise_qasm3_error(
                 array_expected_type_msg
-                + f"Variable '{actual_arg_name}' has type '{actual_type_string}'.",
-                span=span,
+                + f"Variable '{actual_arg_name}' has type '{actual_type_string}'\n"
+                + f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
 
         # The dimensions passed in the formal arg should be
@@ -230,26 +257,35 @@ class Qasm3SubroutineProcessor:
         formal_dimensions_raw = formal_arg.type.dimensions
         # 1. Either we  will have #dim = <<some integer>>
         if not isinstance(formal_dimensions_raw, list):
-            num_formal_dimensions = Qasm3ExprEvaluator.evaluate_expression(
-                formal_dimensions_raw, reqd_type=IntType, const_expr=True
-            )[0]
+            try:
+                num_formal_dimensions = Qasm3ExprEvaluator.evaluate_expression(
+                    formal_dimensions_raw, reqd_type=IntType, const_expr=True
+                )[0]
+            except ValidationError as err:
+                raise_qasm3_error(
+                    f"Invalid dimension size {dumps(formal_dimensions_raw)} "
+                    f"for '{formal_arg.name.name}' in function '{fn_name}'\n"
+                    f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                    error_node=fn_call,
+                    span=fn_call.span,
+                    raised_from=err,
+                )
         # 2. or we will have a list of the dimensions in the formal arg
         else:
             num_formal_dimensions = len(formal_dimensions_raw)
 
-        if num_formal_dimensions <= 0:
-            raise_qasm3_error(
+        if num_formal_dimensions <= 0 or num_formal_dimensions > len(actual_dimensions):
+            error_msg = (
                 f"Invalid number of dimensions {num_formal_dimensions}"
-                f" for '{formal_arg.name.name}' in function '{fn_name}'",
-                span=span,
+                if num_formal_dimensions <= 0
+                else f"Dimension mismatch. Expected {num_formal_dimensions} dimensions but "
+                f"variable '{actual_arg_name}' has {len(actual_dimensions)}"
             )
-
-        if num_formal_dimensions > len(actual_dimensions):
             raise_qasm3_error(
-                f"Dimension mismatch for '{formal_arg.name.name}' in function '{fn_name}'. "
-                f"Expected {num_formal_dimensions} dimensions but"
-                f" variable '{actual_arg_name}' has {len(actual_dimensions)}",
-                span=span,
+                f"{error_msg} for '{formal_arg.name.name}' in function '{fn_name}'\n"
+                f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
         formal_dimensions = []
 
@@ -261,23 +297,36 @@ class Qasm3SubroutineProcessor:
             for idx, (formal_dim, actual_dim) in enumerate(
                 zip(formal_dimensions_raw, actual_dimensions)
             ):
-                formal_dim = Qasm3ExprEvaluator.evaluate_expression(
-                    formal_dim, reqd_type=IntType, const_expr=True
-                )[0]
-                if formal_dim <= 0:
-                    raise_qasm3_error(
-                        f"Invalid dimension size {formal_dim} for '{formal_arg.name.name}'"
-                        f" in function '{fn_name}'",
-                        span=span,
+                try:
+                    formal_dim = Qasm3ExprEvaluator.evaluate_expression(
+                        formal_dim, reqd_type=IntType, const_expr=True
+                    )[0]
+                    if formal_dim <= 0 or formal_dim > actual_dim:
+                        error_msg = (
+                            f"Invalid dimension size {formal_dim}"
+                            if formal_dim <= 0
+                            else f"Dimension mismatch. Expected dimension {idx} with "
+                            f"size >= {formal_dim} but got {actual_dim}"
+                        )
+                        raise_qasm3_error(
+                            f"{error_msg} for '{formal_arg.name.name}' in function '{fn_name}'\n"
+                            f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                            error_node=fn_call,
+                            span=fn_call.span,
+                        )
+                    formal_dimensions.append(formal_dim)
+                except ValidationError as err:
+                    formal_arg_str = (
+                        dumps(formal_dim) if isinstance(formal_dim, QASMNode) else formal_dim
                     )
-                if actual_dim < formal_dim:
                     raise_qasm3_error(
-                        f"Dimension mismatch for '{formal_arg.name.name}'"
-                        f" in function '{fn_name}'. Expected dimension {idx} with size"
-                        f" >= {formal_dim} but got {actual_dim}",
-                        span=span,
+                        f"Invalid dimension size {formal_arg_str}"
+                        f" for '{formal_arg.name.name}' in function '{fn_name}'\n"
+                        f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                        error_node=fn_call,
+                        span=fn_call.span,
+                        raised_from=err,
                     )
-                formal_dimensions.append(formal_dim)
 
         readonly_arr = formal_arg.access == AccessControl.readonly
         actual_array_view = array_reference.value
@@ -300,7 +349,7 @@ class Qasm3SubroutineProcessor:
         )
 
     @classmethod  # pylint: disable-next=too-many-arguments
-    def process_quantum_arg(
+    def process_quantum_arg(  # pylint: disable=too-many-locals
         cls,
         formal_arg,
         actual_arg,
@@ -308,7 +357,7 @@ class Qasm3SubroutineProcessor:
         duplicate_qubit_map,
         qubit_transform_map,
         fn_name,
-        span,
+        fn_call,
     ):
         """
         Process a quantum argument in the QASM3 visitor.
@@ -320,7 +369,7 @@ class Qasm3SubroutineProcessor:
             duplicate_qubit_map (dict): The map of duplicate qubit registers.
             qubit_transform_map (dict): The map of qubit register transformations.
             fn_name (str): The name of the function.
-            span (Span): The span of the function call.
+            fn_call (qasm3_ast.FunctionCall) : The function call node in the AST.
 
         Returns:
             list: The list of actual qubit ids.
@@ -337,11 +386,15 @@ class Qasm3SubroutineProcessor:
         )[0]
         if formal_qubit_size is None:
             formal_qubit_size = 1
+
+        fn_defn = cls.visitor_obj._subroutine_defns.get(fn_name)
+
         if formal_qubit_size <= 0:
             raise_qasm3_error(
-                f"Invalid qubit size {formal_qubit_size} for variable '{formal_reg_name}'"
+                f"Invalid qubit size '{formal_qubit_size}' for variable '{formal_reg_name}'"
                 f" in function '{fn_name}'",
-                span=span,
+                error_node=fn_defn.arguments,
+                span=formal_arg.span,
             )
         formal_qreg_size_map[formal_reg_name] = formal_qubit_size
 
@@ -349,10 +402,20 @@ class Qasm3SubroutineProcessor:
         # note that we ONLY check in global scope as
         # we always map the qubit arguments to the global scope
         if actual_arg_name not in cls.visitor_obj._global_qreg_size_map:
+            # Check if the actual argument is a qubit register
+            is_literal = actual_arg_name is None
+            arg_desc = (
+                f"Literal '{Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]}' "
+                if is_literal
+                else f"Qubit register '{actual_arg_name}' not "
+            )
+            formal_args_desc = " , ".join(dumps(arg, indent="    ") for arg in fn_defn.arguments)
             raise_qasm3_error(
                 f"Expecting qubit argument for '{formal_reg_name}'. "
-                f"Qubit register '{actual_arg_name}' not found for function '{fn_name}'",
-                span=span,
+                f"{arg_desc}found for function '{fn_name}'\n"
+                f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
         cls.visitor_obj._label_scope_level[cls.visitor_obj._curr_scope].add(formal_reg_name)
 
@@ -361,11 +424,14 @@ class Qasm3SubroutineProcessor:
         )
 
         if formal_qubit_size != actual_qubits_size:
+            formal_args_desc = " , ".join(dumps(arg, indent="    ") for arg in fn_defn.arguments)
             raise_qasm3_error(
                 f"Qubit register size mismatch for function '{fn_name}'. "
-                f"Expected {formal_qubit_size} in variable '{formal_reg_name}' "
-                f"but got {actual_qubits_size}",
-                span=span,
+                f"Expected {formal_qubit_size} qubits in variable '{formal_reg_name}' "
+                f"but got {actual_qubits_size}\n"
+                f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
+                error_node=fn_call,
+                span=fn_call.span,
             )
 
         if not Qasm3Validator.validate_unique_qubits(
@@ -374,7 +440,8 @@ class Qasm3SubroutineProcessor:
             raise_qasm3_error(
                 f"Duplicate qubit argument for register '{actual_arg_name}' "
                 f"in function call for '{fn_name}'",
-                span=span,
+                error_node=fn_call,
+                span=fn_call.span,
             )
 
         for idx, qid in enumerate(actual_qids):

@@ -16,7 +16,6 @@
 Module defining QASM3 incorrect variable tests.
 
 """
-
 DECLARATION_TESTS = {
     "keyword_redeclaration": (
         """
@@ -25,6 +24,9 @@ DECLARATION_TESTS = {
         int pi;
         """,
         "Can not declare variable with keyword name pi",
+        4,  # Line number
+        8,  # Column number
+        "int pi;",  # Complete line
     ),
     "const_keyword_redeclaration": (
         """
@@ -33,6 +35,9 @@ DECLARATION_TESTS = {
         const int pi = 3;
         """,
         "Can not declare variable with keyword name pi",
+        4,
+        8,
+        "const int pi = 3;",
     ),
     "variable_redeclaration": (
         """
@@ -42,7 +47,10 @@ DECLARATION_TESTS = {
         float y = 3.4;
         uint x;
         """,
-        "Re-declaration of variable x",
+        "Re-declaration of variable 'x'",
+        6,
+        8,
+        "uint x;",
     ),
     "variable_redeclaration_with_qubits_1": (
         """
@@ -52,6 +60,9 @@ DECLARATION_TESTS = {
         qubit x;
         """,
         "Re-declaration of quantum register with name 'x'",
+        5,
+        8,
+        "qubit[1] x;",
     ),
     "variable_redeclaration_with_qubits_2": (
         """
@@ -60,7 +71,10 @@ DECLARATION_TESTS = {
         qubit x;
         int x;
         """,
-        "Re-declaration of variable x",
+        "Re-declaration of variable 'x'",
+        5,
+        8,
+        "int x;",
     ),
     "const_variable_redeclaration": (
         """
@@ -69,7 +83,10 @@ DECLARATION_TESTS = {
         const int x = 3;
         const float x = 3.4;
         """,
-        "Re-declaration of variable x",
+        "Re-declaration of variable 'x'",
+        5,
+        8,
+        "const float x = 3.4;",
     ),
     "invalid_int_size": (
         """
@@ -77,7 +94,10 @@ DECLARATION_TESTS = {
         include "stdgates.inc";
         int[32.1] x;
         """,
-        "Invalid base size 32.1 for variable x",
+        "Invalid base size 32.1 for variable 'x'",
+        4,
+        8,
+        "int[32.1] x;",
     ),
     "invalid_const_int_size": (
         """
@@ -85,7 +105,10 @@ DECLARATION_TESTS = {
         include "stdgates.inc";
         const int[32.1] x = 3;
         """,
-        "Invalid base size 32.1 for variable x",
+        "Invalid base size for constant 'x'",
+        4,
+        8,
+        "const int[32.1] x = 3;",
     ),
     "const_declaration_with_non_const": (
         """
@@ -94,7 +117,10 @@ DECLARATION_TESTS = {
         int[32] x = 5;
         const int[32] y = x + 5;
         """,
-        "Variable 'x' is not a constant in given expression",
+        "Invalid initialization value for constant 'y'",
+        5,
+        8,
+        "const int[32] y = x + 5;",
     ),
     "const_declaration_with_non_const_size": (
         """
@@ -103,7 +129,10 @@ DECLARATION_TESTS = {
         int[32] x = 5;
         const int[x] y = 5;
         """,
-        "Variable 'x' is not a constant in given expression",
+        "Invalid base size for constant 'y'",
+        5,
+        8,
+        "const int[x] y = 5;",
     ),
     "invalid_float_size": (
         """
@@ -112,7 +141,10 @@ DECLARATION_TESTS = {
 
         float[23] x;
         """,
-        "Invalid base size 23 for float variable x",
+        "Invalid base size 23 for float variable 'x'",
+        5,
+        8,
+        "float[23] x;",
     ),
     "unsupported_types": (
         """
@@ -121,7 +153,10 @@ DECLARATION_TESTS = {
 
         angle x = 3.4;
         """,
-        "Invalid type <class 'openqasm3.ast.AngleType'> for variable x",
+        "Invalid initialization value for variable 'x'",
+        5,
+        8,
+        "angle x = 3.4;",
     ),
     "imaginary_variable": (
         """
@@ -130,7 +165,10 @@ DECLARATION_TESTS = {
 
         int x = 1 + 3im;
         """,
-        "Unsupported expression type <class 'openqasm3.ast.ImaginaryLiteral'>",
+        "Invalid initialization value for variable 'x'",
+        5,
+        8,
+        "int x = 1 + 3.0im;",
     ),
     "invalid_array_dimensions": (
         """
@@ -139,7 +177,10 @@ DECLARATION_TESTS = {
 
         array[int[32], 1, 2.1] x;
         """,
-        "Invalid dimension size 2.1 in array declaration for x",
+        "Invalid dimension size 2.1 in array declaration for 'x'",
+        5,
+        8,
+        "array[int[32], 1, 2.1] x;",
     ),
     "extra_array_dimensions": (
         """
@@ -148,7 +189,10 @@ DECLARATION_TESTS = {
 
         array[int[32], 1, 2, 3, 4, 5, 6, 7, 8] x;
         """,
-        "Invalid dimensions 8 for array declaration for x. Max allowed dimensions is 7",
+        "Invalid dimensions 8 for array declaration for 'x'. Max allowed dimensions is 7",
+        5,
+        8,
+        "array[int[32], 1, 2, 3, 4, 5, 6, 7, 8] x;",
     ),
     "dimension_mismatch_1": (
         """
@@ -157,7 +201,10 @@ DECLARATION_TESTS = {
 
         array[int[32], 1, 2] x = {1,2,3};
         """,
-        "Invalid dimensions for array assignment to variable x. Expected 1 but got 3",
+        "Invalid initialization value for array 'x'",
+        5,
+        8,
+        "array[int[32], 1, 2] x = {1, 2, 3};",
     ),
     "dimension_mismatch_2": (
         """
@@ -166,7 +213,10 @@ DECLARATION_TESTS = {
 
         array[int[32], 3, 1, 2] x = {1,2,3};
         """,
-        "Invalid dimensions for array assignment to variable x. Expected 3 but got 1",
+        "Invalid initialization value for array 'x'",
+        5,
+        8,
+        "array[int[32], 3, 1, 2] x = {1, 2, 3};",
     ),
     "invalid_bit_type_array_1": (
         """
@@ -176,6 +226,9 @@ DECLARATION_TESTS = {
         array[bit, 3] x;
         """,
         "Can not declare array x with type 'bit'",
+        5,
+        8,
+        "array[bit, 3] x;",
     ),
     "invalid_bit_type_array_2": (
         """
@@ -185,9 +238,11 @@ DECLARATION_TESTS = {
         array[bit[32], 3] x;
         """,
         "Can not declare array x with type 'bit'",
+        5,
+        8,
+        "array[bit[32], 3] x;",
     ),
 }
-
 ASSIGNMENT_TESTS = {
     "undefined_variable_assignment": (
         """
@@ -200,6 +255,9 @@ ASSIGNMENT_TESTS = {
 
         """,
         "Undefined variable x in assignment",
+        7,  # Line number
+        8,  # Column number
+        "x = 3;",  # Complete line
     ),
     "assignment_to_constant": (
         """
@@ -210,6 +268,9 @@ ASSIGNMENT_TESTS = {
         x = 4;
         """,
         "Assignment to constant variable x not allowed",
+        6,
+        8,
+        "x = 4;",
     ),
     "invalid_assignment_type": (
         """
@@ -218,11 +279,10 @@ ASSIGNMENT_TESTS = {
 
         bit x = 3.3;
         """,
-        (
-            "Cannot cast <class 'float'> to <class 'openqasm3.ast.BitType'>. "
-            "Invalid assignment of type <class 'float'> to variable x of type "
-            "<class 'openqasm3.ast.BitType'>"
-        ),
+        "Invalid initialization value for variable 'x'",
+        5,
+        8,
+        "bit x = 3.3;",
     ),
     "int_out_of_range": (
         """
@@ -231,7 +291,10 @@ ASSIGNMENT_TESTS = {
 
         int[32] x = 1<<64;
         """,
-        f"Value {2**64} out of limits for variable x with base size 32",
+        "Invalid initialization value for variable 'x'",
+        5,
+        8,
+        "int[32] x = 1 << 64;",
     ),
     "float32_out_of_range": (
         """
@@ -240,7 +303,10 @@ ASSIGNMENT_TESTS = {
 
         float[32] x = 123456789123456789123456789123456789123456789.1;
         """,
-        "Value .* out of limits for variable x with base size 32",
+        "Invalid initialization value for variable 'x'",
+        5,
+        8,
+        "float[32] x = 1.2345678912345679e+44;",
     ),
     "indexing_non_array": (
         """
@@ -250,7 +316,10 @@ ASSIGNMENT_TESTS = {
         int x = 3;
         x[0] = 4;
         """,
-        "Indexing error. Variable x is not an array",
+        "Invalid index for variable 'x'",
+        6,
+        8,
+        "x[0] = 4;",
     ),
     "incorrect_num_dims": (
         """
@@ -260,7 +329,10 @@ ASSIGNMENT_TESTS = {
         array[int[32], 1, 2, 3] x;
         x[0] = 3;
         """,
-        "Invalid number of indices for variable x. Expected 3 but got 1",
+        "Invalid index for variable 'x'",
+        6,
+        8,
+        "x[0] = 3;",
     ),
     "non_nnint_index": (
         """
@@ -270,8 +342,10 @@ ASSIGNMENT_TESTS = {
         array[int[32], 3] x;
         x[0.1] = 3;
         """,
-        "Invalid value 0.1 with type <class 'openqasm3.ast.FloatLiteral'> for "
-        "required type <class 'openqasm3.ast.IntType'>",
+        "Invalid index for variable 'x'",
+        6,
+        8,
+        "x[0.1] = 3;",
     ),
     "index_out_of_range": (
         """
@@ -281,6 +355,9 @@ ASSIGNMENT_TESTS = {
         array[int[32], 3] x;
         x[3] = 3;
         """,
-        "Index 3 out of bounds for dimension 0 of variable x",
+        "Invalid index for variable 'x'",
+        6,
+        8,
+        "x[3] = 3;",
     ),
 }

@@ -222,13 +222,6 @@ def test_qasm_u2_gates():
     check_single_qubit_rotation_op(result.unrolled_ast, 1, [0], [0.5, 0.5], "u2")
 
 
-@pytest.mark.parametrize("test_name", SINGLE_QUBIT_GATE_INCORRECT_TESTS.keys())
-def test_incorrect_single_qubit_gates(test_name):
-    qasm_input, error_message = SINGLE_QUBIT_GATE_INCORRECT_TESTS[test_name]
-    with pytest.raises(ValidationError, match=error_message):
-        loads(qasm_input).validate()
-
-
 @pytest.mark.parametrize("test_name", custom_op_tests)
 def test_custom_ops(test_name, request):
     qasm3_string = request.getfixturevalue(test_name)
@@ -599,6 +592,9 @@ def test_nested_gate_modifiers():
     ctrl(b+1) @ x q[0], q[1];
     """,
             "Controlled modifier arguments must be compile-time constants.*",
+            8,
+            4,
+            "ctrl(b + 1) @ x q[0], q[1];",
         ),
         (
             """
@@ -608,6 +604,9 @@ def test_nested_gate_modifiers():
     ctrl(1.5) @ x q[0], q[1];
     """,
             "Controlled modifier argument must be a positive integer.*",
+            5,
+            4,
+            "ctrl(1.5) @ x q[0], q[1];",
         ),
         (
             """
@@ -617,17 +616,41 @@ def test_nested_gate_modifiers():
     pow(1.5) @ x q;
     """,
             "Power modifier argument must be an integer.*",
+            5,
+            4,
+            "pow(1.5) @ x q[0];",
         ),
     ],
 )
-def test_modifier_arg_error(test):
-    qasm3_string, error_message = test
+def test_modifier_arg_error(test, caplog):
+    qasm3_string, error_message, line_num, col_num, line = test
     with pytest.raises(ValidationError, match=error_message):
-        loads(qasm3_string).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm3_string).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert line in caplog.text
 
 
 @pytest.mark.parametrize("test_name", CUSTOM_GATE_INCORRECT_TESTS.keys())
-def test_incorrect_custom_ops(test_name):
-    qasm_input, error_message = CUSTOM_GATE_INCORRECT_TESTS[test_name]
+def test_incorrect_custom_ops(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, line = CUSTOM_GATE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        loads(qasm_input).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_input).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert line in caplog.text
+
+
+@pytest.mark.parametrize("test_name", SINGLE_QUBIT_GATE_INCORRECT_TESTS.keys())
+def test_incorrect_single_qubit_gates(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, line = SINGLE_QUBIT_GATE_INCORRECT_TESTS[
+        test_name
+    ]
+    with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level("ERROR"):
+            loads(qasm_input).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert line in caplog.text

@@ -83,7 +83,7 @@ def test_reset_inside_function():
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
-def test_incorrect_resets():
+def test_incorrect_resets(caplog):
     undeclared = """
     OPENQASM 3.0;
     include "stdgates.inc";
@@ -94,7 +94,11 @@ def test_incorrect_resets():
     reset q2[0];
     """
     with pytest.raises(ValidationError):
-        loads(undeclared).validate()
+        with caplog.at_level("ERROR"):
+            loads(undeclared).validate()
+
+    assert "Error at line 8, column 4" in caplog.text
+    assert "reset q2[0]" in caplog.text
 
     index_error = """
     OPENQASM 3.0;
@@ -105,5 +109,11 @@ def test_incorrect_resets():
     // out of bounds 
     reset q1[4];
     """
-    with pytest.raises(ValidationError):
-        loads(index_error).validate()
+    with pytest.raises(
+        ValidationError, match=r"Index 4 out of range for register of size 2 in qubit"
+    ):
+        with caplog.at_level("ERROR"):
+            loads(index_error).validate()
+
+    assert "Error at line 8, column 4" in caplog.text
+    assert "reset q1[4]" in caplog.text

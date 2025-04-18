@@ -206,131 +206,133 @@ def test_multi_bit_if():
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
-def test_incorrect_if():
-
-    with pytest.raises(ValidationError, match=r"Missing if block"):
-        loads(
+@pytest.mark.parametrize(
+    "qasm_code,error_message,line_num,col_num,err_line",
+    [
+        (
             """
             OPENQASM 3.0;
-           include "stdgates.inc";
-           qubit[2] q;
-           bit[2] c;
-
-           h q;
-           measure q->c;
-
-           if(c[0]){
-           }
-           """
-        ).validate()
-
-    with pytest.raises(ValidationError, match=r"Undefined identifier c2 in expression"):
-        loads(
+            include "stdgates.inc";
+            qubit[2] q;
+            bit[2] c;
+            h q;
+            measure q->c;
+            if(c[0]){
+            }
+            """,
+            r"Missing if block",
+            8,
+            12,
+            "if (c[0]) {",
+        ),
+        (
             """
             OPENQASM 3.0;
-           include "stdgates.inc";
-           qubit[2] q;
-           bit[2] c;
-
-           h q;
-           measure q->c;
-
-           if(c2[0]){
-            cx q;
-           }
-           """
-        ).validate()
-
-    with pytest.raises(ValidationError, match=r"Only '!' supported .*"):
-        loads(
+            include "stdgates.inc";
+            qubit[2] q;
+            bit[2] c;
+            h q;
+            measure q->c;
+            if(c2[0]){
+                cx q;
+            }
+            """,
+            r"Undefined identifier 'c2' in expression",
+            8,
+            15,
+            "c2[0]",
+        ),
+        (
             """
             OPENQASM 3.0;
-           include "stdgates.inc";
-           qubit[2] q;
-           bit[2] c;
-
-           h q;
-           measure q->c;
-
-           if(~c[0]){
-            cx q;
-           }
-           """
-        ).validate()
-    with pytest.raises(
-        ValidationError,
-        match=r"Only {==, >=, <=, >, <} supported in branching condition with classical register",
-    ):
-        loads(
+            include "stdgates.inc";
+            qubit[2] q;
+            bit[2] c;
+            h q;
+            measure q->c;
+            if(~c[0]){
+                cx q;
+            }
+            """,
+            r"Only '!' supported .*",
+            8,
+            15,
+            "~c[0]",
+        ),
+        (
             """
             OPENQASM 3.0;
-           include "stdgates.inc";
-           qubit[2] q;
-           bit[2] c;
-
-           h q;
-           measure q->c;
-
-           if(c[0] >> 1){
-            cx q;
-           }
-           """
-        ).validate()
-    with pytest.raises(
-        ValidationError,
-        match=r"Only simple comparison supported .*",
-    ):
-        loads(
+            include "stdgates.inc";
+            qubit[2] q;
+            bit[2] c;
+            h q;
+            measure q->c;
+            if(c[0] >> 1){
+                cx q;
+            }
+            """,
+            r"Only {==, >=, <=, >, <} supported in branching condition with classical register",
+            8,
+            15,
+            "c[0] >> 1",
+        ),
+        (
             """
             OPENQASM 3.0;
-           include "stdgates.inc";
-           qubit[2] q;
-           bit[2] c;
-
-           h q;
-           measure q->c;
-
-           if(c){
-            cx q;
-           }
-           """
-        ).validate()
-    with pytest.raises(
-        ValidationError,
-        match=r"RangeDefinition not supported in branching condition",
-    ):
-        loads(
+            include "stdgates.inc";
+            qubit[2] q;
+            bit[2] c;
+            h q;
+            measure q->c;
+            if(c){
+                cx q;
+            }
+            """,
+            r"Only simple comparison supported .*",
+            8,
+            15,
+            "c",
+        ),
+        (
             """
             OPENQASM 3.0;
-           include "stdgates.inc";
-           qubit[2] q;
-           bit[2] c;
-
-           h q;
-           measure q->c;
-
-           if(c[0:1]){
-            cx q;
-           }
-           """
-        ).validate()
-
-    with pytest.raises(
-        ValidationError,
-        match=r"DiscreteSet not supported in branching condition",
-    ):
-        loads(
+            include "stdgates.inc";
+            qubit[2] q;
+            bit[2] c;
+            h q;
+            measure q->c;
+            if(c[0:1]){
+                cx q;
+            }
+            """,
+            r"RangeDefinition not supported in branching condition",
+            8,
+            15,
+            "c[0:1]",
+        ),
+        (
             """
             OPENQASM 3.0;
-           include "stdgates.inc";
-           qubit[2] q;
-           bit[2] c;
+            include "stdgates.inc";
+            qubit[2] q;
+            bit[2] c;
+            h q;
+            measure q->c;
+            if(c[{0,1}]){
+                cx q;
+            }
+            """,
+            r"DiscreteSet not supported in branching condition",
+            8,
+            15,
+            "c[{0, 1}]",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_incorrect_if(qasm_code, error_message, line_num, col_num, err_line, caplog):
+    with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level("ERROR"):
+            loads(qasm_code).validate()
 
-           h q;
-           measure q->c;
-
-           if(c[{0,1}]){
-            cx q;
-           }
-           """
-        ).validate()
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text

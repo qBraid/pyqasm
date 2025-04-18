@@ -302,7 +302,7 @@ def test_function_call_from_within_fn():
 
 
 @pytest.mark.parametrize("data_type", ["int[32] a = 1;", "float[32] a = 1.0;", "bit a = 0;"])
-def test_return_value_mismatch(data_type):
+def test_return_value_mismatch(data_type, caplog):
     """Test that returning a value of incorrect type raises error."""
     qasm_str = (
         """OPENQASM 3.0;
@@ -323,11 +323,15 @@ def test_return_value_mismatch(data_type):
     with pytest.raises(
         ValidationError, match=r"Return type mismatch for subroutine 'my_function'.*"
     ):
-        loads(qasm_str).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_str).validate()
+
+    assert "Error at line 7, column 8" in caplog.text
+    assert "return a" in caplog.text
 
 
 @pytest.mark.parametrize("keyword", ["pi", "euler", "tau"])
-def test_subroutine_keyword_naming(keyword):
+def test_subroutine_keyword_naming(keyword, caplog):
     """Test that using a keyword as a subroutine name raises error."""
     qasm_str = f"""OPENQASM 3.0;
     include "stdgates.inc";
@@ -341,11 +345,15 @@ def test_subroutine_keyword_naming(keyword):
     """
 
     with pytest.raises(ValidationError, match=f"Subroutine name '{keyword}' is a reserved keyword"):
-        loads(qasm_str).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_str).validate()
+
+    assert "Error at line 4, column 4" in caplog.text
+    assert f"def {keyword}" in caplog.text
 
 
-@pytest.mark.parametrize("qubit_params", ["q", "q[:2]", "q[{0,1}]"])
-def test_qubit_size_arg_mismatch(qubit_params):
+@pytest.mark.parametrize("qubit_params", ["q", "q[:2]", "q[{0, 1}]"])
+def test_qubit_size_arg_mismatch(qubit_params, caplog):
     """Test that passing a qubit of different size raises error."""
     qasm_str = (
         """OPENQASM 3.0;
@@ -365,13 +373,21 @@ def test_qubit_size_arg_mismatch(qubit_params):
     with pytest.raises(
         ValidationError,
         match="Qubit register size mismatch for function 'my_function'. "
-        "Expected 3 in variable 'q' but got 2",
+        "Expected 3 qubits in variable 'q' but got 2",
     ):
-        loads(qasm_str).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_str).validate()
+
+    assert "Error at line 9, column 4" in caplog.text
+    assert f"my_function({qubit_params})" in caplog.text
 
 
 @pytest.mark.parametrize("test_name", SUBROUTINE_INCORRECT_TESTS.keys())
-def test_incorrect_custom_ops(test_name):
-    qasm_str, error_message = SUBROUTINE_INCORRECT_TESTS[test_name]
+def test_incorrect_custom_ops(test_name, caplog):
+    qasm_str, error_message, line_num, col_num, err_line = SUBROUTINE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        loads(qasm_str).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_str).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text
