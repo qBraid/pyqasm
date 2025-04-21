@@ -34,6 +34,7 @@ from openqasm3.ast import (
 )
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
+    QASMNode,
     QuantumBarrier,
     QuantumGate,
     QuantumPhase,
@@ -98,7 +99,9 @@ class Qasm3Transformer:
         multi_dim_arr[slicing] = value
 
     @staticmethod
-    def extract_values_from_discrete_set(discrete_set: DiscreteSet) -> list[int]:
+    def extract_values_from_discrete_set(
+        discrete_set: DiscreteSet, op_node: Optional[QASMNode] = None
+    ) -> list[int]:
         """Extract the values from a discrete set.
 
         Args:
@@ -111,21 +114,27 @@ class Qasm3Transformer:
         for value in discrete_set.values:
             if not isinstance(value, IntegerLiteral):
                 raise_qasm3_error(
-                    f"Unsupported discrete set value {value} in discrete set",
-                    span=discrete_set.span,
+                    f"Unsupported value '{Qasm3ExprEvaluator.evaluate_expression(value)[0]}' "
+                    "in discrete set",
+                    error_node=op_node if op_node else discrete_set,
+                    span=op_node.span if op_node else discrete_set.span,
                 )
             values.append(value.value)
         return values
 
     @staticmethod
     def get_qubits_from_range_definition(
-        range_def: RangeDefinition, qreg_size: int, is_qubit_reg: bool
+        range_def: RangeDefinition,
+        qreg_size: int,
+        is_qubit_reg: bool,
+        op_node: Optional[QASMNode] = None,
     ) -> list[int]:
         """Get the qubits from a range definition.
         Args:
             range_def (RangeDefinition): The range definition to get qubits from.
             qreg_size (int): The size of the register.
             is_qubit_reg (bool): Whether the register is a qubit register.
+            op_node (Optional[QASMNode]): The operation node.
         Returns:
             list[int]: The list of qubit identifiers.
         """
@@ -144,8 +153,12 @@ class Qasm3Transformer:
             if range_def.step is None
             else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
         )
-        Qasm3Validator.validate_register_index(start_qid, qreg_size, qubit=is_qubit_reg)
-        Qasm3Validator.validate_register_index(end_qid - 1, qreg_size, qubit=is_qubit_reg)
+        Qasm3Validator.validate_register_index(
+            start_qid, qreg_size, qubit=is_qubit_reg, op_node=op_node
+        )
+        Qasm3Validator.validate_register_index(
+            end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=op_node
+        )
         return list(range(start_qid, end_qid, step))
 
     @staticmethod
@@ -167,7 +180,9 @@ class Qasm3Transformer:
         for i, qubit in enumerate(gate_op.qubits):
             if isinstance(qubit, IndexedIdentifier):
                 raise_qasm3_error(
-                    f"Indexing '{qubit.name.name}' not supported in gate definition",
+                    f"Indexing '{qubit.name.name}' not supported in gate definition "
+                    f"for gate {gate_op.name}",
+                    error_node=gate_op,
                     span=qubit.span,
                 )
             gate_qubit_name = qubit.name
@@ -256,12 +271,14 @@ class Qasm3Transformer:
             raise_qasm3_error(
                 message="Only simple comparison supported in branching condition with "
                 "classical register",
+                error_node=condition,
                 span=condition.span,
             )
         if isinstance(condition, UnaryExpression):
             if condition.op != UnaryOperator["!"]:
                 raise_qasm3_error(
                     message="Only '!' supported in branching condition with classical register",
+                    error_node=condition,
                     span=condition.span,
                 )
             return BranchParams(
@@ -275,6 +292,7 @@ class Qasm3Transformer:
                 raise_qasm3_error(
                     message="Only {==, >=, <=, >, <} supported in branching condition "
                     "with classical register",
+                    error_node=condition,
                     span=condition.span,
                 )
 
@@ -300,12 +318,14 @@ class Qasm3Transformer:
             if isinstance(condition.index, DiscreteSet):
                 raise_qasm3_error(
                     message="DiscreteSet not supported in branching condition",
+                    error_node=condition,
                     span=condition.span,
                 )
             if isinstance(condition.index, list):
                 if isinstance(condition.index[0], RangeDefinition):
                     raise_qasm3_error(
                         message="RangeDefinition not supported in branching condition",
+                        error_node=condition,
                         span=condition.span,
                     )
                 return BranchParams(
@@ -382,13 +402,13 @@ class Qasm3Transformer:
                 target_qids = Qasm3Transformer.extract_values_from_discrete_set(target.index)
                 for qid in target_qids:
                     Qasm3Validator.validate_register_index(
-                        qid, qreg_size_map[target_name], qubit=True
+                        qid, qreg_size_map[target_name], qubit=True, op_node=target
                     )
                 target_qubits_size = len(target_qids)
             elif isinstance(target.index[0], (IntegerLiteral, Identifier)):  # "(q[0]); OR (q[i]);"
                 target_qids = [Qasm3ExprEvaluator.evaluate_expression(target.index[0])[0]]
                 Qasm3Validator.validate_register_index(
-                    target_qids[0], qreg_size_map[target_name], qubit=True
+                    target_qids[0], qreg_size_map[target_name], qubit=True, op_node=target
                 )
                 target_qubits_size = 1
             elif isinstance(target.index[0], RangeDefinition):  # "(q[0:1:2]);"

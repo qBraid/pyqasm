@@ -125,63 +125,76 @@ def test_qubit_clbit_declarations():
     check_unrolled_qasm(unrolled_qasm, expected_qasm)
 
 
-def test_qubit_redeclaration_error():
-    """Test redeclaration of qubit"""
-    with pytest.raises(ValidationError, match="Re-declaration of quantum register with name 'q1'"):
-        qasm3_string = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-        qubit q1;
-        qubit q1;
-        """
-        loads(qasm3_string).validate()
+@pytest.mark.parametrize(
+    "qasm_code,error_message,line_num,col_num,err_line",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit q1;
+            qubit q1;
+            """,
+            "Re-declaration of quantum register with name 'q1'",
+            5,
+            12,
+            "qubit[1] q1;",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit pi;
+            """,
+            "Can not declare quantum register with keyword name 'pi'",
+            4,
+            12,
+            "qubit[1] pi;",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            bit c1;
+            bit[4] c1;
+            """,
+            r"Re-declaration of variable 'c1'",
+            5,
+            12,
+            "bit[4] c1;",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            int[32] N = 10;
+            qubit[N] q;
+            """,
+            r"Invalid size 'N' for quantum register 'q'",
+            5,
+            12,
+            "qubit[N] q;",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            int[32] size = 10;
+            bit[size] c;
+            """,
+            r"Invalid base size for variable 'c'",
+            5,
+            15,
+            "bit[size] c;",
+        ),
+    ],
+)
+# pylint: disable-next=too-many-arguments
+def test_quantum_declarations_errors(qasm_code, error_message, line_num, col_num, err_line, caplog):
+    """Test various error cases with qubit and bit declarations"""
+    with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level("ERROR"):
+            loads(qasm_code).validate()
 
-
-def test_invalid_qubit_name():
-    """Test that qubit name can not be one of constants"""
-    with pytest.raises(
-        ValidationError, match="Can not declare quantum register with keyword name 'pi'"
-    ):
-        qasm3_string = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-        qubit pi;
-        """
-        loads(qasm3_string).validate()
-
-
-def test_clbit_redeclaration_error():
-    """Test redeclaration of clbit"""
-    with pytest.raises(ValidationError, match=r"Re-declaration of variable c1"):
-        qasm3_string = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-        bit c1;
-        bit[4] c1;
-        """
-        loads(qasm3_string).validate()
-
-
-def test_non_constant_size():
-    """Test non-constant size in qubit and clbit declarations"""
-    with pytest.raises(
-        ValidationError, match=r"Variable 'N' is not a constant in given expression"
-    ):
-        qasm3_string = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-        int[32] N = 10;
-        qubit[N] q;
-        """
-        loads(qasm3_string).validate()
-
-    with pytest.raises(
-        ValidationError, match=r"Variable 'size' is not a constant in given expression"
-    ):
-        qasm3_string = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-        int[32] size = 10;
-        bit[size] c;
-        """
-        loads(qasm3_string).validate()
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text

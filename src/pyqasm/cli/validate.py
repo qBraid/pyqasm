@@ -28,6 +28,7 @@ from pyqasm import load
 from pyqasm.exceptions import QasmParsingError, UnrollError, ValidationError
 
 logger = logging.getLogger(__name__)
+logger.propagate = False
 
 
 def validate_paths_exist(paths: Optional[list[str]]) -> Optional[list[str]]:

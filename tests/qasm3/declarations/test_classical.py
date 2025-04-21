@@ -370,14 +370,22 @@ def test_array_range_assignment():
 
 
 @pytest.mark.parametrize("test_name", DECLARATION_TESTS.keys())
-def test_incorrect_declarations(test_name):
-    qasm_input, error_message = DECLARATION_TESTS[test_name]
+def test_incorrect_declarations(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, err_line = DECLARATION_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        loads(qasm_input).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_input).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text
 
 
 @pytest.mark.parametrize("test_name", ASSIGNMENT_TESTS.keys())
-def test_incorrect_assignments(test_name):
-    qasm_input, error_message = ASSIGNMENT_TESTS[test_name]
+def test_incorrect_assignments(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, err_line = ASSIGNMENT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
-        loads(qasm_input).validate()
+        with caplog.at_level("ERROR"):
+            loads(qasm_input).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text
