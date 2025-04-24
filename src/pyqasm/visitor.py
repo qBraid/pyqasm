@@ -823,7 +823,7 @@ class QasmVisitor:
 
         if len(op_parameters) != actual_num_params:
             raise_qasm3_error(
-                f"Expected {op_qubit_count} parameter{'s' if op_qubit_count > 1 else ''}"
+                f"Expected {actual_num_params} parameter{'s' if op_qubit_count == 1 else ''}"
                 f" for gate '{operation.name.name}', but got {len(op_parameters)}",
                 error_node=operation,
                 span=operation.span,
