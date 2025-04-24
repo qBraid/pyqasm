@@ -1104,6 +1104,8 @@ PARAMS_OP_SET = {
         "rz",
         "phaseshift",
         "p",
+        "u1",
+        "U1",
         "gpi",
         "gpi2",
         "xx",
