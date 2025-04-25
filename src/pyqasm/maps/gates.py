@@ -23,13 +23,7 @@ Module mapping supported QASM gates to lower level gate operations.
 from typing import Callable
 
 import numpy as np
-from openqasm3.ast import (
-    FloatLiteral,
-    Identifier,
-    IndexedIdentifier,
-    QuantumGate,
-    QuantumPhase,
-)
+from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
 
 from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
@@ -1124,11 +1118,12 @@ PARAMS_OP_SET = {
         "cphaseshift",
         "cp10",
         "cphaseshift01",
+        "cphaseshift10",
         "cp01",
         "cp00",
         "cphaseshift00",
     },
-    2: {"xx_plus_yy", "u2", "U2"},
+    2: {"xx_plus_yy", "u2", "U2", "prx"},
     3: {"ms", "cu3", "u", "U", "u3", "U3"},
     4: {"cu"},
 }
