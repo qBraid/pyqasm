@@ -33,11 +33,7 @@ from openqasm3.ast import (
     IntegerLiteral,
 )
 from openqasm3.ast import IntType as Qasm3IntType
-from openqasm3.ast import (
-    SizeOf,
-    Statement,
-    UnaryExpression,
-)
+from openqasm3.ast import SizeOf, Statement, UnaryExpression
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
