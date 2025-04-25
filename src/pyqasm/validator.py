@@ -19,7 +19,11 @@ Module with utility functions for QASM visitor
 from typing import Any, Optional
 
 import numpy as np
-from openqasm3.ast import ArrayType, ClassicalDeclaration, FloatType
+from openqasm3.ast import (
+    ArrayType,
+    ClassicalDeclaration,
+    FloatType,
+)
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
     QASMNode,
