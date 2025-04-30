@@ -1098,7 +1098,6 @@ class QasmVisitor:
         Returns:
             None
         """
-        operation, ctrls = copy.deepcopy(operation), copy.deepcopy(ctrls)
         negctrls = []
         if ctrls is None:
             ctrls = []
