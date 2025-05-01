@@ -18,6 +18,8 @@ Types of changes:
 
 ### Improved / Modified
 
+- Optimized `_visit_generic_gate_operation` in `QasmVisitor` class by using shallow copy instead of deep copy for better performance when processing gate operations. ([#180](https://github.com/qBraid/pyqasm/pull/180))
+
 ### Deprecated
 
 ### Removed
