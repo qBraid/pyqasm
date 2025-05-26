@@ -27,6 +27,14 @@ PyQASM requires Python 3.10 or greater, and can be installed with pip as follows
 pip install pyqasm
 ```
 
+### Optional Dependencies
+
+PyQASM provides an optional extra called pyqasm[pulse] that adds pulse/calibration features.
+
+```bash
+pip install pyqasm[pulse]
+```
+
 ### Install from source 
 
 You can also install from source by cloning this repository and running a pip install command
