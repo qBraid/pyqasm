@@ -6,6 +6,7 @@
 [![codecov](https://codecov.io/gh/qBraid/pyqasm/graph/badge.svg?token=92YURMR8T8)](https://codecov.io/gh/qBraid/pyqasm)
 [![GitHub Pages](https://img.shields.io/github/actions/workflow/status/qBraid/pyqasm/gh-pages.yml?label=docs)](https://sdk.qbraid.com/pyqasm/)
 [![PyPI version](https://img.shields.io/pypi/v/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
+[![PyPI Downloads](https://static.pepy.tech/badge/pyqasm)](https://pepy.tech/projects/pyqasm)
 [![Python verions](https://img.shields.io/pypi/pyversions/pyqasm.svg?color=blue)](https://pypi.org/project/pyqasm/)
 [![License](https://img.shields.io/github/license/qBraid/pyqasm.svg?color=purple)](https://www.apache.org/licenses/LICENSE-2.0)
 
