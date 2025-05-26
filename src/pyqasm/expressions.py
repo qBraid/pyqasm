@@ -155,7 +155,7 @@ class Qasm3ExprEvaluator:
             var_value = cls.visitor_obj._get_from_visible_scope(var_name).value
         else:
             validated_indices = Qasm3Analyzer.analyze_classical_indices(
-                indices, cls.visitor_obj._get_from_visible_scope(var_name), cls
+                indices, cls.visitor_obj._get_from_visible_scope(var_name), Qasm3ExprEvaluator
             )
             var_value = Qasm3Analyzer.find_array_element(
                 cls.visitor_obj._get_from_visible_scope(var_name).value, validated_indices

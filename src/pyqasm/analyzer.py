@@ -46,9 +46,9 @@ if TYPE_CHECKING:
 class Qasm3Analyzer:
     """Class with utility functions for analyzing QASM3 elements"""
 
-    @classmethod
+    @staticmethod
     def analyze_classical_indices(
-        cls, indices: list[Any], var: Variable, expr_evaluator: Qasm3ExprEvaluator
+        indices: list[Any], var: Variable, expr_evaluator: Qasm3ExprEvaluator
     ) -> list:
         """Validate the indices for a classical variable.
 
