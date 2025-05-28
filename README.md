@@ -35,6 +35,18 @@ PyQASM provides an optional extra called pyqasm[pulse] that adds pulse/calibrati
 pip install pyqasm[pulse]
 ```
 
+PyQASM also offers optional extras for command-line interface (CLI) functionality and for program visualization.
+
+To install the CLI tools:
+```bash
+pip install pyqasm[cli]
+```
+
+To install the visualization tools:
+```bash
+pip install pyqasm[visualization]
+```
+
 ### Install from source 
 
 You can also install from source by cloning this repository and running a pip install command
