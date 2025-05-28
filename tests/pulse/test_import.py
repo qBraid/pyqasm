@@ -1,4 +1,5 @@
 """Tests for pulse functionality."""
+
 import pytest
 
 
