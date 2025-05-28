@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added the `pulse` extra dependency to the `pyproject.toml` file, which includes the `openpulse` package. This allows users to install pulse-related functionality when needed. ([#195](https://github.com/qBraid/pyqasm/pull/195))
 
 ### Improved / Modified
 
