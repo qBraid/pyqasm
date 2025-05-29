@@ -55,7 +55,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._has_barriers: Optional[bool] = None
         self._validated_program = False
         self._unrolled_ast = Program(statements=[])
-        self._external_gates = []
+        self._external_gates: list[str] = []
 
     @property
     def name(self) -> str:

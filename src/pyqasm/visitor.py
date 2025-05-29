@@ -951,12 +951,6 @@ class QasmVisitor:
         # Update the depth only once for the entire custom gate
         if not self._recording_depth:
             self._recording_depth = True
-            op_qubits: list[qasm3_ast.IndexedIdentifier] = (
-                self._get_op_bits(  # type: ignore [assignment]
-                    operation,
-                    self._global_qreg_size_map,
-                )
-            )
             self._update_qubit_depth_for_gate([op_qubits], ctrls)
 
         self._restore_context()
