@@ -51,25 +51,57 @@ def test_gate_depth():
     assert result.depth() == 5
 
 
-@pytest.mark.skip(reason="Not implemented computing depth of external gates")
-def test_gate_depth_external_function():
-    qasm3_string = """
-    OPENQASM 3;
-    include "stdgates.inc";
+qasm3_string_1 = """
+OPENQASM 3;
+include "stdgates.inc";
 
-    gate my_gate() q {
-        h q;
-        x q;
-    }
+gate my_gate() q {
+    h q;
+    x q;
+}
 
-    qubit q;
-    my_gate() q;
-    """
-    result = loads(qasm3_string)
+qubit q;
+my_gate() q;
+"""
+
+qasm3_string_2 = """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate my_gate q1, q2 {
+  h q1;
+  cx q1, q2;
+  h q2;
+}
+qubit[2] q;
+my_gate q[0], q[1];
+"""
+
+qasm3_string_3 = """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate my_gate q1, q2 { }
+qubit[2] q;
+my_gate q[0], q[1];
+"""
+
+@pytest.mark.parametrize(["input_qasm_str", "first_depth", "second_depth", "num_qubits"],
+                         [
+                             (qasm3_string_1, 1, 2, 1),
+                             (qasm3_string_2, 1, 3, 2),
+                             (qasm3_string_3, 1, 0, 2),
+                             ]
+                         )
+def test_gate_depth_external_function(input_qasm_str, first_depth, second_depth, num_qubits):
+    result = loads(input_qasm_str)
     result.unroll(external_gates=["my_gate"])
-    assert result.num_qubits == 1
+    assert result.num_qubits == num_qubits
     assert result.num_clbits == 0
-    assert result.depth() == 1
+    assert result.depth() == first_depth
+
+    # Check that unrolling with no external_gates flushes the internally stored
+    # external gates and influences the depth calculation
+    result.unroll()
+    assert result.depth() == second_depth
 
 
 def test_pow_gate_depth():
