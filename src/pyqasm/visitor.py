@@ -918,7 +918,7 @@ class QasmVisitor:
 
         # Pause recording the depth of new gates because we are processing the
         # definition of a custom gate here - handle the depth separately afterwards
-        self._recording_depth = False
+        self._recording_depth = not (operation.name.name in self._external_gates)
         result = []
         for gate_op in gate_definition_ops:
             if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
@@ -949,14 +949,15 @@ class QasmVisitor:
                 )
 
         # Update the depth only once for the entire custom gate
-        self._recording_depth = True
-        op_qubits: list[qasm3_ast.IndexedIdentifier] = (
-            self._get_op_bits(  # type: ignore [assignment]
-                operation,
-                self._global_qreg_size_map,
+        if not self._recording_depth:
+            self._recording_depth = True
+            op_qubits: list[qasm3_ast.IndexedIdentifier] = (
+                self._get_op_bits(  # type: ignore [assignment]
+                    operation,
+                    self._global_qreg_size_map,
+                )
             )
-        )
-        self._update_qubit_depth_for_gate([op_qubits], ctrls)
+            self._update_qubit_depth_for_gate([op_qubits], ctrls)
 
         self._restore_context()
 
@@ -985,7 +986,6 @@ class QasmVisitor:
         Returns:
             list[qasm3_ast.QuantumGate]: The quantum gate that was collected.
         """
-
         logger.debug("Visiting external gate operation '%s'", str(operation))
         gate_name: str = operation.name.name
         if ctrls is None:

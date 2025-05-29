@@ -55,6 +55,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._has_barriers: Optional[bool] = None
         self._validated_program = False
         self._unrolled_ast = Program(statements=[])
+        self._external_gates = []
 
     @property
     def name(self) -> str:
@@ -278,7 +279,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         qasm_module = self.copy()
         qasm_module._qubit_depths = {}
         qasm_module._clbit_depths = {}
-        qasm_module.unroll()
+
+        # Unroll using any external gates that have been recorded for this
+        # module
+        qasm_module.unroll(external_gates = self._external_gates)
 
         max_depth = 0
         max_qubit_depth, max_clbit_depth = 0, 0
@@ -539,6 +543,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             kwargs = {}
         try:
             self.num_qubits, self.num_clbits = 0, 0
+            if ext_gates := kwargs.get("external_gates"):
+                self._external_gates = ext_gates
+            else:
+                self._external_gates = []
             visitor = QasmVisitor(module=self, **kwargs)
             self.accept(visitor)
         except (ValidationError, UnrollError) as err:
