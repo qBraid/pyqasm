@@ -97,6 +97,10 @@ def test_gate_depth_external_function(input_qasm_str, first_depth, second_depth,
     result = loads(input_qasm_str)
     result.unroll(external_gates=["my_gate"])
     assert result.num_qubits == num_qubits
+
+    for i in range(num_qubits):
+        assert result._qubit_depths[("q", i)].num_gates == 1
+
     assert result.num_clbits == 0
     assert result.depth() == first_depth
 

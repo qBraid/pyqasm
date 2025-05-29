@@ -88,7 +88,7 @@ class QasmVisitor:
         self._unroll_barriers: bool = unroll_barriers
         self._curr_scope: int = 0
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
-        self._recording_depth = True
+        self._recording_ext_gate_depth = False
 
         self._init_utilities()
 
@@ -751,17 +751,17 @@ class QasmVisitor:
         Returns:
             None
         """
-        for qubit_subset in all_targets:
-            max_involved_depth = 0
-            for qubit in qubit_subset + ctrls:
-                assert isinstance(qubit.indices[0], list)
-                _qid_ = qubit.indices[0][0]
-                qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
-                qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
-                qubit_node.num_gates += 1
-                max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
+        if not self._recording_ext_gate_depth:
+            for qubit_subset in all_targets:
+                max_involved_depth = 0
+                for qubit in qubit_subset + ctrls:
+                    assert isinstance(qubit.indices[0], list)
+                    _qid_ = qubit.indices[0][0]
+                    qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
+                    qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
+                    qubit_node.num_gates += 1
+                    max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
 
-            if self._recording_depth:
                 for qubit in qubit_subset + ctrls:
                     assert isinstance(qubit.indices[0], list)
                     _qid_ = qubit.indices[0][0]
@@ -918,7 +918,8 @@ class QasmVisitor:
 
         # Pause recording the depth of new gates because we are processing the
         # definition of a custom gate here - handle the depth separately afterwards
-        self._recording_depth = not gate_name in self._external_gates
+        self._recording_ext_gate_depth = gate_name in self._external_gates
+
         result = []
         for gate_op in gate_definition_ops:
             if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
@@ -949,8 +950,8 @@ class QasmVisitor:
                 )
 
         # Update the depth only once for the entire custom gate
-        if not self._recording_depth:
-            self._recording_depth = True
+        if self._recording_ext_gate_depth:
+            self._recording_ext_gate_depth = False
             self._update_qubit_depth_for_gate([op_qubits], ctrls)
 
         self._restore_context()
