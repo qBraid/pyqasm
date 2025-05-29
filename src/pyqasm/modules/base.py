@@ -282,7 +282,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         # Unroll using any external gates that have been recorded for this
         # module
-        qasm_module.unroll(external_gates = self._external_gates)
+        qasm_module.unroll(external_gates=self._external_gates)
 
         max_depth = 0
         max_qubit_depth, max_clbit_depth = 0, 0

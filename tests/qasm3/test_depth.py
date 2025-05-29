@@ -84,13 +84,15 @@ qubit[2] q;
 my_gate q[0], q[1];
 """
 
-@pytest.mark.parametrize(["input_qasm_str", "first_depth", "second_depth", "num_qubits"],
-                         [
-                             (QASM3_STRING_1, 1, 2, 1),
-                             (QASM3_STRING_2, 1, 3, 2),
-                             (QASM3_STRING_3, 1, 0, 2),
-                             ]
-                         )
+
+@pytest.mark.parametrize(
+    ["input_qasm_str", "first_depth", "second_depth", "num_qubits"],
+    [
+        (QASM3_STRING_1, 1, 2, 1),
+        (QASM3_STRING_2, 1, 3, 2),
+        (QASM3_STRING_3, 1, 0, 2),
+    ],
+)
 def test_gate_depth_external_function(input_qasm_str, first_depth, second_depth, num_qubits):
     result = loads(input_qasm_str)
     result.unroll(external_gates=["my_gate"])
