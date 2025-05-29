@@ -51,7 +51,7 @@ def test_gate_depth():
     assert result.depth() == 5
 
 
-qasm3_string_1 = """
+QASM3_STRING_1 = """
 OPENQASM 3;
 include "stdgates.inc";
 
@@ -64,7 +64,7 @@ qubit q;
 my_gate() q;
 """
 
-qasm3_string_2 = """
+QASM3_STRING_2 = """
 OPENQASM 3.0;
 include "stdgates.inc";
 gate my_gate q1, q2 {
@@ -76,7 +76,7 @@ qubit[2] q;
 my_gate q[0], q[1];
 """
 
-qasm3_string_3 = """
+QASM3_STRING_3 = """
 OPENQASM 3.0;
 include "stdgates.inc";
 gate my_gate q1, q2 { }
@@ -86,9 +86,9 @@ my_gate q[0], q[1];
 
 @pytest.mark.parametrize(["input_qasm_str", "first_depth", "second_depth", "num_qubits"],
                          [
-                             (qasm3_string_1, 1, 2, 1),
-                             (qasm3_string_2, 1, 3, 2),
-                             (qasm3_string_3, 1, 0, 2),
+                             (QASM3_STRING_1, 1, 2, 1),
+                             (QASM3_STRING_2, 1, 3, 2),
+                             (QASM3_STRING_3, 1, 0, 2),
                              ]
                          )
 def test_gate_depth_external_function(input_qasm_str, first_depth, second_depth, num_qubits):

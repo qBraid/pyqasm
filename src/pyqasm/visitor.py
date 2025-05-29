@@ -918,7 +918,7 @@ class QasmVisitor:
 
         # Pause recording the depth of new gates because we are processing the
         # definition of a custom gate here - handle the depth separately afterwards
-        self._recording_depth = not (operation.name.name in self._external_gates)
+        self._recording_depth = not operation.name.name in self._external_gates
         result = []
         for gate_op in gate_definition_ops:
             if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
