@@ -28,7 +28,7 @@ Types of changes:
 
 ### Fixed
 
-- Fixed the way how depth is calculated when external gates are defined with unrolling a QASM module. ([#XXX](https://github.com/qBraid/pyqasm/pull/XXX))
+- Fixed the way how depth is calculated when external gates are defined with unrolling a QASM module. ([#198](https://github.com/qBraid/pyqasm/pull/198))
 
 ### Dependencies
 
