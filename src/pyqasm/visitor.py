@@ -88,6 +88,7 @@ class QasmVisitor:
         self._unroll_barriers: bool = unroll_barriers
         self._curr_scope: int = 0
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
+        self._recording_depth = True
 
         self._init_utilities()
 
@@ -760,12 +761,13 @@ class QasmVisitor:
                 qubit_node.num_gates += 1
                 max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
 
-            for qubit in qubit_subset + ctrls:
-                assert isinstance(qubit.indices[0], list)
-                _qid_ = qubit.indices[0][0]
-                qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
-                qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
-                qubit_node.depth = max_involved_depth
+            if self._recording_depth:
+                for qubit in qubit_subset + ctrls:
+                    assert isinstance(qubit.indices[0], list)
+                    _qid_ = qubit.indices[0][0]
+                    qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
+                    qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
+                    qubit_node.depth = max_involved_depth
 
     def _visit_basic_gate_operation(  # pylint: disable=too-many-locals
         self,
@@ -913,6 +915,10 @@ class QasmVisitor:
             gate_definition_ops.reverse()
 
         self._push_context(Context.GATE)
+
+        # Pause recording the depth of new gates because we are processing the
+        # definition of a custom gate here - handle the depth separately afterwards
+        self._recording_depth = False
         result = []
         for gate_op in gate_definition_ops:
             if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
@@ -941,6 +947,16 @@ class QasmVisitor:
                     error_node=gate_op,
                     span=gate_op.span,
                 )
+
+        # Update the depth only once for the entire custom gate
+        self._recording_depth = True
+        op_qubits: list[qasm3_ast.IndexedIdentifier] = (
+            self._get_op_bits(  # type: ignore [assignment]
+                operation,
+                self._global_qreg_size_map,
+            )
+        )
+        self._update_qubit_depth_for_gate([op_qubits], ctrls)
 
         self._restore_context()
 
