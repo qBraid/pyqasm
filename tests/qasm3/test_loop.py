@@ -332,3 +332,31 @@ def test_convert_qasm3_for_loop_unsupported_type(caplog):
 
     assert "Error at line 9, column 16" in caplog.text
     assert 'for bit b in "001"' in caplog.text
+
+
+def test_while_loop_with_break_and_continue():
+    """Test a while loop with break and continue statements."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    int i = 0;
+    while (i < 2) {
+        h q[i];
+        if (i == 0) {
+            i += 1;
+            continue;
+        }
+        if (i == 1) {
+            break;
+        }
+        i += 1;
+    }
+    measure q -> c;
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    assert result.num_qubits == 2
+    assert result.num_clbits == 2
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 1], "h")

@@ -1939,8 +1939,62 @@ class QasmVisitor:
 
         return return_value, result
 
-    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> None:
+    # Custom exceptions for break/continue
+    class BreakException(Exception):
         pass
+
+    class ContinueException(Exception):
+        pass
+
+    def _visit_break_statement(self, statement):
+        """Visit a break statement element."""
+        raise self.BreakException()
+
+    def _visit_continue_statement(self, statement):
+        """Visit a continue statement element."""
+        raise self.ContinueException()
+
+    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
+        """Visit a while loop statement element."""
+        result = []
+        loop_limit = getattr(self, "_loop_limit", 1000)
+        iterations = 0
+        while True:
+            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(statement.condition)
+            result.extend(cond_stmts)
+            if not cond_value:
+                break
+            self._push_context(Context.BLOCK)
+            self._push_scope({})
+            self._curr_scope += 1
+            self._label_scope_level[self._curr_scope] = set()
+            try:
+                result.extend(self.visit_basic_block(statement.block))
+            except self.BreakException:
+                # Exit the loop
+                self._pop_scope()
+                self._restore_context()
+                del self._label_scope_level[self._curr_scope]
+                self._curr_scope -= 1
+                break
+            except self.ContinueException:
+                # Continue to next iteration
+                self._pop_scope()
+                self._restore_context()
+                del self._label_scope_level[self._curr_scope]
+                self._curr_scope -= 1
+                iterations += 1
+                if loop_limit is not None and iterations > loop_limit:
+                    raise ValidationError(f"Loop iteration limit ({loop_limit}) exceeded in while loop.")
+                continue
+            self._pop_scope()
+            self._restore_context()
+            del self._label_scope_level[self._curr_scope]
+            self._curr_scope -= 1
+            iterations += 1
+            if loop_limit is not None and iterations > loop_limit:
+                raise ValidationError(f"Loop iteration limit ({loop_limit}) exceeded in while loop.")
+        return result
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
@@ -2186,6 +2240,10 @@ class QasmVisitor:
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
+            qasm3_ast.WhileLoop: self._visit_while_loop,
+            # Add break/continue if present in AST
+            getattr(qasm3_ast, 'BreakStatement', None): self._visit_break_statement,
+            getattr(qasm3_ast, 'ContinueStatement', None): self._visit_continue_statement,
         }
 
         visitor_function = visit_map.get(type(statement))
