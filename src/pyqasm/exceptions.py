@@ -49,6 +49,26 @@ class QasmParsingError(QASM3ParsingError):
     where the given program could not be correctly parsed."""
 
 
+class LoopException(Exception):
+    """Base class for loop control flow exceptions (break/continue)."""
+
+
+class BreakException(LoopException):
+    """Exception to signal a break statement in a loop."""
+
+
+class ContinueException(LoopException):
+    """Exception to signal a continue statement in a loop."""
+
+
+class PyqasmRuntimeError(Exception):
+    """Base class for runtime errors in pyqasm."""
+
+
+class LoopLimitExceeded(PyqasmRuntimeError):
+    """Raised when a loop exceeds the maximum allowed iterations."""
+
+
 def raise_qasm3_error(
     message: Optional[str] = None,
     err_type: Type[Exception] = ValidationError,
