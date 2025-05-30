@@ -1941,10 +1941,10 @@ class QasmVisitor:
 
     # Custom exceptions for break/continue
     class BreakException(Exception):
-        pass
+        """Exception to signal a break statement in a loop."""
 
     class ContinueException(Exception):
-        pass
+        """Exception to signal a continue statement in a loop."""
 
     def _visit_break_statement(self, statement):
         """Visit a break statement element."""
@@ -1960,7 +1960,9 @@ class QasmVisitor:
         loop_limit = getattr(self, "_loop_limit", 1000)
         iterations = 0
         while True:
-            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(statement.condition)
+            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(
+                statement.condition
+            )
             result.extend(cond_stmts)
             if not cond_value:
                 break
@@ -1985,7 +1987,9 @@ class QasmVisitor:
                 self._curr_scope -= 1
                 iterations += 1
                 if loop_limit is not None and iterations > loop_limit:
-                    raise ValidationError(f"Loop iteration limit ({loop_limit}) exceeded in while loop.")
+                    raise ValidationError(
+                        f"Loop iteration limit ({loop_limit}) exceeded in while loop."
+                    ) from None
                 continue
             self._pop_scope()
             self._restore_context()
@@ -1993,7 +1997,9 @@ class QasmVisitor:
             self._curr_scope -= 1
             iterations += 1
             if loop_limit is not None and iterations > loop_limit:
-                raise ValidationError(f"Loop iteration limit ({loop_limit}) exceeded in while loop.")
+                raise ValidationError(
+                    f"Loop iteration limit ({loop_limit}) exceeded in while loop."
+                ) from None
         return result
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
