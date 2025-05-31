@@ -426,7 +426,7 @@ def test_qasm3_depth_no_branching(program, expected_depth):
     assert result.depth() == expected_depth
 
 
-@pytest.mark.skip(reason="Not implemented branching conditions depth")
+# @pytest.mark.skip(reason="Not implemented branching conditions depth")
 @pytest.mark.parametrize(
     "program, expected_depth",
     [
@@ -494,4 +494,5 @@ def test_qasm3_depth_branching(program, expected_depth):
     """Test calculating depth of qasm3 circuit with branching conditions"""
     result = loads(program)
     result.unroll()
+    result.remove_barriers()
     assert result.depth() == expected_depth
