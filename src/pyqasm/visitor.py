@@ -90,8 +90,8 @@ class QasmVisitor:
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
         self._recording_ext_gate_depth = False
         self._in_branching_statement: bool = False
-        self._is_branch_qubits: set[tuple[str, int]]  = set()
-        self._is_branch_clbits: set[tuple[str, int]]  = set()
+        self._is_branch_qubits: set[tuple[str, int]] = set()
+        self._is_branch_clbits: set[tuple[str, int]] = set()
         self._init_utilities()
 
     def _init_utilities(self):
@@ -543,8 +543,8 @@ class QasmVisitor:
                     tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
 
                     qubit_node, clbit_node = (
-                       self._module._qubit_depths[(src_name, src_id)],
-                       self._module._clbit_depths[(tgt_name, tgt_id)],
+                        self._module._qubit_depths[(src_name, src_id)],
+                        self._module._clbit_depths[(tgt_name, tgt_id)],
                     )
                     qubit_node.depth += 1
                     qubit_node.num_measurements += 1
@@ -862,10 +862,10 @@ class QasmVisitor:
             if not self._in_branching_statement:
                 self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
             else:
-                for ops in unrolled_targets + [ctrls] : # get qreg in branching operations
+                for ops in unrolled_targets + [ctrls]:  # get qreg in branching operations
                     for op in ops:
                         op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
-                        op_tuple = (op.name.name,op_idx)
+                        op_tuple = (op.name.name, op_idx)
                         self._is_branch_qubits.add(op_tuple)
 
         # check for duplicate bits
@@ -966,13 +966,13 @@ class QasmVisitor:
         # Update the depth only once for the entire custom gate
         if self._recording_ext_gate_depth:
             self._recording_ext_gate_depth = False
-            if not self._in_branching_statement: # if custom gate is not in branching statement
+            if not self._in_branching_statement:  # if custom gate is not in branching statement
                 self._update_qubit_depth_for_gate([op_qubits], ctrls)
             else:
-                for ops in [op_qubits] + [ctrls]: # get qubit registers in branching operations
+                for ops in [op_qubits] + [ctrls]:  # get qubit registers in branching operations
                     for op in ops:
                         op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
-                        op_tuple = (op.name.name,op_idx)
+                        op_tuple = (op.name.name, op_idx)
                         self._is_branch_qubits.add(op_tuple)
 
         self._restore_context()
@@ -1641,13 +1641,13 @@ class QasmVisitor:
             q_name, q_idx = qbit
             q_node = self._module._qubit_depths[(q_name, q_idx)]
             nodes.append(q_node)
-            max_depths = max(max_depths,q_node.depth + 1)
+            max_depths = max(max_depths, q_node.depth + 1)
 
         for cbit in self._is_branch_clbits:
             c_name, c_idx = cbit
             c_node = self._module._clbit_depths[(c_name, c_idx)]
             nodes.append(c_node)
-            max_depths = max(max_depths,c_node.depth + 1)
+            max_depths = max(max_depths, c_node.depth + 1)
 
         for node in nodes:
             node.depth = max_depths
