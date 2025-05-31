@@ -30,9 +30,15 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
-from pyqasm.exceptions import ValidationError, raise_qasm3_error, BreakException, ContinueException, LoopLimitExceeded
+from pyqasm.exceptions import (
+    BreakException,
+    ContinueException,
+    ValidationError,
+    raise_qasm3_error,
+)
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
+from pyqasm.maps.constants import DEFAULT_MAX_LOOP_ITERATIONS
 from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
 from pyqasm.maps.gates import (
     map_qasm_ctrl_op_to_callable,
@@ -43,7 +49,6 @@ from pyqasm.maps.gates import (
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
-from pyqasm.maps.constants import DEFAULT_MAX_LOOP_ITERATIONS
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -1955,7 +1960,9 @@ class QasmVisitor:
         loop_limit = self._loop_limit
         self._curr_scope += 1
         while True:
-            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)
+            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(
+                statement.while_condition
+            )
             if not cond_value:
                 break
             try:

@@ -20,12 +20,12 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 import pytest
 
 from pyqasm.entrypoint import loads
-from pyqasm.exceptions import ValidationError, LoopLimitExceeded
+from pyqasm.exceptions import LoopLimitExceeded, ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
+    check_single_qubit_op,
     check_single_qubit_rotation_op,
     check_two_qubit_gate_op,
-    check_single_qubit_op,
 )
 
 EXAMPLE_WITHOUT_LOOP = """
@@ -358,12 +358,12 @@ def test_while_loop_with_break_and_continue():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, '__str__')]
+    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
     # Validate number of h q operations
-    assert sum('h q' in s for s in stmts) == 4
+    assert sum("h q" in s for s in stmts) == 4
     # Validate qubit indices
     for s in stmts:
-        if 'h q' in s:
+        if "h q" in s:
             check_single_qubit_op(s)
 
 
@@ -394,17 +394,14 @@ def test_while_loop_unroll_qasm_output():
         i += 1;
     }
     """
-    expected = [
-        'h q;',
-    ]
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, '__str__')]
+    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
     # Validate number of h q operations
-    assert sum('h q' in s for s in stmts) == 4
+    assert sum("h q" in s for s in stmts) == 4
     # Validate qubit indices
     for s in stmts:
-        if 'h q' in s:
+        if "h q" in s:
             check_single_qubit_op(s)
 
 
@@ -420,8 +417,8 @@ def test_empty_while_loop_ignored():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, '__str__')]
-    assert any('h q' in s for s in stmts)
+    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
+    assert any("h q" in s for s in stmts)
     # No extra statements from the while loop
     assert len(stmts) == 1
 
@@ -447,8 +444,8 @@ def test_nested_while_loops_break_continue():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, '__str__')]
-    assert any('h q' in s for s in stmts)
+    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
+    assert any("h q" in s for s in stmts)
 
 
 def test_mixed_for_while_loops():
@@ -466,5 +463,5 @@ def test_mixed_for_while_loops():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, '__str__')]
-    assert sum('h q' in s for s in stmts) == 4
+    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
+    assert sum("h q" in s for s in stmts) == 4
