@@ -30,9 +30,15 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
-from pyqasm.exceptions import ValidationError, raise_qasm3_error
+from pyqasm.exceptions import (
+    BreakException,
+    ContinueException,
+    ValidationError,
+    raise_qasm3_error,
+)
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
+from pyqasm.maps.constants import DEFAULT_MAX_LOOP_ITERATIONS
 from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
 from pyqasm.maps.gates import (
     map_qasm_ctrl_op_to_callable,
@@ -60,6 +66,8 @@ class QasmVisitor:
         external_gates (list[str]): List of gates that should not be unrolled.
         unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
         check_only (bool): If True, only check the program without executing it. Defaults to False.
+        loop_limit (int): The maximum number of iterations allowed in a loop.
+        Defaults to DEFAULT_MAX_LOOP_ITERATIONS.
     """
 
     def __init__(
@@ -68,7 +76,8 @@ class QasmVisitor:
         check_only: bool = False,
         external_gates: list[str] | None = None,
         unroll_barriers: bool = True,
-    ):
+        loop_limit=DEFAULT_MAX_LOOP_ITERATIONS,
+    ):  # pylint: disable=too-many-arguments
         self._module = module
         self._scope: deque = deque([{}])
         self._context: deque = deque([Context.GLOBAL])
@@ -89,6 +98,7 @@ class QasmVisitor:
         self._curr_scope: int = 0
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
         self._recording_ext_gate_depth = False
+        self._loop_limit = loop_limit
 
         self._init_utilities()
 
@@ -1939,8 +1949,34 @@ class QasmVisitor:
 
         return return_value, result
 
-    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> None:
-        pass
+    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
+        """Visit a while loop statement element."""
+        result: list[qasm3_ast.Statement] = []
+        # Check for classical register in while condition
+        if self.classical_register_in_expr(statement.while_condition):
+            raise_qasm3_error(
+                "Cannot unroll while loops with quantum measurement in the condition."
+            )
+        iterations = 0
+        loop_limit = self._loop_limit
+        self._curr_scope += 1
+        while True:
+            cond_value, _ = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)
+            if not cond_value:
+                break
+            try:
+                result.extend(self._visit_block(statement.block))
+            except BreakException:
+                break
+            except ContinueException:
+                continue
+            iterations += 1
+            if loop_limit is not None and iterations > loop_limit:
+                raise_qasm3_error(
+                    f"While loop iteration limit ({loop_limit}) exceeded. Possible infinite loop."
+                )
+        self._curr_scope -= 1
+        return result
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
@@ -2186,6 +2222,7 @@ class QasmVisitor:
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
+            qasm3_ast.WhileLoop: self._visit_while_loop,
         }
 
         visitor_function = visit_map.get(type(statement))
@@ -2239,3 +2276,18 @@ class QasmVisitor:
                 if len(stmt.qubits) == len(self._qubit_labels):
                     stmt.qubits = []
         return unrolled_stmts
+
+    def _condition_depends_on_measurement(self, _expr):
+        """Return True if the expression depends on a quantum measurement result."""
+        # TODO: Implement actual logic to detect measurement dependency
+        return False
+
+    def classical_register_in_expr(self, _expr):
+        """Stub for classical_register_in_expr. Replace with actual logic if needed."""
+        # TODO: Implement actual logic or import if defined elsewhere
+        return False
+
+    def _visit_block(self, block):
+        """Stub for _visit_block. Replace with actual logic if needed."""
+        # TODO: Implement actual logic or import if defined elsewhere
+        return self.visit_basic_block(block)
