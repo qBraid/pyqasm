@@ -864,6 +864,8 @@ class QasmVisitor:
             else:
                 for ops in unrolled_targets + [ctrls]:  # get qreg in branching operations
                     for op in ops:
+                        assert isinstance(op.indices, list) and len(op.indices) > 0
+                        assert isinstance(op.indices[0], list) and len(op.indices[0]) > 0
                         op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
                         op_tuple = (op.name.name, op_idx)
                         self._is_branch_qubits.add(op_tuple)
@@ -971,6 +973,8 @@ class QasmVisitor:
             else:
                 for ops in [op_qubits] + [ctrls]:  # get qubit registers in branching operations
                     for op in ops:
+                        assert isinstance(op.indices, list) and len(op.indices) > 0
+                        assert isinstance(op.indices[0], list) and len(op.indices[0]) > 0
                         op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
                         op_tuple = (op.name.name, op_idx)
                         self._is_branch_qubits.add(op_tuple)
