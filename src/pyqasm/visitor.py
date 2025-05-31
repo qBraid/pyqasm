@@ -775,7 +775,8 @@ class QasmVisitor:
                     qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
                     qubit_node.depth = max_involved_depth
 
-    def _visit_basic_gate_operation(  # pylint: disable=too-many-locals
+    # pylint: disable=too-many-branches, too-many-locals
+    def _visit_basic_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
