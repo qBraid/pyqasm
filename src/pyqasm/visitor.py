@@ -859,7 +859,7 @@ class QasmVisitor:
             if not self._is_branching_statement: # if gate is not in branching statement
                 self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
             else:
-                for ops in unrolled_targets + ctrls : # get qubit registers in branching operations
+                for ops in unrolled_targets + [ctrls] : # get qubit registers in branching operations
                     for op in ops:
                         op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
                         op.name.name
@@ -967,7 +967,7 @@ class QasmVisitor:
             if not self._is_branching_statement: # if custom gate is not in branching statement
                 self._update_qubit_depth_for_gate([op_qubits], ctrls)
             else:
-                for ops in [op_qubits] + ctrls: # get qubit registers in branching operations
+                for ops in [op_qubits] + [ctrls]: # get qubit registers in branching operations
                     for op in ops:
                         op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
                         op.name.name
