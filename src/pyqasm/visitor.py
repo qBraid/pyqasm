@@ -502,7 +502,7 @@ class QasmVisitor:
                         measure=qasm3_ast.QuantumMeasurement(qubit=src_id), target=None
                     )
                 )
-                if not self._is_branching_statement: # if measurement gate is not in branching statement
+                if not self._in_branching_statement: # if measurement gate is not in branching statement
                     src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
                     qubit_node = self._module._qubit_depths[(src_name, src_id)]
                     qubit_node.depth += 1
@@ -536,7 +536,7 @@ class QasmVisitor:
                     measure=qasm3_ast.QuantumMeasurement(qubit=src_id),
                     target=tgt_id if target else None,
                 )
-                if not self._is_branching_statement: # if measurement gate is not in branching statement
+                if not self._in_branching_statement: # if measurement gate is not in branching statement
                     src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
                     tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
 
@@ -856,7 +856,7 @@ class QasmVisitor:
                 self._broadcast_gate_operation(unrolled_gate_function, unrolled_targets, ctrls)
             )
 
-            if not self._is_branching_statement: # if gate is not in branching statement
+            if not self._in_branching_statement: # if gate is not in branching statement
                 self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
             else:
                 for ops in unrolled_targets + [ctrls] : # get qubit registers in branching operations
@@ -964,7 +964,7 @@ class QasmVisitor:
         # Update the depth only once for the entire custom gate
         if self._recording_ext_gate_depth:
             self._recording_ext_gate_depth = False
-            if not self._is_branching_statement: # if custom gate is not in branching statement
+            if not self._in_branching_statement: # if custom gate is not in branching statement
                 self._update_qubit_depth_for_gate([op_qubits], ctrls)
             else:
                 for ops in [op_qubits] + [ctrls]: # get qubit registers in branching operations
@@ -1632,7 +1632,7 @@ class QasmVisitor:
         return np.array(init_values, dtype=ARRAY_TYPE_MAP[base_type.__class__])
     
     def _update_branching_gate_depths(self) -> None: # seperately update branching operators depth
-        self._is_branching_statement = False
+        self._in_branching_statement = False
         max_depths = 0
         nodes = []
         for qbit in self._is_branch_qubits:
@@ -1668,7 +1668,7 @@ class QasmVisitor:
         self._push_scope({})
         self._curr_scope += 1
         self._label_scope_level[self._curr_scope] = set()
-        self._is_branching_statement = True
+        self._in_branching_statement = True
 
         result = []
         condition = statement.condition
@@ -1692,7 +1692,7 @@ class QasmVisitor:
                 )
 
             assert isinstance(rhs_value, (bool, int))
-            if reg_name is not None and reg_idx is not None and self._is_branching_statement: # get classical registers 
+            if reg_name is not None and reg_idx is not None and self._in_branching_statement: # get classical registers 
                 op_tuple = (reg_name, reg_idx)
                 self._is_branch_clbits.add(op_tuple)
 
