@@ -89,7 +89,7 @@ class QasmVisitor:
         self._curr_scope: int = 0
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
         self._recording_ext_gate_depth = False
-        self._is_branching_statement: bool = False
+        self._in_branching_statement: bool = False
         self._is_branch_qubits: set[tuple[str, int]]  = set()
         self._is_branch_clbits: set[tuple[str, int]]  = set()
         self._init_utilities()
