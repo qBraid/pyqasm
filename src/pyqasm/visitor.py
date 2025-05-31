@@ -1943,61 +1943,33 @@ class QasmVisitor:
 
         return return_value, result
 
-    def _visit_break_statement(self, statement):
-        """Visit a break statement element."""
-        raise BreakException()
-
-    def _visit_continue_statement(self, statement):
-        """Visit a continue statement element."""
-        raise ContinueException()
-
     def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
         """Visit a while loop statement element."""
         result = []
-        loop_limit = getattr(self, "_loop_limit", DEFAULT_MAX_LOOP_ITERATIONS)
-        iterations = 0
-        # Check for quantum measurement in condition (pseudo-code, adjust as needed)
-        if self._condition_depends_on_measurement(statement.test):
-            raise NotImplementedError(
+        # Check for classical register in while condition
+        if self.classical_register_in_expr(statement.while_condition):
+            raise_qasm3_error(
                 "Cannot unroll while loops with quantum measurement in the condition."
             )
+        iterations = 0
+        loop_limit = self._loop_limit
+        self._curr_scope += 1
         while True:
-            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(statement.test)
-            result.extend(cond_stmts)
+            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)
             if not cond_value:
                 break
-            self._push_context(Context.BLOCK)
-            self._push_scope({})
-            self._curr_scope += 1
-            self._label_scope_level[self._curr_scope] = set()
             try:
-                result.extend(self.visit_basic_block(statement.body))
+                self._visit_block(statement.body)
             except BreakException:
-                self._pop_scope()
-                self._restore_context()
-                del self._label_scope_level[self._curr_scope]
-                self._curr_scope -= 1
                 break
             except ContinueException:
-                self._pop_scope()
-                self._restore_context()
-                del self._label_scope_level[self._curr_scope]
-                self._curr_scope -= 1
-                iterations += 1
-                if loop_limit is not None and iterations > loop_limit:
-                    raise LoopLimitExceeded(
-                        f"Loop iteration limit ({loop_limit}) exceeded in while loop."
-                    )
                 continue
-            self._pop_scope()
-            self._restore_context()
-            del self._label_scope_level[self._curr_scope]
-            self._curr_scope -= 1
             iterations += 1
             if loop_limit is not None and iterations > loop_limit:
-                raise LoopLimitExceeded(
-                    f"Loop iteration limit ({loop_limit}) exceeded in while loop."
+                raise_qasm3_error(
+                    f"While loop iteration limit ({loop_limit}) exceeded. Possible infinite loop."
                 )
+        self._curr_scope -= 1
         return result
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
@@ -2245,9 +2217,7 @@ class QasmVisitor:
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.WhileLoop: self._visit_while_loop,
-            # Add break/continue if present in AST
-            getattr(qasm3_ast, "BreakStatement", None): self._visit_break_statement,
-            getattr(qasm3_ast, "ContinueStatement", None): self._visit_continue_statement,
+            qasm3_ast.WhileLoop: self._visit_while_loop,
         }
 
         visitor_function = visit_map.get(type(statement))
