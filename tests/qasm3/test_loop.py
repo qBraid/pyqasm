@@ -23,7 +23,6 @@ from pyqasm.entrypoint import loads
 from pyqasm.exceptions import LoopLimitExceeded, ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
-    check_single_qubit_op,
     check_single_qubit_rotation_op,
     check_two_qubit_gate_op,
 )
@@ -358,13 +357,9 @@ def test_while_loop_with_break_and_continue():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
-    # Validate number of h q operations
-    assert sum("h q" in s for s in stmts) == 4
-    # Validate qubit indices
-    for s in stmts:
-        if "h q" in s:
-            check_single_qubit_op(s)
+    # Validate number of h q operations and indices
+    # There should be 4 h q operations, on indices [0, 1, 0, 1]
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 0, 1], "h")
 
 
 def test_while_loop_limit_exceeded():
@@ -396,13 +391,8 @@ def test_while_loop_unroll_qasm_output():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
     # Validate number of h q operations
-    assert sum("h q" in s for s in stmts) == 4
-    # Validate qubit indices
-    for s in stmts:
-        if "h q" in s:
-            check_single_qubit_op(s)
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 0, 0, 0], "h")
 
 
 def test_empty_while_loop_ignored():
@@ -417,10 +407,8 @@ def test_empty_while_loop_ignored():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
-    assert any("h q" in s for s in stmts)
-    # No extra statements from the while loop
-    assert len(stmts) == 1
+    # Only one h q operation should be present
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
 
 
 def test_nested_while_loops_break_continue():

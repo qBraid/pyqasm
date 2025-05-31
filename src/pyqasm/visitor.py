@@ -66,7 +66,8 @@ class QasmVisitor:
         external_gates (list[str]): List of gates that should not be unrolled.
         unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
         check_only (bool): If True, only check the program without executing it. Defaults to False.
-        loop_limit (int): The maximum number of iterations allowed in a loop. Defaults to DEFAULT_MAX_LOOP_ITERATIONS.
+        loop_limit (int): The maximum number of iterations allowed in a loop.
+        Defaults to DEFAULT_MAX_LOOP_ITERATIONS.
     """
 
     def __init__(
@@ -76,7 +77,7 @@ class QasmVisitor:
         external_gates: list[str] | None = None,
         unroll_barriers: bool = True,
         loop_limit=DEFAULT_MAX_LOOP_ITERATIONS,
-    ):
+    ):  # pylint: disable=too-many-arguments
         self._module = module
         self._scope: deque = deque([{}])
         self._context: deque = deque([Context.GLOBAL])
@@ -1950,7 +1951,7 @@ class QasmVisitor:
 
     def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
         """Visit a while loop statement element."""
-        result = []
+        result: list[qasm3_ast.Statement] = []
         # Check for classical register in while condition
         if self.classical_register_in_expr(statement.while_condition):
             raise_qasm3_error(
@@ -1960,13 +1961,11 @@ class QasmVisitor:
         loop_limit = self._loop_limit
         self._curr_scope += 1
         while True:
-            cond_value, cond_stmts = Qasm3ExprEvaluator.evaluate_expression(
-                statement.while_condition
-            )
+            cond_value, _ = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)
             if not cond_value:
                 break
             try:
-                self._visit_block(statement.body)
+                result.extend(self._visit_block(statement.block))
             except BreakException:
                 break
             except ContinueException:
@@ -2224,7 +2223,6 @@ class QasmVisitor:
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.WhileLoop: self._visit_while_loop,
-            qasm3_ast.WhileLoop: self._visit_while_loop,
         }
 
         visitor_function = visit_map.get(type(statement))
@@ -2279,7 +2277,17 @@ class QasmVisitor:
                     stmt.qubits = []
         return unrolled_stmts
 
-    def _condition_depends_on_measurement(self, expr):
+    def _condition_depends_on_measurement(self, _expr):
         """Return True if the expression depends on a quantum measurement result."""
         # TODO: Implement actual logic to detect measurement dependency
         return False
+
+    def classical_register_in_expr(self, _expr):
+        """Stub for classical_register_in_expr. Replace with actual logic if needed."""
+        # TODO: Implement actual logic or import if defined elsewhere
+        return False
+
+    def _visit_block(self, block):
+        """Stub for _visit_block. Replace with actual logic if needed."""
+        # TODO: Implement actual logic or import if defined elsewhere
+        return self.visit_basic_block(block)
