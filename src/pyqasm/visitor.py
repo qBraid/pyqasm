@@ -1650,9 +1650,8 @@ class QasmVisitor:
         for node in nodes:
             node.depth = max_depths
 
-        if not self._is_branching_statement:
-            self._is_branch_clbits.clear()
-            self._is_branch_qubits.clear()
+        self._is_branch_clbits.clear()
+        self._is_branch_qubits.clear()
 
     def _visit_branching_statement(
         self, statement: qasm3_ast.BranchingStatement
@@ -1781,8 +1780,7 @@ class QasmVisitor:
         self._curr_scope -= 1
         self._pop_scope()
         self._restore_context()
-        if self._is_branching_statement:
-            self._update_branching_gate_depths()
+        self._update_branching_gate_depths()
 
         if self._check_only:
             return []
