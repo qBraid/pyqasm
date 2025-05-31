@@ -89,7 +89,9 @@ class QasmVisitor:
         self._curr_scope: int = 0
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
         self._recording_ext_gate_depth = False
-
+        self._in_branching_statement: bool = False
+        self._is_branch_qubits: set[tuple[str, int]] = set()
+        self._is_branch_clbits: set[tuple[str, int]] = set()
         self._init_utilities()
 
     def _init_utilities(self):
@@ -500,10 +502,12 @@ class QasmVisitor:
                         measure=qasm3_ast.QuantumMeasurement(qubit=src_id), target=None
                     )
                 )
-                src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
-                qubit_node = self._module._qubit_depths[(src_name, src_id)]
-                qubit_node.depth += 1
-                qubit_node.num_measurements += 1
+                # if measurement gate is not in branching statement
+                if not self._in_branching_statement:
+                    src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
+                    qubit_node = self._module._qubit_depths[(src_name, src_id)]
+                    qubit_node.depth += 1
+                    qubit_node.num_measurements += 1
         else:
             target_name: str = (
                 target.name if isinstance(target, qasm3_ast.Identifier) else target.name.name
@@ -533,21 +537,23 @@ class QasmVisitor:
                     measure=qasm3_ast.QuantumMeasurement(qubit=src_id),
                     target=tgt_id if target else None,
                 )
-                src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
-                tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
+                # if measurement gate is not in branching statement
+                if not self._in_branching_statement:
+                    src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
+                    tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
 
-                qubit_node, clbit_node = (
-                    self._module._qubit_depths[(src_name, src_id)],
-                    self._module._clbit_depths[(tgt_name, tgt_id)],
-                )
-                qubit_node.depth += 1
-                qubit_node.num_measurements += 1
+                    qubit_node, clbit_node = (
+                        self._module._qubit_depths[(src_name, src_id)],
+                        self._module._clbit_depths[(tgt_name, tgt_id)],
+                    )
+                    qubit_node.depth += 1
+                    qubit_node.num_measurements += 1
 
-                clbit_node.depth += 1
-                clbit_node.num_measurements += 1
+                    clbit_node.depth += 1
+                    clbit_node.num_measurements += 1
 
-                qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
-                clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
+                    qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
+                    clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
 
                 unrolled_measurements.append(unrolled_measure)
 
@@ -769,7 +775,8 @@ class QasmVisitor:
                     qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
                     qubit_node.depth = max_involved_depth
 
-    def _visit_basic_gate_operation(  # pylint: disable=too-many-locals
+    # pylint: disable=too-many-branches, too-many-locals
+    def _visit_basic_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
@@ -851,8 +858,17 @@ class QasmVisitor:
             result.extend(
                 self._broadcast_gate_operation(unrolled_gate_function, unrolled_targets, ctrls)
             )
-
-            self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
+            # if gate is not in branching statement
+            if not self._in_branching_statement:
+                self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
+            else:
+                for ops in unrolled_targets + [ctrls]:  # get qreg in branching operations
+                    for op in ops:
+                        assert isinstance(op.indices, list) and len(op.indices) > 0
+                        assert isinstance(op.indices[0], list) and len(op.indices[0]) > 0
+                        op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
+                        op_tuple = (op.name.name, op_idx)
+                        self._is_branch_qubits.add(op_tuple)
 
         # check for duplicate bits
         for final_gate in result:
@@ -952,7 +968,16 @@ class QasmVisitor:
         # Update the depth only once for the entire custom gate
         if self._recording_ext_gate_depth:
             self._recording_ext_gate_depth = False
-            self._update_qubit_depth_for_gate([op_qubits], ctrls)
+            if not self._in_branching_statement:  # if custom gate is not in branching statement
+                self._update_qubit_depth_for_gate([op_qubits], ctrls)
+            else:
+                for ops in [op_qubits] + [ctrls]:  # get qubit registers in branching operations
+                    for op in ops:
+                        assert isinstance(op.indices, list) and len(op.indices) > 0
+                        assert isinstance(op.indices[0], list) and len(op.indices[0]) > 0
+                        op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
+                        op_tuple = (op.name.name, op_idx)
+                        self._is_branch_qubits.add(op_tuple)
 
         self._restore_context()
 
@@ -1611,6 +1636,29 @@ class QasmVisitor:
 
         return np.array(init_values, dtype=ARRAY_TYPE_MAP[base_type.__class__])
 
+    # seperately update branching operators depth
+    def _update_branching_gate_depths(self) -> None:
+        self._in_branching_statement = False
+        max_depths = 0
+        nodes = []
+        for qbit in self._is_branch_qubits:
+            q_name, q_idx = qbit
+            q_node = self._module._qubit_depths[(q_name, q_idx)]
+            nodes.append(q_node)
+            max_depths = max(max_depths, q_node.depth + 1)
+
+        for cbit in self._is_branch_clbits:
+            c_name, c_idx = cbit
+            c_node = self._module._clbit_depths[(c_name, c_idx)]
+            nodes.append(c_node)
+            max_depths = max(max_depths, c_node.depth + 1)
+
+        for node in nodes:
+            node.depth = max_depths
+
+        self._is_branch_clbits.clear()
+        self._is_branch_qubits.clear()
+
     def _visit_branching_statement(
         self, statement: qasm3_ast.BranchingStatement
     ) -> list[qasm3_ast.Statement]:
@@ -1626,6 +1674,7 @@ class QasmVisitor:
         self._push_scope({})
         self._curr_scope += 1
         self._label_scope_level[self._curr_scope] = set()
+        self._in_branching_statement = True
 
         result = []
         condition = statement.condition
@@ -1649,6 +1698,10 @@ class QasmVisitor:
                 )
 
             assert isinstance(rhs_value, (bool, int))
+            # get classical registers
+            if reg_name is not None and reg_idx is not None and self._in_branching_statement:
+                op_tuple = (reg_name, reg_idx)
+                self._is_branch_clbits.add(op_tuple)
 
             if_block = self.visit_basic_block(statement.if_block)
             else_block = self.visit_basic_block(statement.else_block)
@@ -1734,6 +1787,7 @@ class QasmVisitor:
         self._curr_scope -= 1
         self._pop_scope()
         self._restore_context()
+        self._update_branching_gate_depths()
 
         if self._check_only:
             return []
