@@ -76,7 +76,7 @@ class QasmVisitor:
         check_only: bool = False,
         external_gates: list[str] | None = None,
         unroll_barriers: bool = True,
-        loop_limit=DEFAULT_MAX_LOOP_ITERATIONS,
+        loop_limit: int = DEFAULT_MAX_LOOP_ITERATIONS,
     ):  # pylint: disable=too-many-arguments
         self._module = module
         self._scope: deque = deque([{}])
@@ -1952,31 +1952,59 @@ class QasmVisitor:
     def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
         """Visit a while loop statement element."""
         result: list[qasm3_ast.Statement] = []
-        # Check for classical register in while condition
-        if self.classical_register_in_expr(statement.while_condition):
+        
+        # Check if condition depends on quantum measurements
+        if self._condition_depends_on_measurement(statement.while_condition):
             raise_qasm3_error(
                 "Cannot unroll while loops with quantum measurement in the condition."
             )
+            
         iterations = 0
         loop_limit = self._loop_limit
         self._curr_scope += 1
+        self._label_scope_level[self._curr_scope] = set()
+        
         while True:
             cond_value, _ = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)
             if not cond_value:
                 break
+                
             try:
                 result.extend(self._visit_block(statement.block))
             except BreakException:
                 break
             except ContinueException:
                 continue
+                
             iterations += 1
             if loop_limit is not None and iterations > loop_limit:
                 raise_qasm3_error(
                     f"While loop iteration limit ({loop_limit}) exceeded. Possible infinite loop."
                 )
+                
+        del self._label_scope_level[self._curr_scope]
         self._curr_scope -= 1
         return result
+
+    def _condition_depends_on_measurement(self, expr: qasm3_ast.Expression) -> bool:
+        """Check if an expression depends on quantum measurement results.
+        
+        Args:
+            expr (qasm3_ast.Expression): The expression to check
+            
+        Returns:
+            bool: True if the expression depends on quantum measurements
+        """
+        # Check if expression contains any quantum measurement operations
+        if isinstance(expr, qasm3_ast.QuantumMeasurement):
+            return True
+            
+        # Recursively check child expressions
+        for child in expr.children() if hasattr(expr, 'children') else []:
+            if self._condition_depends_on_measurement(child):
+                return True
+                
+        return False
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
@@ -2192,6 +2220,14 @@ class QasmVisitor:
 
         return [include]
 
+    def _visit_break_stmt(self, statement: qasm3_ast.BreakStatement) -> None:
+        """Visit a break statement element."""
+        raise BreakException()
+
+    def _visit_continue_stmt(self, statement: qasm3_ast.ContinueStatement) -> None:
+        """Visit a continue statement element."""
+        raise ContinueException()
+
     def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
@@ -2223,6 +2259,8 @@ class QasmVisitor:
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.WhileLoop: self._visit_while_loop,
+            qasm3_ast.BreakStatement: self._visit_break_stmt,
+            qasm3_ast.ContinueStatement: self._visit_continue_stmt,
         }
 
         visitor_function = visit_map.get(type(statement))
@@ -2287,7 +2325,13 @@ class QasmVisitor:
         # TODO: Implement actual logic or import if defined elsewhere
         return False
 
-    def _visit_block(self, block):
-        """Stub for _visit_block. Replace with actual logic if needed."""
-        # TODO: Implement actual logic or import if defined elsewhere
-        return self.visit_basic_block(block)
+    def _visit_block(self, block: qasm3_ast.Block) -> list[qasm3_ast.Statement]:
+        """Visit a block of statements.
+        
+        Args:
+            block (qasm3_ast.Block): The block to visit
+            
+        Returns:
+            list[qasm3_ast.Statement]: The unrolled statements
+        """
+        return self.visit_basic_block(block.statements)

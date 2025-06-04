@@ -14,4 +14,4 @@
 
 """Constants for pyqasm maps."""
 
-DEFAULT_MAX_LOOP_ITERATIONS = 1000
+DEFAULT_MAX_LOOP_ITERATIONS = int(1e10)  # 10 billion iterations

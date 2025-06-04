@@ -432,8 +432,7 @@ def test_nested_while_loops_break_continue():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
-    assert any("h q" in s for s in stmts)
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
 
 
 def test_mixed_for_while_loops():
@@ -451,5 +450,4 @@ def test_mixed_for_while_loops():
     """
     result = loads(qasm_str)
     result.unroll()
-    stmts = [str(s) for s in result.unrolled_ast if hasattr(s, "__str__")]
-    assert sum("h q" in s for s in stmts) == 4
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 0, 1], "h")
