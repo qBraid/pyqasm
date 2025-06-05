@@ -1698,10 +1698,6 @@ class QasmVisitor:
                 )
 
             assert isinstance(rhs_value, (bool, int))
-            # get classical registers
-            if reg_name is not None and reg_idx is not None and self._in_branching_statement:
-                op_tuple = (reg_name, reg_idx)
-                self._is_branch_clbits.add(op_tuple)
 
             if_block = self.visit_basic_block(statement.if_block)
             else_block = self.visit_basic_block(statement.else_block)
@@ -1711,6 +1707,9 @@ class QasmVisitor:
                 Qasm3Validator.validate_register_index(
                     reg_idx, self._global_creg_size_map[reg_name], qubit=False, op_node=condition
                 )
+
+                # getting creg for depth counting
+                self._is_branch_clbits.add((reg_name, reg_idx))
 
                 new_if_block = qasm3_ast.BranchingStatement(
                     condition=qasm3_ast.BinaryExpression(
@@ -1743,6 +1742,8 @@ class QasmVisitor:
                     rhs_value -= 1
 
                 size = self._global_creg_size_map[reg_name]
+                # getting cregs for depth counting
+                self._is_branch_clbits.update((reg_name, i) for i in range(size))
                 rhs_value_str = bin(int(rhs_value))[2:].zfill(size)
                 else_block = self.visit_basic_block(statement.else_block)
 
