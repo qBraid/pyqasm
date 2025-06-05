@@ -460,8 +460,9 @@ cx q[0], q[1];
 measure q[0] -> c[0];
 
 if (c==1) measure q[1] -> c[1];
+if (c==3) measure q[1] -> c[1];
 """,
-            4,
+            5,
         ),
         (
             """
@@ -487,6 +488,99 @@ if(c1==3) x q2[1];
 measure q2 -> c2;
 """,
             8,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate custom a, b{
+    cx a, b;
+    h a;
+}
+qubit[4] q;
+bit[4] c;
+bit[4] c0;
+h q;
+measure q -> c0;
+if(c0[0]){
+    x q[0];
+    cx q[0], q[1];
+    if (c0[1]){
+        cx q[1], q[2];
+    }
+}
+if (c[0]){
+    custom q[2], q[3];
+}
+array[int[32], 8] arr;
+arr[0] = 1;
+if(arr[0] >= 1){
+    h q[0];
+    h q[1];
+}
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[1] q;
+bit[4] c;
+if(c == 3){
+    h q[0];
+}
+if(c >= 3){
+    h q[0];
+} else {
+    x q[0];
+}
+if(c <= 3){
+    h q[0];
+} else {
+    x q[0];
+}
+if(c[0] < 4){
+    h q[0];
+} else {
+    x q[0];
+}
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q;
+bit[2] c;
+h q[0];
+cx q[0], q[1];
+c[0] = measure q[0];
+c[1] = measure q[1];
+if (c[0] == false) {
+  if (c[1] == true) {
+    x q[0];
+  }
+  else {
+    if (c[1] == false){
+      x q[1];
+    }
+    else {
+      z q[0];
+    }
+  }
+}
+
+if (c == 0) {
+    x q[0];
+}
+else {
+    y q[1];
+}
+x q[0];
+""",
+            6,
         ),
     ],
 )
