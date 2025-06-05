@@ -39,3 +39,4 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | CalibrationDefinition          | 📋          | Planned                |
 | ComplexType                    | 📋          | Planned                |
 | AngleType                      | 📋          | Planned                |
+| ExternDeclaration              | 📋          | Planned                |
