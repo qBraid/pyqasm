@@ -89,7 +89,7 @@ class QasmVisitor:
         self._curr_scope: int = 0
         self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
         self._recording_ext_gate_depth = False
-        self._in_branching_statement: bool = False
+        self._in_branching_statement: int = 0
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
         self._init_utilities()
@@ -1674,7 +1674,7 @@ class QasmVisitor:
         self._push_scope({})
         self._curr_scope += 1
         self._label_scope_level[self._curr_scope] = set()
-        self._in_branching_statement = True
+        self._in_branching_statement += 1
 
         result = []
         condition = statement.condition
@@ -1787,7 +1787,9 @@ class QasmVisitor:
         self._curr_scope -= 1
         self._pop_scope()
         self._restore_context()
-        self._update_branching_gate_depths()
+        self._in_branching_statement -= 1
+        if not self._in_branching_statement:
+            self._update_branching_gate_depths()
 
         if self._check_only:
             return []
