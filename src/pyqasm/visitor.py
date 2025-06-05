@@ -862,13 +862,12 @@ class QasmVisitor:
             if not self._in_branching_statement:
                 self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
             else:
-                for ops in unrolled_targets + [ctrls]:  # get qreg in branching operations
-                    for op in ops:
-                        assert isinstance(op.indices, list) and len(op.indices) > 0
-                        assert isinstance(op.indices[0], list) and len(op.indices[0]) > 0
-                        op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
-                        op_tuple = (op.name.name, op_idx)
-                        self._is_branch_qubits.add(op_tuple)
+                for qubit_subset in unrolled_targets + [ctrls]:  # get qreg in branching operations
+                    for qubit in qubit_subset:
+                        assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
+                        assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
+                        qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]
+                        self._is_branch_qubits.add((qubit.name.name, qubit_idx))
 
         # check for duplicate bits
         for final_gate in result:
@@ -971,13 +970,13 @@ class QasmVisitor:
             if not self._in_branching_statement:  # if custom gate is not in branching statement
                 self._update_qubit_depth_for_gate([op_qubits], ctrls)
             else:
-                for ops in [op_qubits] + [ctrls]:  # get qubit registers in branching operations
-                    for op in ops:
-                        assert isinstance(op.indices, list) and len(op.indices) > 0
-                        assert isinstance(op.indices[0], list) and len(op.indices[0]) > 0
-                        op_idx = Qasm3ExprEvaluator.evaluate_expression(op.indices[0][0])[0]
-                        op_tuple = (op.name.name, op_idx)
-                        self._is_branch_qubits.add(op_tuple)
+                # get qubit registers in branching operations
+                for qubit_subset in [op_qubits] + [ctrls]:
+                    for qubit in qubit_subset:
+                        assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
+                        assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
+                        qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]
+                        self._is_branch_qubits.add((qubit.name.name, qubit_idx))
 
         self._restore_context()
 
@@ -1636,25 +1635,20 @@ class QasmVisitor:
 
         return np.array(init_values, dtype=ARRAY_TYPE_MAP[base_type.__class__])
 
-    # seperately update branching operators depth
+    # update branching operators depth
     def _update_branching_gate_depths(self) -> None:
-        self._in_branching_statement = False
-        max_depths = 0
-        nodes = []
-        for qbit in self._is_branch_qubits:
-            q_name, q_idx = qbit
-            q_node = self._module._qubit_depths[(q_name, q_idx)]
-            nodes.append(q_node)
-            max_depths = max(max_depths, q_node.depth + 1)
+        """Updates the depth of the circuit after applying branching statements."""
+        all_nodes = [
+            self._module._qubit_depths[(name, idx)] for name, idx in self._is_branch_qubits
+        ] + [self._module._clbit_depths[(name, idx)] for name, idx in self._is_branch_clbits]
 
-        for cbit in self._is_branch_clbits:
-            c_name, c_idx = cbit
-            c_node = self._module._clbit_depths[(c_name, c_idx)]
-            nodes.append(c_node)
-            max_depths = max(max_depths, c_node.depth + 1)
+        try:
+            max_depth = max(node.depth + 1 for node in all_nodes)
+        except ValueError:
+            max_depth = 0
 
-        for node in nodes:
-            node.depth = max_depths
+        for node in all_nodes:
+            node.depth = max_depth
 
         self._is_branch_clbits.clear()
         self._is_branch_qubits.clear()
