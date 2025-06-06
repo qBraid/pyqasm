@@ -426,7 +426,6 @@ def test_qasm3_depth_no_branching(program, expected_depth):
     assert result.depth() == expected_depth
 
 
-@pytest.mark.skip(reason="Not implemented branching conditions depth")
 @pytest.mark.parametrize(
     "program, expected_depth",
     [
@@ -460,8 +459,9 @@ cx q[0], q[1];
 measure q[0] -> c[0];
 
 if (c==1) measure q[1] -> c[1];
+if (c==3) measure q[1] -> c[1];
 """,
-            4,
+            5,
         ),
         (
             """
@@ -488,10 +488,139 @@ measure q2 -> c2;
 """,
             8,
         ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate custom a, b{
+    cx a, b;
+    h a;
+}
+qubit[4] q;
+bit[4] c;
+bit[4] c0;
+h q;
+measure q -> c0;
+if(c0[0]){
+    x q[0];
+    cx q[0], q[1];
+    if (c0[1]){
+        cx q[1], q[2];
+    }
+}
+if (c[0]){
+    custom q[2], q[3];
+}
+array[int[32], 8] arr;
+arr[0] = 1;
+if(arr[0] >= 1){
+    h q[0];
+    h q[1];
+}
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[1] q;
+bit[4] c;
+if(c == 3){
+    h q[0];
+}
+if(c >= 3){
+    h q[0];
+} else {
+    x q[0];
+}
+if(c <= 3){
+    h q[0];
+} else {
+    x q[0];
+}
+if(c[0] < 4){
+    h q[0];
+} else {
+    x q[0];
+}
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q;
+bit[2] c;
+h q[0];
+cx q[0], q[1];
+c[0] = measure q[0];
+c[1] = measure q[1];
+if (c[0] == false) {
+  if (c[1] == true) {
+    x q[0];
+  }
+  else {
+    if (c[1] == false){
+      x q[1];
+    }
+    else {
+      z q[0];
+    }
+  }
+}
+
+if (c == 0) {
+    x q[0];
+}
+else {
+    y q[1];
+}
+x q[0];
+""",
+            6,
+        ),
     ],
 )
 def test_qasm3_depth_branching(program, expected_depth):
     """Test calculating depth of qasm3 circuit with branching conditions"""
     result = loads(program)
     result.unroll()
+    result.remove_barriers()
     assert result.depth() == expected_depth
+
+
+def test_qasm3_depth_branching_for_external_gates():
+    """Test calculating depth of qasm3 circuit with external gates inside branching conditions"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    bit[2] c;
+    gate my_gate q1, q2 {
+       h q1;
+       cx q1, q2;
+       h q2;
+    }
+    gate my_gate_two q1, q2 {
+       cx q1, q2;
+    }
+
+    qubit[2] q;
+    if (c == 0){
+       measure q -> c;
+       my_gate q[0], q[1];
+    }
+    else {
+       if (c[0] == false) {
+          my_gate q[1], q[0];
+       }
+       else{
+          measure q -> c;
+       }
+    }
+    my_gate_two q[0], q[1];
+    """
+    result = loads(qasm3_string)
+    result._external_gates = ["my_gate", "my_gate_two"]
+    assert result.depth() == 2

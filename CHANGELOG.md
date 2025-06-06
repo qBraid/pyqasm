@@ -29,6 +29,27 @@ Types of changes:
 ### Fixed
 
 - Fixed the way how depth is calculated when external gates are defined with unrolling a QASM module. ([#198](https://github.com/qBraid/pyqasm/pull/198))
+- Added separate depth calculation for gates inside branching statements. ([#200](https://github.com/qBraid/pyqasm/pull/200)) 
+  - **Example:**
+  ```python
+  OPENQASM 3.0;
+  include "stdgates.inc";
+  qubit[4] q;
+  bit[4] c;
+  bit[4] c0;
+  if (c[0]){
+    x q[0];
+    h q[0]
+    }
+  else {
+    h q[1];
+  }
+  ```
+  ```text
+  Depth = 1
+  ```
+  - Previously, each gate inside an `if`/`else` block would advance only its own wire depth. Now, when any branching statement is encountered, all qubit‐ and clbit‐depths used inside that block are first incremented by one, then set to the maximum of those new values. This ensures the entire conditional block counts as single “depth” increment, rather than letting individual gates within the same branch float ahead independently.
+  - In the above snippet, c[0], q[0], and q[1] all jump together to a single new depth for that branch.
 
 ### Dependencies
 
