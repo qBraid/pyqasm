@@ -41,6 +41,7 @@ class Context(Enum):
     BLOCK = "block"
     FUNCTION = "function"
     GATE = "gate"
+    LOOP = "loop"
 
 
 @dataclass

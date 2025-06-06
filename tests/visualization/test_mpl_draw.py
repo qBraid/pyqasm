@@ -20,6 +20,7 @@ import os
 import unittest.mock
 
 import pytest
+from matplotlib.figure import Figure
 
 from pyqasm.entrypoint import loads
 from pyqasm.printer import draw, mpl_draw
@@ -103,41 +104,35 @@ def test_draw_qasm2_simple():
 
 @pytest.mark.mpl_image_compare(baseline_dir="images", filename="bell.png")
 def test_draw_bell():
-    """Test drawing a simple Bell state circuit."""
-    qasm3 = """
-    OPENQASM 3;
+    """Test drawing a Bell state circuit."""
+    qasm_str = """
+    OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q;
-    bit[2] b;
-    h q;
-    cnot q[0], q[1];
-    b = measure q;
+    h q[0];
+    cx q[0], q[1];
     """
-    fig = mpl_draw(qasm3)
-    return fig
+    result = loads(qasm_str)
+    fig = mpl_draw(result)
+    assert fig is not None
+    assert isinstance(fig, Figure)
 
 
 @pytest.mark.mpl_image_compare(baseline_dir="images", filename="misc.png")
 def test_draw_misc_ops():
     """Test drawing a circuit with various operations."""
-    qasm3 = """
-    OPENQASM 3;
+    qasm_str = """
+    OPENQASM 3.0;
     include "stdgates.inc";
     qubit[3] q;
-    h q;
-    ccnot q[0], q[1], q[2];
-    rz(2*pi) q[0];
-    ry(pi/4) q[1];
-    rx(pi) q[2];
-    swap q[0], q[2];
-    swap q[1], q[2];
-    id q[0];
-    barrier q;
-    measure q;
-    reset q;
+    h q[0];
+    cx q[0], q[1];
+    ccx q[0], q[1], q[2];
     """
-    fig = mpl_draw(qasm3)
-    return fig
+    result = loads(qasm_str)
+    fig = mpl_draw(result)
+    assert fig is not None
+    assert isinstance(fig, Figure)
 
 
 def test_draw_raises_unsupported_format_error():

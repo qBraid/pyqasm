@@ -34,6 +34,11 @@ class PyQasmError(Exception):
 
 class ValidationError(PyQasmError):
     """Exception raised when a OpenQASM program fails validation."""
+    
+    def __init__(self, message: str, error_node=None, span=None):
+        super().__init__(message)
+        self.error_node = error_node
+        self.span = span
 
 
 class UnrollError(PyQasmError):
@@ -47,6 +52,30 @@ class RebaseError(PyQasmError):
 class QasmParsingError(QASM3ParsingError):
     """An error raised by the AST visitor during the AST-generation phase.  This is raised in cases
     where the given program could not be correctly parsed."""
+
+
+class LoopException(Exception):
+    """Base class for loop control flow exceptions (break/continue)."""
+
+
+class BreakException(LoopException):
+    """Exception to signal a break statement in a loop."""
+
+
+class ContinueException(LoopException):
+    """Exception to signal a continue statement in a loop."""
+
+
+class PyqasmRuntimeError(Exception):
+    """Base class for runtime errors in pyqasm."""
+
+
+class LoopLimitExceeded(PyqasmRuntimeError):
+    """Raised when a loop exceeds the maximum allowed iterations."""
+    def __init__(self, message=None, error_node=None, span=None):
+        super().__init__(message)
+        self.error_node = error_node
+        self.span = span
 
 
 def raise_qasm3_error(
