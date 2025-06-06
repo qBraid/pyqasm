@@ -34,6 +34,11 @@ class PyQasmError(Exception):
 
 class ValidationError(PyQasmError):
     """Exception raised when a OpenQASM program fails validation."""
+    
+    def __init__(self, message: str, error_node=None, span=None):
+        super().__init__(message)
+        self.error_node = error_node
+        self.span = span
 
 
 class UnrollError(PyQasmError):
@@ -67,6 +72,10 @@ class PyqasmRuntimeError(Exception):
 
 class LoopLimitExceeded(PyqasmRuntimeError):
     """Raised when a loop exceeds the maximum allowed iterations."""
+    def __init__(self, message=None, error_node=None, span=None):
+        super().__init__(message)
+        self.error_node = error_node
+        self.span = span
 
 
 def raise_qasm3_error(

@@ -35,6 +35,7 @@ from pyqasm.exceptions import (
     ContinueException,
     ValidationError,
     raise_qasm3_error,
+    LoopLimitExceeded,
 )
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
@@ -102,6 +103,8 @@ class QasmVisitor:
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
         self._init_utilities()
+        self._loop_limit = loop_limit
+        self._bits_set_by_measurement = set()
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -563,6 +566,12 @@ class QasmVisitor:
 
                     qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
                     clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
+
+                # Track that this classical bit was set by measurement
+                if isinstance(target, qasm3_ast.Identifier):
+                    self._bits_set_by_measurement.add(target.name)
+                elif isinstance(target, qasm3_ast.IndexedIdentifier):
+                    self._bits_set_by_measurement.add(target.name.name)
 
                 unrolled_measurements.append(unrolled_measure)
 
@@ -1563,6 +1572,19 @@ class QasmVisitor:
         )  # consists of scope check and index validation
         statements.extend(rhs_stmts)
 
+        # Track if this is a measurement assignment
+        if isinstance(rvalue, qasm3_ast.QuantumMeasurement):
+            if isinstance(lvalue, qasm3_ast.Identifier):
+                self._bits_set_by_measurement.add(lvalue.name)
+            elif isinstance(lvalue, qasm3_ast.IndexedIdentifier):
+                self._bits_set_by_measurement.add(lvalue.name.name)
+        else:
+            # If not a measurement, remove from tracking
+            if isinstance(lvalue, qasm3_ast.Identifier):
+                self._bits_set_by_measurement.discard(lvalue.name)
+            elif isinstance(lvalue, qasm3_ast.IndexedIdentifier):
+                self._bits_set_by_measurement.discard(lvalue.name.name)
+
         # cast + validation
         rvalue_eval = None
         if not isinstance(rvalue_raw, np.ndarray):
@@ -1999,62 +2021,139 @@ class QasmVisitor:
 
         return return_value, result
 
-    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
-        """Visit a while loop statement element."""
-        result: list[qasm3_ast.Statement] = []
-        
-        # Check if condition depends on quantum measurements
-        if self._condition_depends_on_measurement(statement.while_condition):
-            raise_qasm3_error(
-                "Cannot unroll while loops with quantum measurement in the condition."
-            )
-            
-        iterations = 0
-        loop_limit = self._loop_limit
-        self._curr_scope += 1
-        self._label_scope_level[self._curr_scope] = set()
-        
-        while True:
-            cond_value, _ = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)
-            if not cond_value:
-                break
-                
-            try:
-                result.extend(self._visit_block(statement.block))
-            except BreakException:
-                break
-            except ContinueException:
-                continue
-                
-            iterations += 1
-            if loop_limit is not None and iterations > loop_limit:
-                raise_qasm3_error(
-                    f"While loop iteration limit ({loop_limit}) exceeded. Possible infinite loop."
-                )
-                
-        del self._label_scope_level[self._curr_scope]
-        self._curr_scope -= 1
-        return result
-
-    def _condition_depends_on_measurement(self, expr: qasm3_ast.Expression) -> bool:
-        """Check if an expression depends on quantum measurement results.
+    def _condition_depends_on_measurement(self, condition: qasm3_ast.Expression) -> bool:
+        """Check if a condition depends on quantum measurements.
         
         Args:
-            expr (qasm3_ast.Expression): The expression to check
+            condition (qasm3_ast.Expression): The condition to check.
             
         Returns:
-            bool: True if the expression depends on quantum measurements
+            bool: True if the condition depends on quantum measurements, False otherwise.
         """
-        # Check if expression contains any quantum measurement operations
-        if isinstance(expr, qasm3_ast.QuantumMeasurement):
-            return True
-            
-        # Recursively check child expressions
-        for child in expr.children() if hasattr(expr, 'children') else []:
-            if self._condition_depends_on_measurement(child):
+        if isinstance(condition, qasm3_ast.BinaryExpression):
+            return (
+                self._condition_depends_on_measurement(condition.lhs)
+                or self._condition_depends_on_measurement(condition.rhs)
+            )
+        elif isinstance(condition, qasm3_ast.UnaryExpression):
+            return self._condition_depends_on_measurement(condition.expression)
+        elif isinstance(condition, qasm3_ast.Identifier):
+            if condition.name in self._bits_set_by_measurement:
                 return True
-                
+        elif isinstance(condition, qasm3_ast.IndexExpression):
+            if isinstance(condition.collection, qasm3_ast.Identifier):
+                if condition.collection.name in self._bits_set_by_measurement:
+                    return True
         return False
+
+    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
+        """Recursively and statically unroll all possible execution paths of a while loop, including break/continue.
+        
+        This method handles three paths:
+        1. Normal execution (no break/continue)
+        2. Continue encountered
+        3. Break encountered
+        
+        Args:
+            statement (qasm3_ast.WhileLoop): The while loop to visit.
+            
+        Returns:
+            list[qasm3_ast.Statement]: The unrolled while loop statements.
+            
+        Raises:
+            Qasm3Error: If the loop condition depends on quantum measurements or is invalid.
+            LoopLimitExceeded: If the loop exceeds the maximum iteration limit.
+        """
+        logger.debug("Visiting while loop '%s'", str(statement))
+
+        # Check if condition depends on measurement
+        if self._condition_depends_on_measurement(statement.while_condition):
+            raise ValidationError(
+                "Cannot unroll while loops with quantum measurement in the condition",
+                error_node=statement,
+                span=statement.span,
+            )
+
+        def unroll_while(orig_scope, orig_context, orig_curr_scope, orig_label_scope_level, iteration_count):
+            if iteration_count >= self._loop_limit:
+                raise LoopLimitExceeded(
+                    f"Loop exceeded maximum iteration limit of {self._loop_limit}",
+                    error_node=statement,
+                    span=statement.span,
+                )
+
+            # Evaluate the condition in the current scope
+            self._scope = copy.deepcopy(orig_scope)
+            self._context = copy.deepcopy(orig_context)
+            self._curr_scope = orig_curr_scope
+            self._label_scope_level = copy.deepcopy(orig_label_scope_level)
+
+            self._push_scope({})
+            self._push_context(Context.BLOCK)
+            self._curr_scope += 1
+            self._label_scope_level[self._curr_scope] = set()
+
+            try:
+                condition_value = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)[0]
+            except ValidationError as err:
+                raise_qasm3_error(
+                    "Invalid while loop condition",
+                    error_node=statement,
+                    span=statement.span,
+                    raised_from=err,
+                )
+
+            if not condition_value:
+                self._pop_scope()
+                self._restore_context()
+                del self._label_scope_level[self._curr_scope]
+                self._curr_scope -= 1
+                return []
+
+            all_results = []
+            # Try normal execution
+            try:
+                body_statements = self.visit_basic_block(statement.block)
+                all_results.append(body_statements)
+                # Continue with next iteration (normal path)
+                next_scope = copy.deepcopy(self._scope)
+                next_context = copy.deepcopy(self._context)
+                next_curr_scope = self._curr_scope
+                next_label_scope_level = copy.deepcopy(self._label_scope_level)
+                all_results.append(unroll_while(next_scope, next_context, next_curr_scope, next_label_scope_level, iteration_count + 1))
+            except ContinueException:
+                # On continue, fork: continue with next iteration
+                next_scope = copy.deepcopy(self._scope)
+                next_context = copy.deepcopy(self._context)
+                next_curr_scope = self._curr_scope
+                next_label_scope_level = copy.deepcopy(self._label_scope_level)
+                all_results.append(unroll_while(next_scope, next_context, next_curr_scope, next_label_scope_level, iteration_count + 1))
+            except BreakException:
+                # On break, just return current results (fork)
+                pass
+            finally:
+                self._pop_scope()
+                self._restore_context()
+                del self._label_scope_level[self._curr_scope]
+                self._curr_scope -= 1
+
+            # Flatten all_results
+            flat_results = []
+            for r in all_results:
+                if isinstance(r, list):
+                    flat_results.extend(r)
+            return flat_results
+
+        orig_scope = copy.deepcopy(self._scope)
+        orig_context = copy.deepcopy(self._context)
+        orig_curr_scope = self._curr_scope
+        orig_label_scope_level = copy.deepcopy(self._label_scope_level)
+        result = unroll_while(orig_scope, orig_context, orig_curr_scope, orig_label_scope_level, 0)
+
+        if self._check_only:
+            return []
+
+        return result
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
@@ -2331,17 +2430,19 @@ class QasmVisitor:
         return result
 
     def visit_basic_block(self, stmt_list: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
-        """Visit a basic block of statements.
-
-        Args:
-            stmt_list (list[qasm3_ast.Statement]): The list of statements to visit.
-
-        Returns:
-            list[qasm3_ast.Statement]: The list of unrolled statements.
-        """
+        """Visit a basic block of statements and collect the results."""
         result = []
         for stmt in stmt_list:
-            result.extend(self.visit_statement(stmt))
+            print(f"[DEBUG] Visiting statement: {stmt}")
+            try:
+                stmt_result = self.visit_statement(stmt)
+                print(f"[DEBUG] Statement result: {stmt_result}")
+                if stmt_result:
+                    result.extend(stmt_result)
+            except (BreakException, ContinueException) as e:
+                print(f"[DEBUG] Control flow exception: {type(e).__name__}")
+                # Don't re-raise, just return what we have so far
+                return result
         return result
 
     def finalize(self, unrolled_stmts):
@@ -2365,23 +2466,13 @@ class QasmVisitor:
                     stmt.qubits = []
         return unrolled_stmts
 
-    def _condition_depends_on_measurement(self, _expr):
-        """Return True if the expression depends on a quantum measurement result."""
-        # TODO: Implement actual logic to detect measurement dependency
-        return False
-
-    def classical_register_in_expr(self, _expr):
-        """Stub for classical_register_in_expr. Replace with actual logic if needed."""
-        # TODO: Implement actual logic or import if defined elsewhere
-        return False
-
-    def _visit_block(self, block: qasm3_ast.Block) -> list[qasm3_ast.Statement]:
+    def _visit_block(self, block: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
         """Visit a block of statements.
         
         Args:
-            block (qasm3_ast.Block): The block to visit
+            block (list[qasm3_ast.Statement]): The block to visit
             
         Returns:
             list[qasm3_ast.Statement]: The unrolled statements
         """
-        return self.visit_basic_block(block.statements)
+        return self.visit_basic_block(block)

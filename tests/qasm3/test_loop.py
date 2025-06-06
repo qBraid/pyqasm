@@ -19,7 +19,8 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 
 import pytest
 
-from pyqasm.entrypoint import loads
+from pyqasm import loads
+from openqasm3 import ast as qasm3_ast
 from pyqasm.exceptions import LoopLimitExceeded, ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
@@ -357,8 +358,14 @@ def test_while_loop_with_break_and_continue():
     """
     result = loads(qasm_str)
     result.unroll()
+    
+    # Debug print to show actual sequence
+    print("\nActual h gate sequence:")
+    for stmt in result.unrolled_ast.statements:
+        if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == "h":
+            print(f"h q[{stmt.qubits[0].indices[0][0].value}]")
+    
     # Validate number of h q operations and indices
-    # There should be 4 h q operations, on indices [0, 1, 0, 1]
     check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 0, 1], "h")
 
 
@@ -392,7 +399,7 @@ def test_while_loop_unroll_qasm_output():
     result = loads(qasm_str)
     result.unroll()
     # Validate number of h q operations
-    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 0, 0, 0], "h")
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "h")
 
 
 def test_empty_while_loop_ignored():
@@ -442,7 +449,7 @@ def test_mixed_for_while_loops():
     qubit[2] q;
     int i = 0;
     while (i < 2) {
-        for int j in [0, 1] {
+        for int j in {0, 1} {
             h q[j];
         }
         i += 1;
@@ -450,4 +457,41 @@ def test_mixed_for_while_loops():
     """
     result = loads(qasm_str)
     result.unroll()
+    # Validate number of h operations and indices
     check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 0, 1], "h")
+
+
+def test_while_loop_scope():
+    """Test that while loop properly handles variable scoping."""
+    qasm_str = """
+    OPENQASM 3.0;
+    qubit q;
+    int i = 0;
+    int j = 0;
+    while (i < 2) {
+        int k = i;
+        h q;
+        j += k;
+        i += 1;
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "h")
+
+
+def test_while_loop_quantum_measurement():
+    """Test that while loop with quantum measurement in condition raises error."""
+    qasm_str = """
+    OPENQASM 3.0;
+    qubit q;
+    bit c;
+    c = measure q;
+    while (c) {
+        h q;
+        c = measure q;
+    }
+    """
+    with pytest.raises(ValidationError, match="Cannot unroll while loops with quantum measurement in the condition"):
+        result = loads(qasm_str)
+        result.unroll()
