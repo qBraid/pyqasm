@@ -20,7 +20,12 @@ import pytest
 
 from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
-from tests.qasm3.resources.variables import ASSIGNMENT_TESTS, DECLARATION_TESTS
+from tests.qasm3.resources.variables import (
+    ASSIGNMENT_TESTS,
+    CASTING_TESTS,
+    DECLARATION_TESTS,
+    FAIL_CASTING_TESTS,
+)
 from tests.utils import check_single_qubit_rotation_op
 
 
@@ -387,5 +392,25 @@ def test_incorrect_assignments(test_name, caplog):
         with caplog.at_level("ERROR"):
             loads(qasm_input).validate()
 
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text
+
+
+@pytest.mark.parametrize("test_name", CASTING_TESTS.keys())
+def test_explicit_casting(test_name):
+    qasm_input = CASTING_TESTS[test_name]
+    loads(qasm_input).validate()
+
+
+@pytest.mark.parametrize("test_name", FAIL_CASTING_TESTS.keys())
+def test_incorrect_casting(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, err_line = FAIL_CASTING_TESTS[test_name]
+    with pytest.raises(ValidationError) as excinfo:
+        loads(qasm_input).validate()
+
+    first = excinfo.value.__cause__ or excinfo.value.__context__
+    assert first is not None, "Expected a chained ValidationError"
+    msg = str(first)
+    assert error_message in msg
     assert f"Error at line {line_num}, column {col_num}" in caplog.text
     assert err_line in caplog.text

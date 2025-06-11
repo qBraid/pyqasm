@@ -361,3 +361,127 @@ ASSIGNMENT_TESTS = {
         "x[3] = 3;",
     ),
 }
+
+CASTING_TESTS = {
+    "General test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        const float[64] f1 = 2.5;
+        uint[8] runtime_u = 7;
+        int[32] i2 = 2 * int[32](float[64](int[16](f1)));
+        const int[8] i1 = int[8](f1); 
+        const uint u1 = 2 * uint(f1);
+        """
+    ),
+    "Bool test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        
+        bool b_false = false;
+        bool b_true  = true;
+        
+        int i1 = int(b_false);
+        uint[16] u1 = uint[16](b_true);
+        float[32] f0 = float[32](b_false);
+        
+        bit  b;
+        b = b_true;
+        
+        bit[4] bits_from_true  = bit[4](b_true);
+        
+        bool b_nested = bool(float[32](uint[8](int[8](bit[8](bool(true))))));
+        """
+    ),
+    "Int test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        
+        int[4] x = -3;
+        bool b = bool(x);
+        uint[8] ux = uint[8](x);
+        float[32] f = float[32](x);
+        bit[4] bits = bit[4](x);
+        """
+    ),
+    "Unsigned Int test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        
+        uint[8] x = 3;
+        bool b = bool(x);
+        int[8] i = int[8](x);
+        float[32] f = float[32](x);
+        bit[4] bits = bit[4](x);
+        """
+    ),
+    "Float test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        const float[64] two_pi = 6.283185307179586;
+        float[64] f = two_pi * (127. / 512.);
+        bool b = bool(f);
+        int i = int(f);
+        uint u = uint(f);
+        // angle[8] a = angle[8](f);
+        """
+    ),
+    "Bit test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        
+        int v = 15;
+        bit[4] x = v;
+        bool b = bool(x);
+        int[32] i = int[32](x);
+        uint[32] u = uint[32](x);
+        // angle[4] a = angle[4](x);
+        """
+    ),
+}
+
+FAIL_CASTING_TESTS = {
+    "Float to Bit test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        const float[64] f1 = 2.5;
+        const bit[2] b1 = bit[2](f1);
+        """,
+        "Cannot cast <class 'float'> to <class 'openqasm3.ast.BitType'>. Invalid assignment "
+        "of type <class 'float'> to variable f1 of type <class 'openqasm3.ast.BitType'>",
+        5,
+        8,
+        "const bit[2] b1 = bit[2](f1);",
+    ),
+    "Const to non-Const test": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        uint[8] runtime_u = 7;
+        const int[16] i2 = int[16](runtime_u);
+        """,
+        "Expected variable 'runtime_u' to be constant in given expression",
+        5,
+        35,
+        "const int[16] i2 = int[16](runtime_u);",
+    ),
+    "Declaration vs Cast": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        int v = 15;
+        int[32] i = uint[32](v);
+        """,
+        "Declaration type: 'Int[32]' and Cast type: 'Uint[32]', should be same for 'i'",
+        5,
+        8,
+        "int[32] i = uint[32](v);",
+    ),
+}
