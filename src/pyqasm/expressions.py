@@ -18,8 +18,10 @@ Module containing the class for evaluating QASM expressions.
 """
 from openqasm3.ast import (
     BinaryExpression,
+    BitType,
     BooleanLiteral,
     BoolType,
+    Cast,
     DurationLiteral,
     Expression,
     FloatLiteral,
@@ -40,6 +42,7 @@ from openqasm3.ast import (
 )
 
 from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.maps.expressions import CONSTANTS_MAP, qasm3_expression_op_map
 from pyqasm.validator import Qasm3Validator
@@ -49,6 +52,7 @@ class Qasm3ExprEvaluator:
     """Class for evaluating QASM3 expressions."""
 
     visitor_obj = None
+    cast_var_name = ""
 
     @classmethod
     def set_visitor_obj(cls, visitor_obj) -> None:
@@ -205,8 +209,34 @@ class Qasm3ExprEvaluator:
             Qasm3ExprEvaluator._check_var_initialized(var_name, var_value, expression)
             return _check_and_return_value(var_value)
 
+        def _check_type_size(expression, var_name, base_type):
+            base_size = 1
+            if not isinstance(base_type, BoolType):
+                initial_size = 1 if isinstance(base_type, BitType) else 32
+                try:
+                    base_size = (
+                        initial_size
+                        if not hasattr(base_type, "size") or base_type.size is None
+                        else Qasm3ExprEvaluator.evaluate_expression(
+                            base_type.size, const_expr=True
+                        )[0]
+                    )
+                    if not isinstance(base_size, int) or base_size <= 0:
+                        raise ValidationError(
+                            f"Invalid base size {base_size} for variable '{var_name}'"
+                        )
+                except ValidationError as err:
+                    raise_qasm3_error(
+                        f"Invalid base size for variable '{var_name}'",
+                        error_node=expression,
+                        span=expression.span,
+                        raised_from=err,
+                    )
+            return base_size
+
         if isinstance(expression, Identifier):
             var_name = expression.name
+            cls.cast_var_name = var_name
             if var_name in CONSTANTS_MAP:
                 if not reqd_type or reqd_type == Qasm3FloatType:
                     return _check_and_return_value(CONSTANTS_MAP[var_name])
@@ -283,6 +313,12 @@ class Qasm3ExprEvaluator:
             return _check_and_return_value(expression.value)
 
         if isinstance(expression, UnaryExpression):
+            if validate_only:
+                if isinstance(expression.expression, Cast):
+                    return cls.evaluate_expression(
+                        expression.expression, const_expr, reqd_type, validate_only
+                    )
+
             operand, returned_stats = cls.evaluate_expression(
                 expression.expression, const_expr, reqd_type
             )
@@ -298,6 +334,16 @@ class Qasm3ExprEvaluator:
             return _check_and_return_value(qasm3_expression_op_map(op_name, operand))
 
         if isinstance(expression, BinaryExpression):
+            if validate_only:
+                if isinstance(expression.lhs, Cast):
+                    return cls.evaluate_expression(
+                        expression.lhs, const_expr, reqd_type, validate_only
+                    )
+                if isinstance(expression.rhs, Cast):
+                    return cls.evaluate_expression(
+                        expression.rhs, const_expr, reqd_type, validate_only
+                    )
+
             lhs_value, lhs_statements = cls.evaluate_expression(
                 expression.lhs, const_expr, reqd_type
             )
@@ -316,6 +362,27 @@ class Qasm3ExprEvaluator:
             ret_value, ret_stmts = cls.visitor_obj._visit_function_call(expression)  # type: ignore
             statements.extend(ret_stmts)
             return _check_and_return_value(ret_value)
+
+        if isinstance(expression, Cast):
+            if validate_only:
+                return (expression.type, statements)
+            var_value, cast_stmts = cls.evaluate_expression(
+                expression=expression.argument, const_expr=const_expr
+            )
+            cast_type_size = _check_type_size(expression, cls.cast_var_name, expression.type)
+            variable = Variable(
+                name=cls.cast_var_name,
+                base_type=expression.type,
+                base_size=cast_type_size,
+                dims=[],
+                value=var_value,
+                is_constant=const_expr,
+            )
+            cast_var_value = Qasm3Validator.validate_variable_assignment_value(
+                variable, var_value, expression
+            )
+            statements.extend(cast_stmts)
+            return _check_and_return_value(cast_var_value)
 
         raise_qasm3_error(
             f"Unsupported expression type {type(expression)}",
