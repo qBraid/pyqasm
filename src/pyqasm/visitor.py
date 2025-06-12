@@ -30,7 +30,7 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
-from pyqasm.exceptions import ValidationError, raise_qasm3_error
+from pyqasm.exceptions import ValidationError, raise_qasm3_error, LoopLimitExceededError
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
 from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
@@ -46,6 +46,11 @@ from pyqasm.validator import Qasm3Validator
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
+
+class LoopControlSignal(Exception):
+    def __init__(self, signal_type: str):
+        assert signal_type in ("break", "continue")
+        self.signal_type = signal_type
 
 
 # pylint: disable-next=too-many-instance-attributes
@@ -68,6 +73,7 @@ class QasmVisitor:
         check_only: bool = False,
         external_gates: list[str] | None = None,
         unroll_barriers: bool = True,
+        loop_limit: int = 1024,
     ):
         self._module = module
         self._scope: deque = deque([{}])
@@ -93,6 +99,7 @@ class QasmVisitor:
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
         self._init_utilities()
+        self._loop_limit = loop_limit
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -877,6 +884,12 @@ class QasmVisitor:
             return []
 
         return result
+    
+    def _visit_break(self, statement: qasm3_ast.BreakStatement) -> list[qasm3_ast.Statement]:
+        raise LoopControlSignal("break")
+
+    def _visit_continue(self, statement: qasm3_ast.ContinueStatement) -> list[qasm3_ast.Statement]:
+        raise LoopControlSignal("continue")
 
     def _visit_custom_gate_operation(
         self,
@@ -1990,8 +2003,40 @@ class QasmVisitor:
 
         return return_value, result
 
-    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> None:
-        pass
+    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
+        result = []
+
+        loop_counter = 0
+        max_iterations = self._loop_limit
+
+        while True:
+            cond_value = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)[0]
+            if not cond_value:
+                break
+
+            self._push_context(Context.BLOCK)
+            self._push_scope({})
+
+            try:
+                result.extend(self.visit_basic_block(statement.block))
+            except LoopControlSignal as lcs:
+                self._pop_scope()
+                self._restore_context()
+                if lcs.signal_type == "break":
+                    break
+                elif lcs.signal_type == "continue":
+                    continue
+
+            self._pop_scope()
+            self._restore_context()
+
+            loop_counter += 1
+            if loop_counter >= max_iterations:
+                raise LoopLimitExceededError("Loop exceeded max allowed iterations")
+
+        return result
+
+        
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
@@ -2232,11 +2277,14 @@ class QasmVisitor:
             qasm3_ast.ConstantDeclaration: self._visit_constant_declaration,
             qasm3_ast.BranchingStatement: self._visit_branching_statement,
             qasm3_ast.ForInLoop: self._visit_forin_loop,
+            qasm3_ast.WhileLoop: self._visit_while_loop,
             qasm3_ast.AliasStatement: self._visit_alias_statement,
             qasm3_ast.SwitchStatement: self._visit_switch_statement,
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
+            qasm3_ast.BreakStatement: lambda x: self._visit_break(x),
+            qasm3_ast.ContinueStatement: lambda x: self._visit_continue(x),
         }
 
         visitor_function = visit_map.get(type(statement))

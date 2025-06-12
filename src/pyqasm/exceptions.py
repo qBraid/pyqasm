@@ -48,6 +48,11 @@ class QasmParsingError(QASM3ParsingError):
     """An error raised by the AST visitor during the AST-generation phase.  This is raised in cases
     where the given program could not be correctly parsed."""
 
+class LoopLimitExceededError(PyQasmError):
+    """Exception raised when a loop limit is exceeded during unrolling or other operations."""
+
+    def __init__(self, message: str = "Loop limit exceeded."):
+        super().__init__(message)
 
 def raise_qasm3_error(
     message: Optional[str] = None,
