@@ -2280,8 +2280,8 @@ class QasmVisitor:
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
-            qasm3_ast.BreakStatement: lambda x: self._visit_break(x),
-            qasm3_ast.ContinueStatement: lambda x: self._visit_continue(x),
+            qasm3_ast.BreakStatement: self._visit_break,
+            qasm3_ast.ContinueStatement: self._visit_continue,
         }
 
         visitor_function = visit_map.get(type(statement))
