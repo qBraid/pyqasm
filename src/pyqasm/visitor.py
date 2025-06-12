@@ -73,7 +73,6 @@ class QasmVisitor:
         check_only: bool = False,
         external_gates: list[str] | None = None,
         unroll_barriers: bool = True,
-        loop_limit: int = 1024,
     ):
         self._module = module
         self._scope: deque = deque([{}])
@@ -99,7 +98,7 @@ class QasmVisitor:
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
         self._init_utilities()
-        self._loop_limit = loop_limit
+        self._loop_limit = 1024
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -884,7 +883,7 @@ class QasmVisitor:
             return []
 
         return result
-    
+        
     def _visit_break(self, statement: qasm3_ast.BreakStatement) -> list[qasm3_ast.Statement]:
         raise LoopControlSignal("break")
 
@@ -2024,7 +2023,7 @@ class QasmVisitor:
                 self._restore_context()
                 if lcs.signal_type == "break":
                     break
-                elif lcs.signal_type == "continue":
+                if lcs.signal_type == "continue":
                     continue
 
             self._pop_scope()
@@ -2035,8 +2034,6 @@ class QasmVisitor:
                 raise LoopLimitExceededError("Loop exceeded max allowed iterations")
 
         return result
-
-        
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
@@ -2283,7 +2280,7 @@ class QasmVisitor:
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
-            qasm3_ast.BreakStatement: lambda x: self._visit_break(x),
+            qasm3_ast.BreakStatement: x: self._visit_break(x),
             qasm3_ast.ContinueStatement: lambda x: self._visit_continue(x),
         }
 
