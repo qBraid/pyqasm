@@ -1,3 +1,6 @@
+
+"""Test module for while."""
+
 import pytest
 
 from pyqasm import loads
@@ -178,3 +181,4 @@ def test_while_loop_limit_exceeded():
     result = loads(qasm_str)
     with pytest.raises(LoopLimitExceededError):
         result.unroll(loop_limit=5)
+        
