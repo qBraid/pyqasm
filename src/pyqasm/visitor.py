@@ -29,15 +29,28 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
-from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
+from pyqasm.elements import (
+    ClbitDepthNode,
+    Context,
+    InversionOp,
+    QubitDepthNode,
+    Variable,
+)
 from pyqasm.exceptions import (
+    BreakSignal,
+    ContinueSignal,
+    LoopControlSignal,
+    LoopLimitExceededError,
     ValidationError,
     raise_qasm3_error,
-    LoopLimitExceededError,
-    LoopControlSignal, BreakSignal, ContinueSignal)
+)
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
-from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
+from pyqasm.maps.expressions import (
+    ARRAY_TYPE_MAP,
+    CONSTANTS_MAP,
+    MAX_ARRAY_DIMENSIONS,
+)
 from pyqasm.maps.gates import (
     map_qasm_ctrl_op_to_callable,
     map_qasm_inv_op_to_callable,
