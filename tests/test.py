@@ -1,10 +1,26 @@
+# Copyright 2025 qBraid
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-"""Test module for while."""
+
+"""
+Module containing unit tests for while loops in OpenQASM 3.0.
+
+"""
 
 import pytest
-
 from pyqasm import loads
-from pyqasm.exceptions import LoopLimitExceededError
+from pyqasm.exceptions import LoopLimitExceededError, ValidationError
 from tests.utils import (
     check_single_qubit_gate_op
 )
@@ -174,11 +190,56 @@ def test_while_loop_limit_exceeded():
     OPENQASM 3.0;
     qubit q;
     int i = 0;
-    while (i < 10) {
+    while (i < 1e10) {
         i += 1;
     }
     """
     result = loads(qasm_str)
     with pytest.raises(LoopLimitExceededError):
-        result.unroll(loop_limit=5)
-        
+        result.unroll()
+
+def test_while_loop_quantum_measurement():
+    """Test that while loop with quantum measurement in condition raises error."""
+    qasm_str = """
+    OPENQASM 3.0;
+    qubit q;
+    bit c;
+    c = measure q;
+    while (c) {
+        h q;
+        c = measure q;
+    }
+    """
+    with pytest.raises(ValidationError, match="Cannot unroll while-loop with condition depending on quantum measurement result."):
+        result = loads(qasm_str)
+        result.unroll()
+
+def test_while_loop_measurement_complex_condition():
+    qasm_str = """
+    OPENQASM 3.0;
+    qubit q;
+    bit c;
+    c = measure q;
+    while (!(!c)) {
+        x q;
+        c = measure q;
+    }
+    """
+    with pytest.raises(ValidationError, match="quantum measurement"):
+        result = loads(qasm_str)
+        result.unroll()
+
+def test_while_loop_measurement_binary_expr():
+    qasm_str = """
+    OPENQASM 3.0;
+    qubit q;
+    bit c;
+    c = measure q;
+    while (c == 1) {
+        h q;
+        c = measure q;
+    }
+    """
+    with pytest.raises(ValidationError, match="quantum measurement"):
+        result = loads(qasm_str)
+        result.unroll()
