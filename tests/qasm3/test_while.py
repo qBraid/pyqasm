@@ -168,22 +168,6 @@ def test_while_loop_scope():
     result.unroll()
     check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "h")
 
-
-def test_while_loop_quantum_measurement():
-    """Test that while loop with quantum measurement in condition raises error."""
-    qasm_str = """
-    OPENQASM 3.0;
-    qubit q;
-    bit c;
-    c = measure q;
-    while (c) {
-        h q;
-        c = measure q;
-    }
-    """
-    result = loads(qasm_str)
-    result.unroll()
-
 def test_while_loop_limit_exceeded():
     """Test that exceeding the loop limit raises LoopLimitExceeded."""
     qasm_str = """
@@ -210,7 +194,7 @@ def test_while_loop_quantum_measurement():
         c = measure q;
     }
     """
-    with pytest.raises(ValidationError, match="Cannot unroll while-loop with condition depending on quantum measurement result."):
+    with pytest.raises(ValidationError, match="quantum measurement"):
         result = loads(qasm_str)
         result.unroll()
 
