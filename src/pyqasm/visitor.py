@@ -30,7 +30,7 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
-from pyqasm.exceptions import ValidationError, raise_qasm3_error, LoopLimitExceededError
+from pyqasm.exceptions import ValidationError, raise_qasm3_error, LoopLimitExceededError, LoopControlSignal, BreakSignal, ContinueSignal
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
 from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
@@ -46,11 +46,6 @@ from pyqasm.validator import Qasm3Validator
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
-
-class LoopControlSignal(Exception):
-    def __init__(self, signal_type: str):
-        assert signal_type in ("break", "continue")
-        self.signal_type = signal_type
 
 
 # pylint: disable-next=too-many-instance-attributes
@@ -97,8 +92,9 @@ class QasmVisitor:
         self._in_branching_statement: int = 0
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
+        self._measurement_set = set()
         self._init_utilities()
-        self._loop_limit = 1024
+        self._loop_limit = 1e9
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -561,6 +557,11 @@ class QasmVisitor:
                     qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
                     clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
 
+                    if isinstance(target, qasm3_ast.Identifier):
+                        self._measurement_set.add(target.name)
+                    elif isinstance(target, qasm3_ast.IndexedIdentifier):
+                        self._measurement_set.add(target.name.name)
+
                 unrolled_measurements.append(unrolled_measure)
 
         if self._check_only:
@@ -883,12 +884,16 @@ class QasmVisitor:
             return []
 
         return result
-        
+
     def _visit_break(self, statement: qasm3_ast.BreakStatement) -> list[qasm3_ast.Statement]:
-        raise LoopControlSignal("break")
+        raise_qasm3_error(
+        err_type=BreakSignal,
+        )
 
     def _visit_continue(self, statement: qasm3_ast.ContinueStatement) -> list[qasm3_ast.Statement]:
-        raise LoopControlSignal("continue")
+        raise_qasm3_error(
+        err_type=ContinueSignal,
+        )
 
     def _visit_custom_gate_operation(
         self,
@@ -1622,7 +1627,7 @@ class QasmVisitor:
             return []
 
         return statements
-
+       
     def _evaluate_array_initialization(
         self, array_literal: qasm3_ast.ArrayLiteral, dimensions: list[int], base_type: Any
     ) -> np.ndarray:
@@ -2001,12 +2006,54 @@ class QasmVisitor:
             return return_value, []
 
         return return_value, result
+    
+    def _condition_depends_on_measurement(self, condition: qasm3_ast.Expression) -> bool:
+        """Recursively check whether the given condition depends on a classical register set by measurement."""
+
+        def depends(expr: qasm3_ast.Expression) -> bool:
+            if isinstance(expr, qasm3_ast.Identifier):
+                return expr.name in self._measurement_set
+
+            elif isinstance(expr, qasm3_ast.IndexExpression):
+                # Check if the collection being indexed is in the measurement set
+                if isinstance(expr.collection, qasm3_ast.Identifier):
+                    return expr.collection.name in self._measurement_set
+                return depends(expr.collection) or depends(expr.index)
+
+            elif isinstance(expr, qasm3_ast.BinaryExpression):
+                return depends(expr.lhs) or depends(expr.rhs)
+
+            elif isinstance(expr, qasm3_ast.UnaryExpression):
+                return depends(expr.expression)
+
+            elif isinstance(expr, qasm3_ast.FunctionCall):
+                return any(depends(arg) for arg in expr.arguments)
+            return False
+
+        return depends(condition)
+
 
     def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
+
+        """ Input:
+                statement (qasm3_ast.WhileLoop) - the while-loop AST node
+            Output:
+                list[qasm3_ast.Statement] - flattened/unrolled statements 
+            Raises:
+                ValidationError - if loop condition is non-classical or dynamic """
+        
         result = []
 
         loop_counter = 0
-        max_iterations = self._loop_limit
+        max_iterations = 5
+
+        if self._condition_depends_on_measurement(statement.while_condition):
+            raise_qasm3_error(
+        "Cannot unroll while-loop with condition depending on quantum measurement result.",
+        error_node=statement,
+        span=statement.span,
+        )
+
 
         while True:
             cond_value = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)[0]
@@ -2031,7 +2078,12 @@ class QasmVisitor:
 
             loop_counter += 1
             if loop_counter >= max_iterations:
-                raise LoopLimitExceededError("Loop exceeded max allowed iterations")
+                raise_qasm3_error(
+                "Loop exceeded max allowed iterations",
+                err_type=LoopLimitExceededError,
+                error_node=statement,
+                span=statement.span,
+            )
 
         return result
 
