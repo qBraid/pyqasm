@@ -31,9 +31,9 @@ from openqasm3.printer import dumps
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
 from pyqasm.exceptions import (
-    ValidationError, 
-    raise_qasm3_error, 
-    LoopLimitExceededError, 
+    ValidationError,
+    raise_qasm3_error,
+    LoopLimitExceededError,
     LoopControlSignal, BreakSignal, ContinueSignal)
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
@@ -2031,6 +2031,7 @@ class QasmVisitor:
 
             if isinstance(expr, qasm3_ast.UnaryExpression):
                 return depends(expr.expression)
+            return False
 
         return depends(condition)
 
@@ -2043,7 +2044,7 @@ class QasmVisitor:
                 list[qasm3_ast.Statement] - flattened/unrolled statements
             Raises:
                 ValidationError - if loop condition is non-classical or dynamic"""
-        
+
         result = []
 
         loop_counter = 0
