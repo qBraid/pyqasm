@@ -63,12 +63,12 @@ class LoopControlSignal(Exception):
 
 class BreakSignal(LoopControlSignal):
     """Signal to break out of a loop during AST traversal."""
-    def __init__(self, msg):
+    def __init__(self, msg: Optional[str] = None):
         super().__init__("break")
 
 class ContinueSignal(LoopControlSignal):
     """Signal to continue to the next iteration of a loop during AST traversal."""
-    def __init__(self, msg):
+    def __init__(self, msg: Optional[str] = None):
         super().__init__("continue")
 
 def raise_qasm3_error(
