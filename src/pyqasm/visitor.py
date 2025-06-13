@@ -30,7 +30,11 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
-from pyqasm.exceptions import ValidationError, raise_qasm3_error, LoopLimitExceededError, LoopControlSignal, BreakSignal, ContinueSignal
+from pyqasm.exceptions import (
+    ValidationError, 
+    raise_qasm3_error, 
+    LoopLimitExceededError, 
+    LoopControlSignal, BreakSignal, ContinueSignal)
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
 from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
@@ -888,11 +892,13 @@ class QasmVisitor:
     def _visit_break(self, statement: qasm3_ast.BreakStatement) -> list[qasm3_ast.Statement]:
         raise_qasm3_error(
         err_type=BreakSignal,
+        error_node=statement,
         )
 
     def _visit_continue(self, statement: qasm3_ast.ContinueStatement) -> list[qasm3_ast.Statement]:
         raise_qasm3_error(
         err_type=ContinueSignal,
+        error_node=statement,
         )
 
     def _visit_custom_gate_operation(
@@ -1627,7 +1633,7 @@ class QasmVisitor:
             return []
 
         return statements
-       
+
     def _evaluate_array_initialization(
         self, array_literal: qasm3_ast.ArrayLiteral, dimensions: list[int], base_type: Any
     ) -> np.ndarray:
@@ -2006,29 +2012,25 @@ class QasmVisitor:
             return return_value, []
 
         return return_value, result
-    
+
     def _condition_depends_on_measurement(self, condition: qasm3_ast.Expression) -> bool:
-        """Recursively check whether the given condition depends on a classical register set by measurement."""
+        """Recursively check if the condition depends on a classical register set by measurement."""
 
         def depends(expr: qasm3_ast.Expression) -> bool:
             if isinstance(expr, qasm3_ast.Identifier):
                 return expr.name in self._measurement_set
 
-            elif isinstance(expr, qasm3_ast.IndexExpression):
+            if isinstance(expr, qasm3_ast.IndexExpression):
                 # Check if the collection being indexed is in the measurement set
                 if isinstance(expr.collection, qasm3_ast.Identifier):
                     return expr.collection.name in self._measurement_set
                 return depends(expr.collection) or depends(expr.index)
 
-            elif isinstance(expr, qasm3_ast.BinaryExpression):
+            if isinstance(expr, qasm3_ast.BinaryExpression):
                 return depends(expr.lhs) or depends(expr.rhs)
 
-            elif isinstance(expr, qasm3_ast.UnaryExpression):
+            if isinstance(expr, qasm3_ast.UnaryExpression):
                 return depends(expr.expression)
-
-            elif isinstance(expr, qasm3_ast.FunctionCall):
-                return any(depends(arg) for arg in expr.arguments)
-            return False
 
         return depends(condition)
 
@@ -2038,9 +2040,9 @@ class QasmVisitor:
         """ Input:
                 statement (qasm3_ast.WhileLoop) - the while-loop AST node
             Output:
-                list[qasm3_ast.Statement] - flattened/unrolled statements 
+                list[qasm3_ast.Statement] - flattened/unrolled statements
             Raises:
-                ValidationError - if loop condition is non-classical or dynamic """
+                ValidationError - if loop condition is non-classical or dynamic"""
         
         result = []
 
@@ -2053,7 +2055,6 @@ class QasmVisitor:
         error_node=statement,
         span=statement.span,
         )
-
 
         while True:
             cond_value = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)[0]
