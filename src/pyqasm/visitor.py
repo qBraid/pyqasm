@@ -2045,7 +2045,7 @@ class QasmVisitor:
         result = []
 
         loop_counter = 0
-        max_iterations = 5
+        max_iterations = self._loop_limit
 
         if self._condition_depends_on_measurement(statement.while_condition):
             raise_qasm3_error(
