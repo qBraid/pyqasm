@@ -54,6 +54,23 @@ class LoopLimitExceededError(PyQasmError):
     def __init__(self, message: str = "Loop limit exceeded."):
         super().__init__(message)
 
+class LoopControlSignal(Exception):
+    """Base class for loop control signals like break and continue.
+    This class is used to signal control flow changes within loops during AST traversal."""
+    def __init__(self, signal_type: str):
+        assert signal_type in ("break", "continue")
+        self.signal_type = signal_type
+
+class BreakSignal(LoopControlSignal):
+    """Signal to break out of a loop during AST traversal."""
+    def __init__(self, msg):
+        super().__init__("break")
+
+class ContinueSignal(LoopControlSignal):
+    """Signal to continue to the next iteration of a loop during AST traversal."""
+    def __init__(self, msg):
+        super().__init__("continue")
+
 def raise_qasm3_error(
     message: Optional[str] = None,
     err_type: Type[Exception] = ValidationError,
