@@ -23,7 +23,7 @@ import pytest
 from pyqasm import loads
 from pyqasm.exceptions import LoopLimitExceededError, ValidationError
 
-from tests.utils import check_single_qubit_gate_op
+from tests.utils import check_single_qubit_gate_op, check_two_qubit_gate_op
 
 def test_while_loop_with_continue():
     """Test a while loop with break and continue statements."""
