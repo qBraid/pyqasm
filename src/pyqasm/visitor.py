@@ -29,11 +29,28 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
-from pyqasm.elements import ClbitDepthNode, Context, InversionOp, QubitDepthNode, Variable
-from pyqasm.exceptions import ValidationError, raise_qasm3_error
+from pyqasm.elements import (
+    ClbitDepthNode,
+    Context,
+    InversionOp,
+    QubitDepthNode,
+    Variable,
+)
+from pyqasm.exceptions import (
+    BreakSignal,
+    ContinueSignal,
+    LoopControlSignal,
+    LoopLimitExceededError,
+    ValidationError,
+    raise_qasm3_error,
+)
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps import SWITCH_BLACKLIST_STMTS
-from pyqasm.maps.expressions import ARRAY_TYPE_MAP, CONSTANTS_MAP, MAX_ARRAY_DIMENSIONS
+from pyqasm.maps.expressions import (
+    ARRAY_TYPE_MAP,
+    CONSTANTS_MAP,
+    MAX_ARRAY_DIMENSIONS,
+)
 from pyqasm.maps.gates import (
     map_qasm_ctrl_op_to_callable,
     map_qasm_inv_op_to_callable,
@@ -92,7 +109,9 @@ class QasmVisitor:
         self._in_branching_statement: int = 0
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
+        self._measurement_set = set()
         self._init_utilities()
+        self._loop_limit = 1e9
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -632,6 +651,11 @@ class QasmVisitor:
                     qubit_node.depth = max(qubit_node.depth, clbit_node.depth)
                     clbit_node.depth = max(qubit_node.depth, clbit_node.depth)
 
+                    if isinstance(target, qasm3_ast.Identifier):
+                        self._measurement_set.add(target.name)
+                    elif isinstance(target, qasm3_ast.IndexedIdentifier):
+                        self._measurement_set.add(target.name.name)
+
                 unrolled_measurements.append(unrolled_measure)
 
         if self._check_only:
@@ -954,6 +978,18 @@ class QasmVisitor:
             return []
 
         return result
+
+    def _visit_break(self, statement: qasm3_ast.BreakStatement) -> list[qasm3_ast.Statement]:
+        raise_qasm3_error(
+        err_type=BreakSignal,
+        error_node=statement,
+        )
+
+    def _visit_continue(self, statement: qasm3_ast.ContinueStatement) -> list[qasm3_ast.Statement]:
+        raise_qasm3_error(
+        err_type=ContinueSignal,
+        error_node=statement,
+        )
 
     def _visit_custom_gate_operation(
         self,
@@ -2049,8 +2085,81 @@ class QasmVisitor:
 
         return return_value, result
 
-    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> None:
-        pass
+    def _condition_depends_on_measurement(self, condition: qasm3_ast.Expression) -> bool:
+        """Recursively check if the condition depends on a classical register set by measurement."""
+
+        def depends(expr: qasm3_ast.Expression) -> bool:
+            if isinstance(expr, qasm3_ast.Identifier):
+                return expr.name in self._measurement_set
+
+            if isinstance(expr, qasm3_ast.IndexExpression):
+                # Check if the collection being indexed is in the measurement set
+                if isinstance(expr.collection, qasm3_ast.Identifier):
+                    return expr.collection.name in self._measurement_set
+                return depends(expr.collection) or depends(expr.index)
+
+            if isinstance(expr, qasm3_ast.BinaryExpression):
+                return depends(expr.lhs) or depends(expr.rhs)
+
+            if isinstance(expr, qasm3_ast.UnaryExpression):
+                return depends(expr.expression)
+            return False
+
+        return depends(condition)
+
+
+    def _visit_while_loop(self, statement: qasm3_ast.WhileLoop) -> list[qasm3_ast.Statement]:
+
+        """ Input:
+                statement (qasm3_ast.WhileLoop) - the while-loop AST node
+            Output:
+                list[qasm3_ast.Statement] - flattened/unrolled statements
+            Raises:
+                ValidationError - if loop condition is non-classical or dynamic"""
+
+        result = []
+
+        loop_counter = 0
+        max_iterations = self._loop_limit
+
+        if self._condition_depends_on_measurement(statement.while_condition):
+            raise_qasm3_error(
+        "Cannot unroll while-loop with condition depending on quantum measurement result.",
+        error_node=statement,
+        span=statement.span,
+        )
+
+        while True:
+            cond_value = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)[0]
+            if not cond_value:
+                break
+
+            self._push_context(Context.BLOCK)
+            self._push_scope({})
+
+            try:
+                result.extend(self.visit_basic_block(statement.block))
+            except LoopControlSignal as lcs:
+                self._pop_scope()
+                self._restore_context()
+                if lcs.signal_type == "break":
+                    break
+                if lcs.signal_type == "continue":
+                    continue
+
+            self._pop_scope()
+            self._restore_context()
+
+            loop_counter += 1
+            if loop_counter >= max_iterations:
+                raise_qasm3_error(
+                "Loop exceeded max allowed iterations",
+                err_type=LoopLimitExceededError,
+                error_node=statement,
+                span=statement.span,
+            )
+
+        return result
 
     def _visit_alias_statement(self, statement: qasm3_ast.AliasStatement) -> list[None]:
         """Visit an alias statement element.
@@ -2291,11 +2400,14 @@ class QasmVisitor:
             qasm3_ast.ConstantDeclaration: self._visit_constant_declaration,
             qasm3_ast.BranchingStatement: self._visit_branching_statement,
             qasm3_ast.ForInLoop: self._visit_forin_loop,
+            qasm3_ast.WhileLoop: self._visit_while_loop,
             qasm3_ast.AliasStatement: self._visit_alias_statement,
             qasm3_ast.SwitchStatement: self._visit_switch_statement,
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
+            qasm3_ast.BreakStatement: self._visit_break,
+            qasm3_ast.ContinueStatement: self._visit_continue,
         }
 
         visitor_function = visit_map.get(type(statement))
