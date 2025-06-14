@@ -78,17 +78,19 @@ def test_while_loop_unroll_qasm_output():
     """Test that unrolling a while loop produces the expected QASM string."""
     qasm_str = """
     OPENQASM 3.0;
-    qubit q;
+    qubit[4] q;
     int i = 0;
-    while (i < 2) {
-        h q;
+    while (i < 3) {
+        h q[i];
+        cx q[i], q[i+1];
         i += 1;
     }
+
     """
     result = loads(qasm_str)
     result.unroll()
-    # Validate number of h q operations
-    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "h")
+    check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 1, 2], "h")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
 def test_empty_while_loop_ignored():
