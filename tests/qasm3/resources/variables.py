@@ -94,7 +94,7 @@ DECLARATION_TESTS = {
         include "stdgates.inc";
         int[32.1] x;
         """,
-        "Invalid base size 32.1 for variable 'x'",
+        "Invalid base size '32.1' for variable 'x'",
         4,
         8,
         "int[32.1] x;",
@@ -105,7 +105,7 @@ DECLARATION_TESTS = {
         include "stdgates.inc";
         const int[32.1] x = 3;
         """,
-        "Invalid base size for constant 'x'",
+        "Invalid base size '32.1' for constant 'x'",
         4,
         8,
         "const int[32.1] x = 3;",
@@ -363,7 +363,7 @@ ASSIGNMENT_TESTS = {
 }
 
 CASTING_TESTS = {
-    "General test": (
+    "General_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -372,9 +372,12 @@ CASTING_TESTS = {
         int[32] i2 = 2 * int[32](float[64](int[16](f1)));
         const int[8] i1 = int[8](f1); 
         const uint u1 = 2 * uint(f1);
+        int ccf1 = float(runtime_u) * int(f1);
+        uint ul1 = uint(float[64](int[16](f1))) * 2;
+        const int un = -int(u1);
         """
     ),
-    "Bool test": (
+    "Bool_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -394,7 +397,7 @@ CASTING_TESTS = {
         bool b_nested = bool(float[32](uint[8](int[8](bit[8](bool(true))))));
         """
     ),
-    "Int test": (
+    "Int_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -406,7 +409,7 @@ CASTING_TESTS = {
         bit[4] bits = bit[4](x);
         """
     ),
-    "Unsigned Int test": (
+    "Unsigned_Int_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -418,7 +421,7 @@ CASTING_TESTS = {
         bit[4] bits = bit[4](x);
         """
     ),
-    "Float test": (
+    "Float_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -431,7 +434,7 @@ CASTING_TESTS = {
         // angle[8] a = angle[8](f);
         """
     ),
-    "Bit test": (
+    "Bit_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -447,7 +450,7 @@ CASTING_TESTS = {
 }
 
 FAIL_CASTING_TESTS = {
-    "Float to Bit test": (
+    "Float_to_Bit_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -460,7 +463,7 @@ FAIL_CASTING_TESTS = {
         8,
         "const bit[2] b1 = bit[2](f1);",
     ),
-    "Const to non-Const test": (
+    "Const_to_non-Const_test": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -472,7 +475,7 @@ FAIL_CASTING_TESTS = {
         35,
         "const int[16] i2 = int[16](runtime_u);",
     ),
-    "Declaration vs Cast": (
+    "Declaration_vs_Cast": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -483,5 +486,40 @@ FAIL_CASTING_TESTS = {
         5,
         8,
         "int[32] i = uint[32](v);",
+    ),
+    "Incorrect_base_size_for_cast_variable": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        const float[64] f1 = 2.5;
+        const int[32] i1 = int[32.5](f1);
+        """,
+        "Invalid base size '32.5' for variable 'f1'",
+        5,
+        27,
+        "int[32.5](f1);",
+    ),
+    "Unsupported_expression": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        duration d1 = 1ns;
+        """,
+        "Unsupported expression type '<class 'openqasm3.ast.DurationLiteral'>'",
+        5,
+        22,
+        "1.0ns",
+    ),
+    "Incorrect_base_size_for_direct_value_in_cast": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        const uint[32] iu = uint[12.2](24);
+        """,
+        "Invalid base size '12.2' for value '24'",
+        4,
+        28,
+        "uint[12.2](24);",
     ),
 }
