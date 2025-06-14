@@ -52,7 +52,6 @@ class Qasm3ExprEvaluator:
     """Class for evaluating QASM3 expressions."""
 
     visitor_obj = None
-    cast_var_name = ""
 
     @classmethod
     def set_visitor_obj(cls, visitor_obj) -> None:
@@ -209,7 +208,7 @@ class Qasm3ExprEvaluator:
             Qasm3ExprEvaluator._check_var_initialized(var_name, var_value, expression)
             return _check_and_return_value(var_value)
 
-        def _check_type_size(expression, var_name, base_type):
+        def _check_type_size(expression, var_name, var_format, base_type):
             base_size = 1
             if not isinstance(base_type, BoolType):
                 initial_size = 1 if isinstance(base_type, BitType) else 32
@@ -221,22 +220,23 @@ class Qasm3ExprEvaluator:
                             base_type.size, const_expr=True
                         )[0]
                     )
-                    if not isinstance(base_size, int) or base_size <= 0:
-                        raise ValidationError(
-                            f"Invalid base size {base_size} for variable '{var_name}'"
-                        )
                 except ValidationError as err:
                     raise_qasm3_error(
-                        f"Invalid base size for variable '{var_name}'",
+                        f"Invalid base size for {var_format} '{var_name}'",
                         error_node=expression,
                         span=expression.span,
                         raised_from=err,
                     )
+                if not isinstance(base_size, int) or base_size <= 0:
+                    raise_qasm3_error(
+                        f"Invalid base size '{base_size}' for {var_format} '{var_name}'",
+                        error_node=expression,
+                        span=expression.span,
+                        )
             return base_size
 
         if isinstance(expression, Identifier):
             var_name = expression.name
-            cls.cast_var_name = var_name
             if var_name in CONSTANTS_MAP:
                 if not reqd_type or reqd_type == Qasm3FloatType:
                     return _check_and_return_value(CONSTANTS_MAP[var_name])
@@ -318,6 +318,7 @@ class Qasm3ExprEvaluator:
                     return cls.evaluate_expression(
                         expression.expression, const_expr, reqd_type, validate_only
                     )
+                return (None, [])
 
             operand, returned_stats = cls.evaluate_expression(
                 expression.expression, const_expr, reqd_type
@@ -335,6 +336,8 @@ class Qasm3ExprEvaluator:
 
         if isinstance(expression, BinaryExpression):
             if validate_only:
+                if isinstance(expression.lhs, Cast) and isinstance(expression.rhs, Cast):
+                    return (None, statements)
                 if isinstance(expression.lhs, Cast):
                     return cls.evaluate_expression(
                         expression.lhs, const_expr, reqd_type, validate_only
@@ -343,6 +346,7 @@ class Qasm3ExprEvaluator:
                     return cls.evaluate_expression(
                         expression.rhs, const_expr, reqd_type, validate_only
                     )
+                return (None, statements)
 
             lhs_value, lhs_statements = cls.evaluate_expression(
                 expression.lhs, const_expr, reqd_type
@@ -366,12 +370,25 @@ class Qasm3ExprEvaluator:
         if isinstance(expression, Cast):
             if validate_only:
                 return (expression.type, statements)
+
+            var_name = ""
+            if isinstance(expression.argument, Identifier):
+                var_name = expression.argument.name
+
             var_value, cast_stmts = cls.evaluate_expression(
                 expression=expression.argument, const_expr=const_expr
             )
-            cast_type_size = _check_type_size(expression, cls.cast_var_name, expression.type)
+
+            var_format = "variable"
+            if var_name == "":
+                var_name = f"{var_value}"
+                var_format = "value"
+
+            cast_type_size = _check_type_size(
+                expression, var_name, var_format, expression.type
+            )
             variable = Variable(
-                name=cls.cast_var_name,
+                name=var_name,
                 base_type=expression.type,
                 base_size=cast_type_size,
                 dims=[],
