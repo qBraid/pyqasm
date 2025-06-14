@@ -50,7 +50,7 @@ Types of changes:
   ```
   - Previously, each gate inside an `if`/`else` block would advance only its own wire depth. Now, when any branching statement is encountered, all qubit‐ and clbit‐depths used inside that block are first incremented by one, then set to the maximum of those new values. This ensures the entire conditional block counts as single “depth” increment, rather than letting individual gates within the same branch float ahead independently.
   - In the above snippet, c[0], q[0], and q[1] all jump together to a single new depth for that branch.
-
+- Added initial support to explicit casting by converting the declarations into implicit casting logic. ([#205](https://github.com/qBraid/pyqasm/pull/205))
 ### Dependencies
 
 ### Other
