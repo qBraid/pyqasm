@@ -26,6 +26,7 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | ForLoops                       | ✅          | Completed              |
 | RangeDefinition                | ✅          | Completed              |
 | QuantumGate                    | ✅          | Completed              |
+| Cast                           | ✅          | Completed              |
 | QuantumGateModifier (ctrl)     | 📋          | Planned                |
 | WhileLoop                      | 📋          | Planned                |
 | IODeclaration                  | 📋          | Planned                |
