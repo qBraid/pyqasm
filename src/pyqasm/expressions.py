@@ -232,7 +232,7 @@ class Qasm3ExprEvaluator:
                         f"Invalid base size '{base_size}' for {var_format} '{var_name}'",
                         error_node=expression,
                         span=expression.span,
-                        )
+                    )
             return base_size
 
         if isinstance(expression, Identifier):
@@ -384,9 +384,7 @@ class Qasm3ExprEvaluator:
                 var_name = f"{var_value}"
                 var_format = "value"
 
-            cast_type_size = _check_type_size(
-                expression, var_name, var_format, expression.type
-            )
+            cast_type_size = _check_type_size(expression, var_name, var_format, expression.type)
             variable = Variable(
                 name=var_name,
                 base_type=expression.type,
