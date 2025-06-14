@@ -462,8 +462,8 @@ class QasmVisitor:
 
         return openqasm_bits
 
-    def _check_type_size(
-        self, statement: qasm3_ast.Statement, var_name: str, base_type: Any, is_const: bool
+    def _check_variable_type_size(
+        self, statement: qasm3_ast.Statement, var_name: str, var_format: str, base_type: Any
     ) -> int:
         """Get the size of the given variable type.
 
@@ -482,27 +482,27 @@ class QasmVisitor:
                 base_size = (
                     initial_size
                     if not hasattr(base_type, "size") or base_type.size is None
-                    else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
+                    else Qasm3ExprEvaluator.evaluate_expression(
+                        base_type.size, const_expr=True
+                    )[0]
                 )
-                if is_const:
-                    if not isinstance(base_size, int) or base_size <= 0:
-                        raise ValidationError(
-                            f"Invalid base size {base_size} for variable '{var_name}'"
-                        )
             except ValidationError as err:
-                err_str = "variable"
-                if is_const:
-                    err_str = "constant"
                 raise_qasm3_error(
-                    f"Invalid base size for {err_str} '{var_name}'",
+                    f"Invalid base size for {var_format} '{var_name}'",
                     error_node=statement,
                     span=statement.span,
                     raised_from=err,
                 )
+        if not isinstance(base_size, int) or base_size <= 0:
+            raise_qasm3_error(
+                f"Invalid base size '{base_size}' for {var_format} '{var_name}'",
+                error_node=statement,
+                span=statement.span,
+            )
         return base_size
 
     # pylint: disable-next=too-many-arguments
-    def _check_type_for_cast(
+    def _check_variable_cast_type(
         self,
         statement: qasm3_ast.Statement,
         val_type: Any,
@@ -525,7 +525,14 @@ class QasmVisitor:
         """
         if not val_type:
             val_type = base_type
-        val_type_size = self._check_type_size(statement, var_name, val_type, is_const)
+
+        var_format = "variable"
+        if is_const:
+            var_format = "constant"
+
+        val_type_size = self._check_variable_type_size(
+            statement, var_name, var_format, val_type
+        )
         if not isinstance(val_type, type(base_type)) or val_type_size != base_size:
             raise_qasm3_error(
                 f"Declaration type: "
@@ -1363,11 +1370,15 @@ class QasmVisitor:
         statements.extend(stmts)
 
         base_type = statement.type
-        base_size = self._check_type_size(statement, var_name, base_type, True)
+        base_size = self._check_variable_type_size(
+            statement, var_name, "constant", base_type
+        )
         val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
             statement.init_expression, validate_only=True
         )
-        self._check_type_for_cast(statement, val_type, var_name, base_type, base_size, True)
+        self._check_variable_cast_type(
+            statement, val_type, var_name, base_type, base_size, True
+        )
         variable = Variable(var_name, base_type, base_size, [], init_value, is_constant=True)
 
         # cast + validation
@@ -1425,7 +1436,9 @@ class QasmVisitor:
             dimensions = base_type.dimensions
             base_type = base_type.base_type
 
-        base_size = self._check_type_size(statement, var_name, base_type, False)
+        base_size = self._check_variable_type_size(
+            statement, var_name, "variable", base_type
+        )
         Qasm3Validator.validate_classical_type(base_type, base_size, var_name, statement)
 
         # initialize the bit register
@@ -1481,7 +1494,7 @@ class QasmVisitor:
                     val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
                         statement.init_expression, validate_only=True
                     )
-                    self._check_type_for_cast(
+                    self._check_variable_cast_type(
                         statement, val_type, var_name, base_type, base_size, False
                     )
                 except ValidationError as err:
@@ -1602,7 +1615,7 @@ class QasmVisitor:
         )  # consists of scope check and index validation
         statements.extend(rhs_stmts)
         val_type, _ = Qasm3ExprEvaluator.evaluate_expression(rvalue, validate_only=True)
-        self._check_type_for_cast(
+        self._check_variable_cast_type(
             statement,
             val_type,
             lvar_name,
