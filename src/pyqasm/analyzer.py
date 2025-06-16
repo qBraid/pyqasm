@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 from openqasm3.ast import (
+    BinaryExpression,
     DiscreteSet,
     Expression,
     Identifier,
@@ -34,6 +35,7 @@ from openqasm3.ast import (
     QuantumMeasurementStatement,
     RangeDefinition,
     Span,
+    UnaryExpression,
 )
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
@@ -292,3 +294,26 @@ class Qasm3Analyzer:
                 error_node=gate,
                 span=span,
             )
+
+    @staticmethod
+    def condition_depends_on_measurement(condition: Expression, measurement_set: set[str]) -> bool:
+        """Recursively check if the condition depends on a classical register set by measurement."""
+
+        def _depends(expr) -> bool:
+            if isinstance(expr, Identifier):
+                return expr.name in measurement_set
+
+            if isinstance(expr, IndexExpression):
+                # Check if the collection being indexed is in the measurement set
+                if isinstance(expr.collection, Identifier):
+                    return expr.collection.name in measurement_set
+                return _depends(expr.collection) or _depends(expr.index)
+
+            if isinstance(expr, BinaryExpression):
+                return _depends(expr.lhs) or _depends(expr.rhs)
+
+            if isinstance(expr, UnaryExpression):
+                return _depends(expr.expression)
+            return False
+
+        return _depends(condition)

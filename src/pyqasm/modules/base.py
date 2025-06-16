@@ -528,6 +528,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             **kwargs: Additional arguments to pass to the QasmVisitor.
                 external_gates (list[str]): List of gates that should not be unrolled.
                 unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
+                max_loop_iters (int): Max number of iterations for unrolling loops. Defaults to 1e9.
                 check_only (bool): If True, only check the program without executing it.
                                    Defaults to False.
 
