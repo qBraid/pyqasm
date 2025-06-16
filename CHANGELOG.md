@@ -16,6 +16,38 @@ Types of changes:
 
 ### Added
 - Added the `pulse` extra dependency to the `pyproject.toml` file, which includes the `openpulse` package. This allows users to install pulse-related functionality when needed. ([#195](https://github.com/qBraid/pyqasm/pull/195))
+- Added support for unrolling `while` loops with compile time condition evaluation. Users can now use `unroll` on while loops which do not have conditions depending on quantum measurements. ([#206](https://github.com/qBraid/pyqasm/pull/206)) Eg. - 
+
+```python
+import pyqasm 
+
+qasm_str = """
+    OPENQASM 3.0;
+    qubit[4] q;
+    int i = 0;
+    while (i < 3) {
+        h q[i];
+        cx q[i], q[i+1];
+        i += 1;
+    }
+
+    """
+result = pyqasm.loads(qasm_str)
+result.unroll()
+print(result)
+
+# **Output**
+
+# OPENQASM 3.0;
+# qubit[4] q;
+# h q[0];
+# cx q[0], q[1];
+# h q[1];
+# cx q[1], q[2];
+# h q[2];
+# cx q[2], q[3];
+
+```
 
 ### Improved / Modified
 

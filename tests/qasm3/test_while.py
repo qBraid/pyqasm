@@ -22,8 +22,8 @@ import pytest
 
 from pyqasm import loads
 from pyqasm.exceptions import LoopLimitExceededError, ValidationError
-
 from tests.utils import check_single_qubit_gate_op, check_two_qubit_gate_op
+
 
 def test_while_loop_with_continue():
     """Test a while loop with break and continue statements."""
@@ -48,8 +48,8 @@ def test_while_loop_with_continue():
     result = loads(qasm_str)
     result.unroll()
 
-
     check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 2], "h")
+
 
 def test_while_loop_with_break():
     qasm_str = """
@@ -170,19 +170,21 @@ def test_while_loop_scope():
     result.unroll()
     check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "h")
 
+
 def test_while_loop_limit_exceeded():
     """Test that exceeding the loop limit raises LoopLimitExceeded."""
     qasm_str = """
     OPENQASM 3.0;
     qubit q;
     int i = 0;
-    while (i < 1e10) {
+    while (i < 1e5) {
         i += 1;
     }
     """
     result = loads(qasm_str)
     with pytest.raises(LoopLimitExceededError):
-        result.unroll()
+        result.unroll(max_loop_iters=1e3)
+
 
 def test_while_loop_quantum_measurement():
     """Test that while loop with quantum measurement in condition raises error."""
@@ -200,6 +202,7 @@ def test_while_loop_quantum_measurement():
         result = loads(qasm_str)
         result.unroll()
 
+
 def test_while_loop_measurement_complex_condition():
     qasm_str = """
     OPENQASM 3.0;
@@ -214,6 +217,7 @@ def test_while_loop_measurement_complex_condition():
     with pytest.raises(ValidationError, match="quantum measurement"):
         result = loads(qasm_str)
         result.unroll()
+
 
 def test_while_loop_measurement_binary_expr():
     qasm_str = """
