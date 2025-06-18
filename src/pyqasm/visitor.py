@@ -690,10 +690,12 @@ class QasmVisitor:
             unrolled_reset = qasm3_ast.QuantumReset(qubits=qid)
 
             qubit_name, qubit_id = qid.name.name, qid.indices[0][0].value  # type: ignore
-            qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
-
-            qubit_node.depth += 1
-            qubit_node.num_resets += 1
+            if not self._in_branching_statement:
+                qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
+                qubit_node.depth += 1
+                qubit_node.num_resets += 1
+            else:
+                self._is_branch_qubits.add((qubit_name, qubit_id))
 
             unrolled_resets.append(unrolled_reset)
 
