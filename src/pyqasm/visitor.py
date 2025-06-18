@@ -960,16 +960,24 @@ class QasmVisitor:
             result.extend(
                 self._broadcast_gate_operation(unrolled_gate_function, unrolled_targets, ctrls)
             )
-            # if gate is not in branching statement
-            if not self._in_branching_statement:
-                self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
+            if self._module._decompose_gates and len(result) > 1:
+                for gate in result:
+                    if isinstance(gate, qasm3_ast.QuantumGate):
+                        self._visit_basic_gate_operation(gate)
             else:
-                for qubit_subset in unrolled_targets + [ctrls]:  # get qreg in branching operations
-                    for qubit in qubit_subset:
-                        assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
-                        assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
-                        qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]
-                        self._is_branch_qubits.add((qubit.name.name, qubit_idx))
+                # if gate is not in branching statement
+                if not self._in_branching_statement:
+                    self._update_qubit_depth_for_gate(unrolled_targets, ctrls)
+                else:
+                    # get qreg in branching operations
+                    for qubit_subset in unrolled_targets + [ctrls]:
+                        for qubit in qubit_subset:
+                            assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
+                            assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
+                            qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[
+                                0
+                            ]
+                            self._is_branch_qubits.add((qubit.name.name, qubit_idx))
 
         # check for duplicate bits
         for final_gate in result:
