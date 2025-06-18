@@ -417,6 +417,23 @@ h q[1];
 """,
             6,
         ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] q;
+bit[2] mid;
+bit[3] out;
+measure q[0] -> mid[0];
+measure q[1] -> mid[1]; 
+if (mid[0]) {
+reset q[0];
+reset q[1];
+} 
+out = measure q;
+""",
+            3,
+        ),
     ],
 )
 def test_qasm3_depth_no_branching(program, expected_depth):
