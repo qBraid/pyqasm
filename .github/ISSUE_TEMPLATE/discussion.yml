@@ -1,0 +1,36 @@
+name: Discussion 💬
+description: Start a discussion for this project
+title: "[DISCUSSION] "
+labels: []
+
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you for proposing this discussion! Please provide as much detail as possible about your topic."
+
+  - type: textarea
+    id: discussion-background
+    attributes:
+      label: Background
+      description: "Describe the background for your discussion and why it will be relevant to the project."
+      placeholder: "Please describe some relevant background details."
+    validations:
+      required: true
+  
+  - type: textarea
+    id: discussion-proposition
+    attributes:
+      label: Proposition
+      description: "Describe the proposed features or functionalities which you would like to discuss with the maintainers."
+      placeholder: "Please describe the proposed feature(s)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: discussion-impact
+    attributes:
+      label: Impact [Optional]
+      description: "Explain the potential impact of the proposed features on the project."
+      placeholder: "Please describe the potential impact."
+    validations:
+      required: false
