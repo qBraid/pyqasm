@@ -297,6 +297,7 @@ def _mpl_setup_figure(
     sections: list[list[list[QuantumStatement]]], width: float, n_lines: int
 ) -> tuple[plt.Figure, list[plt.Axes]]:
     import matplotlib.pyplot as plt
+    import numpy as np
 
     fig_ax_tuple: tuple[plt.Figure, list[plt.Axes] | plt.Axes] = plt.subplots(
         len(sections),
@@ -306,7 +307,11 @@ def _mpl_setup_figure(
     )
 
     fig, axs = fig_ax_tuple
-    axs = axs if isinstance(axs, list) else [axs]
+    axs = (
+        axs.flatten().tolist()
+        if isinstance(axs, np.ndarray)
+        else [axs] if isinstance(axs, plt.Axes) else axs
+    )
 
     for ax in axs:
         ax.set_ylim(

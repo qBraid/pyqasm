@@ -77,6 +77,22 @@ def test_draw_qasm3_custom_gate():
     _check_fig(circ, fig)
 
 
+def test_draw_qasm3_decomposable_gate():
+    qasm = """
+    OPENQASM 3.0;
+    qubit[2] q1;
+    qreg q[3];
+    creg c[3];
+    ccx q[0], q[1], q1[0];
+    crx (0.1) q[0], q[1];
+    rccx q[0], q[1], q1[0];
+    cz q[0], q[1];
+    """
+    circ = loads(qasm)
+    fig = mpl_draw(circ)
+    _check_fig(circ, fig)
+
+
 def test_draw_qasm2_simple():
     """Test drawing a simple QASM 2.0 circuit."""
     qasm = """

@@ -24,7 +24,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
-
+- Fixed multiple axes error in circuit visualization of decomposable gates in `draw` method. ([#209](https://github.com/qBraid/pyqasm/pull/210))
 ### Dependencies
 
 ### Other
