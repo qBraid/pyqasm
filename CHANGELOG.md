@@ -16,6 +16,7 @@ Types of changes:
 
 ### Added
 - A new discussion template for issues in pyqasm ([#213](https://github.com/qBraid/pyqasm/pull/213))
+- A github workflow for validating `CHANGELOG` updates in a PR ([#214](https://github.com/qBraid/pyqasm/pull/214))
 
 ### Improved / Modified
 
