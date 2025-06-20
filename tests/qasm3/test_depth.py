@@ -417,6 +417,23 @@ h q[1];
 """,
             6,
         ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] q;
+bit[2] mid;
+bit[3] out;
+measure q[0] -> mid[0];
+measure q[1] -> mid[1]; 
+if (mid[0]) {
+reset q[0];
+reset q[1];
+} 
+out = measure q;
+""",
+            3,
+        ),
     ],
 )
 def test_qasm3_depth_no_branching(program, expected_depth):
@@ -624,3 +641,26 @@ def test_qasm3_depth_branching_for_external_gates():
     result = loads(qasm3_string)
     result._external_gates = ["my_gate", "my_gate_two"]
     assert result.depth() == 2
+
+
+QASM3_DECOMPOSE_GATE_DEPTH_1 = """
+OPENQASM 3.0;
+qubit[2] q1;
+qreg q[3];
+creg c[3];
+crx (0.1) q[0], q[2];
+rccx q[0], q[1], q1[0];
+"""
+
+
+@pytest.mark.parametrize(
+    ["input_qasm_str", "before_decompose", "after_decompose"],
+    [
+        (QASM3_DECOMPOSE_GATE_DEPTH_1, 2, 25),
+    ],
+)
+def test_gate_depth_decomposable_gates(input_qasm_str, before_decompose, after_decompose):
+    result = loads(input_qasm_str)
+    assert result.depth(decompose_gates=False) == before_decompose
+    # by default its true
+    assert result.depth() == after_decompose
