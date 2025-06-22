@@ -56,7 +56,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._validated_program = False
         self._unrolled_ast = Program(statements=[])
         self._external_gates: list[str] = []
-        self._decompose_gates: Optional[bool] = None
+        self._decompose_native_gates: Optional[bool] = None
 
     @property
     def name(self) -> str:
@@ -282,7 +282,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         qasm_module = self.copy()
         qasm_module._qubit_depths = {}
         qasm_module._clbit_depths = {}
-        qasm_module._decompose_gates = decompose_gates
+        qasm_module._decompose_native_gates = decompose_gates
         # Unroll using any external gates that have been recorded for this
         # module
         qasm_module.unroll(external_gates=self._external_gates)
