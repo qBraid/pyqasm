@@ -1087,27 +1087,20 @@ class QasmVisitor:
                     error_node=gate_op,
                     span=gate_op.span,
                 )
-        if self._module._decompose_native_gates and len(result) > 1:
+
+        # Update the depth only once for the entire custom gate
+        if self._recording_ext_gate_depth:
             self._recording_ext_gate_depth = False
-            for gate in result:
-                if isinstance(gate, qasm3_ast.QuantumGate):
-                    self._visit_basic_gate_operation(gate)
-        else:
-            # Update the depth only once for the entire custom gate
-            if self._recording_ext_gate_depth:
-                self._recording_ext_gate_depth = False
-                if not self._in_branching_statement:  # if custom gate is not in branching statement
-                    self._update_qubit_depth_for_gate([op_qubits], ctrls)
-                else:
-                    # get qubit registers in branching operations
-                    for qubit_subset in [op_qubits] + [ctrls]:
-                        for qubit in qubit_subset:
-                            assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
-                            assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
-                            qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[
-                                0
-                            ]
-                            self._is_branch_qubits.add((qubit.name.name, qubit_idx))
+            if not self._in_branching_statement:  # if custom gate is not in branching statement
+                self._update_qubit_depth_for_gate([op_qubits], ctrls)
+            else:
+                # get qubit registers in branching operations
+                for qubit_subset in [op_qubits] + [ctrls]:
+                    for qubit in qubit_subset:
+                        assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
+                        assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
+                        qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]
+                        self._is_branch_qubits.add((qubit.name.name, qubit_idx))
 
         self._restore_context()
 

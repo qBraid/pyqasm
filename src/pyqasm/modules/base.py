@@ -260,11 +260,11 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return curr_module
 
-    def depth(self, decompose_gates=True):
+    def depth(self, decompose_native_gates=True):
         """Calculate the depth of the unrolled openqasm program.
 
         Args:
-        decompose_gates (bool): If True, calculate depth after decomposing gates.
+        decompose_native_gates (bool): If True, calculate depth after decomposing gates.
                                 If False, treat all decompsable gates as a single gate operation.
                                 Defaults to True.
 
@@ -282,7 +282,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         qasm_module = self.copy()
         qasm_module._qubit_depths = {}
         qasm_module._clbit_depths = {}
-        qasm_module._decompose_native_gates = decompose_gates
+        qasm_module._decompose_native_gates = decompose_native_gates
         # Unroll using any external gates that have been recorded for this
         # module
         qasm_module.unroll(external_gates=self._external_gates)

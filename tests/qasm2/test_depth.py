@@ -44,7 +44,7 @@ def test_gate_depth():
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
-    assert result.depth(decompose_gates=False) == 5
+    assert result.depth(decompose_native_gates=False) == 5
 
 
 def test_qubit_depth_with_unrelated_measure_op():
