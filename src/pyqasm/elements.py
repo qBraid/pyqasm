@@ -43,7 +43,7 @@ class Context(Enum):
     GATE = "gate"
 
 
-@dataclass
+@dataclass(slots=True)
 class DepthNode:
     """Base class for depth nodes."""
 
@@ -52,7 +52,7 @@ class DepthNode:
     depth: int = 0
 
 
-@dataclass
+@dataclass(slots=True)
 class QubitDepthNode(DepthNode):
     """Qubit depth node."""
 
@@ -68,7 +68,7 @@ class QubitDepthNode(DepthNode):
         return self._total_ops() == 0
 
 
-@dataclass
+@dataclass(slots=True)
 class ClbitDepthNode(DepthNode):
     """Classical bit depth node."""
 
@@ -78,7 +78,7 @@ class ClbitDepthNode(DepthNode):
         return self.num_measurements == 0
 
 
-@dataclass
+@dataclass(slots=True)
 class Variable:  # pylint: disable=too-many-instance-attributes
     """
     Class representing an OpenQASM variable.
