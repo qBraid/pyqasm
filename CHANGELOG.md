@@ -20,6 +20,7 @@ Types of changes:
 
 ### Improved / Modified
 - Added `slots=True` parameter to the data classes in `elements.py` to improve memory efficiency ([#218](https://github.com/qBraid/pyqasm/pull/218))
+- Updated the documentation to include core features in the `README` ([#219](https://github.com/qBraid/pyqasm/pull/219))
 
 ### Deprecated
 
