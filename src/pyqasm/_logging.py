@@ -14,7 +14,6 @@
 
 """
 Module defining logging configuration for PyQASM.
-This module sets up a logger for the PyQASM library, allowing for
 
 """
 import logging
