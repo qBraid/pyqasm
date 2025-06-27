@@ -57,6 +57,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._unrolled_ast = Program(statements=[])
         self._external_gates: list[str] = []
         self._decompose_native_gates: Optional[bool] = None
+        self._device_qubits: Optional[int] = 0
 
     @property
     def name(self) -> str:
@@ -551,6 +552,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 self._external_gates = ext_gates
             else:
                 self._external_gates = []
+            if device_qbts := kwargs.get("device_qubits"):
+                self._device_qubits = device_qbts
             visitor = QasmVisitor(module=self, **kwargs)
             self.accept(visitor)
         except (ValidationError, UnrollError) as err:
