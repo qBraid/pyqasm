@@ -72,16 +72,20 @@ def test_unrolled_barrier():
     include "stdgates.inc";
     qubit[2] q;
     qreg q2[3];
+    qubit[2] q3;
     barrier q[0];
     barrier q2;
     barrier q;
+    barrier q4;
+    
     """
     expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[5] __PYQASM_QUBITS__;
     barrier __PYQASM_QUBITS__[0];
-    barrier __PYQASM_QUBITS__[2:];
+    barrier __PYQASM_QUBITS__[2:5];
     barrier __PYQASM_QUBITS__[:2];
+    barrier __PYQASM_QUBITS__[5:];
     """
     result = loads(qasm)
     result.unroll(unroll_barriers=False, device_qubits=5)
