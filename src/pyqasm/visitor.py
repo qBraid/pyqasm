@@ -22,7 +22,7 @@ import copy
 import logging
 from collections import deque
 from functools import partial
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
@@ -86,6 +86,7 @@ class QasmVisitor:
         external_gates: list[str] | None = None,
         unroll_barriers: bool = True,
         max_loop_iters: int = int(1e9),
+        device_qubits: int = 0,
     ):
         self._module = module
         self._scope: deque = deque([{}])
@@ -113,6 +114,8 @@ class QasmVisitor:
         self._measurement_set: set[str] = set()
         self._init_utilities()
         self._loop_limit = max_loop_iters
+        self._device_qubits: int = device_qubits
+        self._in_generic_gate_op_scope: int = 0
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -559,7 +562,66 @@ class QasmVisitor:
                 span=statement.span,
             )
 
-    def _visit_measurement(  # pylint: disable=too-many-locals
+    def _get_pyqasm_device_qubit_index(self, reg: str, idx: int) -> int:
+        """
+        Returns qubit index in __PYQASM_QUBITS__ ordering for given quantum register and index.
+
+        Args:
+            reg (str): The name of the quantum register.
+            idx (int): The index within the quantum register.
+
+        Returns:
+            int: The global __PYQASM_QUBITS__ index corresponding to reg[idx].
+
+        Raises:
+            IndexError: If the index `idx` is out of range for the register.
+        """
+        _offsets: dict[str, int] = {}
+        _offset = 0
+        for name, n_qubits in self._global_qreg_size_map.items():
+            _offsets[name] = _offset
+            _offset += n_qubits
+        _n_qubits = self._global_qreg_size_map[reg]
+        if not 0 <= idx < _n_qubits:
+            raise IndexError(f"{reg}[{idx}] out of range (0..{_n_qubits-1})")
+        return _offsets[reg] + idx
+
+    def _qubit_register_consolidation(self, unrolled_stmts: list) -> list[qasm3_ast.Statement]:
+        """
+        Consolidate all quantum registers into a single register '__PYQASM_QUBITS__'.
+
+        Args:
+            unrolled_stmts (list): The list of statements to process and modify in-place.
+
+        Raises:
+            ValidationError: If the total number of qubits exceeds the available device qubits,
+                             or if the reserved register '__PYQASM_QUBITS__' is already declared
+                             in the original QASM program.
+        """
+        total_qubits = sum(self._global_qreg_size_map.values())
+        if total_qubits > self._device_qubits:
+            raise_qasm3_error(
+                f"Total qubits '({total_qubits})' exceed device qubits '({self._device_qubits})'."
+            )
+
+        if "__PYQASM_QUBITS__" in self._global_qreg_size_map:
+            raise_qasm3_error(
+                "Original QASM program already declares reserved register '__PYQASM_QUBITS__'."
+            )
+
+        removable_statements = []
+        for stmt in unrolled_stmts:
+            if isinstance(stmt, qasm3_ast.QubitDeclaration):
+                removable_statements.append(stmt)
+        for r_stmt in removable_statements:
+            unrolled_stmts.remove(r_stmt)
+        pyqasm_reg_id = qasm3_ast.Identifier("__PYQASM_QUBITS__")
+        pyqasm_reg_size = qasm3_ast.IntegerLiteral(self._device_qubits)
+        pyqasm_reg_stmt = qasm3_ast.QubitDeclaration(pyqasm_reg_id, pyqasm_reg_size)
+        unrolled_stmts.insert(1, pyqasm_reg_stmt)
+        return unrolled_stmts
+
+    def _visit_measurement(  # pylint: disable=too-many-locals, too-many-branches
         self, statement: qasm3_ast.QuantumMeasurementStatement
     ) -> list[qasm3_ast.QuantumMeasurementStatement]:
         """Visit a measurement statement element.
@@ -659,6 +721,18 @@ class QasmVisitor:
 
                 unrolled_measurements.append(unrolled_measure)
 
+        if self._device_qubits:
+            for stmt in unrolled_measurements:
+                _qubit_id = cast(
+                    qasm3_ast.Identifier, stmt.measure.qubit.name
+                )  # type: ignore[union-attr]
+                _qubit_ind = cast(list, stmt.measure.qubit.indices)  # type: ignore[union-attr]
+                for multiple_ind in _qubit_ind:
+                    for ind in multiple_ind:
+                        _pyqasm_val = self._get_pyqasm_device_qubit_index(_qubit_id.name, ind.value)
+                        ind.value = _pyqasm_val
+                _qubit_id.name = "__PYQASM_QUBITS__"
+
         if self._check_only:
             return []
 
@@ -699,12 +773,24 @@ class QasmVisitor:
 
             unrolled_resets.append(unrolled_reset)
 
+        if self._device_qubits:
+            for stmt in unrolled_resets:
+                _qubit_str = cast(str, stmt.qubits.name.name)  # type: ignore[union-attr]
+                _qubit_ind = cast(list, stmt.qubits.indices)  # type: ignore[union-attr]
+                for multiple_ind in _qubit_ind:
+                    for ind in multiple_ind:
+                        _pyqasm_val = self._get_pyqasm_device_qubit_index(_qubit_str, ind.value)
+                        ind.value = _pyqasm_val
+                stmt.qubits.name.name = "__PYQASM_QUBITS__"  # type: ignore[union-attr]
+
         if self._check_only:
             return []
 
         return unrolled_resets
 
-    def _visit_barrier(self, barrier: qasm3_ast.QuantumBarrier) -> list[qasm3_ast.QuantumBarrier]:
+    def _visit_barrier(  # pylint: disable=too-many-locals, too-many-branches
+        self, barrier: qasm3_ast.QuantumBarrier
+    ) -> list[qasm3_ast.QuantumBarrier]:
         """Visit a barrier statement element.
 
         Args:
@@ -749,7 +835,47 @@ class QasmVisitor:
             return []
 
         if not self._unroll_barriers:
+            if self._device_qubits:
+                _qubit_id = cast(
+                    qasm3_ast.Identifier, barrier.qubits[0]
+                )  # type: ignore[union-attr]
+                if not isinstance(_qubit_id, qasm3_ast.IndexedIdentifier):
+                    _start = self._get_pyqasm_device_qubit_index(_qubit_id.name, 0)
+                    _end = self._get_pyqasm_device_qubit_index(
+                        _qubit_id.name, self._global_qreg_size_map[_qubit_id.name] - 1
+                    )
+                    if _start == 0:
+                        _qubit_id.name = f"__PYQASM_QUBITS__[:{_end+1}]"
+                    elif _end == self._device_qubits - 1:
+                        _qubit_id.name = f"__PYQASM_QUBITS__[{_start}:]"
+                    else:
+                        _qubit_id.name = f"__PYQASM_QUBITS__[{_start}:{_end+1}]"
+                else:
+                    _qubit_str = cast(str, barrier.qubits[0].name)  # type: ignore[union-attr]
+                    _qubit_ind = cast(list, barrier.qubits[0].indices)  # type: ignore[union-attr]
+                    for multi_ind in _qubit_ind:
+                        for ind in multi_ind:
+                            pyqasm_ind = self._get_pyqasm_device_qubit_index(
+                                _qubit_str.name, ind.value
+                            )
+                            ind.value = pyqasm_ind
+                    _qubit_str.name = "__PYQASM_QUBITS__"
             return [barrier]
+
+        if self._device_qubits:
+            for stmt in unrolled_barriers:
+                _qubit_ind_id = cast(
+                    qasm3_ast.IndexedIdentifier, stmt.qubits[0]
+                )  # type: ignore[union-attr]
+                _original_qubit_name = _qubit_ind_id.name.name
+                for multiple_ind in _qubit_ind_id.indices:
+                    for ind in multiple_ind:  # type: ignore[union-attr]
+                        ind_val = cast(qasm3_ast.IntegerLiteral, ind)  # type: ignore[union-attr]
+                        pyqasm_val = self._get_pyqasm_device_qubit_index(
+                            _original_qubit_name, ind_val.value
+                        )
+                        ind_val.value = pyqasm_val
+                _qubit_ind_id.name.name = "__PYQASM_QUBITS__"
 
         return unrolled_barriers
 
@@ -1244,7 +1370,7 @@ class QasmVisitor:
 
         return [operation]
 
-    def _visit_generic_gate_operation(  # pylint: disable=too-many-branches
+    def _visit_generic_gate_operation(  # pylint: disable=too-many-branches, too-many-statements
         self,
         operation: qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase,
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
@@ -1261,6 +1387,7 @@ class QasmVisitor:
         negctrls = []
         if ctrls is None:
             ctrls = []
+        self._in_generic_gate_op_scope += 1
 
         # only needs to be done once for a gate operation
         if (
@@ -1364,7 +1491,23 @@ class QasmVisitor:
             qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls
         ]
         result = negs + result + negs  # type: ignore
-
+        self._in_generic_gate_op_scope -= 1
+        if self._device_qubits and not self._in_generic_gate_op_scope:
+            result_copy = copy.deepcopy(result)
+            for stmt, c_stmt in zip(result, result_copy):
+                for qubit, c_qubit in zip(stmt.qubits, c_stmt.qubits):
+                    _original_qubit_name = cast(qasm3_ast.Identifier, c_qubit.name)
+                    for multi_ind, c_multi_ind in zip(
+                        qubit.indices, c_qubit.indices  # type: ignore[union-attr]
+                    ):
+                        for ind, c_ind in zip(multi_ind, c_multi_ind):
+                            pyqasm_val = self._get_pyqasm_device_qubit_index(
+                                _original_qubit_name.name, c_ind.value  # type: ignore[union-attr]
+                            )
+                            ind.value = pyqasm_val
+            for stmt in result:
+                for qubit in stmt.qubits:
+                    qubit.name.name = "__PYQASM_QUBITS__"  # type: ignore[union-attr]
         if self._check_only:
             return []
 
@@ -2460,6 +2603,8 @@ class QasmVisitor:
 
         """
         # remove the gphase qubits if they use ALL qubits
+        if self._device_qubits:
+            unrolled_stmts = self._qubit_register_consolidation(unrolled_stmts)
         for stmt in unrolled_stmts:
             # Rule 1
             if isinstance(stmt, qasm3_ast.QuantumPhase):
