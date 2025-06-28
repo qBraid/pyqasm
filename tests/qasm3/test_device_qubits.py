@@ -77,11 +77,10 @@ def test_unrolled_barrier():
     barrier q2;
     barrier q;
     barrier q3;
-    
     """
     expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
-    qubit[5] __PYQASM_QUBITS__;
+    qubit[7] __PYQASM_QUBITS__;
     barrier __PYQASM_QUBITS__[0];
     barrier __PYQASM_QUBITS__[2:5];
     barrier __PYQASM_QUBITS__[:2];
