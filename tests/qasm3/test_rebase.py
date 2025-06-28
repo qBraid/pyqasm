@@ -143,6 +143,81 @@ def test_rebase_rotational_cx(input_gates, decomposed_gates):
             cx q[0], q[1];
             """,
         ),
+        (
+            "rx(pi) q[0];",
+            """
+            h q[0];
+            s q[0];
+            s q[0];
+            h q[0];
+            """,
+        ),
+        (
+            "rx(pi/2) q[0];",
+            """
+            h q[0];
+            s q[0];
+            h q[0];
+            """,
+        ),
+        (
+            "rx(pi/4) q[0];",
+            """
+            h q[0];
+            t q[0];
+            h q[0];
+            """,
+        ),
+        (
+            "ry(pi) q[0];",
+            """
+            sdg q[0];
+            h q[0];
+            s q[0];
+            s q[0];
+            h q[0];
+            s q[0];
+            """,
+        ),
+        (
+            "ry(pi/2) q[0];",
+            """
+            sdg q[0];
+            h q[0];
+            s q[0];
+            h q[0];
+            s q[0];
+            """,
+        ),
+        (
+            "ry(pi/4) q[0];",
+            """
+            sdg q[0];
+            h q[0];
+            t q[0];
+            h q[0];
+            s q[0];
+            """,
+        ),
+        (
+            "rz(pi) q[0];",
+            """
+            s q[0];
+            s q[0];
+            """,
+        ),
+        (
+            "rz(pi/2) q[0];",
+            """
+            s q[0];
+            """,
+        ),
+        (
+            "rz(pi/4) q[0];",
+            """
+            t q[0];
+            """,
+        ),
     ],
 )
 def test_rebase_clifford_t(input_gates, decomposed_gates):
