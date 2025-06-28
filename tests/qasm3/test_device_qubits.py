@@ -76,7 +76,7 @@ def test_unrolled_barrier():
     barrier q[0];
     barrier q2;
     barrier q;
-    barrier q4;
+    barrier q3;
     
     """
     expected_qasm = """OPENQASM 3.0;
@@ -88,7 +88,7 @@ def test_unrolled_barrier():
     barrier __PYQASM_QUBITS__[5:];
     """
     result = loads(qasm)
-    result.unroll(unroll_barriers=False, device_qubits=5)
+    result.unroll(unroll_barriers=False, device_qubits=7)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
