@@ -1924,6 +1924,15 @@ class QasmVisitor:
                 span=statement.span,
             )
 
+        # Check if the loop range exceeds the maximum allowed iterations
+        if len(irange) > self._loop_limit:
+            raise_qasm3_error(
+                f"Loop range'{len(irange)-1}' exceeded max allowed '{self._loop_limit}' iterations",
+                err_type=LoopLimitExceededError,
+                error_node=statement,
+                span=statement.span,
+            )
+
         i: Optional[Variable]  # will store iteration Variable to update to loop scope
 
         result = []
