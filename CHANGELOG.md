@@ -29,6 +29,7 @@ Types of changes:
 ### Fixed
 - Fixed multiple axes error in circuit visualization of decomposable gates in `draw` method. ([#209](https://github.com/qBraid/pyqasm/pull/210))
 - Fixed depth calculation for decomposable gates by computing depth of each constituent quantum gate.([#211](https://github.com/qBraid/pyqasm/pull/211))
+- Optimized statement copying in `_visit_function_call` with shallow-copy fallback to deepcopy and added `max_loop_iters` loop‐limit check in for loops.([#223](https://github.com/qBraid/pyqasm/pull/223))
 ### Dependencies
 
 ### Other

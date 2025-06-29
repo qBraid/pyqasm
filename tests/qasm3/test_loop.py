@@ -20,7 +20,7 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 import pytest
 
 from pyqasm.entrypoint import loads
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import LoopLimitExceededError, ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
     check_single_qubit_rotation_op,
@@ -332,3 +332,38 @@ def test_convert_qasm3_for_loop_unsupported_type(caplog):
 
     assert "Error at line 9, column 16" in caplog.text
     assert 'for bit b in "001"' in caplog.text
+
+
+def test_for_loop_limit_exceeded():
+    """Test that exceeding the loop limit raises LoopLimitExceededError for for loops."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[4] c;
+    
+    for int i in [0:1000] {
+        h q[0];
+    }
+    """
+    result = loads(qasm_str)
+    with pytest.raises(LoopLimitExceededError):
+        result.unroll(max_loop_iters=100)
+
+
+def test_for_loop_discrete_set_limit_exceeded():
+    """Test that exceeding the loop limit raises LoopLimitExceededError
+    for for loops with discrete sets."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[4] c;
+    
+    for int i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} {
+        h q[0];
+    }
+    """
+    result = loads(qasm_str)
+    with pytest.raises(LoopLimitExceededError):
+        result.unroll(max_loop_iters=10)
