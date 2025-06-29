@@ -2068,9 +2068,12 @@ class QasmVisitor:
         result = []
         for function_op in subroutine_def.body:
             if isinstance(function_op, qasm3_ast.ReturnStatement):
-                return_statement = copy.deepcopy(function_op)
+                return_statement = copy.copy(function_op)
                 break
-            result.extend(self.visit_statement(copy.deepcopy(function_op)))
+            try:
+                result.extend(self.visit_statement(copy.copy(function_op)))
+            except (TypeError, copy.Error):
+                result.extend(self.visit_statement(copy.deepcopy(function_op)))
 
         return_value = None
         if return_statement:
