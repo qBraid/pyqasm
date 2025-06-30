@@ -80,7 +80,7 @@ def unroll(  # pylint: disable=dangerous-default-value
         typer.Option(
             "--skip", "-s", help="Files to skip during unrolling.", callback=validate_paths_exist
         ),
-    ] = [],
+    ] = None,
     overwrite: Annotated[
         bool,
         typer.Option("--overwrite", help="Overwrite original files instead of creating new ones."),
