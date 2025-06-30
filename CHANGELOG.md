@@ -17,7 +17,7 @@ Types of changes:
 ### Added
 - A new discussion template for issues in pyqasm ([#213](https://github.com/qBraid/pyqasm/pull/213))
 - A github workflow for validating `CHANGELOG` updates in a PR ([#214](https://github.com/qBraid/pyqasm/pull/214))
-
+- Added `unroll` command support in PYQASM CLI with options skipping files, overwriting originals files, and specifying output paths.([#224](https://github.com/qBraid/pyqasm/pull/224))
 ### Improved / Modified
 - Added `slots=True` parameter to the data classes in `elements.py` to improve memory efficiency ([#218](https://github.com/qBraid/pyqasm/pull/218))
 - Updated the documentation to include core features in the `README` ([#219](https://github.com/qBraid/pyqasm/pull/219))
