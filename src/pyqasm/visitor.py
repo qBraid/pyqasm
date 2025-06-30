@@ -1927,6 +1927,7 @@ class QasmVisitor:
         # Check if the loop range exceeds the maximum allowed iterations
         if len(irange) > self._loop_limit:
             raise_qasm3_error(
+                # pylint: disable-next=line-too-long
                 f"Loop range '{len(irange)-1}' exceeded max allowed '{self._loop_limit}' iterations",
                 err_type=LoopLimitExceededError,
                 error_node=statement,
