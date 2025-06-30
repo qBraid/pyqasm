@@ -296,13 +296,11 @@ def test_unroll_command_directory_overwrite(runner: CliRunner, tmp_path):
     original_contents = []
     for i in range(2):
         test_file = test_dir / f"test{i}.qasm"
-        content = f"""
+        content = """
         OPENQASM 3.0;
         include "stdgates.inc";
-        gate hgate{i} q {{ h q; }}
         qubit[2] q;
-        hgate{i} q[0];
-        hgate{i} q[1]
+        h q;
         """
         test_file.write_text(content)
         original_contents.append(content)
@@ -331,13 +329,11 @@ def test_unroll_command_with_skip(runner: CliRunner, tmp_path):
     for i in range(3):
         test_file = test_dir / f"test{i}.qasm"
         test_file.write_text(
-            f"""
+            """
             OPENQASM 3.0;
             include "stdgates.inc";
-            gate hgate{i} q {{ h q; }}
             qubit[2] q;
-            hgate{i} q[0];
-            hgate{i} q[1];
+            h q;
             """
         )
 
