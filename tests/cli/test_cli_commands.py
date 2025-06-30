@@ -378,6 +378,7 @@ def test_unroll_command_with_skip_tag(runner: CliRunner, tmp_path):
     assert (test_dir / "normal_unrolled.qasm").exists()
     assert not (test_dir / "skip_me_unrolled.qasm").exists()
 
+
 def test_unroll_command_with_invalid_file(runner: CliRunner, tmp_path):
     """Test the `unroll` CLI command with an invalid file."""
     # Create an invalid test file
