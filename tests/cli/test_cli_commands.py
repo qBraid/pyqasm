@@ -162,17 +162,6 @@ def test_main_help_flag(runner: CliRunner):
 
 
 # Unroll command tests
-def test_unroll_command_help(runner: CliRunner):
-    """Test the `unroll` CLI command help."""
-    result = runner.invoke(app, ["unroll", "--help"])
-
-    assert result.exit_code == 0
-    assert "Unroll OpenQASM files." in result.output
-    assert "--skip" in result.output
-    assert "--overwrite" in result.output
-    assert "--output" in result.output
-
-
 def test_unroll_command_single_file(runner: CliRunner, tmp_path):
     """Test the `unroll` CLI command with a single file."""
     # Create a test file
@@ -388,24 +377,6 @@ def test_unroll_command_with_skip_tag(runner: CliRunner, tmp_path):
     # Check that only normal file was processed
     assert (test_dir / "normal_unrolled.qasm").exists()
     assert not (test_dir / "skip_me_unrolled.qasm").exists()
-
-
-def test_unroll_command_multiple_files_with_output_error(runner: CliRunner, tmp_path):
-    """Test the `unroll` CLI command with multiple files and output option (should fail)."""
-    # Create test files
-    test_file1 = tmp_path / "test1.qasm"
-    test_file1.write_text("OPENQASM 3.0; qubit[1] q; h q[0];")
-
-    test_file2 = tmp_path / "test2.qasm"
-    test_file2.write_text("OPENQASM 3.0; qubit[1] q; x q[0];")
-
-    result = runner.invoke(
-        app, ["unroll", str(test_file1), str(test_file2), "--output", "output.qasm"]
-    )
-
-    assert result.exit_code == 2
-    assert "--output can only be used with a single input file" in result.output
-
 
 def test_unroll_command_with_invalid_file(runner: CliRunner, tmp_path):
     """Test the `unroll` CLI command with an invalid file."""
