@@ -53,8 +53,8 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
     Args:
         program (openqasm3.ast.Program or str): The OpenQASM program to validate.
 
-    **kwargs: Additional arguments to pass to the loads function.
-        device_qubits (int): Number of physical qubits available on the target device.
+        **kwargs: Additional arguments to pass to the loads function.
+            device_qubits (int): Number of physical qubits available on the target device.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
