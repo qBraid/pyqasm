@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 def load(
-    filename: str, *, device_qubits: int | None = None, consolidate_qubits: bool = False
+    filename: str, device_qubits: int | None = None, consolidate_qubits: bool = False
 ) -> QasmModule:
     """Loads an OpenQASM program into a `QasmModule` object.
 
@@ -52,8 +52,7 @@ def load(
 
 
 def loads(
-    program: "openqasm3.ast.Program | str",
-    *,
+    program: openqasm3.ast.Program | str,
     device_qubits: int | None = None,
     consolidate_qubits: bool = False,
 ) -> QasmModule:
