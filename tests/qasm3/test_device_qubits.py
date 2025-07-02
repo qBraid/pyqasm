@@ -41,8 +41,8 @@ def test_reset():
     reset __PYQASM_QUBITS__[1];
     """
 
-    result = loads(qasm)
-    result.unroll(device_qubits=5, consolidate_qubits=True)
+    result = loads(qasm, device_qubits=5)
+    result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -62,8 +62,8 @@ def test_barrier():
     barrier __PYQASM_QUBITS__[4];
     barrier __PYQASM_QUBITS__[1];
     """
-    result = loads(qasm, device_qubits=5, consolidate_qubits=True)
-    result.unroll()
+    result = loads(qasm, device_qubits=5)
+    result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -86,8 +86,8 @@ def test_unrolled_barrier():
     barrier __PYQASM_QUBITS__[:2];
     barrier __PYQASM_QUBITS__[5:];
     """
-    result = loads(qasm, device_qubits=7, consolidate_qubits=True)
-    result.unroll(unroll_barriers=False)
+    result = loads(qasm, device_qubits=7)
+    result.unroll(unroll_barriers=False, consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -119,8 +119,8 @@ def test_measurement():
     c[2] = measure __PYQASM_QUBITS__[6];
     c[2] = measure __PYQASM_QUBITS__[5];
     """
-    result = loads(qasm, consolidate_qubits=True)
-    result.unroll(device_qubits=7)
+    result = loads(qasm, device_qubits=7)
+    result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -201,8 +201,8 @@ def test_gates():
         cx __PYQASM_QUBITS__[4], __PYQASM_QUBITS__[2];
     }
     """
-    result = loads(qasm)
-    result.unroll(device_qubits=6, consolidate_qubits=True)
+    result = loads(qasm, device_qubits=6)
+    result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -222,7 +222,7 @@ def test_validate(caplog):
 
 
 @pytest.mark.parametrize(
-    "qasm_code,error_message",
+    "qasm_code, error_message",
     [
         (
             """
@@ -233,6 +233,18 @@ def test_validate(caplog):
             """,
             r"Total qubits '(7)' exceed device qubits '(6)'.",
         ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_incorrect_device_qubits(qasm_code, error_message, caplog):
+    with pytest.raises(ValidationError) as err:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code, device_qubits=6).unroll(consolidate_qubits=True)
+    assert error_message in str(err.value)
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
         (
             """
             OPENQASM 3.0;
@@ -240,7 +252,8 @@ def test_validate(caplog):
             qubit[4] data;
             qubit[2] __PYQASM_QUBITS__;
             """,
-            r"Original QASM program already declares quantum register '__PYQASM_QUBITS__'.",
+            r"Variable '__PYQASM_QUBITS__' is already defined",
+            r"Error at line 5, column 12",
         ),
         (
             """
@@ -249,7 +262,8 @@ def test_validate(caplog):
             qubit[6] data;
             bit[2] __PYQASM_QUBITS__;
             """,
-            r"Original QASM program already declares classical register '__PYQASM_QUBITS__'.",
+            r"Variable '__PYQASM_QUBITS__' is already defined",
+            r"Error at line 5, column 12",
         ),
         (
             """
@@ -259,12 +273,14 @@ def test_validate(caplog):
             bit[2] class_data;
             int __PYQASM_QUBITS__;
             """,
-            r"Variable '__PYQASM_QUBITS__' is already exists",
+            r"Variable '__PYQASM_QUBITS__' is already defined",
+            r"Error at line 6, column 12",
         ),
     ],
 )  # pylint: disable-next= too-many-arguments
-def test_incorrect_qubit_reg_consolidation(qasm_code, error_message, caplog):
+def test_incorrect_qubit_reg(qasm_code, error_message, error_span, caplog):
     with pytest.raises(ValidationError) as err:
         with caplog.at_level("ERROR"):
-            loads(qasm_code).unroll(device_qubits=6, consolidate_qubits=True)
+            loads(qasm_code, device_qubits=6).unroll(consolidate_qubits=True)
     assert error_message in str(err.value)
+    assert error_span in caplog.text

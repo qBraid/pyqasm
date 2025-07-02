@@ -335,6 +335,7 @@ class Qasm3Validator:
                     base_size,
                     None,
                     None,
+                    span=return_statement.span,
                 ),
                 return_value,
                 op_node=return_statement,

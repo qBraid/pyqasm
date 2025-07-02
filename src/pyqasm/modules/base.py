@@ -519,19 +519,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             return
         try:
             self.num_qubits, self.num_clbits = 0, 0
-            visitor = QasmVisitor(
-                self,
-                check_only=True,
-                device_qubits=self._device_qubits,
-            )
+            visitor = QasmVisitor(self, check_only=True)
             self.accept(visitor)
             # Implicit validation: check total qubits if device_qubits is set and not consolidating
             if self._device_qubits:
-                total_qubits = sum(self._qubit_registers.values())
-                if total_qubits > self._device_qubits:
+                if self.num_qubits > self._device_qubits:
                     raise ValidationError(
                         # pylint: disable-next=line-too-long
-                        f"Total qubits '{total_qubits}' exceed device qubits '{self._device_qubits}'."
+                        f"Total qubits '{self.num_qubits}' exceed device qubits '{self._device_qubits}'."
                     )
         except (ValidationError, NotImplementedError) as err:
             self.num_qubits, self.num_clbits = -1, -1
@@ -562,19 +557,13 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """
         if not kwargs:
             kwargs = {}
-        # Use module attributes if not overridden by kwargs
-        if "device_qubits" not in kwargs:
-            kwargs["device_qubits"] = self._device_qubits
-        if "consolidate_qubits" not in kwargs:
-            kwargs["consolidate_qubits"] = self._consolidate_qubits
+
         try:
             self.num_qubits, self.num_clbits = 0, 0
             if ext_gates := kwargs.get("external_gates"):
                 self._external_gates = ext_gates
             else:
                 self._external_gates = []
-            if device_qbts := kwargs.get("device_qubits"):
-                self._device_qubits = device_qbts
             if consolidate_qbts := kwargs.get("consolidate_qubits"):
                 self._consolidate_qubits = consolidate_qbts
             visitor = QasmVisitor(module=self, **kwargs)

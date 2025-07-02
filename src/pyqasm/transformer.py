@@ -29,6 +29,7 @@ from openqasm3.ast import (
     FloatLiteral,
     Identifier,
     IndexedIdentifier,
+    IndexElement,
     IndexExpression,
     IntegerLiteral,
 )
@@ -442,7 +443,7 @@ class Qasm3Transformer:
         return type_str
 
     @staticmethod
-    def transform_qubit_reg_in_statemets(  # pylint: disable=too-many-branches, too-many-locals, too-many-statements
+    def consolidate_qubit_registers(  # pylint: disable=too-many-branches, too-many-locals, too-many-statements
         unrolled_stmts: Sequence[Statement] | Statement,
         qubit_register_offsets: dict[str, int],
         global_qreg_size_map: dict[str, int],
@@ -502,7 +503,6 @@ class Qasm3Transformer:
                         )
                         ind.value = pyqasm_ind
                 _qubit_str.name = "__PYQASM_QUBITS__"
-            return unrolled_stmts
 
         if isinstance(unrolled_stmts, list):  # pylint: disable=too-many-nested-blocks
             if isinstance(unrolled_stmts[0], QuantumMeasurementStatement):
@@ -521,7 +521,6 @@ class Qasm3Transformer:
                             )
                             ind.value = _pyqasm_val
                     _qubit_id.name = "__PYQASM_QUBITS__"
-                return unrolled_stmts
 
             if isinstance(unrolled_stmts[0], QuantumReset):
                 for stmt in unrolled_stmts:
@@ -534,7 +533,6 @@ class Qasm3Transformer:
                             )
                             ind.value = _pyqasm_val
                     stmt.qubits.name.name = "__PYQASM_QUBITS__"  # type: ignore[union-attr]
-                return unrolled_stmts
 
             if isinstance(unrolled_stmts[0], QuantumBarrier):
                 for stmt in unrolled_stmts:
@@ -553,29 +551,27 @@ class Qasm3Transformer:
                             )
                             ind_val.value = pyqasm_val
                     _qubit_ind_id.name.name = "__PYQASM_QUBITS__"
-                return unrolled_stmts
 
             if isinstance(unrolled_stmts[0], QuantumGate):
-                unrolled_copy = deepcopy(unrolled_stmts)
-                for stmt, c_stmt in zip(unrolled_stmts, unrolled_copy):
-                    for qubit, c_qubit in zip(stmt.qubits, c_stmt.qubits):
-                        _original_qubit_name = cast(
-                            Identifier, c_qubit.name
-                        )  # type: ignore[assignment]
-                        for multi_ind, c_multi_ind in zip(
-                            qubit.indices, c_qubit.indices  # type: ignore[union-attr]
-                        ):
-                            for ind, c_ind in zip(multi_ind, c_multi_ind):
+                for stmt in unrolled_stmts:
+                    stmt_qubits: list[IndexedIdentifier] = []
+                    for qubit in stmt.qubits:
+                        _original_qbt_name = cast(Identifier, qubit.name)
+                        qubit_indices: list[IndexElement] = []
+                        for multi_ind in qubit.indices:  # type: ignore[union-attr]
+                            qubit_sub_ind: IndexElement = []
+                            for ind in multi_ind:
                                 pyqasm_val = _get_pyqasm_device_qubit_index(
-                                    _original_qubit_name.name,
-                                    c_ind.value,  # type: ignore[union-attr]
+                                    _original_qbt_name.name,
+                                    ind.value,  # type: ignore[union-attr]
                                     qubit_register_offsets,
                                     global_qreg_size_map,
                                 )
-                                ind.value = pyqasm_val
-                for stmt in unrolled_stmts:
-                    for qubit in stmt.qubits:
-                        qubit.name.name = "__PYQASM_QUBITS__"  # type: ignore[union-attr]
-                return unrolled_stmts
+                                qubit_sub_ind.append(IntegerLiteral(pyqasm_val))
+                            qubit_indices.append(qubit_sub_ind)
+                        stmt_qubits.append(
+                            IndexedIdentifier(Identifier("__PYQASM_QUBITS__"), qubit_indices)
+                        )
+                    stmt.qubits = stmt_qubits
 
-        raise ValueError("Unexpected input to transform")
+        return unrolled_stmts
