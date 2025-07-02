@@ -30,11 +30,15 @@ if TYPE_CHECKING:
     import openqasm3.ast
 
 
-def load(filename: str) -> QasmModule:
+def load(
+    filename: str, *, device_qubits: int | None = None, consolidate_qubits: bool = False
+) -> QasmModule:
     """Loads an OpenQASM program into a `QasmModule` object.
 
     Args:
         filename (str): The filename of the OpenQASM program to validate.
+        device_qubits (int): Number of physical qubits available on the target device.
+        consolidate_qubits (bool): If True, consolidate all quantum registers into single register.
 
     Returns:
         QasmModule: An object containing the parsed qasm representation along with
@@ -44,14 +48,21 @@ def load(filename: str) -> QasmModule:
         raise TypeError("Input 'filename' must be of type 'str'.")
     with open(filename, "r", encoding="utf-8") as file:
         program = file.read()
-    return loads(program)
+    return loads(program, device_qubits=device_qubits, consolidate_qubits=consolidate_qubits)
 
 
-def loads(program: openqasm3.ast.Program | str) -> QasmModule:
+def loads(
+    program: "openqasm3.ast.Program | str",
+    *,
+    device_qubits: int | None = None,
+    consolidate_qubits: bool = False,
+) -> QasmModule:
     """Loads an OpenQASM program into a `QasmModule` object.
 
     Args:
         program (openqasm3.ast.Program or str): The OpenQASM program to validate.
+        device_qubits (int): Number of physical qubits available on the target device.
+        consolidate_qubits (bool): If True, consolidate all quantum registers into single register.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
@@ -79,7 +90,9 @@ def loads(program: openqasm3.ast.Program | str) -> QasmModule:
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
     module = qasm_module("main", program)
-
+    # Store device_qubits and consolidate_qubits on the module for later use
+    module._device_qubits = device_qubits
+    module._consolidate_qubits = consolidate_qubits
     return module
 
 

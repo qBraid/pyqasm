@@ -57,7 +57,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._unrolled_ast = Program(statements=[])
         self._external_gates: list[str] = []
         self._decompose_native_gates: Optional[bool] = None
-        self._device_qubits: Optional[int] = 0
+        self._device_qubits: Optional[int] = None
+        self._consolidate_qubits: Optional[bool] = False
 
     @property
     def name(self) -> str:
@@ -518,8 +519,20 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             return
         try:
             self.num_qubits, self.num_clbits = 0, 0
-            visitor = QasmVisitor(self, check_only=True)
+            visitor = QasmVisitor(
+                self,
+                check_only=True,
+                device_qubits=self._device_qubits,
+            )
             self.accept(visitor)
+            # Implicit validation: check total qubits if device_qubits is set and not consolidating
+            if self._device_qubits:
+                total_qubits = sum(self._qubit_registers.values())
+                if total_qubits > self._device_qubits:
+                    raise ValidationError(
+                        # pylint: disable-next=line-too-long
+                        f"Total qubits '{total_qubits}' exceed device qubits '{self._device_qubits}'."
+                    )
         except (ValidationError, NotImplementedError) as err:
             self.num_qubits, self.num_clbits = -1, -1
             raise err
@@ -535,6 +548,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 max_loop_iters (int): Max number of iterations for unrolling loops. Defaults to 1e9.
                 check_only (bool): If True, only check the program without executing it.
                                    Defaults to False.
+                device_qubits (int): Number of physical qubits available on the target device.
+                consolidate_qubits (bool): If True, consolidate all quantum registers into
+                                           single register.
 
         Raises:
             ValidationError: If the module fails validation during unrolling.
@@ -546,6 +562,11 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """
         if not kwargs:
             kwargs = {}
+        # Use module attributes if not overridden by kwargs
+        if "device_qubits" not in kwargs:
+            kwargs["device_qubits"] = self._device_qubits
+        if "consolidate_qubits" not in kwargs:
+            kwargs["consolidate_qubits"] = self._consolidate_qubits
         try:
             self.num_qubits, self.num_clbits = 0, 0
             if ext_gates := kwargs.get("external_gates"):
@@ -554,6 +575,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 self._external_gates = []
             if device_qbts := kwargs.get("device_qubits"):
                 self._device_qubits = device_qbts
+            if consolidate_qbts := kwargs.get("consolidate_qubits"):
+                self._consolidate_qubits = consolidate_qbts
             visitor = QasmVisitor(module=self, **kwargs)
             self.accept(visitor)
         except (ValidationError, UnrollError) as err:

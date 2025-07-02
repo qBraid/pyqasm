@@ -33,8 +33,8 @@ def test_reset():
     reset q[1];
     """
     expected_qasm = """OPENQASM 3.0;
-    include "stdgates.inc";
     qubit[5] __PYQASM_QUBITS__;
+    include "stdgates.inc";
     reset __PYQASM_QUBITS__[2];
     reset __PYQASM_QUBITS__[3];
     reset __PYQASM_QUBITS__[4];
@@ -42,7 +42,7 @@ def test_reset():
     """
 
     result = loads(qasm)
-    result.unroll(device_qubits=5)
+    result.unroll(device_qubits=5, consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -55,15 +55,15 @@ def test_barrier():
     barrier q[1];
     """
     expected_qasm = """OPENQASM 3.0;
-    include "stdgates.inc";
     qubit[5] __PYQASM_QUBITS__;
+    include "stdgates.inc";
     barrier __PYQASM_QUBITS__[2];
     barrier __PYQASM_QUBITS__[3];
     barrier __PYQASM_QUBITS__[4];
     barrier __PYQASM_QUBITS__[1];
     """
-    result = loads(qasm)
-    result.unroll(device_qubits=5)
+    result = loads(qasm, device_qubits=5, consolidate_qubits=True)
+    result.unroll()
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -79,15 +79,15 @@ def test_unrolled_barrier():
     barrier q3;
     """
     expected_qasm = """OPENQASM 3.0;
-    include "stdgates.inc";
     qubit[7] __PYQASM_QUBITS__;
+    include "stdgates.inc";
     barrier __PYQASM_QUBITS__[0];
     barrier __PYQASM_QUBITS__[2:5];
     barrier __PYQASM_QUBITS__[:2];
     barrier __PYQASM_QUBITS__[5:];
     """
-    result = loads(qasm)
-    result.unroll(unroll_barriers=False, device_qubits=7)
+    result = loads(qasm, device_qubits=7, consolidate_qubits=True)
+    result.unroll(unroll_barriers=False)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
@@ -104,8 +104,8 @@ def test_measurement():
     measure q2[1] -> c[2];
     """
     expected_qasm = """OPENQASM 3.0;
-    include "stdgates.inc";
     qubit[7] __PYQASM_QUBITS__;
+    include "stdgates.inc";
     bit[3] c;
     c[0] = measure __PYQASM_QUBITS__[4];
     c[1] = measure __PYQASM_QUBITS__[5];
@@ -119,7 +119,7 @@ def test_measurement():
     c[2] = measure __PYQASM_QUBITS__[6];
     c[2] = measure __PYQASM_QUBITS__[5];
     """
-    result = loads(qasm)
+    result = loads(qasm, consolidate_qubits=True)
     result.unroll(device_qubits=7)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
@@ -146,8 +146,8 @@ def test_gates():
     }
     """
     expected_qasm = """OPENQASM 3.0;
-    include "stdgates.inc";
     qubit[6] __PYQASM_QUBITS__;
+    include "stdgates.inc";
     bit[3] c;
     x __PYQASM_QUBITS__[3];
     cx __PYQASM_QUBITS__[0], __PYQASM_QUBITS__[5];
@@ -202,8 +202,23 @@ def test_gates():
     }
     """
     result = loads(qasm)
-    result.unroll(device_qubits=6)
+    result.unroll(device_qubits=6, consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+def test_validate(caplog):
+    with pytest.raises(ValidationError, match=r"Total qubits '4' exceed device qubits '3'."):
+        with caplog.at_level("ERROR"):
+            qasm3_string = """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit[4] q;
+            bit[4] c;
+            for int i in [0:2] {
+               h q[0];
+            }
+            """
+            loads(qasm3_string, device_qubits=3).validate()
 
 
 @pytest.mark.parametrize(
@@ -225,12 +240,31 @@ def test_gates():
             qubit[4] data;
             qubit[2] __PYQASM_QUBITS__;
             """,
-            r"Original QASM program already declares reserved register '__PYQASM_QUBITS__'.",
+            r"Original QASM program already declares quantum register '__PYQASM_QUBITS__'.",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit[6] data;
+            bit[2] __PYQASM_QUBITS__;
+            """,
+            r"Original QASM program already declares classical register '__PYQASM_QUBITS__'.",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit[6] data;
+            bit[2] class_data;
+            int __PYQASM_QUBITS__;
+            """,
+            r"Variable '__PYQASM_QUBITS__' is already exists",
         ),
     ],
 )  # pylint: disable-next= too-many-arguments
 def test_incorrect_qubit_reg_consolidation(qasm_code, error_message, caplog):
     with pytest.raises(ValidationError) as err:
         with caplog.at_level("ERROR"):
-            loads(qasm_code).unroll(device_qubits=6)
+            loads(qasm_code).unroll(device_qubits=6, consolidate_qubits=True)
     assert error_message in str(err.value)
