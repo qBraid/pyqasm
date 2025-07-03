@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     import openqasm3.ast
 
 
-def load(filename: str) -> QasmModule:
+def load(filename: str, **kwargs) -> QasmModule:
     """Loads an OpenQASM program into a `QasmModule` object.
 
     Args:
@@ -44,14 +44,17 @@ def load(filename: str) -> QasmModule:
         raise TypeError("Input 'filename' must be of type 'str'.")
     with open(filename, "r", encoding="utf-8") as file:
         program = file.read()
-    return loads(program)
+    return loads(program, **kwargs)
 
 
-def loads(program: openqasm3.ast.Program | str) -> QasmModule:
+def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
     """Loads an OpenQASM program into a `QasmModule` object.
 
     Args:
         program (openqasm3.ast.Program or str): The OpenQASM program to validate.
+
+        **kwargs: Additional arguments to pass to the loads function.
+            device_qubits (int): Number of physical qubits available on the target device.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
@@ -79,7 +82,9 @@ def loads(program: openqasm3.ast.Program | str) -> QasmModule:
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
     module = qasm_module("main", program)
-
+    # Store device_qubits on the module for later use
+    if dev_qbts := kwargs.get("device_qubits"):
+        module._device_qubits = dev_qbts
     return module
 
 

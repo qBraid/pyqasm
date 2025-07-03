@@ -156,6 +156,7 @@ class Qasm3SubroutineProcessor:
             dims=None,
             value=actual_arg_value,
             is_constant=False,
+            span=fn_call.span,
         )
 
     @classmethod  # pylint: disable-next=too-many-arguments,too-many-locals,too-many-branches
@@ -346,6 +347,7 @@ class Qasm3SubroutineProcessor:
             dims=formal_dimensions,
             value=actual_array_view,  # this is the VIEW of the actual array
             readonly=readonly_arr,
+            span=fn_call.span,
         )
 
     @classmethod  # pylint: disable-next=too-many-arguments
@@ -454,4 +456,5 @@ class Qasm3SubroutineProcessor:
             dims=None,
             value=None,
             is_constant=False,
+            span=fn_call.span,
         )

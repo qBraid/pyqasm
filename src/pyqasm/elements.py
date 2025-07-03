@@ -89,6 +89,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
         base_size (int): Base size of the variable.
         dims (Optional[List[int]]): Dimensions of the variable.
         value (Optional[int | float | np.ndarray]): Value of the variable.
+        span (Any): Span of the variable.
         is_constant (bool): Flag indicating if the variable is constant.
         is_register (bool): Flag indicating if the variable is a register.
         readonly (bool): Flag indicating if the variable is readonly.
@@ -99,6 +100,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     base_size: int
     dims: Optional[list[int]] = None
     value: Optional[int | float | np.ndarray] = None
+    span: Any = None
     is_constant: bool = False
     is_register: bool = False
     readonly: bool = False

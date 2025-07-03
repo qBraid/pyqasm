@@ -392,6 +392,7 @@ class Qasm3ExprEvaluator:
                 dims=[],
                 value=var_value,
                 is_constant=const_expr,
+                span=expression.span,
             )
             cast_var_value = Qasm3Validator.validate_variable_assignment_value(
                 variable, var_value, expression
