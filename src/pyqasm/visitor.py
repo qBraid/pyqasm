@@ -26,6 +26,7 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
+import openpulse.ast as pulse_ast
 from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
@@ -84,6 +85,7 @@ class QasmVisitor:
         self._custom_gates: dict[str, qasm3_ast.QuantumGateDefinition] = {}
         self._external_gates: list[str] = [] if external_gates is None else external_gates
         self._subroutine_defns: dict[str, qasm3_ast.SubroutineDefinition] = {}
+        self._calibration_defns: dict[tuple[str, tuple], pulse_ast.CalibrationDefinition] = {}
         self._check_only: bool = check_only
         self._unroll_barriers: bool = unroll_barriers
         self._curr_scope: int = 0
@@ -2145,6 +2147,198 @@ class QasmVisitor:
 
         return [include]
 
+    def _visit_calibration_statement(self, statement: qasm3_ast.CalibrationStatement) -> list[qasm3_ast.Statement]:
+        """Validate a calibration definition.
+        
+        Args:
+            definition (qasm3_ast.CalibrationDefinition): The definition to validate.
+            
+        Raises:
+            ValidationError: If the definition is invalid.
+        """
+        print("Calibration Statement Structure:")
+        print("Statement: ", statement)
+        
+        return [statement]
+    
+    def _visit_calibration_definition(self, definition: qasm3_ast.CalibrationDefinition) -> list[qasm3_ast.CalibrationDefinition]:
+        """Visit a calibration definition element (defcal block).
+
+        Args:
+            definition (qasm3_ast.CalibrationDefinition): The calibration definition to visit.
+
+        Returns:
+            list[qasm3_ast.CalibrationDefinition]: The calibration definition if not in check_only mode, empty list if in check_only mode.
+        """
+        gate_name = definition.name.name
+        print("--------------------------------")
+        print("Gate name: ", gate_name)
+        print("--------------------------------")
+        
+        # 1. Parse and validate physical qubit identifiers
+        physical_qubits = self._parse_physical_qubits(definition.qubits, definition)
+        self._validate_calibration_arguments(definition.arguments, gate_name, definition)
+        calibration_key = (gate_name, tuple(physical_qubits))
+        if calibration_key in self._calibration_defns:
+            raise_qasm3_error(
+                f"Duplicate calibration definition for gate '{gate_name}' "
+                f"on physical qubits {physical_qubits}",
+                error_node=definition,
+                span=definition.span,
+            )
+        
+        self._validate_calibration_body(definition.body, gate_name, definition)
+        self._calibration_defns[calibration_key] = definition
+        
+        logger.debug("Added calibration definition for gate '%s' on qubits %s", 
+                    gate_name, physical_qubits)
+        
+        if self._check_only:
+            return []
+        
+        return [definition]
+    
+    def _parse_physical_qubits(self, qubits: list, definition: qasm3_ast.CalibrationDefinition) -> list[int]:
+        """Parse physical qubit identifiers from calibration definition.
+        
+        Args:
+            qubits: List of qubit identifiers from the calibration definition
+            definition: The calibration definition for error reporting
+            
+        Returns:
+            list[int]: List of physical qubit indices
+        """
+        physical_qubits = []
+        
+        for qubit in qubits:
+            if not isinstance(qubit, qasm3_ast.Identifier):
+                raise_qasm3_error(
+                    f"Expected physical qubit identifier, got {type(qubit).__name__}",
+                    error_node=definition,
+                    span=definition.span,
+                )
+            
+            qubit_name = qubit.name
+            
+            # Physical qubits should start with '$'
+            if not qubit_name.startswith('$'):
+                raise_qasm3_error(
+                    f"Physical qubit identifier must start with '$', got '{qubit_name}'",
+                    error_node=definition,
+                    span=definition.span,
+                )
+            
+            try:
+                physical_qubit_id = int(qubit_name[1:])  # Remove '$' and convert to int
+                physical_qubits.append(physical_qubit_id)
+            except ValueError:
+                raise_qasm3_error(
+                    f"Invalid physical qubit identifier '{qubit_name}'. "
+                    "Expected format: $<integer>",
+                    error_node=definition,
+                    span=definition.span,
+                )
+        
+        return physical_qubits
+
+    def _validate_calibration_arguments(self, arguments: list, gate_name: str, definition: qasm3_ast.CalibrationDefinition) -> None:
+        """Validate the classical arguments of a calibration definition.
+        
+        Args:
+            arguments: List of classical arguments
+            gate_name: Name of the gate being calibrated
+            definition: The calibration definition for error reporting
+        """
+        seen_arg_names = set()
+        
+        for arg in arguments:
+            if not isinstance(arg, qasm3_ast.ClassicalArgument):
+                raise_qasm3_error(
+                    f"Expected classical argument in calibration definition for '{gate_name}'",
+                    error_node=definition,
+                    span=definition.span,
+                )
+            
+            arg_name = arg.name.name
+            if arg_name in seen_arg_names:
+                raise_qasm3_error(
+                    f"Duplicate argument name '{arg_name}' in calibration definition for '{gate_name}'",
+                    error_node=definition,
+                    span=definition.span,
+                )
+            seen_arg_names.add(arg_name)
+            
+            # Validate argument types (angle, duration, etc.)
+            arg_type = arg.type
+            valid_types = (qasm3_ast.AngleType, qasm3_ast.DurationType, 
+                        qasm3_ast.FloatType, qasm3_ast.IntType)
+            
+            if not isinstance(arg_type, valid_types):
+                raise_qasm3_error(
+                    f"Unsupported argument type '{type(arg_type).__name__}' "
+                    f"in calibration definition for '{gate_name}'",
+                    error_node=definition,
+                    span=definition.span,
+                )
+
+    def _validate_calibration_body(self, body: list, gate_name: str, 
+                                definition: qasm3_ast.CalibrationDefinition) -> None:
+        """Validate the statements inside a calibration definition body.
+        
+        Args:
+            body: List of statements in the calibration body
+            gate_name: Name of the gate being calibrated
+            definition: The calibration definition for error reporting
+        """
+
+        # Need a full list of the allowed statement types
+        allowed_stmt_types = {
+            qasm3_ast.ExpressionStatement,  # For functions like shift_phase, play
+            qasm3_ast.ClassicalDeclaration,  # For waveform declarations
+            qasm3_ast.ClassicalAssignment,   # For variable assignments
+        }
+        
+        # Need a full list of the allowed functions
+        allowed_functions = {
+            'shift_phase', 'play', 'delay', 'set_frequency', 'set_phase',
+            'drag', 'gaussian', 'newframe', 'capture_v0', 'capture_v1',
+        }
+        
+        for stmt in body:
+            stmt_type = type(stmt)
+            
+            if stmt_type not in allowed_stmt_types:
+                raise_qasm3_error(
+                    f"Unsupported statement type '{stmt_type.__name__}' "
+                    f"in calibration definition for '{gate_name}'",
+                    error_node=definition,
+                    span=definition.span,
+                )
+            
+            if isinstance(stmt, qasm3_ast.ExpressionStatement):
+                if isinstance(stmt.expression, qasm3_ast.FunctionCall):
+                    func_name = stmt.expression.name.name
+                    if func_name not in allowed_functions:
+                        raise_qasm3_error(
+                            f"Unsupported function '{func_name}' "
+                            f"in calibration definition for '{gate_name}'",
+                            error_node=definition,
+                            span=definition.span,
+                        )
+
+    def _visit_calibration_grammar_declaration(self, declaration: qasm3_ast.CalibrationGrammarDeclaration) -> list[qasm3_ast.Statement]:
+        """Visit a calibration statement element.
+        
+        Args:
+            statement (qasm3_ast.CalibrationStatement): The calibration statement to visit.
+            
+        Returns:
+            list[qasm3_ast.Statement]: The list of statements generated by the calibration.
+        """
+        print("Calibration Definition Structure:")
+
+        return []
+
     def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
@@ -2175,6 +2369,9 @@ class QasmVisitor:
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
+            pulse_ast.CalibrationStatement: self._visit_calibration_statement,
+            pulse_ast.CalibrationDefinition: self._visit_calibration_definition,
+            pulse_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
         }
 
         visitor_function = visit_map.get(type(statement))

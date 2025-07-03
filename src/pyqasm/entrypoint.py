@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import openqasm3
+import openpulse
 
 from pyqasm.exceptions import ValidationError
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
@@ -63,11 +64,14 @@ def loads(program: openqasm3.ast.Program | str) -> QasmModule:
     """
     if isinstance(program, str):
         try:
-            program = openqasm3.parse(program)
-        except openqasm3.parser.QASM3ParsingError as err:
-            raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
-    elif not isinstance(program, openqasm3.ast.Program):
-        raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
+            if 'defcalgrammar "openpulse"' in program: 
+                program = openpulse.parse(program) 
+            else:
+                program = openqasm3.parse(program)
+        except (openqasm3.parser.QASM3ParsingError, openpulse.parser.OpenPulseParsingError) as err:
+            raise ValidationError(f"Failed to parse the OpenQASM/Openpulse string: {err}") from err
+    elif not isinstance(program, openqasm3.ast.Program): 
+        raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program' or 'openpulse.ast.Program'.")
     if program.version not in SUPPORTED_QASM_VERSIONS:
         raise ValidationError(
             f"Unsupported OpenQASM version: {program.version}. "
