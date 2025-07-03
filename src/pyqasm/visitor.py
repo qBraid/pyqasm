@@ -366,16 +366,12 @@ class QasmVisitor:
 
         self._module._add_qubit_register(register_name, register_size)
 
-        # Inline: Update offsets after adding a new register if device_qubits is set
+        # _qubit_register_offsets maps each original quantum register to its
+        # starting index in the consolidated register, enabling correct
+        # translation of qubit indices after consolidation.
         if self._consolidate_qubits:
             self._qubit_register_offsets[register_name] = self._qubit_register_max_offset
             self._qubit_register_max_offset += register_size
-            # offsets = {}
-            # offset = 0
-            # for name, n_qubits in self._global_qreg_size_map.items():
-            #     offsets[name] = offset
-            #     offset += n_qubits
-            # self._qubit_register_offsets = offsets
 
         logger.debug("Added labels for register '%s'", str(register))
 

@@ -29,7 +29,6 @@ from openqasm3.ast import (
     FloatLiteral,
     Identifier,
     IndexedIdentifier,
-    IndexElement,
     IndexExpression,
     IntegerLiteral,
 )
@@ -556,21 +555,16 @@ class Qasm3Transformer:
                 for stmt in unrolled_stmts:
                     stmt_qubits: list[IndexedIdentifier] = []
                     for qubit in stmt.qubits:
-                        _original_qbt_name = cast(Identifier, qubit.name)
-                        qubit_indices: list[IndexElement] = []
-                        for multi_ind in qubit.indices:  # type: ignore[union-attr]
-                            qubit_sub_ind: IndexElement = []
-                            for ind in multi_ind:
-                                pyqasm_val = _get_pyqasm_device_qubit_index(
-                                    _original_qbt_name.name,
-                                    ind.value,  # type: ignore[union-attr]
-                                    qubit_register_offsets,
-                                    global_qreg_size_map,
-                                )
-                                qubit_sub_ind.append(IntegerLiteral(pyqasm_val))
-                            qubit_indices.append(qubit_sub_ind)
+                        pyqasm_val = _get_pyqasm_device_qubit_index(
+                            qubit.name.name,
+                            qubit.indices[0][0].value,
+                            qubit_register_offsets,
+                            global_qreg_size_map,
+                        )
                         stmt_qubits.append(
-                            IndexedIdentifier(Identifier("__PYQASM_QUBITS__"), qubit_indices)
+                            IndexedIdentifier(
+                                Identifier("__PYQASM_QUBITS__"), [[IntegerLiteral(pyqasm_val)]]
+                            )
                         )
                     stmt.qubits = stmt_qubits
 
