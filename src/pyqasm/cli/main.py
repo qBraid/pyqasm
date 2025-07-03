@@ -76,19 +76,21 @@ def unroll(  # pylint: disable=dangerous-default-value
         ),
     ],
     skip_files: Annotated[
-        list[str],
+        Optional[list[str]],
         typer.Option(
             "--skip", "-s", help="Files to skip during unrolling.", callback=validate_paths_exist
         ),
     ] = None,
     overwrite: Annotated[
-        bool,
+        Optional[bool],
         typer.Option("--overwrite", help="Overwrite original files instead of creating new ones."),
     ] = False,
     output: Annotated[
         Optional[str],
         typer.Option(
-            "--output", "-o", help="Output file path (can only be used with a single input file)."
+            "--output",
+            "-o",
+            help="Output file path (can only be used with a single input file).",
         ),
     ] = None,
 ):

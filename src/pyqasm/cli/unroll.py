@@ -19,6 +19,8 @@ Script to unroll OpenQASM files
 
 import logging
 import os
+import tempfile
+from io import StringIO
 from pathlib import Path
 from typing import Optional
 
@@ -27,6 +29,7 @@ from rich.console import Console
 
 from pyqasm import dumps, load
 from pyqasm.exceptions import QasmParsingError, UnrollError, ValidationError
+from pyqasm.modules.base import QasmModule
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -36,38 +39,33 @@ logger.propagate = False
 def unroll_qasm(
     src_paths: list[str],
     skip_files: Optional[list[str]] = None,
-    overwrite: bool = False,
+    overwrite: Optional[bool] = False,
     output_path: Optional[str] = None,
 ) -> None:
     """Unroll OpenQASM files"""
     skip_files = skip_files or []
 
-    failed_files: list[tuple[str, Exception]] = []
+    failed_files: list[tuple[str, Exception, str]] = []
     successful_files: list[str] = []
 
     console = Console()
 
-    def should_skip(filepath: str, content: str) -> bool:
-        if filepath in skip_files:
-            return True
-
-        skip_tag = "// pyqasm: ignore"
-
-        for line in content.splitlines():
-            if skip_tag in line:
-                return True
-            if "OPENQASM" in line:
-                break
-
-        return False
-
+    # pylint: disable-next=too-many-locals, too-many-branches, too-many-statements
     def unroll_qasm_file(file_path: str) -> None:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        if should_skip(file_path, content):
+        if file_path in skip_files or QasmModule.skip_qasm_files_with_tag(content, "unroll"):
             return
 
+        pyqasm_logger = logging.getLogger("pyqasm")
+        pyqasm_logger.setLevel(logging.ERROR)
+        pyqasm_logger.handlers.clear()  # Suppress previous handlers
+        pyqasm_logger.propagate = False  # Prevent propagation
+        buf = StringIO()
+        handler = logging.StreamHandler(buf)
+        handler.setLevel(logging.ERROR)
+        pyqasm_logger.addHandler(handler)
         try:
             module = load(file_path)
             module.unroll()
@@ -75,9 +73,31 @@ def unroll_qasm(
 
             # Determine output file path
             if output_path and len(src_paths) == 1:
-                # Use explicitly specified output path
-                output_file = output_path
-                os.makedirs(os.path.dirname(output_file), exist_ok=True)
+                # If output_path is a directory, use the input filename inside that directory
+                if os.path.isdir(output_path):
+                    output_file = os.path.join(output_path, os.path.basename(file_path))
+                else:
+                    output_file = output_path
+                if os.path.exists(output_file) and not overwrite:
+                    raise FileExistsError(
+                        f"Output file '{output_file}' already exists. Use --overwrite to force."
+                    )
+                output_dir = os.path.dirname(output_file)
+                if output_dir and not os.path.exists(output_dir):
+                    os.makedirs(output_dir, exist_ok=True)
+                temp_dir = output_dir
+                temp_file = None
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        "w", encoding="utf-8", dir=temp_dir, delete=False
+                    ) as tf:
+                        temp_file = tf.name
+                        tf.write(unrolled_content)
+                    os.replace(temp_file, output_file)
+                except Exception as write_err:
+                    if temp_file and os.path.exists(temp_file):
+                        os.remove(temp_file)
+                    raise write_err
             elif overwrite:
                 output_file = file_path
             else:
@@ -85,22 +105,21 @@ def unroll_qasm(
                 path = Path(file_path)
                 output_file = str(path.parent / f"{path.stem}_unrolled{path.suffix}")
 
-            # Write the unrolled content
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(unrolled_content)
+            with open(output_file, "w", encoding="utf-8") as outf:
+                outf.write(unrolled_content)
 
             successful_files.append(file_path)
 
         except (ValidationError, UnrollError, QasmParsingError) as err:
-            failed_files.append((file_path, err))
-        except Exception as uncaught_err:  # pylint: disable=broad-exception-caught
-            logger.debug("Uncaught error in %s", file_path, exc_info=uncaught_err)
-            failed_files.append((file_path, uncaught_err))
+            failed_files.append((file_path, err, buf.getvalue()))
+        except Exception as uncaught:  # pylint: disable=broad-exception-caught
+            logger.debug("Uncaught error in %s", file_path, exc_info=uncaught)
+            failed_files.append((file_path, uncaught, buf.getvalue()))
+        finally:
+            pyqasm_logger.removeHandler(handler)  # Clean up handler
 
     def process_files_in_directory(directory: str) -> int:
         count = 0
-        if not os.path.isdir(directory):
-            return count
         for root, _, files in os.walk(directory):
             for file in files:
                 if file.endswith(".qasm"):
@@ -131,14 +150,19 @@ def unroll_qasm(
         )
 
     if failed_files:
-        for file, err in failed_files:
+        for file, err, raw_stderr in failed_files:
             category = (
                 "".join(["-" + c.lower() if c.isupper() else c for c in type(err).__name__])
                 .lstrip("-")
                 .removesuffix("-error")
             )
             # pylint: disable-next=anomalous-backslash-in-string
-            console.print(f"Failed to unroll: {file} ({err}) [yellow]\\[{category}][/yellow]")
+            console.print("-" * 100)
+            console.print(f"Failed to unroll: {file}", "\n")
+            console.print(f"[yellow]\\[{category}-error][/yellow] -> {err}", "\n")
+            if raw_stderr:
+                console.print(raw_stderr.rstrip())
+                console.print("-" * 100)
 
         num_failed = len(failed_files)
         s1 = "" if num_failed == 1 else "s"

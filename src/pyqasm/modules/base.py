@@ -608,6 +608,26 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return qasm_module
 
+    @staticmethod
+    def skip_qasm_files_with_tag(content: str, mode: str) -> bool:
+        """Check if a file should be skipped for a given mode (e.g., 'unroll', 'validate').
+
+        Args:
+            content (str): The file content.
+            mode (str): The operation mode ('unroll', 'validate', etc.)
+
+        Returns:
+            bool: True if the file should be skipped, False otherwise.
+        """
+        skip_tag = f"// pyqasm disable: {mode}"
+        generic_skip_tag = "// pyqasm: ignore"
+        for line in content.splitlines():
+            if skip_tag in line or generic_skip_tag in line:
+                return True
+            if "OPENQASM" in line:
+                break
+        return False
+
     def __str__(self) -> str:
         """Return the string representation of the QASM program
 
