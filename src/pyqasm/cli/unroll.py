@@ -79,9 +79,10 @@ def unroll_qasm(
                 else:
                     output_file = output_path
                 if os.path.exists(output_file) and not overwrite:
-                    raise FileExistsError(
-                        f"Output file '{output_file}' already exists. Use --overwrite to force."
+                    console.print(
+                        "Output file '{output_file}' already exists. Use --overwrite to force."
                     )
+                    raise typer.Exit(1)
                 output_dir = os.path.dirname(output_file)
                 if output_dir and not os.path.exists(output_dir):
                     os.makedirs(output_dir, exist_ok=True)
