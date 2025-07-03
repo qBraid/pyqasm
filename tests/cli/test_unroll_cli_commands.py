@@ -531,7 +531,7 @@ def test_unroll_output_file_exists_no_overwrite(runner: CliRunner, tmp_path):
     test_file.write_text("OPENQASM 3.0; qubit[1] q; h q[0];")
     output_file = test_file
     result = runner.invoke(app, ["unroll", str(test_file), "--output", str(output_file)])
-    assert result.exit_code != 0
+    assert result.exit_code == 1
     assert "already exists" in result.output
 
 
