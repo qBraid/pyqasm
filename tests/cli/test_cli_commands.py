@@ -157,3 +157,4 @@ def test_main_help_flag(runner: CliRunner):
     assert result.exit_code == 0
     assert "Usage:" in result.output
     assert "validate" in result.output
+    assert "unroll" in result.output

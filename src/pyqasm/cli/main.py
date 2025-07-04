@@ -18,11 +18,13 @@ Entrypoint for the PyQASM CLI.
 """
 
 import sys
+from typing import Optional
 
 try:
     import typer
     from typing_extensions import Annotated
 
+    from pyqasm.cli.unroll import unroll_qasm
     from pyqasm.cli.validate import validate_paths_exist, validate_qasm
 except ImportError as err:
     print(
@@ -63,6 +65,41 @@ def validate(  # pylint: disable=dangerous-default-value
 ):
     """Validate OpenQASM files."""
     validate_qasm(src_paths, skip_files)
+
+
+@app.command(name="unroll", help="Unroll OpenQASM files.")
+def unroll(  # pylint: disable=dangerous-default-value
+    src_paths: Annotated[
+        list[str],
+        typer.Argument(
+            ..., help="Source file or directory paths to unroll.", callback=validate_paths_exist
+        ),
+    ],
+    skip_files: Annotated[
+        Optional[list[str]],
+        typer.Option(
+            "--skip", "-s", help="Files to skip during unrolling.", callback=validate_paths_exist
+        ),
+    ] = None,
+    overwrite: Annotated[
+        Optional[bool],
+        typer.Option("--overwrite", help="Overwrite original files instead of creating new ones."),
+    ] = False,
+    output: Annotated[
+        Optional[str],
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output file path (can only be used with a single input file).",
+        ),
+    ] = None,
+):
+    """Unroll OpenQASM files."""
+    # Validate that output_path is only used with a single file
+    if output and len(src_paths) > 1:
+        raise typer.BadParameter("--output can only be used with a single input file")
+
+    unroll_qasm(src_paths, skip_files, overwrite, output)
 
 
 @app.callback(invoke_without_command=True)

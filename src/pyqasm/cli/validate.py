@@ -26,6 +26,7 @@ from rich.console import Console
 
 from pyqasm import load
 from pyqasm.exceptions import QasmParsingError, UnrollError, ValidationError
+from pyqasm.modules.base import QasmModule
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -34,7 +35,7 @@ logger.propagate = False
 def validate_paths_exist(paths: Optional[list[str]]) -> Optional[list[str]]:
     """Verifies that each path in the provided list exists."""
     if not paths:
-        return paths
+        return []
 
     non_existent_paths = [path for path in paths if not os.path.exists(path)]
     if non_existent_paths:
@@ -55,25 +56,14 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
 
     console = Console()
 
-    def should_skip(filepath: str, content: str) -> bool:
-        if filepath in skip_files:
-            return True
-
-        skip_tag = "// pyqasm: ignore"
-
-        for line in content.splitlines():
-            if skip_tag in line:
-                return True
-            if "OPENQASM" in line:
-                break
-
-        return False
-
     def validate_qasm_file(file_path: str) -> None:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        if should_skip(file_path, content):
+        if file_path in skip_files:
+            return
+        if QasmModule.skip_qasm_files_with_tag(content, "validate"):
+            skip_files.append(file_path)
             return
 
         try:
@@ -110,6 +100,10 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
     if checked == 0:
         console.print("No .qasm files present. Nothing to do.")
         raise typer.Exit(0)
+
+    if skip_files:
+        skiped = "" if len(skip_files) == 1 else "s"
+        console.print(f"[yellow]Skipped {len(skip_files)} file{skiped}[/yellow]")
 
     s_checked = "" if checked == 1 else "s"
     if failed_files:
