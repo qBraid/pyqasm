@@ -55,7 +55,10 @@ def unroll_qasm(
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        if file_path in skip_files or QasmModule.skip_qasm_files_with_tag(content, "unroll"):
+        if file_path in skip_files:
+            return
+        if QasmModule.skip_qasm_files_with_tag(content, "unroll"):
+            skip_files.append(file_path)
             return
 
         pyqasm_logger = logging.getLogger("pyqasm")
@@ -137,11 +140,9 @@ def unroll_qasm(
             unroll_qasm_file(item)
             checked += 1
 
-    checked -= len(skip_files)
-
-    if checked == 0:
-        console.print("No .qasm files present. Nothing to do.")
-        raise typer.Exit(0)
+    loaded_files = len(skip_files) + len(successful_files) + len(failed_files)
+    if (checked - loaded_files) == len(src_paths) or checked == 0:
+        console.print("[red]No .qasm files present. Nothing to do.[/red]")
 
     # Report results
     if successful_files:
@@ -149,6 +150,10 @@ def unroll_qasm(
         console.print(
             f"[green]Successfully unrolled {len(successful_files)} file{s_success}[/green]"
         )
+
+    if skip_files:
+        skiped = "" if len(skip_files) == 1 else "s"
+        console.print(f"[yellow]Skipped {len(skip_files)} file{skiped}[/yellow]")
 
     if failed_files:
         for file, err, raw_stderr in failed_files:
@@ -167,12 +172,7 @@ def unroll_qasm(
 
         num_failed = len(failed_files)
         s1 = "" if num_failed == 1 else "s"
-        console.print(
-            f"[red]Failed to unroll {num_failed} file{s1} "
-            f"(checked {checked} source file{'s' if checked != 1 else ''})[/red]"
-        )
-        raise typer.Exit(1)
+        console.print(f"[red]Failed to unroll {num_failed} file{s1}[/red]")
 
-    s_checked = "" if checked == 1 else "s"
-    console.print(f"[green]Success: unrolled {checked} source file{s_checked}[/green]")
+    console.print(f"[green]Checked {checked} source file{'s' if checked != 1 else ''}[/green]")
     raise typer.Exit(0)

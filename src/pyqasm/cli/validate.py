@@ -63,6 +63,7 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
         if file_path in skip_files:
             return
         if QasmModule.skip_qasm_files_with_tag(content, "validate"):
+            skip_files.append(file_path)
             return
 
         try:
@@ -99,6 +100,10 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
     if checked == 0:
         console.print("No .qasm files present. Nothing to do.")
         raise typer.Exit(0)
+
+    if skip_files:
+        skiped = "" if len(skip_files) == 1 else "s"
+        console.print(f"[yellow]Skipped {len(skip_files)} file{skiped}[/yellow]")
 
     s_checked = "" if checked == 1 else "s"
     if failed_files:
