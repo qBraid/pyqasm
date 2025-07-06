@@ -115,7 +115,7 @@ defcalgrammar "openpulse";
 const float q0_freq = 5.0e9;
 const float q1_freq = 5.1e9;
 
-defcal rz(angle theta, angle theta) $0 {
+defcal rz(angle theta) $0 {
    shift_phase(q0_frame, theta);
 }
 
@@ -134,7 +134,7 @@ defcal sx $1 {
 }
 """
 
-program = loads(example)
+program = loads(simple_example)
 
 program.unroll()
 
