@@ -100,6 +100,28 @@ DECOMPOSITION_RULES = {
     },
 }
 
+ROTATIONAL_LOOKUP_RULES = {
+    BasisSet.CLIFFORD_T: {
+        "rz": {
+            CONSTANTS_MAP["pi"]: ["s", "s"],
+            CONSTANTS_MAP["pi"] / 2: ["s"],
+            CONSTANTS_MAP["pi"] / 4: ["t"],
+        },
+        # Rx(∅) = H.Rz(∅).H
+        "rx": {
+            CONSTANTS_MAP["pi"]: ["h", "s", "s", "h"],
+            CONSTANTS_MAP["pi"] / 2: ["h", "s", "h"],
+            CONSTANTS_MAP["pi"] / 4: ["h", "t", "h"],
+        },
+        # Ry(∅) = S†.H.Rz(∅).H.S
+        "ry": {
+            CONSTANTS_MAP["pi"]: ["sdg", "h", "s", "s", "h", "s"],
+            CONSTANTS_MAP["pi"] / 2: ["sdg", "h", "s", "h", "s"],
+            CONSTANTS_MAP["pi"] / 4: ["sdg", "h", "t", "h", "s"],
+        },
+    }
+}
+
 # """TODO: Implement the Solovay-Kitaev algorithm"""
 #
 # def solovay_kitaev_algo(gate_name, param, accuracy):

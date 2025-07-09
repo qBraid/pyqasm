@@ -1151,6 +1151,56 @@ BASIS_GATE_MAP = {
     BasisSet.CLIFFORD_T: {"h", "t", "s", "cx", "tdg", "sdg"},
 }
 
+# Gate Optimization Data is used by Solovay-Kitaev algorithm to optimize the gate set
+# The data is a dictionary with the basis set as the key and a list of dictionaries as the value
+# Each dictionary in the list contains the following keys:
+# - name: the name of the gate
+# - identity:
+#       The dot product of sequence of some gates becomes Identity matrix.
+#       The `identity` key is used to determine such sequences of gates.
+#       It stores the following keys:
+#           - group: the group to which the gate belongs.
+#           - weight: the weightage given to that gate.
+#       If gates belong to smae group, their weights can be added.
+#       Once the total weight reaches 1, the resultant dot product of sequnce
+#       becomes Identity Matrix
+# - matrix: the matrix representation of the gate
+# - used_for_basic_approximation: whether the gate is used for basic approximation
+GATE_OPT_DATA = {
+    BasisSet.CLIFFORD_T: [
+        {
+            "name": "h",
+            "identity": {"group": "h", "weight": 0.5},
+            "matrix": (1 / np.sqrt(2)) * np.array([[1, 1], [1, -1]]),
+            "used_for_basic_approximation": True,
+        },
+        {
+            "name": "s",
+            "identity": {"group": "s-t", "weight": 0.25},
+            "matrix": np.array([[1, 0], [0, 1j]]),
+            "used_for_basic_approximation": True,
+        },
+        {
+            "name": "t",
+            "identity": {"group": "s-t", "weight": 0.125},
+            "matrix": np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]]),
+            "used_for_basic_approximation": True,
+        },
+        {
+            "name": "sdg",
+            "identity": {"group": "sdg-tdg", "weight": 0.25},
+            "matrix": np.array([[1, 0], [0, 1j]]).conj().T,
+            "used_for_basic_approximation": False,
+        },
+        {
+            "name": "tdg",
+            "identity": {"group": "sdg-tdg", "weight": 0.125},
+            "matrix": np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]]).conj().T,
+            "used_for_basic_approximation": False,
+        },
+    ]
+}
+
 
 def map_qasm_op_num_params(op_name: str) -> int:
     """
@@ -1314,3 +1364,31 @@ def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
     raise ValidationError(
         f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controls"
     )
+
+
+def get_target_matrix_for_rotational_gates(gate_name, theta):
+    """
+    Get the target matrix for the rotational gates based on the gate name and theta.
+
+    Args:
+        gate_name: The name of the gate.
+        theta: The angle of rotation.
+
+    Returns:
+        np.ndarray: The target matrix for the rotational gates.
+    """
+    if gate_name == "rx":
+        target_matrix = np.array(
+            [
+                [np.cos(theta / 2), -1j * np.sin(theta / 2)],
+                [-1j * np.sin(theta / 2), np.cos(theta / 2)],
+            ]
+        )
+    elif gate_name == "ry":
+        target_matrix = np.array(
+            [[np.cos(theta / 2), -np.sin(theta / 2)], [np.sin(theta / 2), np.cos(theta / 2)]]
+        )
+    else:
+        target_matrix = np.array([[np.exp(-1j * theta / 2), 0], [0, np.exp(1j * theta / 2)]])
+
+    return target_matrix

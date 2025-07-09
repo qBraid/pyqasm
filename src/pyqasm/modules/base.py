@@ -574,7 +574,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             self._unrolled_ast = Program(statements=[], version=self.original_program.version)
             raise err
 
-    def rebase(self, target_basis_set, in_place=True):
+    def rebase(self, target_basis_set, in_place=True, depth=10, accuracy=1e-6):
         """Rebase the AST to use a specified target basis set.
 
         Will unroll the module if not already done.
@@ -582,6 +582,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             target_basis_set: The target basis set to rebase the module to.
             in_place (bool): Flag to indicate if the rebase operation should be done in place.
+            depth: The depth of the approximation.
+            accuracy: The accuracy of the approximation.
 
         Returns:
             QasmModule: The module with the gates rebased to the target basis set.
@@ -602,7 +604,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
                 # Decompose the gate
                 processed_gates_list = Decomposer.process_gate_statement(
-                    gate_name, statement, target_basis_set
+                    gate_name, statement, target_basis_set, depth, accuracy
                 )
                 for processed_gate in processed_gates_list:
                     rebased_statements.append(processed_gate)
@@ -611,7 +613,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 # Recursively process the if_block and else_block
 
                 rebased_statements.append(
-                    Decomposer.process_branching_statement(statement, target_basis_set)
+                    Decomposer.process_branching_statement(
+                        statement, target_basis_set, depth, accuracy
+                    )
                 )
 
             else:
