@@ -25,7 +25,9 @@ from functools import partial
 from typing import Any, Callable, Optional, cast
 
 import numpy as np
+import openpulse.ast as openpulse_ast
 import openqasm3.ast as qasm3_ast
+from openpulse.parser import parse_openpulse
 from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
@@ -57,6 +59,7 @@ from pyqasm.maps.gates import (
     map_qasm_op_num_params,
     map_qasm_op_to_callable,
 )
+from pyqasm.openpulse_visitor import OpenPulseVisitor
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
@@ -98,6 +101,7 @@ class QasmVisitor:
         self._clbit_labels: dict[str, int] = {}
         self._alias_qubit_labels: dict[tuple[str, int], tuple[str, int]] = {}
         self._global_qreg_size_map: dict[str, int] = {}
+        self._calibration_qbts_map: dict[str, int] = {}  # Track qubits in defcal and cal blocks
         self._global_alias_size_map: dict[str, int] = {}
         self._function_qreg_size_map: deque = deque([])  # for nested functions
         self._function_qreg_transform_map: deque = deque([])  # for nested functions
@@ -2501,6 +2505,74 @@ class QasmVisitor:
 
         return [include]
 
+    def _visit_calibration_definition(
+        self, statement: qasm3_ast.CalibrationDefinition
+    ) -> list[Any]:
+        """Visit a calibration definition element.
+
+        Args:
+            statement (qasm3_ast.CalibrationDefinition): The calibration definition to visit.
+
+        Returns:
+            None
+        """
+        # TODO: Implement calibration definition handling
+        try:
+            block_body = parse_openpulse(statement.body, in_defcal=True, permissive=False)
+        except Exception as e:
+            raise SyntaxError from e
+
+        ## check and update def_cal function name as gate_name
+        ## Allign virtual qubits with program qubits
+
+        result = []
+        calibration_stmts: list[openpulse_ast.Statement] = block_body.body
+        pulse_visitor = OpenPulseVisitor(module=self, is_def_cal=True)
+
+        result.extend(pulse_visitor.visit_basic_block(calibration_stmts))
+
+        return result
+
+    def _visit_calibration_statement(self, statement: qasm3_ast.CalibrationStatement) -> list[Any]:
+        """Visit a calibration statement element.
+
+        Args:
+            statement (qasm3_ast.CalibrationStatement): The calibration statement to visit.
+
+        Returns:
+            None
+        """
+        # TODO: Implement calibration statement handling
+        try:
+            block_body = parse_openpulse(statement.body, in_defcal=False, permissive=False)
+        except Exception as e:
+            raise SyntaxError from e
+
+        result = []
+        calibration_stmts: list[openpulse_ast.Statement] = block_body.body
+        pulse_visitor = OpenPulseVisitor(module=self)
+
+        result.extend(pulse_visitor.visit_basic_block(calibration_stmts))
+
+        return result
+
+    def _visit_calibration_grammar_declaration(
+        self, statement: qasm3_ast.CalibrationGrammarDeclaration
+    ) -> list[None]:
+        """Visit a calibration grammar declaration element.
+
+        Args:
+            statement (qasm3_ast.CalibrationGrammarDeclaration): The calibration grammar declaration
+
+        Returns:
+            None
+        """
+        # TODO: Implement calibration grammar declaration handling
+        if statement.name == "openpulse":
+            return []
+
+        return []
+
     def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
@@ -2534,6 +2606,9 @@ class QasmVisitor:
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.BreakStatement: self._visit_break,
             qasm3_ast.ContinueStatement: self._visit_continue,
+            qasm3_ast.CalibrationDefinition: self._visit_calibration_definition,
+            qasm3_ast.CalibrationStatement: self._visit_calibration_statement,
+            qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
         }
 
         visitor_function = visit_map.get(type(statement))

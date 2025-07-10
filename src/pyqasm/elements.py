@@ -106,6 +106,25 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     readonly: bool = False
 
 
+@dataclass(slots=True)
+class Frame:
+    """
+    Class representing a frame in OpenQASM/OpenPulse.
+
+    Attributes:
+        port (Any): The port to which the frame is attached. Immutable after initialization.
+        frequency (float): The frequency of the frame.
+        phase (float): The phase of the frame, in radians.
+        time (float): The current time of the frame, in duration units.
+                      This is manipulated implicitly and cannot be set directly.
+    """
+
+    port: Any
+    frequency: Any
+    phase: Any
+    time: Optional[Any] = 0.0
+
+
 class BasisSet(Enum):
     """
     Enum for the different basis sets in Qasm.
