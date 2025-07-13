@@ -59,7 +59,7 @@ from pyqasm.maps.gates import (
     map_qasm_op_num_params,
     map_qasm_op_to_callable,
 )
-from pyqasm.openpulse_visitor import OpenPulseVisitor
+from pyqasm.pulse.openpulse_visitor import OpenPulseVisitor
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
@@ -124,6 +124,7 @@ class QasmVisitor:
         self._in_generic_gate_op_scope: int = 0
         self._qubit_register_offsets: OrderedDict = OrderedDict()
         self._qubit_register_max_offset = 0
+        self._pulse_visitor = OpenPulseVisitor(qasm_visitor=self, check_only=check_only)
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -2527,9 +2528,7 @@ class QasmVisitor:
 
         result = []
         calibration_stmts: list[openpulse_ast.Statement] = block_body.body
-        pulse_visitor = OpenPulseVisitor(module=self, is_def_cal=True)
-
-        result.extend(pulse_visitor.visit_basic_block(calibration_stmts))
+        result.extend(self._pulse_visitor.visit_basic_block(calibration_stmts, is_def_cal=True))
 
         return result
 
@@ -2550,9 +2549,7 @@ class QasmVisitor:
 
         result = []
         calibration_stmts: list[openpulse_ast.Statement] = block_body.body
-        pulse_visitor = OpenPulseVisitor(module=self)
-
-        result.extend(pulse_visitor.visit_basic_block(calibration_stmts))
+        result.extend(self._pulse_visitor.visit_basic_block(calibration_stmts, is_def_cal=False))
 
         return result
 

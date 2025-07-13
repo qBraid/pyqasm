@@ -120,8 +120,8 @@ class Frame:
     """
 
     port: Any
-    frequency: Any
-    phase: Any
+    frequency: float
+    phase: float
     time: Optional[Any] = 0.0
 
 
