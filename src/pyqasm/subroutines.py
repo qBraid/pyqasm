@@ -419,7 +419,7 @@ class Qasm3SubroutineProcessor:
                 error_node=fn_call,
                 span=fn_call.span,
             )
-        cls.visitor_obj._label_scope_level[cls.visitor_obj._curr_scope].add(formal_reg_name)
+        # cls.visitor_obj._label_scope_level[cls.visitor_obj._curr_scope].add(formal_reg_name)
 
         actual_qids, actual_qubits_size = Qasm3Transformer.get_target_qubits(
             actual_arg, cls.visitor_obj._global_qreg_size_map, actual_arg_name

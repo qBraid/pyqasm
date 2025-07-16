@@ -103,6 +103,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     span: Any = None
     is_constant: bool = False
     is_register: bool = False
+    is_alias: bool = False
     readonly: bool = False
 
 

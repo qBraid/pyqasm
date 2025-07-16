@@ -57,6 +57,7 @@ from pyqasm.maps.gates import (
     map_qasm_op_num_params,
     map_qasm_op_to_callable,
 )
+from pyqasm.scope_manager import ScopeManager
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
@@ -72,18 +73,19 @@ class QasmVisitor:
     This class is designed to traverse and interact with elements in an OpenQASM program.
 
     Args:
-        initialize_runtime (bool): If True, quantum runtime will be initialized. Defaults to True.
-        record_output (bool): If True, output of the circuit will be recorded. Defaults to True.
+        module: The OpenQASM module to visit.
+        scope_manager (ScopeManager): The scope manager to handle variable scopes.
+        check_only (bool): If True, only check the program without executing it. Defaults to False.
         external_gates (list[str]): List of gates that should not be unrolled.
         unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
-        check_only (bool): If True, only check the program without executing it. Defaults to False.
-        device_qubits (int): Number of physical qubits available on the target device.
+        max_loop_iters (int): Max iterations for loops to prevent infinite loops. Defaults to 1e9.
         consolidate_qubits (bool): If True, consolidate all quantum registers into single register.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
         module,
+        scope_manager: ScopeManager,
         check_only: bool = False,
         external_gates: list[str] | None = None,
         unroll_barriers: bool = True,
@@ -91,8 +93,6 @@ class QasmVisitor:
         consolidate_qubits: bool = False,
     ):
         self._module = module
-        self._scope: deque = deque([{}])
-        self._context: deque = deque([Context.GLOBAL])
         self._included_files: set[str] = set()
         self._qubit_labels: dict[str, int] = {}
         self._clbit_labels: dict[str, int] = {}
@@ -107,8 +107,6 @@ class QasmVisitor:
         self._subroutine_defns: dict[str, qasm3_ast.SubroutineDefinition] = {}
         self._check_only: bool = check_only
         self._unroll_barriers: bool = unroll_barriers
-        self._curr_scope: int = 0
-        self._label_scope_level: dict[int, set] = {self._curr_scope: set()}
         self._recording_ext_gate_depth = False
         self._in_branching_statement: int = 0
         self._is_branch_qubits: set[tuple[str, int]] = set()
@@ -121,177 +119,60 @@ class QasmVisitor:
         self._qubit_register_offsets: OrderedDict = OrderedDict()
         self._qubit_register_max_offset = 0
 
+        self._scope_manager: ScopeManager = scope_manager
+
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
         for class_obj in [Qasm3Transformer, Qasm3ExprEvaluator, Qasm3SubroutineProcessor]:
             class_obj.set_visitor_obj(self)
 
     def _push_scope(self, scope: dict) -> None:
-        if not isinstance(scope, dict):
-            raise TypeError("Scope must be a dictionary")
-        self._scope.append(scope)
+        self._scope_manager.push_scope(scope)
 
     def _push_context(self, context: Context) -> None:
-        if not isinstance(context, Context):
-            raise TypeError("Context must be an instance of Context")
-        self._context.append(context)
+        self._scope_manager.push_context(context)
 
     def _pop_scope(self) -> None:
-        if len(self._scope) == 0:
-            raise IndexError("Scope list is empty, can not pop")
-        self._scope.pop()
+        self._scope_manager.pop_scope()
 
     def _restore_context(self) -> None:
-        if len(self._context) == 0:
-            raise IndexError("Context list is empty, can not pop")
-        self._context.pop()
+        self._scope_manager.restore_context()
 
     def _get_parent_scope(self) -> dict:
-        if len(self._scope) < 2:
-            raise IndexError("Parent scope not available")
-        return self._scope[-2]
+        return self._scope_manager.get_parent_scope()
 
     def _get_curr_scope(self) -> dict:
-        if len(self._scope) == 0:
-            raise IndexError("No scopes available to get")
-        return self._scope[-1]
+        return self._scope_manager.get_curr_scope()
 
     def _get_curr_context(self) -> Context:
-        if len(self._context) == 0:
-            raise IndexError("No context available to get")
-        return self._context[-1]
+        return self._scope_manager.get_curr_context()
 
     def _get_global_scope(self) -> dict:
-        if len(self._scope) == 0:
-            raise IndexError("No scopes available to get")
-        return self._scope[0]
+        return self._scope_manager.get_global_scope()
 
     def _check_in_scope(self, var_name: str) -> bool:
-        """
-        Checks if a variable is in scope.
-
-        Args:
-            var_name (str): The name of the variable to check.
-
-        Returns:
-            bool: True if the variable is in scope, False otherwise.
-
-        NOTE:
-
-        - According to our definition of scope, we have a NEW DICT
-          for each block scope also
-        - Since all visible variables of the immediate parent are visible
-          inside block scope, we have to check till we reach the boundary
-          contexts
-        - The "boundary" for a scope is either a FUNCTION / GATE context
-          OR the GLOBAL context
-        - Why then do we need a new scope for a block?
-        - Well, if the block redeclares a variable in its scope, then the
-          variable in the parent scope is shadowed. We need to remember the
-          original value of the shadowed variable when we exit the block scope
-
-        """
-        global_scope = self._get_global_scope()
-        curr_scope = self._get_curr_scope()
-        if self._in_global_scope():
-            return var_name in global_scope
-        if self._in_function_scope() or self._in_gate_scope():
-            if var_name in curr_scope:
-                return True
-            if var_name in global_scope:
-                return global_scope[var_name].is_constant
-        if self._in_block_scope():
-            for scope, context in zip(reversed(self._scope), reversed(self._context)):
-                if context != Context.BLOCK:
-                    return var_name in scope
-                if var_name in scope:
-                    return True
-        return False
+        return self._scope_manager.check_in_scope(var_name)
 
     def _get_from_visible_scope(self, var_name: str) -> Variable | None:
-        """
-        Retrieves a variable from the visible scope.
-
-        Args:
-            var_name (str): The name of the variable to retrieve.
-
-        Returns:
-            Variable | None: The variable if found, None otherwise.
-        """
-        global_scope = self._get_global_scope()
-        curr_scope = self._get_curr_scope()
-
-        if self._in_global_scope():
-            return global_scope.get(var_name, None)
-        if self._in_function_scope() or self._in_gate_scope():
-            if var_name in curr_scope:
-                return curr_scope[var_name]
-            if var_name in global_scope and global_scope[var_name].is_constant:
-                return global_scope[var_name]
-        if self._in_block_scope():
-            for scope, context in zip(reversed(self._scope), reversed(self._context)):
-                if context != Context.BLOCK:
-                    return scope.get(var_name, None)
-                if var_name in scope:
-                    return scope[var_name]
-                    # keep on checking otherwise
-        return None
+        return self._scope_manager.get_from_visible_scope(var_name)
 
     def _add_var_in_scope(self, variable: Variable) -> None:
-        """Add a variable to the current scope.
-
-        Args:
-            variable (Variable): The variable to add.
-
-        Raises:
-            ValueError: If the variable already exists in the current scope.
-        """
-        curr_scope = self._get_curr_scope()
-        if variable.name in curr_scope:
-            raise ValueError(f"Variable '{variable.name}' already exists in current scope")
-        curr_scope[variable.name] = variable
+        self._scope_manager.add_var_in_scope(variable)
 
     def _update_var_in_scope(self, variable: Variable) -> None:
-        """
-        Updates the variable in the current scope.
-
-        Args:
-            variable (Variable): The variable to be updated.
-
-        Raises:
-            ValueError: If no scope is available to update.
-        """
-        if len(self._scope) == 0:
-            raise ValueError("No scope available to update")
-
-        global_scope = self._get_global_scope()
-        curr_scope = self._get_curr_scope()
-
-        if self._in_global_scope():
-            global_scope[variable.name] = variable
-        if self._in_function_scope() or self._in_gate_scope():
-            curr_scope[variable.name] = variable
-        if self._in_block_scope():
-            for scope, context in zip(reversed(self._scope), reversed(self._context)):
-                if context != Context.BLOCK:
-                    scope[variable.name] = variable
-                    break
-                if variable.name in scope:
-                    scope[variable.name] = variable
-                    break
-                continue
+        self._scope_manager.update_var_in_scope(variable)
 
     def _in_global_scope(self) -> bool:
-        return len(self._scope) == 1 and self._get_curr_context() == Context.GLOBAL
+        return self._scope_manager.in_global_scope()
 
     def _in_function_scope(self) -> bool:
-        return len(self._scope) > 1 and self._get_curr_context() == Context.FUNCTION
+        return self._scope_manager.in_function_scope()
 
     def _in_gate_scope(self) -> bool:
-        return len(self._scope) > 1 and self._get_curr_context() == Context.GATE
+        return self._scope_manager.in_gate_scope()
 
-    def _in_block_scope(self) -> bool:  # block scope is for if/else/for/while constructs
-        return len(self._scope) > 1 and self._get_curr_context() == Context.BLOCK
+    def _in_block_scope(self) -> bool:
+        return self._scope_manager.in_block_scope()
 
     def _visit_quantum_register(
         self, register: qasm3_ast.QubitDeclaration
@@ -362,8 +243,6 @@ class QasmVisitor:
             label_map[f"{register_name}_{i}"] = current_size + i
             self._module._qubit_depths[(register_name, i)] = QubitDepthNode(register_name, i)
 
-        self._label_scope_level[self._curr_scope].add(register_name)
-
         self._module._add_qubit_register(register_name, register_size)
 
         # _qubit_register_offsets maps each original quantum register to its
@@ -378,27 +257,6 @@ class QasmVisitor:
         if self._check_only:
             return []
         return [register]
-
-    def _check_if_name_in_scope(self, name: str, operation: Any) -> None:
-        """Check if a name is in scope to avoid duplicate declarations.
-        Args:
-            name (str): The name to check.
-            operation (Any): The operation to check the name in scope for.
-
-        Returns:
-            bool: Whether the name is in scope.
-        """
-        for scope_level in range(0, self._curr_scope + 1):
-            if name in self._label_scope_level[scope_level]:
-                return
-
-        operation_type = type(operation).__name__
-        operation_name = operation.name.name if hasattr(operation.name, "name") else operation.name
-        raise_qasm3_error(
-            f"Variable '{name}' not in scope for {operation_type} '{operation_name}'",
-            error_node=operation,
-            span=operation.span,
-        )
 
     # pylint: disable-next=too-many-locals,too-many-branches
     def _get_op_bits(
@@ -461,7 +319,7 @@ class QasmVisitor:
                         error_node=operation,
                         span=operation.span,
                     )
-            self._check_if_name_in_scope(reg_name, operation)
+            max_register_size = reg_size_map[reg_name]
 
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
                 if isinstance(bit.indices[0], qasm3_ast.DiscreteSet):
@@ -471,14 +329,14 @@ class QasmVisitor:
                 elif isinstance(bit.indices[0][0], qasm3_ast.RangeDefinition):
                     bit_ids = Qasm3Transformer.get_qubits_from_range_definition(
                         bit.indices[0][0],
-                        reg_size_map[reg_name],
+                        max_register_size,
                         is_qubit_reg=qubits,
                         op_node=operation,
                     )
                 else:
                     bit_id = Qasm3ExprEvaluator.evaluate_expression(bit.indices[0][0])[0]
                     Qasm3Validator.validate_register_index(
-                        bit_id, reg_size_map[reg_name], qubit=qubits, op_node=operation
+                        bit_id, max_register_size, qubit=qubits, op_node=operation
                     )
                     bit_ids = [bit_id]
             else:
@@ -1709,8 +1567,6 @@ class QasmVisitor:
                 self._clbit_labels[f"{var_name}_{i}"] = current_classical_size + i
                 self._module._clbit_depths[(var_name, i)] = ClbitDepthNode(var_name, i)
 
-            self._label_scope_level[self._curr_scope].add(var_name)
-
             if hasattr(statement.type, "size"):
                 statement.type.size = (
                     qasm3_ast.IntegerLiteral(1)
@@ -1893,8 +1749,7 @@ class QasmVisitor:
         """
         self._push_context(Context.BLOCK)
         self._push_scope({})
-        self._curr_scope += 1
-        self._label_scope_level[self._curr_scope] = set()
+        self._scope_manager.increment_scope_level()
         self._in_branching_statement += 1
 
         result = []
@@ -2005,8 +1860,7 @@ class QasmVisitor:
 
             result.extend(self.visit_basic_block(block_to_visit))  # type: ignore[arg-type]
 
-        del self._label_scope_level[self._curr_scope]
-        self._curr_scope -= 1
+        self._scope_manager.decrement_scope_level()
         self._pop_scope()
         self._restore_context()
         self._in_branching_statement -= 1
@@ -2181,8 +2035,7 @@ class QasmVisitor:
                 )
 
         self._push_scope({})
-        self._curr_scope += 1
-        self._label_scope_level[self._curr_scope] = set()
+        self._scope_manager.increment_scope_level()
         self._push_context(Context.FUNCTION)
 
         for var in quantum_vars:
@@ -2221,8 +2074,7 @@ class QasmVisitor:
         self._function_qreg_size_map.pop()
 
         self._restore_context()
-        del self._label_scope_level[self._curr_scope]
-        self._curr_scope -= 1
+        self._scope_manager.decrement_scope_level()
         self._pop_scope()
 
         if self._check_only:
@@ -2316,12 +2168,13 @@ class QasmVisitor:
 
         # Alias should not be redeclared earlier as a variable or a constant
         if self._check_in_scope(alias_reg_name):
-            raise_qasm3_error(
-                f"Re-declaration of variable '{alias_reg_name}'",
-                error_node=statement,
-                span=statement.span,
-            )
-        self._label_scope_level[self._curr_scope].add(alias_reg_name)
+            # Earlier Aliases can be updated
+            if not alias_reg_name in self._global_alias_size_map:
+                raise_qasm3_error(
+                    f"Re-declaration of variable '{alias_reg_name}'",
+                    error_node=statement,
+                    span=statement.span,
+                )
 
         if isinstance(value, qasm3_ast.Identifier):
             aliased_reg_name = value.name
@@ -2384,6 +2237,24 @@ class QasmVisitor:
                 for i, qid in enumerate(qids):
                     self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, qid)
                 alias_reg_size = len(qids)
+
+        # we are updating as the alias can be redefined as well
+        alias_var = Variable(
+            alias_reg_name,
+            qasm3_ast.QubitDeclaration,
+            alias_reg_size,
+            [],
+            None,
+            is_alias=True,
+            span=statement.span,
+        )
+
+        if alias_reg_name in self._global_alias_size_map:
+            # if the alias is already present, we update it
+            self._update_var_in_scope(alias_var)
+        else:
+            # if the alias is not present, we add it to the scope
+            self._add_var_in_scope(alias_var)
 
         self._global_alias_size_map[alias_reg_name] = alias_reg_size
 
@@ -2537,7 +2408,6 @@ class QasmVisitor:
         }
 
         visitor_function = visit_map.get(type(statement))
-
         if visitor_function:
             if isinstance(statement, qasm3_ast.ExpressionStatement):
                 # these return a tuple of return value and list of statements
