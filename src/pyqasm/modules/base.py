@@ -17,11 +17,13 @@ Definition of the base Qasm module
 """
 
 from abc import ABC, abstractmethod
+from collections import Counter
 from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, Program, QuantumGate
+from tabulate import tabulate
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.decomposer import Decomposer
@@ -59,11 +61,17 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._decompose_native_gates: Optional[bool] = None
         self._device_qubits: Optional[int] = None
         self._consolidate_qubits: Optional[bool] = False
+        self._user_operations: list[str] = ["load"]
 
     @property
     def name(self) -> str:
         """Returns the name of the module."""
         return self._name
+
+    @property
+    def history(self) -> list[str]:
+        """Returns the user operations performed on the module."""
+        return self._user_operations
 
     @property
     def num_qubits(self) -> int:
@@ -156,6 +164,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Returns:
             QasmModule: The module with the measurements removed if in_place is False
         """
+        self._user_operations.append("remove_measurements")
         stmt_list = (
             self._statements
             if len(self._unrolled_ast.statements) == 0
@@ -233,6 +242,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         curr_module._has_barriers = False
         curr_module._statements = stmts_without_barriers
         curr_module._unrolled_ast.statements = stmts_without_barriers
+        curr_module._user_operations.append("remove_barriers")
 
         return curr_module
 
@@ -259,6 +269,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         curr_module._statements = stmts_without_includes
         curr_module._unrolled_ast.statements = stmts_without_includes
+        curr_module._user_operations.append("remove_includes")
 
         return curr_module
 
@@ -275,6 +286,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """
         # 1. Since the program will be unrolled before its execution on a QC, it makes sense to
         # calculate the depth of the unrolled program.
+        self._user_operations.append(f"depth(decompose_native_gates={decompose_native_gates})")
 
         # We are performing operations in place, thus we need to calculate depth
         # at "each instance of the function call".
@@ -450,6 +462,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         # the original ast will need to be updated to the unrolled ast as if we call the
         # unroll operation again, it will incorrectly choose the original ast WITH THE IDLE QUBITS
         qasm_module._statements = qasm_module._unrolled_ast.statements
+        qasm_module._user_operations.append("remove_idle_qubits")
 
         return qasm_module
 
@@ -468,6 +481,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         qasm_module = self if in_place else self.copy()
         qasm_module.unroll()
+        qasm_module._user_operations.append("reverse_qubit_order")
 
         new_qubit_mappings = {}
         for register, size in self._qubit_registers.items():
@@ -517,6 +531,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """Validate the module"""
         if self._validated_program is True:
             return
+        self._user_operations.append("validate")
         try:
             self.num_qubits, self.num_clbits = 0, 0
             visitor = QasmVisitor(self, check_only=True)
@@ -558,6 +573,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         if not kwargs:
             kwargs = {}
 
+        self._user_operations.append(f"unroll({kwargs})")
         try:
             self.num_qubits, self.num_clbits = 0, 0
             if ext_gates := kwargs.get("external_gates"):
@@ -588,6 +604,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         """
         if target_basis_set not in DECOMPOSITION_RULES:
             raise ValueError(f"Target basis set '{target_basis_set}' is not defined.")
+        self._user_operations.append(f"rebase({target_basis_set})")
 
         qasm_module = self if in_place else self.copy()
 
@@ -622,6 +639,58 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         qasm_module._unrolled_ast.statements = rebased_statements
 
         return qasm_module
+
+    def get_gate_counts(self) -> dict[str, int]:
+        """Return a dictionary of gate counts in the unrolled program.
+
+        Returns:
+            dict[str, int]: A dictionary of gate counts.
+        """
+        if not self._unrolled_ast.statements:
+            self.unroll()
+
+        gate_nodes = [
+            s for s in self._unrolled_ast.statements if isinstance(s, qasm3_ast.QuantumGate)
+        ]
+        return dict(Counter(gate.name.name for gate in gate_nodes))
+
+    def compare(self, other_module: "QasmModule"):
+        """Compare two QasmModule objects across multiple attributes.
+
+        Args:
+            other_module (QasmModule): The module to compare with.
+        """
+        self_counts = self.get_gate_counts()
+        other_counts = other_module.get_gate_counts()
+        all_gates = sorted(list(set(self_counts) | set(other_counts)))
+
+        # Format lists into multi-line strings for better readability
+        self_history_str = "\n".join(map(str, self.history))
+        other_history_str = "\n".join(map(str, other_module.history))
+        self_ext_gates_str = "\n".join(self._external_gates)
+        other_ext_gates_str = "\n".join(other_module._external_gates)
+
+        table_data = [
+            ["Qubits", self.num_qubits, other_module.num_qubits],
+            ["Classical Bits", self.num_clbits, other_module.num_clbits],
+            ["Depth", self.depth(), other_module.depth()],
+            ["External Gates", self_ext_gates_str, other_ext_gates_str],
+            ["History", self_history_str, other_history_str],
+            ["-" * 15, "-" * 15, "-" * 15],  # Separator
+            ["Gate Counts", "Self", "Other"],
+            ["-" * 15, "-" * 15, "-" * 15],  # Separator
+        ]
+
+        for gate in all_gates:
+            table_data.append([gate, self_counts.get(gate, 0), other_counts.get(gate, 0)])
+
+        print(
+            tabulate(
+                table_data,
+                headers=["Attribute", "Self", "Other"],
+                tablefmt="grid",
+            )
+        )
 
     @staticmethod
     def skip_qasm_files_with_tag(content: str, mode: str) -> bool:
