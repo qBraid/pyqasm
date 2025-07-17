@@ -343,7 +343,6 @@ class Qasm3Transformer:
     def transform_function_qubits(
         cls,
         q_op: QuantumGate | QuantumBarrier | QuantumReset | QuantumPhase,
-        formal_qreg_sizes: dict[str, int],
         qubit_map: dict[tuple, tuple],
     ) -> list[IndexedIdentifier]:
         """Transform the qubits of a function call to the actual qubits.
@@ -357,7 +356,7 @@ class Qasm3Transformer:
         Returns:
             None
         """
-        expanded_op_qubits = cls.visitor_obj._get_op_bits(q_op, formal_qreg_sizes)
+        expanded_op_qubits = cls.visitor_obj._get_op_bits(q_op)
 
         transformed_qubits = []
         for qubit in expanded_op_qubits:

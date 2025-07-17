@@ -23,6 +23,7 @@ from collections import deque
 from pyqasm.elements import Context, Variable
 
 
+# pylint: disable-next=too-many-public-methods
 class ScopeManager:
     """
     Manages variable scopes and contexts for QasmVisitor and PulseVisitor.
@@ -110,7 +111,7 @@ class ScopeManager:
 
     def in_gate_scope(self) -> bool:
         """Check if currently in a gate scope."""
-        return len(self._scope) > 1 and self.get_curr_context() == Context.GATE
+        return len(self._scope) >= 1 and self.get_curr_context() == Context.GATE
 
     def in_block_scope(self) -> bool:
         """Check if currently in a block scope (if/else/for/while)."""
@@ -172,15 +173,38 @@ class ScopeManager:
         if self.in_function_scope() or self.in_gate_scope():
             if var_name in curr_scope:
                 return curr_scope[var_name]
-            if var_name in global_scope and global_scope[var_name].is_constant:
+            if var_name in global_scope and (
+                global_scope[var_name].is_constant or global_scope[var_name].is_qubit
+            ):
+                # we also need to return the variable if it is a constant or qubit
+                # in the global scope, as it can be used in the function or gate
                 return global_scope[var_name]
         if self.in_block_scope():
+            var_found = None
             for scope, context in zip(reversed(self._scope), reversed(self._context)):
                 if context != Context.BLOCK:
-                    return scope.get(var_name, None)
+                    var_found = scope.get(var_name, None)
+                    break
                 if var_name in scope:
                     return scope[var_name]
+            if not var_found:
+                # if broken out of the loop without finding the variable,
+                # check the global scope
+                var_found = global_scope.get(var_name, None)
+            return var_found
         return None
+
+    def get_from_global_scope(self, var_name: str) -> Variable | None:
+        """
+        Retrieve a variable from the global scope.
+
+        Args:
+            var_name (str): The name of the variable to retrieve.
+
+        Returns:
+            Variable | None: The variable if found, None otherwise.
+        """
+        return self.get_global_scope().get(var_name, None)
 
     def add_var_in_scope(self, variable: Variable) -> None:
         """

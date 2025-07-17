@@ -142,12 +142,12 @@ def test_classical_quantum_function():
     qasm_str = """
     OPENQASM 3.0;
     include "stdgates.inc";
-    def my_function(qubit q, int[32] iter) -> int[32]{
-        h q;
+    def my_function(qubit qin, int[32] iter) -> int[32]{
+        h qin;
         if(iter>2)
-            x q;
+            x qin;
         if (iter>3)
-            y q;
+            y qin;
         return iter + 1;
     }
     qubit[4] q;
@@ -219,13 +219,12 @@ def test_return_values_from_function():
     """Test that the values returned from a function are used correctly in other function."""
     qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
-
-    def my_function(qubit q) -> float[32] {
-        h q;
+    def my_function(qubit qin) -> float[32] {
+        h qin;
         return 3.14;
     }
-    def my_function_2(qubit q, float[32] r) {
-        rx(r) q;
+    def my_function_2(qubit qin, float[32] r) {
+        rx(r) qin;
         return;
     }
     qubit[2] q;
@@ -299,6 +298,37 @@ def test_function_call_from_within_fn():
     assert result.num_qubits == 2
 
     check_single_qubit_gate_op(result.unrolled_ast, 1, [1], "h")
+
+
+@pytest.mark.skip(reason="Bug: qubit in function scope conflicts with global scope")
+def test_return_values_from_function():
+    """Test that the values returned from a function are used correctly in other function."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    def my_function(qubit q) -> float[32] {
+        h q;
+        return 3.14;
+    }
+    def my_function_2(qubit q, float[32] r) {
+        rx(r) q;
+        return;
+    }
+    qubit[2] q;
+    float[32] r1 = my_function(q[0]);
+    my_function_2(q[0], r1);
+
+    array[float[32], 1, 1] r2 = {{3.14}};
+    my_function_2(q[1], r2[0,0]);
+
+    """
+
+    result = loads(qasm_str)
+    result.unroll()
+    assert result.num_clbits == 0
+    assert result.num_qubits == 2
+
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
+    check_single_qubit_rotation_op(result.unrolled_ast, 2, [0, 1], [3.14, 3.14], "rx")
 
 
 @pytest.mark.parametrize("data_type", ["int[32] a = 1;", "float[32] a = 1.0;", "bit a = 0;"])

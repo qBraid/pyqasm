@@ -45,6 +45,7 @@ Exceptions
 .. autosummary::
    :toctree: ../stubs/
 
+   LoopLimitExceededError
    PyQasmError
    ValidationError
    QasmParsingError

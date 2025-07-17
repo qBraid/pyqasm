@@ -455,6 +455,7 @@ class Qasm3SubroutineProcessor:
             base_size=formal_qubit_size,
             dims=None,
             value=None,
+            is_qubit=True,
             is_constant=False,
             span=fn_call.span,
         )

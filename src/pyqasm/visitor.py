@@ -57,7 +57,7 @@ from pyqasm.maps.gates import (
     map_qasm_op_num_params,
     map_qasm_op_to_callable,
 )
-from pyqasm.scope_manager import ScopeManager
+from pyqasm.scope import ScopeManager
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
@@ -226,14 +226,14 @@ class QasmVisitor:
 
         self._add_var_in_scope(
             Variable(
-                register_name,
-                qasm3_ast.QubitDeclaration,
-                register_size,
-                None,
-                None,
-                register.span,
-                False,
-                True,
+                name=register_name,
+                base_type=qasm3_ast.QubitDeclaration,
+                base_size=register_size,
+                dims=None,
+                value=None,
+                span=register.span,
+                is_qubit=True,
+                is_constant=False,
             )
         )
         size_map[f"{register_name}"] = register_size
@@ -260,20 +260,18 @@ class QasmVisitor:
 
     # pylint: disable-next=too-many-locals,too-many-branches
     def _get_op_bits(
-        self, operation: Any, reg_size_map: dict, qubits: bool = True
+        self, operation: Any, qubits: bool = True
     ) -> list[qasm3_ast.IndexedIdentifier]:
         """Get the quantum / classical bits for the operation.
 
         Args:
             operation (Any): The operation to get qubits for.
-            reg_size_map (dict): The size map of the registers in scope.
             qubits (bool): Whether the bits are quantum bits or classical bits. Defaults to True.
         Returns:
             list[qasm3_ast.IndexedIdentifier] : The bits for the operation.
         """
         openqasm_bits = []
         bit_list = []
-        original_size_map = reg_size_map
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
             if qubits:
@@ -282,7 +280,7 @@ class QasmVisitor:
                 assert operation.target is not None
                 bit_list = [operation.target]
         elif isinstance(operation, qasm3_ast.QuantumPhase) and operation.qubits is None:
-            for reg_name, reg_size in reg_size_map.items():
+            for reg_name, reg_size in self._global_qreg_size_map.items():
                 bit_list.append(
                     qasm3_ast.IndexedIdentifier(
                         qasm3_ast.Identifier(reg_name), [[qasm3_ast.IntegerLiteral(i)]]
@@ -297,29 +295,24 @@ class QasmVisitor:
 
         for bit in bit_list:
             # required for each bit
-            replace_alias = False
-            reg_size_map = original_size_map
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
                 reg_name = bit.name.name
             else:
                 reg_name = bit.name
 
-            if reg_name not in reg_size_map:
-                # check for aliasing
-                if qubits and reg_name in self._global_alias_size_map:
-                    replace_alias = True
-                    reg_size_map = self._global_alias_size_map
-                else:
-                    err_msg = (
-                        f"Missing {'qubit' if qubits else 'clbit'} register declaration "
-                        f"for '{reg_name}' in {type(operation).__name__}"
-                    )
-                    raise_qasm3_error(
-                        err_msg,
-                        error_node=operation,
-                        span=operation.span,
-                    )
-            max_register_size = reg_size_map[reg_name]
+            reg_var = self._scope_manager.get_from_visible_scope(reg_name)
+            if reg_var is None:
+                err_msg = (
+                    f"Missing {'qubit' if qubits else 'clbit'} register declaration "
+                    f"for '{reg_name}' in {type(operation).__name__}"
+                )
+                raise_qasm3_error(
+                    err_msg,
+                    error_node=operation,
+                    span=operation.span,
+                )
+            assert isinstance(reg_var, Variable)
+            max_register_size = reg_var.base_size
 
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
                 if isinstance(bit.indices[0], qasm3_ast.DiscreteSet):
@@ -340,9 +333,9 @@ class QasmVisitor:
                     )
                     bit_ids = [bit_id]
             else:
-                bit_ids = list(range(reg_size_map[reg_name]))
+                bit_ids = list(range(max_register_size))
 
-            if replace_alias:
+            if reg_var.is_alias:
                 original_reg_name, _ = self._alias_qubit_labels[(reg_name, bit_ids[0])]
                 bit_ids = [
                     self._alias_qubit_labels[(reg_name, bit_id)][1]  # gives (original_reg, index)
@@ -505,9 +498,7 @@ class QasmVisitor:
                 span=statement.span,
             )
 
-        source_ids = self._get_op_bits(
-            statement, reg_size_map=self._global_qreg_size_map, qubits=True
-        )
+        source_ids = self._get_op_bits(statement, qubits=True)
 
         unrolled_measurements = []
 
@@ -536,9 +527,7 @@ class QasmVisitor:
                     span=statement.span,
                 )
 
-            target_ids = self._get_op_bits(
-                statement, reg_size_map=self._global_creg_size_map, qubits=False
-            )
+            target_ids = self._get_op_bits(statement, qubits=False)
 
             if len(source_ids) != len(target_ids):
                 raise_qasm3_error(
@@ -609,11 +598,10 @@ class QasmVisitor:
             statement.qubits = (
                 Qasm3Transformer.transform_function_qubits(  # type: ignore[assignment]
                     statement,
-                    self._function_qreg_size_map[-1],
                     self._function_qreg_transform_map[-1],
                 )
             )
-        qubit_ids = self._get_op_bits(statement, self._global_qreg_size_map, True)
+        qubit_ids = self._get_op_bits(statement, True)
 
         unrolled_resets = []
         for qid in qubit_ids:
@@ -665,11 +653,10 @@ class QasmVisitor:
             barrier.qubits = (
                 Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
                     barrier,
-                    self._function_qreg_size_map[-1],
                     self._function_qreg_transform_map[-1],
                 )
             )
-        barrier_qubits = self._get_op_bits(barrier, self._global_qreg_size_map)
+        barrier_qubits = self._get_op_bits(barrier)
         unrolled_barriers = []
         max_involved_depth = 0
         for qubit in barrier_qubits:
@@ -774,7 +761,7 @@ class QasmVisitor:
         Returns:
             The list of all targets that the unrolled gate should act on.
         """
-        op_qubits = self._get_op_bits(operation, self._global_qreg_size_map)
+        op_qubits = self._get_op_bits(operation)
         if len(op_qubits) <= 0 or len(op_qubits) % gate_qubit_count != 0:
             raise_qasm3_error(
                 f"Invalid number of qubits {len(op_qubits)} for operation {operation.name.name}",
@@ -991,12 +978,9 @@ class QasmVisitor:
             ctrls = []
         gate_name: str = operation.name.name
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
-        op_qubits: list[qasm3_ast.IndexedIdentifier] = (
-            self._get_op_bits(  # type: ignore [assignment]
-                operation,
-                self._global_qreg_size_map,
-            )
-        )
+        op_qubits: list[qasm3_ast.IndexedIdentifier] = self._get_op_bits(
+            operation
+        )  # type: ignore [assignment]
 
         Qasm3Validator.validate_gate_call(operation, gate_definition, len(op_qubits))
         # we need this because the gates applied inside a gate definition use the
@@ -1238,14 +1222,11 @@ class QasmVisitor:
             operation.qubits = (
                 Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
                     operation,
-                    self._function_qreg_size_map[-1],
                     self._function_qreg_transform_map[-1],
                 )
             )
 
-        operation.qubits = self._get_op_bits(  # type: ignore
-            operation, reg_size_map=self._global_qreg_size_map, qubits=True
-        )
+        operation.qubits = self._get_op_bits(operation, qubits=True)  # type: ignore
 
         # ctrl / pow / inv modifiers commute. so group them.
         exponent = 1
@@ -1526,7 +1507,7 @@ class QasmVisitor:
             base_size,
             final_dimensions,
             init_value,
-            is_register=isinstance(base_type, qasm3_ast.BitType),
+            is_qubit=False,
             span=statement.span,
         )
 
@@ -2249,11 +2230,12 @@ class QasmVisitor:
             span=statement.span,
         )
 
-        if alias_reg_name in self._global_alias_size_map:
-            # if the alias is already present, we update it
+        if self._check_in_scope(alias_reg_name):
+            # means, the alias is present in current scope
+            alias_var.shadow = True
             self._update_var_in_scope(alias_var)
         else:
-            # if the alias is not present, we add it to the scope
+            # if the alias is not present already, we add it to the scope
             self._add_var_in_scope(alias_var)
 
         self._global_alias_size_map[alias_reg_name] = alias_reg_size
