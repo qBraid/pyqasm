@@ -260,9 +260,8 @@ class Qasm3ExprEvaluator:
             if isinstance(target, Identifier):
                 var_name = target.name
                 cls._check_var_in_scope(var_name, expression)
-                dimensions = cls.visitor_obj._scope_manager.get_from_visible_scope(  # type: ignore[union-attr]
-                    var_name
-                ).dims
+                assert cls.visitor_obj
+                dimensions = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name).dims
             else:
                 raise_qasm3_error(
                     message=f"Unsupported target type '{type(target)}' for sizeof expression",

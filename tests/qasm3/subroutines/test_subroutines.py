@@ -301,7 +301,7 @@ def test_function_call_from_within_fn():
 
 
 @pytest.mark.skip(reason="Bug: qubit in function scope conflicts with global scope")
-def test_return_values_from_function():
+def test_qubit_renaming_in_formal_params():
     """Test that the values returned from a function are used correctly in other function."""
     qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
