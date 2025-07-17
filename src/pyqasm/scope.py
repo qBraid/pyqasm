@@ -37,7 +37,6 @@ class ScopeManager:
         self._scope: deque = deque([{}])
         self._context: deque = deque([Context.GLOBAL])
         self._scope_level: int = 0
-        self._label_scope_level: dict[int, set] = {self._scope_level: set()}
 
     def push_scope(self, scope: dict) -> None:
         """Push a new scope dictionary onto the scope stack."""
@@ -135,7 +134,7 @@ class ScopeManager:
             if var_name in curr_scope:
                 return True
             if var_name in global_scope:
-                return global_scope[var_name].is_constant
+                return global_scope[var_name].is_constant or global_scope[var_name].is_qubit
         if self.in_block_scope():
             for scope, context in zip(reversed(self._scope), reversed(self._context)):
                 if context != Context.BLOCK:

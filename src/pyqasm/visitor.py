@@ -953,6 +953,7 @@ class QasmVisitor:
         if inverse:
             gate_definition_ops.reverse()
 
+        self._scope_manager.push_scope({})
         self._scope_manager.push_context(Context.GATE)
 
         # Pause recording the depth of new gates because we are processing the
@@ -1002,6 +1003,7 @@ class QasmVisitor:
                         qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]
                         self._is_branch_qubits.add((qubit.name.name, qubit_idx))
 
+        self._scope_manager.pop_scope()
         self._scope_manager.restore_context()
 
         if self._check_only:
