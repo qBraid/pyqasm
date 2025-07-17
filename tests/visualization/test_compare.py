@@ -62,3 +62,59 @@ def test_compare_method_output(capsys):
     assert "h" in stdout
     assert "cx" in stdout
     assert "barrier" in stdout
+
+
+def test_compare_with_measurements_and_barriers(capsys):
+    """Test compare method with modules that have measurements and barriers."""
+    qasm_with_both = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[2] q;
+    bit[2] c;
+    h q[0];
+    barrier q;
+    cx q[0], q[1];
+    c = measure q;
+    """
+
+    qasm_without_both = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[2] q;
+    h q[0];
+    cx q[0], q[1];
+    """
+
+    module_with_both = loads(qasm_with_both)
+    module_without_both = loads(qasm_without_both)
+
+    module_with_both.compare(module_without_both)
+    captured = capsys.readouterr()
+    stdout = captured.out
+
+    assert "Measurements" in stdout
+    assert "Barriers" in stdout
+    assert "True" in stdout
+    assert "False" in stdout
+    assert "Classical Bits" in stdout
+
+
+def test_compare_invalid_type():
+    """Test compare method with invalid input type raises TypeError."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[2] q;
+    h q[0];
+    """
+
+    module = loads(qasm_str)
+
+    with pytest.raises(TypeError, match="Expected QasmModule instance, got str"):
+        module.compare("not a module")
+
+    with pytest.raises(TypeError, match="Expected QasmModule instance, got int"):
+        module.compare(42)

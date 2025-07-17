@@ -16,6 +16,8 @@
 Definition of the base Qasm module
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections import Counter
 from copy import deepcopy
@@ -654,12 +656,15 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         ]
         return dict(Counter(gate.name.name for gate in gate_nodes))
 
-    def compare(self, other_module: "QasmModule"):
+    def compare(self, other_module: QasmModule):
         """Compare two QasmModule objects across multiple attributes.
 
         Args:
             other_module (QasmModule): The module to compare with.
         """
+        if not isinstance(other_module, QasmModule):
+            raise TypeError(f"Expected QasmModule instance, got {type(other_module).__name__}")
+        
         self_counts = self.get_gate_counts()
         other_counts = other_module.get_gate_counts()
         all_gates = sorted(list(set(self_counts) | set(other_counts)))
@@ -673,6 +678,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         table_data = [
             ["Qubits", self.num_qubits, other_module.num_qubits],
             ["Classical Bits", self.num_clbits, other_module.num_clbits],
+            ["Measurements", self.has_measurements(), other_module.has_measurements()],
+            ["Barriers", self.has_barriers(), other_module.has_barriers()],
             ["Depth", self.depth(), other_module.depth()],
             ["External Gates", self_ext_gates_str, other_ext_gates_str],
             ["History", self_history_str, other_history_str],
