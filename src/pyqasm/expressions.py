@@ -68,7 +68,7 @@ class Qasm3ExprEvaluator:
             ValidationError: If the variable is undefined in the current scope.
         """
 
-        if not cls.visitor_obj._check_in_scope(var_name):
+        if not cls.visitor_obj._scope_manager.check_in_scope(var_name):
             raise_qasm3_error(
                 f"Undefined identifier '{var_name}' in expression",
                 err_type=ValidationError,
@@ -89,7 +89,7 @@ class Qasm3ExprEvaluator:
             ValidationError: If the variable is not a constant in the given
                                 expression.
         """
-        const_var = cls.visitor_obj._get_from_visible_scope(var_name).is_constant
+        const_var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name).is_constant
         if const_expr and not const_var:
             raise_qasm3_error(
                 f"Expected variable '{var_name}' to be constant in given expression",
@@ -111,7 +111,7 @@ class Qasm3ExprEvaluator:
         Raises:
             ValidationError: If the variable has an invalid type for the required type.
         """
-        var = cls.visitor_obj._get_from_visible_scope(var_name)
+        var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)
         if not Qasm3Validator.validate_variable_type(var, reqd_type):
             raise_qasm3_error(
                 message=f"Invalid type '{var.base_type}' of variable '{var_name}' for "
@@ -155,13 +155,14 @@ class Qasm3ExprEvaluator:
 
         var_value = None
         if isinstance(expression, Identifier):
-            var_value = cls.visitor_obj._get_from_visible_scope(var_name).value
+            var_value = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name).value
         else:
             validated_indices = Qasm3Analyzer.analyze_classical_indices(
-                indices, cls.visitor_obj._get_from_visible_scope(var_name), cls
+                indices, cls.visitor_obj._scope_manager.get_from_visible_scope(var_name), cls
             )
             var_value = Qasm3Analyzer.find_array_element(
-                cls.visitor_obj._get_from_visible_scope(var_name).value, validated_indices
+                cls.visitor_obj._scope_manager.get_from_visible_scope(var_name).value,
+                validated_indices,
             )
         return var_value
 
@@ -259,7 +260,7 @@ class Qasm3ExprEvaluator:
             if isinstance(target, Identifier):
                 var_name = target.name
                 cls._check_var_in_scope(var_name, expression)
-                dimensions = cls.visitor_obj._get_from_visible_scope(  # type: ignore[union-attr]
+                dimensions = cls.visitor_obj._scope_manager.get_from_visible_scope(  # type: ignore[union-attr]
                     var_name
                 ).dims
             else:

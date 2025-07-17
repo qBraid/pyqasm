@@ -126,54 +126,6 @@ class QasmVisitor:
         for class_obj in [Qasm3Transformer, Qasm3ExprEvaluator, Qasm3SubroutineProcessor]:
             class_obj.set_visitor_obj(self)
 
-    def _push_scope(self, scope: dict) -> None:
-        self._scope_manager.push_scope(scope)
-
-    def _push_context(self, context: Context) -> None:
-        self._scope_manager.push_context(context)
-
-    def _pop_scope(self) -> None:
-        self._scope_manager.pop_scope()
-
-    def _restore_context(self) -> None:
-        self._scope_manager.restore_context()
-
-    def _get_parent_scope(self) -> dict:
-        return self._scope_manager.get_parent_scope()
-
-    def _get_curr_scope(self) -> dict:
-        return self._scope_manager.get_curr_scope()
-
-    def _get_curr_context(self) -> Context:
-        return self._scope_manager.get_curr_context()
-
-    def _get_global_scope(self) -> dict:
-        return self._scope_manager.get_global_scope()
-
-    def _check_in_scope(self, var_name: str) -> bool:
-        return self._scope_manager.check_in_scope(var_name)
-
-    def _get_from_visible_scope(self, var_name: str) -> Variable | None:
-        return self._scope_manager.get_from_visible_scope(var_name)
-
-    def _add_var_in_scope(self, variable: Variable) -> None:
-        self._scope_manager.add_var_in_scope(variable)
-
-    def _update_var_in_scope(self, variable: Variable) -> None:
-        self._scope_manager.update_var_in_scope(variable)
-
-    def _in_global_scope(self) -> bool:
-        return self._scope_manager.in_global_scope()
-
-    def _in_function_scope(self) -> bool:
-        return self._scope_manager.in_function_scope()
-
-    def _in_gate_scope(self) -> bool:
-        return self._scope_manager.in_gate_scope()
-
-    def _in_block_scope(self) -> bool:
-        return self._scope_manager.in_block_scope()
-
     def _visit_quantum_register(
         self, register: qasm3_ast.QubitDeclaration
     ) -> list[qasm3_ast.QubitDeclaration]:
@@ -210,7 +162,7 @@ class QasmVisitor:
         size_map = self._global_qreg_size_map
         label_map = self._qubit_labels
 
-        if self._check_in_scope(register_name):
+        if self._scope_manager.check_in_scope(register_name):
             raise_qasm3_error(
                 f"Re-declaration of quantum register with name '{register_name}'",
                 error_node=register,
@@ -224,7 +176,7 @@ class QasmVisitor:
                 span=register.span,
             )
 
-        self._add_var_in_scope(
+        self._scope_manager.add_var_in_scope(
             Variable(
                 name=register_name,
                 base_type=qasm3_ast.QubitDeclaration,
@@ -451,7 +403,7 @@ class QasmVisitor:
                 f"Total qubits '({total_qubits})' exceed device qubits '({self._module._device_qubits})'.",
             )
 
-        global_scope = self._get_global_scope()
+        global_scope = self._scope_manager.get_global_scope()
         for var, val in global_scope.items():
             if var == "__PYQASM_QUBITS__":
                 raise_qasm3_error(
@@ -1001,7 +953,7 @@ class QasmVisitor:
         if inverse:
             gate_definition_ops.reverse()
 
-        self._push_context(Context.GATE)
+        self._scope_manager.push_context(Context.GATE)
 
         # Pause recording the depth of new gates because we are processing the
         # definition of a custom gate here - handle the depth separately afterwards
@@ -1050,7 +1002,7 @@ class QasmVisitor:
                         qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]
                         self._is_branch_qubits.add((qubit.name.name, qubit_idx))
 
-        self._restore_context()
+        self._scope_manager.restore_context()
 
         if self._check_only:
             return []
@@ -1097,7 +1049,7 @@ class QasmVisitor:
             qasm3_ast.FloatLiteral(param) for param in self._get_op_parameters(operation)
         ]
 
-        self._push_context(Context.GATE)
+        self._scope_manager.push_context(Context.GATE)
 
         # TODO: add ctrl @ support + testing
         modifiers = []
@@ -1127,7 +1079,7 @@ class QasmVisitor:
         for final_gate in result:
             Qasm3Analyzer.verify_gate_qubits(final_gate, operation.span)
 
-        self._restore_context()
+        self._scope_manager.restore_context()
         if self._check_only:
             return []
 
@@ -1178,7 +1130,7 @@ class QasmVisitor:
         operation.argument = qasm3_ast.FloatLiteral(value=evaluated_arg)
         # no qubit evaluation to be done here
         # if args are provided in global scope, then we should raise error
-        if self._in_global_scope() and len(operation.qubits) != 0:
+        if self._scope_manager.in_global_scope() and len(operation.qubits) != 0:
             raise_qasm3_error(
                 "Qubit arguments not allowed for 'gphase' operation in global scope",
                 error_node=operation,
@@ -1214,7 +1166,7 @@ class QasmVisitor:
         # only needs to be done once for a gate operation
         if (
             len(operation.qubits) > 0
-            and not self._in_gate_scope()
+            and not self._scope_manager.in_gate_scope()
             and len(self._function_qreg_size_map) > 0
         ):
             # we are in SOME function scope
@@ -1349,7 +1301,7 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
-        if self._check_in_scope(var_name):
+        if self._scope_manager.check_in_scope(var_name):
             raise_qasm3_error(
                 f"Re-declaration of variable '{var_name}'",
                 error_node=statement,
@@ -1384,7 +1336,7 @@ class QasmVisitor:
             variable, init_value, op_node=statement
         )
 
-        self._add_var_in_scope(variable)
+        self._scope_manager.add_var_in_scope(variable)
 
         if self._check_only:
             return []
@@ -1411,8 +1363,11 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
-        if self._check_in_scope(var_name):
-            if self._in_block_scope() and var_name not in self._get_curr_scope():
+        if self._scope_manager.check_in_scope(var_name):
+            if (
+                self._scope_manager.in_block_scope()
+                and var_name not in self._scope_manager.get_curr_scope()
+            ):
                 # we can re-declare variables once in block scope even if they are
                 # present in the parent scope
                 # Eg. int a = 10;
@@ -1538,7 +1493,7 @@ class QasmVisitor:
                         span=statement.span,
                         raised_from=err,
                     )
-        self._add_var_in_scope(variable)
+        self._scope_manager.add_var_in_scope(variable)
 
         # special handling for bit[...]
         if isinstance(base_type, qasm3_ast.BitType):
@@ -1579,7 +1534,7 @@ class QasmVisitor:
         if isinstance(lvar_name, qasm3_ast.Identifier):
             lvar_name = lvar_name.name
 
-        lvar = self._get_from_visible_scope(lvar_name)
+        lvar = self._scope_manager.get_from_visible_scope(lvar_name)
         if lvar is None:  # we check for none here, so type errors are irrelevant afterwards
             raise_qasm3_error(
                 f"Undefined variable {lvar_name} in assignment",
@@ -1668,7 +1623,7 @@ class QasmVisitor:
             )
         else:
             lvar.value = rvalue_eval  # type: ignore[union-attr]
-        self._update_var_in_scope(lvar)  # type: ignore[arg-type]
+        self._scope_manager.update_var_in_scope(lvar)  # type: ignore[arg-type]
 
         if self._check_only:
             return []
@@ -1728,8 +1683,8 @@ class QasmVisitor:
         Returns:
             None
         """
-        self._push_context(Context.BLOCK)
-        self._push_scope({})
+        self._scope_manager.push_context(Context.BLOCK)
+        self._scope_manager.push_scope({})
         self._scope_manager.increment_scope_level()
         self._in_branching_statement += 1
 
@@ -1842,8 +1797,8 @@ class QasmVisitor:
             result.extend(self.visit_basic_block(block_to_visit))  # type: ignore[arg-type]
 
         self._scope_manager.decrement_scope_level()
-        self._pop_scope()
-        self._restore_context()
+        self._scope_manager.pop_scope()
+        self._scope_manager.restore_context()
         self._in_branching_statement -= 1
         if not self._in_branching_statement:
             self._update_branching_gate_depths()
@@ -1894,8 +1849,8 @@ class QasmVisitor:
 
         result = []
         for ival in irange:
-            self._push_context(Context.BLOCK)
-            self._push_scope({})
+            self._scope_manager.push_context(Context.BLOCK)
+            self._scope_manager.push_scope({})
 
             # Initialize loop variable in loop scope
             # need to re-declare as we discard the block scope in subsequent
@@ -1905,18 +1860,18 @@ class QasmVisitor:
                     qasm3_ast.ClassicalDeclaration(statement.type, statement.identifier, init_exp)
                 )
             )
-            i = self._get_from_visible_scope(statement.identifier.name)
+            i = self._scope_manager.get_from_visible_scope(statement.identifier.name)
 
             # Update scope with current value of loop Variable
             if i is not None:
                 i.value = ival
-                self._update_var_in_scope(i)
+                self._scope_manager.update_var_in_scope(i)
 
             result.extend(self.visit_basic_block(statement.block))
 
             # scope not persistent between loop iterations
-            self._pop_scope()
-            self._restore_context()
+            self._scope_manager.pop_scope()
+            self._scope_manager.restore_context()
 
             # as we are only checking compile time errors
             # not runtime errors, we can break here
@@ -1948,7 +1903,7 @@ class QasmVisitor:
                 f"Redefinition of subroutine '{fn_name}'", error_node=statement, span=statement.span
             )
 
-        if self._check_in_scope(fn_name):
+        if self._scope_manager.check_in_scope(fn_name):
             raise_qasm3_error(
                 f"Can not declare subroutine with name '{fn_name}' as "
                 "it is already declared as a variable",
@@ -2015,15 +1970,15 @@ class QasmVisitor:
                     )
                 )
 
-        self._push_scope({})
+        self._scope_manager.push_scope({})
         self._scope_manager.increment_scope_level()
-        self._push_context(Context.FUNCTION)
+        self._scope_manager.push_context(Context.FUNCTION)
 
         for var in quantum_vars:
-            self._add_var_in_scope(var)
+            self._scope_manager.add_var_in_scope(var)
 
         for var in classical_vars:
-            self._add_var_in_scope(var)
+            self._scope_manager.add_var_in_scope(var)
 
         # push qubit transform maps
         self._function_qreg_size_map.append(formal_qreg_size_map)
@@ -2054,9 +2009,9 @@ class QasmVisitor:
         self._function_qreg_transform_map.pop()
         self._function_qreg_size_map.pop()
 
-        self._restore_context()
+        self._scope_manager.restore_context()
         self._scope_manager.decrement_scope_level()
-        self._pop_scope()
+        self._scope_manager.pop_scope()
 
         if self._check_only:
             return return_value, []
@@ -2093,21 +2048,21 @@ class QasmVisitor:
             if not cond_value:
                 break
 
-            self._push_context(Context.BLOCK)
-            self._push_scope({})
+            self._scope_manager.push_context(Context.BLOCK)
+            self._scope_manager.push_scope({})
 
             try:
                 result.extend(self.visit_basic_block(statement.block))
             except LoopControlSignal as lcs:
-                self._pop_scope()
-                self._restore_context()
+                self._scope_manager.pop_scope()
+                self._scope_manager.restore_context()
                 if lcs.signal_type == "break":
                     break
                 if lcs.signal_type == "continue":
                     continue
 
-            self._pop_scope()
-            self._restore_context()
+            self._scope_manager.pop_scope()
+            self._scope_manager.restore_context()
 
             loop_counter += 1
             if loop_counter >= max_iterations:
@@ -2148,7 +2103,7 @@ class QasmVisitor:
         # see self._get_op_bits for details
 
         # Alias should not be redeclared earlier as a variable or a constant
-        if self._check_in_scope(alias_reg_name):
+        if self._scope_manager.check_in_scope(alias_reg_name):
             # Earlier Aliases can be updated
             if not alias_reg_name in self._global_alias_size_map:
                 raise_qasm3_error(
@@ -2230,13 +2185,13 @@ class QasmVisitor:
             span=statement.span,
         )
 
-        if self._check_in_scope(alias_reg_name):
+        if self._scope_manager.check_in_scope(alias_reg_name):
             # means, the alias is present in current scope
             alias_var.shadow = True
-            self._update_var_in_scope(alias_var)
+            self._scope_manager.update_var_in_scope(alias_var)
         else:
             # if the alias is not present already, we add it to the scope
-            self._add_var_in_scope(alias_var)
+            self._scope_manager.add_var_in_scope(alias_var)
 
         self._global_alias_size_map[alias_reg_name] = alias_reg_size
 
@@ -2265,7 +2220,7 @@ class QasmVisitor:
             switch_target_name, _ = Qasm3Analyzer.analyze_index_expression(switch_target)
 
         if not Qasm3Validator.validate_variable_type(
-            self._get_from_visible_scope(switch_target_name), qasm3_ast.IntType
+            self._scope_manager.get_from_visible_scope(switch_target_name), qasm3_ast.IntType
         ):
             raise_qasm3_error(
                 f"Switch target {switch_target_name} must be of type int",
@@ -2289,15 +2244,15 @@ class QasmVisitor:
         def _evaluate_case(statements):
             # can not put 'context' outside
             # BECAUSE the case expression CAN CONTAIN VARS from global scope
-            self._push_context(Context.BLOCK)
-            self._push_scope({})
+            self._scope_manager.push_context(Context.BLOCK)
+            self._scope_manager.push_scope({})
             result = []
             for stmt in statements:
                 Qasm3Validator.validate_statement_type(SWITCH_BLACKLIST_STMTS, stmt, "switch")
                 result.extend(self.visit_statement(stmt))
 
-            self._pop_scope()
-            self._restore_context()
+            self._scope_manager.pop_scope()
+            self._scope_manager.restore_context()
             if self._check_only:
                 return []
             return result
