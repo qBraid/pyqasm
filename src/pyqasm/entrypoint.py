@@ -44,6 +44,30 @@ def load(filename: str, **kwargs) -> QasmModule:
         raise TypeError("Input 'filename' must be of type 'str'.")
     with open(filename, "r", encoding="utf-8") as file:
         program = file.read()
+
+        # Insert included files conent
+        programs_to_insert = []
+        insert_idx = -1
+        program_lines = program.splitlines()
+        for idx, line in enumerate(program_lines):
+            if line.startswith("include"):
+                include_filename = line.split('"')[1]
+                if include_filename == "stdgates.inc":
+                    continue
+                with open(include_filename, "r", encoding="utf-8") as include_file:
+                    include_content = include_file.read()
+                    programs_to_insert.append(include_content)
+                    insert_idx = idx
+        
+        # Insert content below last include line
+        if programs_to_insert:
+            program_lines = (
+                program_lines[:insert_idx + 1] +
+                programs_to_insert +
+                program_lines[insert_idx + 1:]
+            )
+            program = "\n".join(program_lines)
+
     return loads(program, **kwargs)
 
 
@@ -67,6 +91,10 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
     if isinstance(program, str):
         try:
             program = openqasm3.parse(program)
+            for statement in program.statements:
+                if isinstance(statement, openqasm3.ast.Include):
+                    # Handle includes here if necessary
+                    print("include")
         except openqasm3.parser.QASM3ParsingError as err:
             raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
     elif not isinstance(program, openqasm3.ast.Program):
