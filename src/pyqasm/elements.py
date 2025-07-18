@@ -90,8 +90,10 @@ class Variable:  # pylint: disable=too-many-instance-attributes
         dims (Optional[List[int]]): Dimensions of the variable.
         value (Optional[int | float | np.ndarray]): Value of the variable.
         span (Any): Span of the variable.
+        shadow (bool): Flag indicating if the current variable is shadowed from its parent scope.
         is_constant (bool): Flag indicating if the variable is constant.
         is_register (bool): Flag indicating if the variable is a register.
+        is_alias (bool): Flag indicating if the variable is an alias.
         readonly (bool): Flag indicating if the variable is readonly.
     """
 
@@ -101,8 +103,10 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     dims: Optional[list[int]] = None
     value: Optional[int | float | np.ndarray] = None
     span: Any = None
+    shadow: bool = False
     is_constant: bool = False
-    is_register: bool = False
+    is_qubit: bool = False
+    is_alias: bool = False
     readonly: bool = False
 
 

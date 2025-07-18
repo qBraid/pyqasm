@@ -138,7 +138,7 @@ class Qasm3SubroutineProcessor:
 
             # 2. as we have pushed the scope for fn, we need to check in parent
             #    scope for argument validation
-            if not cls.visitor_obj._check_in_scope(actual_arg_name):
+            if not cls.visitor_obj._scope_manager.check_in_scope(actual_arg_name):
                 raise_qasm3_error(
                     f"Undefined variable '{actual_arg_name}' used"
                     f" for function call '{fn_name}'\n"
@@ -216,7 +216,7 @@ class Qasm3SubroutineProcessor:
             )
 
         # verify actual argument is defined in the parent scope of function call
-        if not cls.visitor_obj._check_in_scope(actual_arg_name):
+        if not cls.visitor_obj._scope_manager.check_in_scope(actual_arg_name):
             raise_qasm3_error(
                 f"Undefined variable '{actual_arg_name}' used for function call '{fn_name}'\n"
                 + f"\nUsage: {fn_name} ( {formal_args_desc} )\n",
@@ -224,7 +224,7 @@ class Qasm3SubroutineProcessor:
                 span=fn_call.span,
             )
 
-        array_reference = cls.visitor_obj._get_from_visible_scope(actual_arg_name)
+        array_reference = cls.visitor_obj._scope_manager.get_from_visible_scope(actual_arg_name)
         actual_type_string = Qasm3Transformer.get_type_string(array_reference)
 
         # ensure that actual argument is an array
@@ -419,7 +419,6 @@ class Qasm3SubroutineProcessor:
                 error_node=fn_call,
                 span=fn_call.span,
             )
-        cls.visitor_obj._label_scope_level[cls.visitor_obj._curr_scope].add(formal_reg_name)
 
         actual_qids, actual_qubits_size = Qasm3Transformer.get_target_qubits(
             actual_arg, cls.visitor_obj._global_qreg_size_map, actual_arg_name
@@ -455,6 +454,7 @@ class Qasm3SubroutineProcessor:
             base_size=formal_qubit_size,
             dims=None,
             value=None,
+            is_qubit=True,
             is_constant=False,
             span=fn_call.span,
         )
