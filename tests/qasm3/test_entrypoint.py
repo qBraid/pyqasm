@@ -44,6 +44,13 @@ def test_correct_module_dump():
         check_unrolled_qasm(file.read(), qasm_str)
     os.remove(file_path)
 
+def test_correct_include_processing():
+    file_path = os.path.join(QASM_RESOURCES_DIR, "include_custom_gates.qasm")
+    module = load(file_path)
+    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "custom_gate_complex.qasm")
+    ref_module = load(ref_file_path)
+    check_unrolled_qasm(dumps(module), dumps(ref_module))
+
 
 def test_incorrect_module_loading_file():
     with pytest.raises(TypeError, match="Input 'filename' must be of type 'str'."):
@@ -73,3 +80,5 @@ def test_incorrect_module_unroll_raises_error():
     with pytest.raises(ValidationError):
         module = loads("OPENQASM 3.0;\n qubit q; h q[2]")
         module.unroll()
+
+
