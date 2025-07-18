@@ -118,13 +118,23 @@ class ScopeManager:
 
     def check_in_scope(self, var_name: str) -> bool:
         """
-        Check if a variable is visible in the current scope.
-
+        Checks if a variable is in scope.
         Args:
             var_name (str): The name of the variable to check.
-
         Returns:
             bool: True if the variable is in scope, False otherwise.
+        NOTE:
+            - According to our definition of scope, we have a NEW DICT
+            for each block scope
+            - Since all visible variables of the immediate parent are visible
+            inside block scope, we have to check till we reach the boundary
+            contexts
+            - The "boundary" for a scope is either a FUNCTION / GATE context
+            OR the GLOBAL context
+            - Why then do we need a new scope for a block?
+            - Well, if the block redeclares a variable in its scope, then the
+            variable in the parent scope is shadowed. We need to remember the
+            original value of the shadowed variable when we exit the block scope
         """
         global_scope = self.get_global_scope()
         curr_scope = self.get_curr_scope()
