@@ -43,6 +43,8 @@ def test_scalar_declarations():
     float[64] g;
     bit h;
     bool i;
+    duration j;
+    stretch st;
     """
 
     loads(qasm3_string).validate()
@@ -68,6 +70,11 @@ def test_const_declarations():
     const uint[6-1] d1 = 2 + d;
     const bool boolean_var1 = !boolean_var;
     const float[32] f1 = 0.00000023 + f;
+    const duration t2 = 300ns;
+    const duration t3 = 300us;
+    const duration t8 = t2/t3;
+    const stretch st = 300ns;
+    const stretch st2 = t2/t3;
     """
 
     loads(qasm3_string).validate()
@@ -88,6 +95,11 @@ def test_scalar_assignments():
     float[64] g = 23456.023424983573645873465836483645876348564387;
     b = 12;
     r = 12.2;
+    duration du = 200us;
+    duration du2;
+    du2 = 300s;
+    stretch st;
+    st = 200us;
     """
 
     loads(qasm3_string).validate()
@@ -107,6 +119,14 @@ def test_scalar_value_assignment():
     qubit q;
     rx(b) q;
     rx(r + f*4) q;
+    duration t2 = 300ns;
+    duration t6 = 300dt;
+    duration t7 = 300 us;
+    duration t9 = t2 - t7;
+    duration t10 = t2 + t7;
+    duration t11 = t2 * t7;
+    stretch st10 = t2 + t7;
+    stretch st11 = t2 * t7;
     """
 
     b = 5.0
@@ -414,3 +434,223 @@ def test_incorrect_casting(test_name, caplog):
     assert error_message in msg
     assert f"Error at line {line_num}, column {col_num}" in caplog.text
     assert err_line in caplog.text
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch d1 = stretch(200ns);
+            """,
+            r"variable with 'StretchType' doesn't support 'Casting'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const stretch cd = stretch(200ns);
+            """,
+            r"constant variable with 'StretchType' doesn't support 'Casting'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch cd;
+            cd = stretch(200ns);
+            """,
+            r"variable with 'StretchType' doesn't support 'Casting'",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const stretch d = 2;
+            """,
+            r"constant variable with 'StretchType' expects a value of type 'DurationLiteral'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const int a = 2;
+            const stretch d = a;
+            """,
+            r"Assigned constant variable 'a' is not in 'DurationType' or 'StretchType'",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch d = 2;
+            """,
+            r"variable with 'StretchType' expects a value of type 'DurationLiteral'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            int a = 2;
+            stretch d = a;
+            """,
+            r"Assigned variable 'a' is not in 'DurationType' or 'StretchType'",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch d;
+            d = 2;
+            """,
+            r"variable with 'StretchType' expects a value of type 'DurationLiteral'",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            int a = 2;
+            stretch d;
+            d = a;
+            """,
+            r"Assigned variable 'a' is not in 'DurationType' or 'StretchType'",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch d = -22ns;
+            """,
+            r"StretchType'[-22.0] cannot have duration value 'less than or equal to 0'",
+            r"Error at line 4, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_stretch_type_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as err:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code).validate()
+    assert error_message in str(err.value)
+    assert error_span in caplog.text
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            duration d1 = duration(200ns);
+            """,
+            r"variable with 'DurationType' doesn't support 'Casting'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const duration cd = duration(200ns);
+            """,
+            r"constant variable with 'DurationType' doesn't support 'Casting'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const duration d = 2;
+            """,
+            r"constant variable with 'DurationType' expects a value of type 'DurationLiteral'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const int a = 2;
+            const duration d = a;
+            """,
+            r"Assigned constant variable 'a' is not in 'DurationType' or 'StretchType'",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            duration d = 2;
+            """,
+            r"variable with 'DurationType' expects a value of type 'DurationLiteral'",
+            r"Error at line 4, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            int a = 2;
+            duration d = a;
+            """,
+            r"Assigned variable 'a' is not in 'DurationType' or 'StretchType'",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            duration d;
+            d = 2;
+            """,
+            r"variable with 'DurationType' expects a value of type 'DurationLiteral'",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            int a = 2;
+            duration d;
+            d = a;
+            """,
+            r"Assigned variable 'a' is not in 'DurationType' or 'StretchType'",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            duration d = 0ns;
+            """,
+            r"'DurationType' cannot have duration value '0'",
+            r"Error at line 4, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_duration_casting_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as err:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code, device_cycle_time=1e-9).validate()
+    assert error_message in str(err.value)
+    assert error_span in caplog.text
+
+
+def test_device_time_duration_():
+    """Test device cycle time duration"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    duration t1 = 300dt;
+    duration t2 = 300ns;
+    const duration t3 =300us;
+    """
+    loads(qasm3_string, device_cycle_time=1e-9).validate()

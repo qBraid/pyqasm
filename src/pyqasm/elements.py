@@ -41,6 +41,7 @@ class Context(Enum):
     BLOCK = "block"
     FUNCTION = "function"
     GATE = "gate"
+    BOX = "box"
 
 
 @dataclass(slots=True)
@@ -89,6 +90,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
         base_size (int): Base size of the variable.
         dims (Optional[List[int]]): Dimensions of the variable.
         value (Optional[int | float | np.ndarray]): Value of the variable.
+        time_unit (Optional[str]): Time unit associated with the duration variable.
         span (Any): Span of the variable.
         shadow (bool): Flag indicating if the current variable is shadowed from its parent scope.
         is_constant (bool): Flag indicating if the variable is constant.
@@ -102,6 +104,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     base_size: int
     dims: Optional[list[int]] = None
     value: Optional[int | float | np.ndarray] = None
+    time_unit: Optional[str] = None
     span: Any = None
     shadow: bool = False
     is_constant: bool = False

@@ -44,7 +44,7 @@ from openqasm3.ast import (
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.maps.expressions import CONSTANTS_MAP, qasm3_expression_op_map
+from pyqasm.maps.expressions import CONSTANTS_MAP, TIME_UNITS_MAP, qasm3_expression_op_map
 from pyqasm.validator import Qasm3Validator
 
 
@@ -167,9 +167,14 @@ class Qasm3ExprEvaluator:
         return var_value
 
     @classmethod
-    # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals
+    # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals,too-many-arguments
     def evaluate_expression(  # type: ignore[return]
-        cls, expression, const_expr: bool = False, reqd_type=None, validate_only: bool = False
+        cls,
+        expression,
+        const_expr: bool = False,
+        reqd_type=None,
+        validate_only: bool = False,
+        dt=None,
     ) -> tuple:
         """Evaluate an expression. Scalar types are assigned by value.
 
@@ -188,7 +193,7 @@ class Qasm3ExprEvaluator:
         if expression is None:
             return None, []
 
-        if isinstance(expression, (ImaginaryLiteral, DurationLiteral)):
+        if isinstance(expression, (ImaginaryLiteral)):
             raise_qasm3_error(
                 f"Unsupported expression type '{type(expression)}'",
                 err_type=ValidationError,
@@ -311,6 +316,18 @@ class Qasm3ExprEvaluator:
                     span=expression.span,
                 )
             return _check_and_return_value(expression.value)
+
+        if isinstance(expression, DurationLiteral):
+            unit_name = expression.unit.name
+            if dt:
+                if unit_name == "dt":
+                    return _check_and_return_value(expression.value * dt)
+                return _check_and_return_value(
+                    (expression.value * TIME_UNITS_MAP[unit_name]["s"]) / dt
+                )
+            if unit_name == "dt":
+                return _check_and_return_value(expression.value)
+            return _check_and_return_value(expression.value * TIME_UNITS_MAP[unit_name]["ns"])
 
         if isinstance(expression, UnaryExpression):
             if validate_only:
