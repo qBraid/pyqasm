@@ -24,7 +24,7 @@ Types of changes:
 - Updated the documentation to include core features in the `README` ([#219](https://github.com/qBraid/pyqasm/pull/219))
 - Added support to `device qubit` resgister consolidation.([#222](https://github.com/qBraid/pyqasm/pull/222))
 - Updated the scoping of variables in `QasmVisitor` using a `ScopeManager`. This change is introduced to ensure that the `QasmVisitor` and the `PulseVisitor` can share the same `ScopeManager` instance, allowing for consistent variable scoping across different visitors. No change in the user API is expected. ([#232](https://github.com/qBraid/pyqasm/pull/232))
-
+- Added `Duration`,`Stretch` type, `Delay` and `Box` support for `OPENQASM3` code in pyqasm. ([#231](https://github.com/qBraid/pyqasm/pull/231))
 
 ### Deprecated
 

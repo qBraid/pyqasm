@@ -20,7 +20,17 @@ Module mapping supported QASM expressions to lower level gate operations.
 from typing import Callable
 
 import numpy as np
-from openqasm3.ast import AngleType, BitType, BoolType, ComplexType, FloatType, IntType, UintType
+from openqasm3.ast import (
+    AngleType,
+    BitType,
+    BoolType,
+    ComplexType,
+    DurationType,
+    FloatType,
+    IntType,
+    StretchType,
+    UintType,
+)
 
 from pyqasm.exceptions import ValidationError
 
@@ -76,7 +86,7 @@ def qasm3_expression_op_map(op_name: str, *args) -> float | int | bool:
         raise ValidationError(f"Unsupported / undeclared QASM operator: {op_name}") from exc
 
 
-# pylint: disable=inconsistent-return-statements
+# pylint: disable=inconsistent-return-statements,too-many-return-statements
 def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     """Cast the variable type to the type to match, if possible.
 
@@ -91,6 +101,9 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
         ValidationError: If the cast is not possible.
     """
     type_of_rhs = type(rhs_value)
+
+    if openqasm_type in (DurationType, StretchType):
+        return rhs_value
 
     if type_of_rhs not in VARIABLE_TYPE_CAST_MAP[openqasm_type]:
         raise ValidationError(
@@ -135,6 +148,8 @@ VARIABLE_TYPE_MAP = {
     BoolType: bool,
     FloatType: float,
     ComplexType: complex,
+    DurationType: float,
+    StretchType: float,
     # AngleType: None,  # not sure
 }
 
@@ -160,3 +175,12 @@ ARRAY_TYPE_MAP = {
 
 # Reference : https://openqasm.com/language/types.html#arrays
 MAX_ARRAY_DIMENSIONS = 7
+
+# Time units supported in OpenQASM3 (https://openqasm.com/language/delays.html#duration-and-stretch)
+TIME_UNITS_MAP: dict[str, dict[str, float]] = {
+    "ns": {"ns": 1, "s": 1e-9},
+    "us": {"ns": 1000, "s": 1e-6},
+    "µs": {"ns": 1000, "s": 1e-6},  # Unicode micro
+    "ms": {"ns": 1_000_000, "s": 1e-3},
+    "s": {"ns": 1_000_000_000, "s": 1},
+}
