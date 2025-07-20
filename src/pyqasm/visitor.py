@@ -2412,10 +2412,7 @@ class QasmVisitor:
         box_duration_val = 0
         if _box_time_var is not None:
             global_scope = self._scope_manager.get_global_scope()
-            curr_scope = self._scope_manager.get_curr_scope()
-            PulseValidator.validate_duration_variable(
-                _box_time_var, statement, global_scope, curr_scope
-            )
+            PulseValidator.validate_duration_variable(_box_time_var, statement, global_scope, {})
             box_duration_val, _ = Qasm3ExprEvaluator.evaluate_expression(
                 _box_time_var, dt=self._module._device_cycle_time
             )
