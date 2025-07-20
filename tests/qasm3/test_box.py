@@ -40,7 +40,8 @@ def test_box_statement():
         delay [d] q2;
     }
     box {
-        delay [d] q;
+        duration d2 =  20ns;
+        delay [d2] q;
         x q[1];
         nop q[2];
     }
@@ -65,7 +66,7 @@ def test_box_statement():
       delay[22.0ns] q2[0], q2[1];
     }
     box {
-      delay[22.0ns] q[0], q[1], q[2], q[3], q[4];
+      delay[20.0ns] q[0], q[1], q[2], q[3], q[4];
       x q[1];
       nop q[2];
     }

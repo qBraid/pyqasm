@@ -133,8 +133,8 @@ class PulseValidator:
                 )
 
     @staticmethod
-    def validate_duration_variable(
-        duration_var: Any, statement: Statement, global_scope: dict
+    def validate_duration_variable(  # pylint: disable=too-many-branches
+        duration_var: Any, statement: Statement, global_scope: dict, curr_scope: dict
     ) -> None:
         """
         Validates that the duration variable.
@@ -142,6 +142,7 @@ class PulseValidator:
             duration_var: The duration variable/expression to validate.
             statement: Any Statement AST node with duration.
             global_scope: The global dict of variable names to Variable objects.
+            curr_scope: current scope of variable names to Variable objects
 
         Raises:
             ValidationeError
@@ -151,16 +152,19 @@ class PulseValidator:
             rhs_val = duration_var.rhs
             for val in (lhs_val, rhs_val):
                 if isinstance(val, Identifier):
-                    if val.name not in global_scope:
+                    if val.name not in (global_scope | curr_scope):
                         raise_qasm3_error(
                             f"'{type(statement).__name__}' variable '{val.name}' is not defined",
                             error_node=statement,
                             span=duration_var.span,
                         )
-                    if not isinstance(
-                        global_scope[val.name].base_type,
-                        (StretchType, DurationType),
-                    ):
+                    # Check type only if variable is present in the scope
+                    var_obj = None
+                    if curr_scope and val.name in curr_scope:
+                        var_obj = curr_scope[val.name]
+                    elif global_scope and val.name in global_scope:
+                        var_obj = global_scope[val.name]
+                    if var_obj and not isinstance(var_obj.base_type, (StretchType, DurationType)):
                         raise_qasm3_error(
                             f"'{type(statement).__name__}' variable must be of type "
                             "'stretch' or 'duration'",
@@ -179,24 +183,28 @@ class PulseValidator:
                 )
 
         if isinstance(duration_var, Identifier):
-            if duration_var.name not in global_scope:
+            if duration_var.name not in (global_scope | curr_scope):
                 raise_qasm3_error(
                     f"'{type(statement).__name__}' variable '{duration_var.name}' is not defined",
                     error_node=statement,
                     span=statement.span,
                 )
-            if not isinstance(
-                global_scope[duration_var.name].base_type,
-                (StretchType, DurationType),
-            ):
+            # Check type only if variable is present in the scope
+            var_obj = None
+            if curr_scope and duration_var.name in curr_scope:
+                var_obj = curr_scope[duration_var.name]
+            elif global_scope and duration_var.name in global_scope:
+                var_obj = global_scope[duration_var.name]
+            if var_obj and not isinstance(var_obj.base_type, (StretchType, DurationType)):
                 raise_qasm3_error(
                     f"{type(statement).__name__} variable must be of type 'stretch' or 'duration'",
                     error_node=statement,
                     span=statement.span,
                 )
-            if global_scope[duration_var.name].value <= 0:
+            var_val = var_obj.value if var_obj is not None else None
+            if var_val and var_val <= 0:
                 raise_qasm3_error(
-                    f"variable '{duration_var.name} = {global_scope[duration_var.name].value}' "
+                    f"variable '{duration_var.name} = {var_val}' "
                     f"in '{type(statement).__name__}', must be 'greater than 0'",
                     error_node=statement,
                     span=statement.span,

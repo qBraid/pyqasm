@@ -2350,8 +2350,11 @@ class QasmVisitor:
         """
         _delay_time_var = statement.duration
         global_scope = self._scope_manager.get_global_scope()
+        curr_scope = self._scope_manager.get_curr_scope()
         # validate the time variable assigned to delay operation
-        PulseValidator.validate_duration_variable(_delay_time_var, statement, global_scope)
+        PulseValidator.validate_duration_variable(
+            _delay_time_var, statement, global_scope, curr_scope
+        )
         duration_val, _ = Qasm3ExprEvaluator.evaluate_expression(
             _delay_time_var, dt=self._module._device_cycle_time
         )
@@ -2409,7 +2412,10 @@ class QasmVisitor:
         box_duration_val = 0
         if _box_time_var is not None:
             global_scope = self._scope_manager.get_global_scope()
-            PulseValidator.validate_duration_variable(_box_time_var, statement, global_scope)
+            curr_scope = self._scope_manager.get_curr_scope()
+            PulseValidator.validate_duration_variable(
+                _box_time_var, statement, global_scope, curr_scope
+            )
             box_duration_val, _ = Qasm3ExprEvaluator.evaluate_expression(
                 _box_time_var, dt=self._module._device_cycle_time
             )
