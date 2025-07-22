@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- A `track_user_operation` decorator to automatically log method calls in `QasmModule`, reducing code duplication and improving maintainability. ([#216](https://github.com/qBraid/pyqasm/pull/216))
 - A new discussion template for issues in pyqasm ([#213](https://github.com/qBraid/pyqasm/pull/213))
 - A github workflow for validating `CHANGELOG` updates in a PR ([#214](https://github.com/qBraid/pyqasm/pull/214))
 - Added `unroll` command support in PYQASM CLI with options skipping files, overwriting originals files, and specifying output paths.([#224](https://github.com/qBraid/pyqasm/pull/224))
@@ -22,6 +23,7 @@ Types of changes:
 - Added `slots=True` parameter to the data classes in `elements.py` to improve memory efficiency ([#218](https://github.com/qBraid/pyqasm/pull/218))
 - Updated the documentation to include core features in the `README` ([#219](https://github.com/qBraid/pyqasm/pull/219))
 - Added support to `device qubit` resgister consolidation.([#222](https://github.com/qBraid/pyqasm/pull/222))
+- The `QasmModule.compare` method now displays barrier and measurement statistics, and includes instance validation for safer comparisons. ([#216](https://github.com/qBraid/pyqasm/pull/216))
 
 ### Deprecated
 
@@ -34,6 +36,7 @@ Types of changes:
 
 ### Dependencies
 - Add `pillow<11.3.0` dependency for test and visualization to avoid CI errors in Linux builds ([#226](https://github.com/qBraid/pyqasm/pull/226))
+- Added `tabulate` to the testing dependencies to support new comparison table tests. ([#216](https://github.com/qBraid/pyqasm/pull/216))
 
 ### Other
 
