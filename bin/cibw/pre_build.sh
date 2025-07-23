@@ -35,7 +35,7 @@ git clean -xdf
 # python -m pip install --upgrade pip
 
 # Install required packages
-uv pip install setuptools wheel cython tomli
+uv pip install setuptools wheel cython tomli --system
 
 # Test if we are running the build for pre-release version
 if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then

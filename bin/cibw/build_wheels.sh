@@ -18,7 +18,7 @@ set -e
 
 echo "Running build_wheels.sh"
 
-uv pip install cibuildwheel
+uv pip install cibuildwheel --system
 python -m cibuildwheel --output-dir dist
 build_exit_code=$?
 
