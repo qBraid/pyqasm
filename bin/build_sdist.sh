@@ -32,7 +32,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 # Create a temporary dir, XXXXX will be replaced by a random string
 # of 5 chars to make the directory unique
 TEMP_ENV_DIR=$(mktemp -d -t build_env_XXXXX)
-python -m venv "$TEMP_ENV_DIR"
+uv venv "$TEMP_ENV_DIR"
 source "$TEMP_ENV_DIR/bin/activate"
 
 # Install the necessary packages for building sdist
