@@ -32,17 +32,17 @@ git reset --hard HEAD
 git clean -xdf
 
 # Upgrade pip
-python -m pip install --upgrade pip
+# python -m pip install --upgrade pip
 
 # Install required packages
-pip install setuptools wheel cython tomli
+uv pip install setuptools wheel cython tomli
 
 # Test if we are running the build for pre-release version
 if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
     echo "Running pre-release changes"
 
     # Install required packages
-    python -m pip install -U toml-cli qbraid-core
+    uv pip install -U toml-cli qbraid-core
     deps_exit_code=$?
 
     if [ $deps_exit_code -ne 0 ]; then

@@ -94,6 +94,11 @@ jobs:
           # Thus, the matrix.python is not required here, only for setting up builds
           python-version: "3.11"
 
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Build and Test Wheels
         env: 
           # since cibuildwheel builds for all python versions >= current version, we need to 
@@ -157,6 +162,10 @@ jobs:
         with:
           python-version: 3.11
           cache: pip
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Download built package
         uses: actions/download-artifact@v4
@@ -166,7 +175,7 @@ jobs:
 
       - name: Install and Test wheel with extras
         run: |
-          pip install setuptools
+          uv pip install setuptools
           bash bin/install_wheel_extras.sh dist --type wheel --extra test --extra cli 
           python -m pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
 
