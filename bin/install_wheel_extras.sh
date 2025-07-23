@@ -85,9 +85,9 @@ fi
 
 # Build the pip install command with extras, if provided
 if [ -n "$EXTRAS_STR" ]; then
-    INSTALL_COMMAND="uv pip install '$DIST/$INSTALL_FILE[$EXTRAS_STR]'"
+    INSTALL_COMMAND="uv pip install '$DIST/$INSTALL_FILE[$EXTRAS_STR]' --system"
 else
-    INSTALL_COMMAND="uv pip install '$DIST/$INSTALL_FILE'"
+    INSTALL_COMMAND="uv pip install '$DIST/$INSTALL_FILE' --system"
 fi
 
 # Execute the pip install command

@@ -134,7 +134,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          
+
       - name: Install uv (with cache)
         uses: astral-sh/setup-uv@v6
         with:
@@ -180,7 +180,7 @@ jobs:
 
       - name: Install and Test wheel with extras
         run: |
-          uv pip install setuptools
+          uv pip install setuptools --system
           bash bin/install_wheel_extras.sh dist --type wheel --extra test --extra cli 
           python -m pytest --cov=pyqasm tests/ --cov-report=html --cov-report=xml --cov-report=term
 
