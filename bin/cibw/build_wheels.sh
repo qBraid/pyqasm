@@ -18,8 +18,8 @@ set -e
 
 echo "Running build_wheels.sh"
 
-uv venv pyqasm_build 
-source pyqasm_build/bin/activate 
+uv venv pyqasm_build
+source pyqasm_build/bin/activate
 
 uv pip install cibuildwheel
 
