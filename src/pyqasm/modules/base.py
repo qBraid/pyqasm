@@ -26,7 +26,6 @@ from typing import Optional
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, Program, QuantumGate
-from tabulate import tabulate
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.decomposer import Decomposer
@@ -688,9 +687,16 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             other_module (QasmModule): The module to compare with.
         """
+        try:
+            from tabulate import tabulate
+        except ImportError as exc:
+            raise ImportError(
+                "tabulate is required for the compare method. "
+            ) from exc
+
         if not isinstance(other_module, QasmModule):
             raise TypeError(f"Expected QasmModule instance, got {type(other_module).__name__}")
-        
+
         self_counts = self.get_gate_counts()
         other_counts = other_module.get_gate_counts()
         all_gates = sorted(list(set(self_counts) | set(other_counts)))
