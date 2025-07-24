@@ -57,7 +57,9 @@ class PulseValidator:
             global_scope: Global symbol table.
 
         Raises:
-            ValidationeError
+            ValidationError: If the assigned value is not a DurationLiteral,
+            or if an Identifier is assigned that does not refer to a DurationType
+            or StretchType, or if a Cast is used as the assigned value.
         """
         statement_type = type(statement)
         kind = "constant variable" if statement_type is ConstantDeclaration else "variable"
@@ -145,7 +147,9 @@ class PulseValidator:
             curr_scope: current scope of variable names to Variable objects
 
         Raises:
-            ValidationeError
+            ValidationError: Raised if the duration variable is not defined in the current
+            or global scope, or if the variable is not of type 'stretch' or 'duration',
+            or if both sides of a binary duration expression are numeric literals.
         """
         if isinstance(duration_var, BinaryExpression):
             lhs_val = duration_var.lhs

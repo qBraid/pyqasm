@@ -28,7 +28,7 @@ def test_box_statement():
     include "stdgates.inc";
     qubit[5] q;
     qubit[2] q2;
-    duration d = 22ns;
+    const duration d = 22ns;
     box [30ns] {
         delay [d] q;
         x q[1];

@@ -32,10 +32,10 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | IODeclaration                  | 📋          | Planned                |
 | Pragma                         | 📋          | Planned                |
 | Annotation                     | 📋          | Planned                |
-| DurationType                   | 📋          | Planned                |
-| StretchType                    | 📋          | Planned                |
-| DelayInstruction               | 📋          | Planned                |
-| Box                            | 📋          | Planned                |
+| DurationType                   | ✅          | Planned                |
+| StretchType                    | ✅          | Planned                |
+| DelayInstruction               | ✅          | Planned                |
+| Box                            | ✅          | Planned                |
 | CalibrationStatement           | 📋          | Planned                |
 | CalibrationDefinition          | 📋          | Planned                |
 | ComplexType                    | 📋          | Planned                |

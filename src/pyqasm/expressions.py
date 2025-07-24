@@ -38,6 +38,7 @@ from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
     SizeOf,
     Statement,
+    StretchType,
     UnaryExpression,
 )
 
@@ -121,8 +122,8 @@ class Qasm3ExprEvaluator:
                 span=expression.span,
             )
 
-    @staticmethod
-    def _check_var_initialized(var_name, var_value, expression):
+    @classmethod
+    def _check_var_initialized(cls, var_name, var_value, expression):
         """Checks if a variable is initialized and raises an error if it is not.
 
         Args:
@@ -133,7 +134,8 @@ class Qasm3ExprEvaluator:
             ValidationError: If the variable is uninitialized.
         """
 
-        if var_value is None:
+        var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)
+        if not isinstance(var.base_type, StretchType) and var_value is None:
             raise_qasm3_error(
                 f"Uninitialized variable '{var_name}' in expression",
                 err_type=ValidationError,
