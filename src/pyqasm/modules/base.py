@@ -33,7 +33,7 @@ from pyqasm.elements import ClbitDepthNode, QubitDepthNode
 from pyqasm.exceptions import UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
 from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
-from pyqasm.visitor import QasmVisitor
+from pyqasm.visitor import QasmVisitor, ScopeManager
 
 
 def track_user_operation(func):
@@ -561,7 +561,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
             return
         try:
             self.num_qubits, self.num_clbits = 0, 0
-            visitor = QasmVisitor(self, check_only=True)
+            visitor = QasmVisitor(self, ScopeManager(), check_only=True)
             self.accept(visitor)
             # Implicit validation: check total qubits if device_qubits is set and not consolidating
             if self._device_qubits:
@@ -609,7 +609,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 self._external_gates = []
             if consolidate_qbts := kwargs.get("consolidate_qubits"):
                 self._consolidate_qubits = consolidate_qbts
-            visitor = QasmVisitor(module=self, **kwargs)
+            visitor = QasmVisitor(module=self, scope_manager=ScopeManager(), **kwargs)
             self.accept(visitor)
         except (ValidationError, UnrollError) as err:
             # reset the unrolled ast and qasm

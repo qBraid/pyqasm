@@ -19,10 +19,13 @@ Types of changes:
 - A new discussion template for issues in pyqasm ([#213](https://github.com/qBraid/pyqasm/pull/213))
 - A github workflow for validating `CHANGELOG` updates in a PR ([#214](https://github.com/qBraid/pyqasm/pull/214))
 - Added `unroll` command support in PYQASM CLI with options skipping files, overwriting originals files, and specifying output paths.([#224](https://github.com/qBraid/pyqasm/pull/224))
+- Added `.github/copilot-instructions.md` to the repository to document coding standards and design principles for pyqasm. This file provides detailed guidance on documentation, static typing, formatting, error handling, and adherence to the QASM specification for all code contributions. ([#234](https://github.com/qBraid/pyqasm/pull/234))
+
 ### Improved / Modified
 - Added `slots=True` parameter to the data classes in `elements.py` to improve memory efficiency ([#218](https://github.com/qBraid/pyqasm/pull/218))
 - Updated the documentation to include core features in the `README` ([#219](https://github.com/qBraid/pyqasm/pull/219))
 - Added support to `device qubit` resgister consolidation.([#222](https://github.com/qBraid/pyqasm/pull/222))
+- Updated the scoping of variables in `QasmVisitor` using a `ScopeManager`. This change is introduced to ensure that the `QasmVisitor` and the `PulseVisitor` can share the same `ScopeManager` instance, allowing for consistent variable scoping across different visitors. No change in the user API is expected. ([#232](https://github.com/qBraid/pyqasm/pull/232))
 - The `QasmModule.compare` method now displays barrier and measurement statistics, and includes instance validation for safer comparisons. ([#216](https://github.com/qBraid/pyqasm/pull/216))
 
 ### Deprecated

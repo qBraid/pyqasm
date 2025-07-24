@@ -303,7 +303,7 @@ def test_alias_out_of_scope(caplog):
     """Test converting OpenQASM 3 program with alias out of scope."""
     with pytest.raises(
         ValidationError,
-        match="Variable 'alias' not in scope for QuantumGate 'cx'",
+        match="Missing qubit register declaration for 'alias'",
     ):
         with caplog.at_level("ERROR"):
             qasm3_alias_program = """
