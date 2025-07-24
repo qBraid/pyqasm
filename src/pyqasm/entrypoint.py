@@ -19,6 +19,7 @@ Top-level entrypoint functions for pyqasm.
 from __future__ import annotations
 
 import os
+import re
 from typing import TYPE_CHECKING
 
 import openqasm3
@@ -138,17 +139,15 @@ def _process_include_statements(program: str, filename: str) -> str:
     """
     program_lines = program.splitlines()
     processed_files = set()
-    modified = False
 
     for idx, line in enumerate(program_lines):
         line = line.strip()
         if line.startswith("include"):
             # Extract include filename from quotes
-            try:
-                include_filename = line.split('"')[1]
-            except IndexError:
+            match = re.search(r'include\s+["\']([^"\']+)["\']', line)
+            if not match:
                 continue  # Skip malformed include lines
-            
+            include_filename = match.group(1)
             # Skip stdgates.inc and already processed files
             if include_filename == "stdgates.inc" or include_filename in processed_files:
                 continue
@@ -168,12 +167,10 @@ def _process_include_statements(program: str, filename: str) -> str:
                         program_lines[idx] = include_content
                         processed_files.add(include_filename)
                         include_found = True
-                        modified = True
                         break
                 except FileNotFoundError:
                     continue
             
             if not include_found:
                 raise FileNotFoundError(f"Include file '{include_filename}' not found.") from None
-    
     return "\n".join(program_lines)

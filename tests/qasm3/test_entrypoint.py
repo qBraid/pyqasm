@@ -51,7 +51,9 @@ def test_correct_include_processing():
     ref_module = load(ref_file_path)
     check_unrolled_qasm(dumps(module), dumps(ref_module))
 
-
+def test_correct_include_processing_complex():
+    file_path = os.path.join(QASM_RESOURCES_DIR, "include_gates_and_vars.qasm")
+    module = load(file_path)
 def test_incorrect_module_loading_file():
     with pytest.raises(TypeError, match="Input 'filename' must be of type 'str'."):
         load(1)
