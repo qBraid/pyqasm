@@ -163,6 +163,13 @@ def _process_include_statements(program: str, filename: str) -> str:
                 try:
                     with open(include_path, "r", encoding="utf-8") as include_file:
                         include_content = include_file.read().strip()
+                        if (os.path.splitext(include_filename)[1]) == ".qasm":
+                            # Remove extra OPENQASM  line
+                            include_content = re.sub(r'^\s*OPENQASM\s+\d+\.\d+;\s*', '', include_content, count=1)
+                            # remove extra "stdgates.inc" line
+                            include_content = re.sub(r'^\s*include\s+"stdgates\.inc";\s*', '', include_content, count=1)
+                            # TODO: recursive handling for nested includes
+
                         # Replace the include line with the content
                         program_lines[idx] = include_content
                         processed_files.add(include_filename)

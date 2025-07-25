@@ -44,16 +44,31 @@ def test_correct_module_dump():
         check_unrolled_qasm(file.read(), qasm_str)
     os.remove(file_path)
 
+
 def test_correct_include_processing():
-    file_path = os.path.join(QASM_RESOURCES_DIR, "include_custom_gates.qasm")
+    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_custom_gates.qasm")
     module = load(file_path)
     ref_file_path = os.path.join(QASM_RESOURCES_DIR, "custom_gate_complex.qasm")
     ref_module = load(ref_file_path)
     check_unrolled_qasm(dumps(module), dumps(ref_module))
 
+
 def test_correct_include_processing_complex():
-    file_path = os.path.join(QASM_RESOURCES_DIR, "include_gates_and_vars.qasm")
+    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_gates_and_vars.qasm")
     module = load(file_path)
+    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_gates_and_vars_ref.qasm")
+    ref_module = load(ref_file_path)
+    check_unrolled_qasm(dumps(module), dumps(ref_module))
+
+
+def test_include_custom_subroutine():
+    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_subroutine.qasm")
+    module = load(file_path)
+    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_subroutine_ref.qasm")
+    ref_module = load(ref_file_path)
+    check_unrolled_qasm(dumps(module), dumps(ref_module))
+
+
 def test_incorrect_module_loading_file():
     with pytest.raises(TypeError, match="Input 'filename' must be of type 'str'."):
         load(1)
