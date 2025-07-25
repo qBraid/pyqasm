@@ -25,6 +25,7 @@ import openqasm3
 from pyqasm.exceptions import ValidationError
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
+from pyqasm.preprocess import process_include_statements
 
 if TYPE_CHECKING:
     import openqasm3.ast
@@ -44,6 +45,7 @@ def load(filename: str, **kwargs) -> QasmModule:
         raise TypeError("Input 'filename' must be of type 'str'.")
     with open(filename, "r", encoding="utf-8") as file:
         program = file.read()
+        program = process_include_statements(program, filename)
     return loads(program, **kwargs)
 
 
