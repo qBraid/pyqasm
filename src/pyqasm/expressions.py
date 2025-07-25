@@ -69,7 +69,15 @@ class Qasm3ExprEvaluator:
             ValidationError: If the variable is undefined in the current scope.
         """
 
-        if not cls.visitor_obj._scope_manager.check_in_scope(var_name):
+        scope_manager = cls.visitor_obj._scope_manager
+        if not scope_manager.check_in_scope(var_name):
+            var = scope_manager.get_from_global_scope(var_name)
+            if var is not None and not var.is_constant:
+                raise_qasm3_error(
+                    f"Global variable '{var_name}' must be a constant to use it in a local scope.",
+                    error_node=expression,
+                    span=expression.span,
+                )
             raise_qasm3_error(
                 f"Undefined identifier '{var_name}' in expression",
                 err_type=ValidationError,

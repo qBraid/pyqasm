@@ -210,6 +210,19 @@ def test_delay_instruction_device_time():
             r"Box statement must have atleast one Quantum Statement.",
             r"Error at line 6, column 12",
         ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit q;
+            duration d2 = 20ns;
+            box [d2] {
+               delay[d2] q;
+            }
+            """,
+            r"Global variable 'd2' must be a constant to use it in a local scope.",
+            r"Error at line 7, column 20",
+        ),
     ],
 )  # pylint: disable-next= too-many-arguments
 def test_box_statement_error(qasm_code, error_message, error_span, caplog):
