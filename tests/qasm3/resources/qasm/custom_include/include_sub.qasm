@@ -1,6 +1,6 @@
 OPENQASM 3.0;
 include "stdgates.inc";
-include "subroutine.qasm";
+include "sub.qasm";
 
 qubit[3] q;
 routine(q);

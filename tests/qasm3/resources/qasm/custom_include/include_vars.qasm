@@ -1,6 +1,6 @@
 OPENQASM 3.0;
 include "stdgates.inc";
-include "include_gates_and_vars.inc";
+include "vars.inc";
 
 qubit[A] q;
 

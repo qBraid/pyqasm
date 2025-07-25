@@ -151,23 +151,23 @@ def _process_include_statements(program: str, filename: str) -> str:
             # Skip stdgates.inc and already processed files
             if include_filename == "stdgates.inc" or include_filename in processed_files:
                 continue
-            
             # Try to find include file relative to main file first, then current directory
             include_paths = [
                 os.path.join(os.path.dirname(filename), include_filename),  # Relative to main file
                 include_filename  # Current working directory
             ]
-            
             include_found = False
             for include_path in include_paths:
                 try:
                     with open(include_path, "r", encoding="utf-8") as include_file:
                         include_content = include_file.read().strip()
                         if (os.path.splitext(include_filename)[1]) == ".qasm":
-                            # Remove extra OPENQASM  line
-                            include_content = re.sub(r'^\s*OPENQASM\s+\d+\.\d+;\s*', '', include_content, count=1)
-                            # remove extra "stdgates.inc" line
-                            include_content = re.sub(r'^\s*include\s+"stdgates\.inc";\s*', '', include_content, count=1)
+                            # Remove extra OPENQASM version line to avoid duplicates
+                            openqasm_pattern = r'^\s*OPENQASM\s+\d+\.\d+;\s*'
+                            include_content = re.sub(openqasm_pattern, '', include_content, count=1)
+                            # Remove extra stdgates.inc line to avoid duplicates
+                            stdgates_pattern = r'^\s*include\s+"stdgates\.inc";\s*'
+                            include_content = re.sub(stdgates_pattern, '', include_content, count=1)
                             # TODO: recursive handling for nested includes
 
                         # Replace the include line with the content
@@ -177,7 +177,6 @@ def _process_include_statements(program: str, filename: str) -> str:
                         break
                 except FileNotFoundError:
                     continue
-            
             if not include_found:
                 raise FileNotFoundError(f"Include file '{include_filename}' not found.") from None
     return "\n".join(program_lines)
