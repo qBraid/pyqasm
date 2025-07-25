@@ -98,8 +98,6 @@ def test_scalar_assignments():
     duration du = 200us;
     duration du2;
     du2 = 300s;
-    stretch st;
-    st = 200us;
     """
 
     loads(qasm3_string).validate()
@@ -125,8 +123,6 @@ def test_scalar_value_assignment():
     duration t9 = t2 - t7;
     duration t10 = t2 + t7;
     duration t11 = t2 * t7;
-    stretch st10 = t2 + t7;
-    stretch st11 = t2 * t7;
     """
 
     b = 5.0
@@ -443,29 +439,10 @@ def test_incorrect_casting(test_name, caplog):
             """
             OPENQASM 3.0;
             include "stdgates.inc";
-            stretch d1 = stretch(200ns);
-            """,
-            r"variable with 'StretchType' doesn't support 'Casting'",
-            r"Error at line 4, column 12",
-        ),
-        (
-            """
-            OPENQASM 3.0;
-            include "stdgates.inc";
             const stretch cd = stretch(200ns);
             """,
             r"constant variable with 'StretchType' doesn't support 'Casting'",
             r"Error at line 4, column 12",
-        ),
-        (
-            """
-            OPENQASM 3.0;
-            include "stdgates.inc";
-            stretch cd;
-            cd = stretch(200ns);
-            """,
-            r"variable with 'StretchType' doesn't support 'Casting'",
-            r"Error at line 5, column 12",
         ),
         (
             """
@@ -490,30 +467,20 @@ def test_incorrect_casting(test_name, caplog):
             """
             OPENQASM 3.0;
             include "stdgates.inc";
-            stretch d = 2;
+            const stretch s = -20ns;
             """,
-            r"variable with 'StretchType' expects a value of type 'DurationLiteral'",
+            r"'StretchType'[-20.0] cannot have duration value 'less than or equal to 0'",
             r"Error at line 4, column 12",
         ),
         (
             """
             OPENQASM 3.0;
             include "stdgates.inc";
-            int a = 2;
-            stretch d = a;
+            stretch s = 20ns;
             """,
-            r"Assigned variable 'a' is not in 'DurationType' or 'StretchType'",
-            r"Error at line 5, column 12",
-        ),
-        (
-            """
-            OPENQASM 3.0;
-            include "stdgates.inc";
-            stretch d;
-            d = 2;
-            """,
-            r"variable with 'StretchType' expects a value of type 'DurationLiteral'",
-            r"Error at line 5, column 12",
+            r"Assignment to 'stretch' type variable 's' is not allowed,"
+            r" must be initialized with a constant at declaration.",
+            r"Error at line 4, column 12",
         ),
         (
             """
@@ -523,17 +490,9 @@ def test_incorrect_casting(test_name, caplog):
             stretch d;
             d = a;
             """,
-            r"Assigned variable 'a' is not in 'DurationType' or 'StretchType'",
+            r"Assignment to 'stretch' type variable 'd' is not allowed,"
+            r" must be initialized with a constant at declaration.",
             r"Error at line 6, column 12",
-        ),
-        (
-            """
-            OPENQASM 3.0;
-            include "stdgates.inc";
-            stretch d = -22ns;
-            """,
-            r"StretchType'[-22.0] cannot have duration value 'less than or equal to 0'",
-            r"Error at line 4, column 12",
         ),
     ],
 )  # pylint: disable-next= too-many-arguments

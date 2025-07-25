@@ -29,6 +29,8 @@ def test_box_statement():
     qubit[5] q;
     qubit[2] q2;
     const duration d = 22ns;
+    stretch s1;
+    const stretch s2 = 20ns;
     box [30ns] {
         delay [d] q;
         x q[1];
@@ -42,6 +44,7 @@ def test_box_statement():
     box {
         duration d2 =  20ns;
         delay [d2] q;
+        delay [s2] q;
         x q[1];
         nop q[2];
     }
@@ -51,6 +54,7 @@ def test_box_statement():
     include "stdgates.inc";
     qubit[5] q;
     qubit[2] q2;
+    stretch s1;
     box[30.0ns] {
       delay[22.0ns] q[0], q[1], q[2], q[3], q[4];
       x q[1];
@@ -66,6 +70,7 @@ def test_box_statement():
       delay[22.0ns] q2[0], q2[1];
     }
     box {
+      delay[20.0ns] q[0], q[1], q[2], q[3], q[4];
       delay[20.0ns] q[0], q[1], q[2], q[3], q[4];
       x q[1];
       nop q[2];
