@@ -123,17 +123,18 @@ def dumps(module: QasmModule) -> str:
 
     return str(module)
 
+
 def _process_include_statements(program: str, filename: str) -> str:
     """
     Process include statements in a QASM file.
-    
+
     Args:
         program (str): The QASM program string.
         filename (str): Path to the QASM file (for resolving relative includes).
-        
+
     Returns:
         str: The processed QASM program with includes injected.
-        
+
     Raises:
         FileNotFoundError: If an include file is not found or cannot be read.
     """
@@ -154,7 +155,7 @@ def _process_include_statements(program: str, filename: str) -> str:
             # Try to find include file relative to main file first, then current directory
             include_paths = [
                 os.path.join(os.path.dirname(filename), include_filename),  # Relative to main file
-                include_filename  # Current working directory
+                include_filename,  # Current working directory
             ]
             include_found = False
             for include_path in include_paths:
@@ -163,11 +164,11 @@ def _process_include_statements(program: str, filename: str) -> str:
                         include_content = include_file.read().strip()
                         if (os.path.splitext(include_filename)[1]) == ".qasm":
                             # Remove extra OPENQASM version line to avoid duplicates
-                            openqasm_pattern = r'^\s*OPENQASM\s+\d+\.\d+;\s*'
-                            include_content = re.sub(openqasm_pattern, '', include_content, count=1)
+                            openqasm_pattern = r"^\s*OPENQASM\s+\d+\.\d+;\s*"
+                            include_content = re.sub(openqasm_pattern, "", include_content, count=1)
                             # Remove extra stdgates.inc line to avoid duplicates
                             stdgates_pattern = r'^\s*include\s+"stdgates\.inc";\s*'
-                            include_content = re.sub(stdgates_pattern, '', include_content, count=1)
+                            include_content = re.sub(stdgates_pattern, "", include_content, count=1)
                             # TODO: recursive handling for nested includes
 
                         # Replace the include line with the content
