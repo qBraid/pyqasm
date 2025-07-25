@@ -147,7 +147,7 @@ def _process_include_statements(program: str, filename: str) -> str:
             # Extract include filename from quotes
             match = re.search(r'include\s+["\']([^"\']+)["\']', line)
             if not match:
-                continue  # Skip malformed include lines
+                raise ValidationError("Invalid include statement detected in QASM file.")
             include_filename = match.group(1)
             # Skip stdgates.inc and already processed files
             if include_filename == "stdgates.inc" or include_filename in processed_files:

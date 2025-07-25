@@ -97,3 +97,17 @@ def test_incorrect_module_unroll_raises_error():
     with pytest.raises(ValidationError):
         module = loads("OPENQASM 3.0;\n qubit q; h q[2]")
         module.unroll()
+
+
+def test_malformed_include_statement():
+    """Test that malformed include statements are skipped."""
+    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "malformed_include.qasm")
+    with pytest.raises(ValidationError, match="Invalid include statement detected in QASM file."):
+        load(file_path)
+
+
+def test_include_file_not_found():
+    """Test that missing include files raise FileNotFoundError."""
+    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "inc_not_found.qasm")
+    with pytest.raises(FileNotFoundError, match="Include file 'nonexistent.inc' not found"):
+        load(file_path)
