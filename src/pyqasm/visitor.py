@@ -57,6 +57,7 @@ from pyqasm.maps.gates import (
     map_qasm_op_num_params,
     map_qasm_op_to_callable,
 )
+from pyqasm.pulse.validator import PulseValidator
 from pyqasm.scope import ScopeManager
 from pyqasm.subroutines import Qasm3SubroutineProcessor
 from pyqasm.transformer import Qasm3Transformer
@@ -118,6 +119,7 @@ class QasmVisitor:
         self._in_generic_gate_op_scope: int = 0
         self._qubit_register_offsets: OrderedDict = OrderedDict()
         self._qubit_register_max_offset = 0
+        self._total_delay_duration_in_box = 0
 
         self._scope_manager: ScopeManager = scope_manager
 
@@ -1309,9 +1311,19 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
+
+        if statement.init_expression:
+            global_scope = self._scope_manager.get_global_scope()
+            PulseValidator.validate_duration_or_stretch_statements(
+                statement=statement,
+                base_type=statement.type,
+                rvalue=statement.init_expression,
+                global_scope=global_scope,
+            )
+
         try:
             init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                statement.init_expression, const_expr=True
+                statement.init_expression, const_expr=True, dt=self._module._device_cycle_time
             )
         except ValidationError as err:
             raise_qasm3_error(
@@ -1332,6 +1344,13 @@ class QasmVisitor:
         variable = Variable(
             var_name, base_type, base_size, [], init_value, is_constant=True, span=statement.span
         )
+
+        if isinstance(base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
+            PulseValidator.validate_duration_literal_value(init_value, statement, base_type)
+            if self._module._device_cycle_time:
+                variable.time_unit = "dt"
+            else:
+                variable.time_unit = "ns"
 
         # cast + validation
         variable.value = Qasm3Validator.validate_variable_assignment_value(
@@ -1367,9 +1386,9 @@ class QasmVisitor:
             )
         if self._scope_manager.check_in_scope(var_name):
             if (
-                self._scope_manager.in_block_scope()
-                and var_name not in self._scope_manager.get_curr_scope()
-            ):
+                self._scope_manager.in_block_scope(),
+                self._scope_manager.in_box_scope(),
+            ) and var_name not in self._scope_manager.get_curr_scope():
                 # we can re-declare variables once in block scope even if they are
                 # present in the parent scope
                 # Eg. int a = 10;
@@ -1386,6 +1405,17 @@ class QasmVisitor:
         base_type = statement.type
         dimensions = []
         final_dimensions = []
+
+        if isinstance(base_type, qasm3_ast.StretchType):
+            if statement.init_expression:
+                raise_qasm3_error(
+                    f"Assignment to 'stretch' type variable '{var_name}' is not allowed,"
+                    " must be initialized with a constant at declaration.",
+                    error_node=statement,
+                    span=statement.span,
+                )
+            else:
+                statements.append(cast(qasm3_ast.Statement, statement))
 
         if isinstance(base_type, qasm3_ast.ArrayType):
             dimensions = base_type.dimensions
@@ -1429,6 +1459,15 @@ class QasmVisitor:
 
         # populate the variable
         if statement.init_expression:
+
+            global_scope = self._scope_manager.get_global_scope()
+            PulseValidator.validate_duration_or_stretch_statements(
+                statement=statement,
+                base_type=base_type,
+                rvalue=statement.init_expression,
+                global_scope=global_scope,
+            )
+
             if isinstance(statement.init_expression, qasm3_ast.ArrayLiteral):
                 init_value = self._evaluate_array_initialization(
                     statement.init_expression, final_dimensions, base_type
@@ -1441,7 +1480,7 @@ class QasmVisitor:
             else:
                 try:
                     init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                        statement.init_expression
+                        statement.init_expression, dt=self._module._device_cycle_time
                     )
                     statements.extend(stmts)
                     val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
@@ -1467,6 +1506,13 @@ class QasmVisitor:
             is_qubit=False,
             span=statement.span,
         )
+
+        if isinstance(base_type, qasm3_ast.DurationType):
+            PulseValidator.validate_duration_literal_value(init_value, statement, base_type)
+            if self._module._device_cycle_time:
+                variable.time_unit = "dt"
+            else:
+                variable.time_unit = "ns"
 
         # validate the assignment
         if statement.init_expression:
@@ -1549,6 +1595,13 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
+        if lvar and isinstance(lvar.base_type, qasm3_ast.StretchType):
+            raise_qasm3_error(
+                f"Assignment to 'stretch' type variable '{lvar_name}' is not allowed,"
+                " must be initialized with a constant at declaration.",
+                error_node=statement,
+                span=statement.span,
+            )
         binary_op: str | None | qasm3_ast.BinaryOperator = None
         if statement.op != qasm3_ast.AssignmentOperator["="]:
             # eg. j += 1 -> broken down to j = j + 1
@@ -1558,12 +1611,21 @@ class QasmVisitor:
         # rvalue will be an evaluated value (scalar, list)
         # if rvalue is a list, we want a copy of it
         rvalue = statement.rvalue
+        lvar_base_type = lvar.base_type  # type: ignore[union-attr]
+        if rvalue:
+            global_scope = self._scope_manager.get_global_scope()
+            PulseValidator.validate_duration_or_stretch_statements(
+                statement=statement,
+                base_type=lvar_base_type,
+                rvalue=rvalue,
+                global_scope=global_scope,
+            )
         if binary_op is not None:
             rvalue = qasm3_ast.BinaryExpression(
                 lhs=lvalue, op=binary_op, rhs=rvalue  # type: ignore[arg-type]
             )
         rvalue_raw, rhs_stmts = Qasm3ExprEvaluator.evaluate_expression(
-            rvalue
+            rvalue, dt=self._module._device_cycle_time
         )  # consists of scope check and index validation
         statements.extend(rhs_stmts)
         val_type, _ = Qasm3ExprEvaluator.evaluate_expression(rvalue, validate_only=True)
@@ -1592,6 +1654,9 @@ class QasmVisitor:
                 values=rvalue_raw,  # type: ignore[arg-type]
             )
             rvalue_eval = rvalue_raw
+
+        if isinstance(lvar_base_type, qasm3_ast.DurationType):
+            PulseValidator.validate_duration_literal_value(rvalue_eval, statement, lvar_base_type)
 
         if lvar.readonly:  # type: ignore[union-attr]
             raise_qasm3_error(
@@ -2291,6 +2356,133 @@ class QasmVisitor:
             default_stmts = statement.default.statements
             return _evaluate_case(default_stmts)
 
+    def _visit_delay_statement(
+        self, statement: qasm3_ast.DelayInstruction
+    ) -> list[qasm3_ast.Statement]:
+        """
+        Visit a DelayInstruction statement.
+        Args:
+            statement (qasm3_ast.DelayInstruction): The DelayInstruction statement to visit.
+        Returns:
+            list[qasm3_ast.Statement]: The list of statements generated by the DelayInstruction.
+        """
+        _delay_time_var = statement.duration
+        global_scope = self._scope_manager.get_global_scope()
+        curr_scope = self._scope_manager.get_curr_scope()
+        # validate the time variable assigned to delay operation
+        PulseValidator.validate_duration_variable(
+            _delay_time_var, statement, global_scope, curr_scope
+        )
+        duration_val, _ = Qasm3ExprEvaluator.evaluate_expression(
+            _delay_time_var, dt=self._module._device_cycle_time
+        )
+        if duration_val:
+            PulseValidator.validate_duration_literal_value(duration_val, statement)
+            statement.duration = qasm3_ast.DurationLiteral(
+                duration_val,
+                unit=(
+                    qasm3_ast.TimeUnit.dt
+                    if self._module._device_cycle_time
+                    else qasm3_ast.TimeUnit.ns
+                ),
+            )
+
+        if self._scope_manager.in_box_scope():
+            self._total_delay_duration_in_box += duration_val
+
+        delay_qubit_bits = self._get_op_bits(statement, qubits=True)
+
+        duplicate_delay_qubit = Qasm3Analyzer.extract_duplicate_qubit(delay_qubit_bits)
+        if duplicate_delay_qubit:
+            delay_qubit_name, delay_qubit_id = duplicate_delay_qubit
+            raise_qasm3_error(
+                f"Duplicate qubit '{delay_qubit_name}[{delay_qubit_id}]' arg in DelayInstruction",
+                error_node=statement,
+                span=statement.span,
+            )
+
+        if self._check_only:
+            return []
+
+        if not delay_qubit_bits:
+            statement.qubits = [
+                qasm3_ast.IndexedIdentifier(
+                    name=qasm3_ast.Identifier(reg_name),
+                    indices=[[qasm3_ast.IntegerLiteral(reg)]],
+                )
+                for reg_name, reg_size in self._global_qreg_size_map.items()
+                for reg in range(reg_size)
+            ]
+        else:
+            statement.qubits = delay_qubit_bits  # type: ignore[assignment]
+
+        return [statement]
+
+    def _visit_box_statement(self, statement: qasm3_ast.Box) -> list[qasm3_ast.Statement]:
+        """
+        Visit a Box statement.
+        Args:
+            statement (qasm3_ast.Box): The Box statement node to visit.
+        Returns:
+            list[qasm3_ast.Statement]: The list of statements generated by the Box statement.
+        """
+        statements = []
+        _box_time_var = statement.duration
+        box_duration_val = 0
+        if _box_time_var is not None:
+            global_scope = self._scope_manager.get_global_scope()
+            PulseValidator.validate_duration_variable(_box_time_var, statement, global_scope, {})
+            box_duration_val, _ = Qasm3ExprEvaluator.evaluate_expression(
+                _box_time_var, dt=self._module._device_cycle_time
+            )
+            if box_duration_val:
+                PulseValidator.validate_duration_literal_value(box_duration_val, statement)
+                statement.duration = qasm3_ast.DurationLiteral(
+                    box_duration_val,
+                    unit=(
+                        qasm3_ast.TimeUnit.dt
+                        if self._module._device_cycle_time
+                        else qasm3_ast.TimeUnit.ns
+                    ),
+                )
+        self._scope_manager.push_scope({})
+        self._scope_manager.increment_scope_level()
+        self._scope_manager.push_context(Context.BOX)
+
+        if statement.body:
+            statements.extend(
+                self.visit_basic_block(stmt_list=statement.body)  # type: ignore[arg-type]
+            )
+        else:
+            raise_qasm3_error(
+                "Box statement must have atleast one Quantum Statement.",
+                error_node=statement,
+                span=statement.span,
+            )
+
+        self._scope_manager.restore_context()
+        self._scope_manager.decrement_scope_level()
+        self._scope_manager.pop_scope()
+
+        if (
+            _box_time_var
+            and box_duration_val
+            and self._total_delay_duration_in_box > box_duration_val
+        ):
+            time_unit = "dt" if self._module._device_cycle_time else "ns"
+            raise_qasm3_error(
+                f"Total delay duration value '{self._total_delay_duration_in_box}{time_unit}' "
+                f"should be less than 'box[{box_duration_val}{time_unit}]' duration.",
+                error_node=statement,
+                span=statement.span,
+            )
+        self._total_delay_duration_in_box = 0
+
+        if self._check_only:
+            return []
+        statement.body = statements  # type: ignore[assignment]
+        return [statement]
+
     def _visit_include(self, include: qasm3_ast.Include) -> list[qasm3_ast.Statement]:
         """Visit an include statement element.
 
@@ -2344,6 +2536,8 @@ class QasmVisitor:
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.BreakStatement: self._visit_break,
             qasm3_ast.ContinueStatement: self._visit_continue,
+            qasm3_ast.DelayInstruction: self._visit_delay_statement,
+            qasm3_ast.Box: self._visit_box_statement,
         }
 
         visitor_function = visit_map.get(type(statement))

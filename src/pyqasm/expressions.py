@@ -38,13 +38,14 @@ from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
     SizeOf,
     Statement,
+    StretchType,
     UnaryExpression,
 )
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.maps.expressions import CONSTANTS_MAP, qasm3_expression_op_map
+from pyqasm.maps.expressions import CONSTANTS_MAP, TIME_UNITS_MAP, qasm3_expression_op_map
 from pyqasm.validator import Qasm3Validator
 
 
@@ -68,7 +69,15 @@ class Qasm3ExprEvaluator:
             ValidationError: If the variable is undefined in the current scope.
         """
 
-        if not cls.visitor_obj._scope_manager.check_in_scope(var_name):
+        scope_manager = cls.visitor_obj._scope_manager
+        if not scope_manager.check_in_scope(var_name):
+            var = scope_manager.get_from_global_scope(var_name)
+            if var is not None and not var.is_constant:
+                raise_qasm3_error(
+                    f"Global variable '{var_name}' must be a constant to use it in a local scope.",
+                    error_node=expression,
+                    span=expression.span,
+                )
             raise_qasm3_error(
                 f"Undefined identifier '{var_name}' in expression",
                 err_type=ValidationError,
@@ -121,8 +130,8 @@ class Qasm3ExprEvaluator:
                 span=expression.span,
             )
 
-    @staticmethod
-    def _check_var_initialized(var_name, var_value, expression):
+    @classmethod
+    def _check_var_initialized(cls, var_name, var_value, expression):
         """Checks if a variable is initialized and raises an error if it is not.
 
         Args:
@@ -133,7 +142,8 @@ class Qasm3ExprEvaluator:
             ValidationError: If the variable is uninitialized.
         """
 
-        if var_value is None:
+        var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)
+        if not isinstance(var.base_type, StretchType) and var_value is None:
             raise_qasm3_error(
                 f"Uninitialized variable '{var_name}' in expression",
                 err_type=ValidationError,
@@ -167,9 +177,14 @@ class Qasm3ExprEvaluator:
         return var_value
 
     @classmethod
-    # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals
+    # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals,too-many-arguments
     def evaluate_expression(  # type: ignore[return]
-        cls, expression, const_expr: bool = False, reqd_type=None, validate_only: bool = False
+        cls,
+        expression,
+        const_expr: bool = False,
+        reqd_type=None,
+        validate_only: bool = False,
+        dt=None,
     ) -> tuple:
         """Evaluate an expression. Scalar types are assigned by value.
 
@@ -188,7 +203,7 @@ class Qasm3ExprEvaluator:
         if expression is None:
             return None, []
 
-        if isinstance(expression, (ImaginaryLiteral, DurationLiteral)):
+        if isinstance(expression, (ImaginaryLiteral)):
             raise_qasm3_error(
                 f"Unsupported expression type '{type(expression)}'",
                 err_type=ValidationError,
@@ -311,6 +326,18 @@ class Qasm3ExprEvaluator:
                     span=expression.span,
                 )
             return _check_and_return_value(expression.value)
+
+        if isinstance(expression, DurationLiteral):
+            unit_name = expression.unit.name
+            if dt:
+                if unit_name == "dt":
+                    return _check_and_return_value(expression.value * dt)
+                return _check_and_return_value(
+                    (expression.value * TIME_UNITS_MAP[unit_name]["s"]) / dt
+                )
+            if unit_name == "dt":
+                return _check_and_return_value(expression.value)
+            return _check_and_return_value(expression.value * TIME_UNITS_MAP[unit_name]["ns"])
 
         if isinstance(expression, UnaryExpression):
             if validate_only:

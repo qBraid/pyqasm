@@ -116,6 +116,11 @@ class ScopeManager:
         """Check if currently in a block scope (if/else/for/while)."""
         return len(self._scope) > 1 and self.get_curr_context() == Context.BLOCK
 
+    def in_box_scope(self) -> bool:
+        """Check if currently in a box scope."""
+        return len(self._scope) > 1 and self.get_curr_context() == Context.BOX
+
+    # pylint: disable=too-many-return-statements
     def check_in_scope(self, var_name: str) -> bool:
         """
         Checks if a variable is in scope.
@@ -140,7 +145,7 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return var_name in global_scope
-        if self.in_function_scope() or self.in_gate_scope():
+        if self.in_function_scope() or self.in_gate_scope() or self.in_box_scope():
             if var_name in curr_scope:
                 return True
             if var_name in global_scope:
@@ -179,7 +184,7 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return global_scope.get(var_name, None)
-        if self.in_function_scope() or self.in_gate_scope():
+        if self.in_function_scope() or self.in_gate_scope() or self.in_box_scope():
             if var_name in curr_scope:
                 return curr_scope[var_name]
             if var_name in global_scope and (

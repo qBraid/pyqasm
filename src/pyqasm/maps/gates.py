@@ -1015,6 +1015,7 @@ ONE_QUBIT_OP_MAP = {
     "ti": lambda qubit_id: one_qubit_gate_op("tdg", qubit_id),
     "v": lambda qubit_id: one_qubit_gate_op("sx", qubit_id),
     "sx": lambda qubit_id: one_qubit_gate_op("sx", qubit_id),
+    "nop": lambda qubit_id: one_qubit_gate_op("nop", qubit_id),
     "vi": sxdg_gate_op,
     "sxdg": sxdg_gate_op,
 }

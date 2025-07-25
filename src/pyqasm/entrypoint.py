@@ -55,6 +55,7 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
         **kwargs: Additional arguments to pass to the loads function.
             device_qubits (int): Number of physical qubits available on the target device.
+            device_cycle_time (float): The duration of a hardware device cycle, in seconds.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
@@ -85,6 +86,8 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
     # Store device_qubits on the module for later use
     if dev_qbts := kwargs.get("device_qubits"):
         module._device_qubits = dev_qbts
+    if dev_cycle_time := kwargs.get("device_cycle_time"):
+        module._device_cycle_time = dev_cycle_time
     return module
 
 

@@ -499,18 +499,6 @@ FAIL_CASTING_TESTS = {
         27,
         "int[32.5](f1);",
     ),
-    "Unsupported_expression": (
-        """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-
-        duration d1 = 1ns;
-        """,
-        "Unsupported expression type '<class 'openqasm3.ast.DurationLiteral'>'",
-        5,
-        22,
-        "1.0ns",
-    ),
     "Incorrect_base_size_for_direct_value_in_cast": (
         """
         OPENQASM 3.0;
