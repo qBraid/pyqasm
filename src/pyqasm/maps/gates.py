@@ -137,20 +137,9 @@ def ch_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Quantu
     """
     Implements the CH gate as a decomposition of other gates.
 
-    Used the following qiskit decomposition -
-
-        In [10]: q = QuantumCircuit(2)
-
-        In [11]: q.ch(0, 1)
-        Out[11]: <qiskit.circuit.instructionset.InstructionSet at 0x127e00a90>
-
-        In [12]: q.decompose().draw()
-        Out[12]:
-
-        q_0: ─────────────────■─────────────────────
-             ┌───┐┌───┐┌───┐┌─┴─┐┌─────┐┌───┐┌─────┐
-        q_1: ┤ S ├┤ H ├┤ T ├┤ X ├┤ Tdg ├┤ H ├┤ Sdg ├
-             └───┘└───┘└───┘└───┘└─────┘└───┘└─────┘
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#ch-gate)
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("s", qubit1))
@@ -185,23 +174,9 @@ def xx_plus_yy_gate(
     """
     Implements the XXPlusYY gate as a decomposition of other gates.
 
-    Uses the following qiskit decomposition:
-
-    In [7]: qc.draw()
-    Out[7]:
-         ┌─────────────────────┐
-    q_0: ┤0                    ├
-         │  (XX+YY)(theta,phi) │
-    q_1: ┤1                    ├
-         └─────────────────────┘
-
-    In [8]: qc.decompose().draw()
-    Out[8]:
-         ┌─────────┐ ┌───┐            ┌───┐┌──────────────┐┌───┐  ┌─────┐   ┌──────────┐
-    q_0: ┤ Rz(phi) ├─┤ S ├────────────┤ X ├┤ Ry(-theta/2) ├┤ X ├──┤ Sdg ├───┤ Rz(-phi) ├───────────
-         ├─────────┴┐├───┴┐┌─────────┐└─┬─┘├──────────────┤└─┬─┘┌─┴─────┴──┐└─┬──────┬─┘┌─────────┐
-    q_1: ┤ Rz(-π/2) ├┤ √X ├┤ Rz(π/2) ├──■──┤ Ry(-theta/2) ├──■──┤ Rz(-π/2) ├──┤ √Xdg ├──┤ Rz(π/2) ├
-         └──────────┘└────┘└─────────┘     └──────────────┘     └──────────┘  └──────┘  └─────────┘
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#xxyy-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
 
@@ -229,24 +204,9 @@ def ryy_gate(
     """
     Implements the YY gate as a decomposition of other gates.
 
-    Uses the following qiskit decomposition:
-
-    In [9]: qc.draw()
-    Out[9]:
-         ┌─────────────┐
-    q_0: ┤0            ├
-         │  Ryy(theta) │
-    q_1: ┤1            ├
-         └─────────────┘
-
-    In [10]: qc.decompose().draw()
-    Out[10]:
-         ┌─────────┐                       ┌──────────┐
-    q_0: ┤ Rx(π/2) ├──■─────────────────■──┤ Rx(-π/2) ├
-         ├─────────┤┌─┴─┐┌───────────┐┌─┴─┐├──────────┤
-    q_1: ┤ Rx(π/2) ├┤ X ├┤ Rz(theta) ├┤ X ├┤ Rx(-π/2) ├
-         └─────────┘└───┘└───────────┘└───┘└──────────┘
-
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#ryy-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_rotation_op("rx", CONSTANTS_MAP["pi"] / 2, qubit0))
@@ -350,23 +310,9 @@ def crx_gate(
     """
     Implements the CRX gate as a decomposition of other gates.
 
-    Used the following qiskit decomposition:
-
-        In [26]: q.draw()
-        Out[26]:
-
-        q_0: ──────■──────
-             ┌─────┴─────┐
-        q_1: ┤ Rx(theta) ├
-             └───────────┘
-
-        In [27]: q.decompose().decompose().decompose().draw()
-        Out[27]:
-
-        q_0: ────────────────■───────────────────────■───────────────────────
-             ┌────────────┐┌─┴─┐┌─────────────────┐┌─┴─┐┌───────────────────┐
-        q_1: ┤ U(0,0,π/2) ├┤ X ├┤ U(-theta/2,0,0) ├┤ X ├┤ U(theta/2,-π/2,0) ├
-             └────────────┘└───┘└─────────────────┘└───┘└───────────────────┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#crx-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, CONSTANTS_MAP["pi"] / 2, qubit1))
@@ -383,23 +329,9 @@ def cry_gate(
     """
     Implements the CRY gate as a decomposition of other gates.
 
-    Used the following qiskit decomposition -
-
-        In [4]: q.draw()
-        Out[4]:
-
-        q_0: ──────■──────
-             ┌─────┴─────┐
-        q_1: ┤ Ry(theta) ├
-             └───────────┘
-
-        In [5]: q.decompose().decompose().decompose().draw()
-        Out[5]:
-
-        q_0: ─────────────────────■────────────────────────■──
-             ┌─────────────────┐┌─┴─┐┌──────────────────┐┌─┴─┐
-        q_1: ┤ U3(theta/2,0,0) ├┤ X ├┤ U3(-theta/2,0,0) ├┤ X ├
-             └─────────────────┘└───┘└──────────────────┘└───┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cry-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(theta / 2, 0, 0, qubit1))
@@ -415,24 +347,9 @@ def crz_gate(
     """
     Implements the CRZ gate as a decomposition of other gates.
 
-    Used the following qiskit decomposition -
-
-        In [4]: q.draw()
-        Out[4]:
-
-    q_0: ──────■──────
-         ┌─────┴─────┐
-    q_1: ┤ Rz(theta) ├
-         └───────────┘
-
-        In [5]: q.decompose().decompose().decompose().draw()
-        Out[5]:
-        global phase: 0
-
-    q_0: ─────────────────────■────────────────────────■──
-         ┌─────────────────┐┌─┴─┐┌──────────────────┐┌─┴─┐
-    q_1: ┤ U3(0,0,theta/2) ├┤ X ├┤ U3(0,0,-theta/2) ├┤ X ├
-         └─────────────────┘└───┘└──────────────────┘└───┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#crz-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, theta / 2, qubit1))
@@ -453,28 +370,9 @@ def cu_gate(  # pylint: disable=too-many-arguments
     """
     Implements the CU gate as a decomposition of other gates.
 
-    Uses the following qiskit decomposition -
-
-        In [7]: qc.draw()
-        Out[7]:
-
-        q_0: ────────────■─────────────
-             ┌───────────┴────────────┐
-        q_1: ┤ U(theta,phi,lam,gamma) ├
-             └────────────────────────┘
-
-        In [8]: qc.decompose().decompose().decompose().draw()
-        Out[8]:
-                 ┌──────────────┐    ┌──────────────────────┐                                     »
-        q_0: ────┤ U(0,0,gamma) ├────┤ U(0,0,lam/2 + phi/2) ├──■──────────────────────────────────»
-             ┌───┴──────────────┴───┐└──────────────────────┘┌─┴─┐┌──────────────────────────────┐»
-        q_1: ┤ U(0,0,lam/2 - phi/2) ├────────────────────────┤ X ├┤ U(-theta/2,0,-lam/2 - phi/2) ├»
-             └──────────────────────┘                        └───┘└──────────────────────────────┘»
-        «
-        «q_0: ──■──────────────────────
-        «     ┌─┴─┐┌──────────────────┐
-        «q_1: ┤ X ├┤ U(theta/2,phi,0) ├
-        «     └───┘└──────────────────┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cu-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, gamma, qubit0))
@@ -498,23 +396,9 @@ def cu3_gate(  # pylint: disable=too-many-arguments
     """
     Implements the CU3 gate as a decomposition of other gates.
 
-    Uses the following qiskit decomposition -
-
-        In [7]: qc.draw()
-        Out[7]:
-
-        q_0: ──────────■──────────
-             ┌─────────┴─────────┐
-        q_1: ┤ U3(theta,phi,lam) ├
-             └───────────────────┘
-
-        In [8]: qc.decompose().decompose().decompose().draw()
-        Out[8]:
-             ┌──────────────────────┐
-        q_0: ┤ U(0,0,lam/2 + phi/2) ├──■────────────────────────────────────■──────────────────────
-             ├──────────────────────┤┌─┴─┐┌──────────────────────────────┐┌─┴─┐┌──────────────────┐
-        q_1: ┤ U(0,0,lam/2 - phi/2) ├┤ X ├┤ U(-theta/2,0,-lam/2 - phi/2) ├┤ X ├┤ U(theta/2,phi,0) ├
-             └──────────────────────┘└───┘└──────────────────────────────┘└───┘└──────────────────┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cu3-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, lam / 2 + phi / 2, qubit0))
@@ -533,23 +417,9 @@ def cu1_gate(
     """
     Implements the CU1 gate as a decomposition of other gates.
 
-    Uses the following qiskit decomposition -
-
-        In [11]: qc.draw()
-        Out[11]:
-
-        q_0: ─■──────────
-              │U1(theta)
-        q_1: ─■──────────
-
-
-        In [12]: qc.decompose().decompose().decompose().draw()
-        Out[12]:
-             ┌────────────────┐
-        q_0: ┤ U(0,0,theta/2) ├──■───────────────────────■────────────────────
-             └────────────────┘┌─┴─┐┌─────────────────┐┌─┴─┐┌────────────────┐
-        q_1: ──────────────────┤ X ├┤ U(0,0,-theta/2) ├┤ X ├┤ U(0,0,theta/2) ├
-                               └───┘└─────────────────┘└───┘└────────────────┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cu1-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, theta / 2, qubit0))
@@ -564,28 +434,9 @@ def cu1_gate(
 def csx_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[QuantumGate]:
     """Implement the CSX gate as a decomposition of other gates.
 
-    Used the following qiskit decomposition -
-
-        In [19]: q = QuantumCircuit(2)
-
-        In [20]: q.csx(0,1)
-        Out[20]: <qiskit.circuit.instructionset.InstructionSet at 0x127e022f0>
-
-        In [21]: q.draw()
-        Out[21]:
-
-        q_0: ──■───
-             ┌─┴──┐
-        q_1: ┤ Sx ├
-             └────┘
-
-        In [22]: q.decompose().decompose().draw()
-        Out[22]:
-                 ┌─────────┐
-            q_0: ┤ U1(π/4) ├──■────────────────■────────────────────────
-                 ├─────────┤┌─┴─┐┌──────────┐┌─┴─┐┌─────────┐┌─────────┐
-            q_1: ┤ U2(0,π) ├┤ X ├┤ U1(-π/4) ├┤ X ├┤ U1(π/4) ├┤ U2(0,π) ├
-                 └─────────┘└───┘└──────────┘└───┘└─────────┘└─────────┘
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#csx-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(phaseshift_gate(CONSTANTS_MAP["pi"] / 4, qubit0))
@@ -642,24 +493,9 @@ def rzz_gate(
     """
     Implements the RZZ gate as a decomposition of other gates.
 
-    Used the following qiskit decomposition -
-
-        In [32]: q.draw()
-        Out[32]:
-
-        q_0: ─■──────────
-              │ZZ(theta)
-        q_1: ─■──────────
-
-
-        In [33]: q.decompose().decompose().decompose().draw()
-        Out[33]:
-        global phase: -theta/2
-
-        q_0: ──■─────────────────────■──
-             ┌─┴─┐┌───────────────┐┌─┴─┐
-        q_1: ┤ X ├┤ U3(0,0,theta) ├┤ X ├
-             └───┘└───────────────┘└───┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#rzz-gate
+       for decomposition details
     """
     result: list[QuantumGate | QuantumPhase] = []
 
@@ -677,23 +513,9 @@ def cphaseshift_gate(
     """
     Implements the controlled phase shift gate as a decomposition of other gates.
 
-    Uses the following qiskit decomposition -
-
-        In [11]: qc.draw()
-        Out[11]:
-
-        q_0: ─■─────────
-             │P(theta)
-        q_1: ─■─────────
-
-
-        In [12]: qc.decompose().decompose().decompose().draw()
-        Out[12]:
-             ┌────────────────┐
-        q_0: ┤ U(0,0,theta/2) ├──■───────────────────────■────────────────────
-             └────────────────┘┌─┴─┐┌─────────────────┐┌─┴─┐┌────────────────┐
-        q_1: ──────────────────┤ X ├┤ U(0,0,-theta/2) ├┤ X ├┤ U(0,0,theta/2) ├
-                               └───┘└─────────────────┘└───┘└────────────────┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cphaseshift-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, theta / 2, qubit0))
@@ -869,40 +691,9 @@ def c3sx_gate(
     """
     Implements the c3sx gate as a decomposition of other gates.
 
-    Uses the following qiskit decomposition -
-
-    In [15]: qc.draw()
-    Out[15]:
-
-    q_0: ──■───
-           │
-    q_1: ──■───
-           │
-    q_2: ──■───
-         ┌─┴──┐
-    q_3: ┤ Sx ├
-         └────┘
-
-    In [16]: qc.decompose().draw()
-    Out[16]:
-
-    q_0: ──────■──────────■────────────────────■────────────────────────────────────────■────────
-               │        ┌─┴─┐                ┌─┴─┐                                      │
-    q_1: ──────┼────────┤ X ├──────■─────────┤ X ├──────■──────────■────────────────────┼────────
-               │        └───┘      │         └───┘      │        ┌─┴─┐                ┌─┴─┐
-    q_2: ──────┼───────────────────┼────────────────────┼────────┤ X ├──────■─────────┤ X ├──────
-         ┌───┐ │U1(π/8) ┌───┐┌───┐ │U1(-π/8) ┌───┐┌───┐ │U1(π/8) ├───┤┌───┐ │U1(-π/8) ├───┤┌───┐
-    q_3: ┤ H ├─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─
-         └───┘          └───┘└───┘           └───┘└───┘          └───┘└───┘           └───┘└───┘
-    «
-    «q_0:─────────────────────────────────■──────────────────────
-    «                                     │
-    «q_1:────────────■────────────────────┼──────────────────────
-    «              ┌─┴─┐                ┌─┴─┐
-    «q_2:─■────────┤ X ├──────■─────────┤ X ├──────■─────────────
-    «     │U1(π/8) ├───┤┌───┐ │U1(-π/8) ├───┤┌───┐ │U1(π/8) ┌───┐
-    «q_3:─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─■────────┤ H ├
-    «              └───┘└───┘           └───┘└───┘          └───┘
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#c3sx-gate
+       for decomposition details
     """
 
     result: list[QuantumGate] = []
