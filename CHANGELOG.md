@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+
 - Added support to `OPENPULSE` code in pyqasm. ([#246](https://github.com/qBraid/pyqasm/pull/246))
   ###### Example:
   ```qasm
@@ -48,6 +49,8 @@ Types of changes:
   }
   ```
 - Added a workflow to track changes in the `docs/_static/logo.png` file to prevent unnecessary modifications. ([#257](https://github.com/qBraid/pyqasm/pull/257))
+- Added decomposition details for all gates in the `docs/gate_decompositions.md` file. ([#237](https://github.com/qBraid/pyqasm/pull/237))
+
 
 ### Improved / Modified
 - Modified if statement validation to now include empty blocks as well. See [Issue #246](https://github.com/qBraid/pyqasm/issues/246) for details. ([#251](https://github.com/qBraid/pyqasm/pull/251))
