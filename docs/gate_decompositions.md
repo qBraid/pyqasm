@@ -2,7 +2,39 @@
 
 This document contains the decomposition diagrams and explanations for various quantum gates implemented in [pyqasm](../src/pyqasm/maps/gates.py).
 
-## [CH Gate](../src/pyqasm/maps/gates.py#L136)
+## [U3 Gate](../src/pyqasm/maps/gates.py#L34)
+
+The U3 gate is implemented as a decomposition of other gates using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(1)
+In [11]: q.u(theta, phi, lam, 0)
+In [12]: qc = transpile(q, basis_gates['rz','rx'])
+In [13]: print(qc)
+Out[14]: 
+
+   ┌────────────┐┌─────────┐┌───────────────┐┌─────────┐┌──────────────┐
+q: ┤ Rz(lambda) ├┤ Rx(π/2) ├┤ Rz(theta + π) ├┤ Rx(π/2) ├┤ Rz(phi + 3π) ├
+   └────────────┘└─────────┘└───────────────┘└─────────┘└──────────────┘
+```
+
+## [CY Gate](../src/pyqasm/maps/gates.py#L129)
+
+The CY (controlled-Y) gate is implemented as a decomposition of other gates using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(2)
+In [11]: q.cy(0,1)
+In [12]: q.decompose().draw()
+Out[13]: 
+                    
+q_0: ─────────■───────
+     ┌─────┐┌─┴─┐┌───┐
+q_1: ┤ Sdg ├┤ X ├┤ S ├
+     └─────┘└───┘└───┘
+```
+
+## [CH Gate](../src/pyqasm/maps/gates.py#L144)
 
 The CH (Controlled-Hadamard) gate is implemented as a decomposition of other gates using the following qiskit decomposition:
 
@@ -21,7 +53,7 @@ q_1: ┤ S ├┤ H ├┤ T ├┤ X ├┤ Tdg ├┤ H ├┤ Sdg ├
      └───┘└───┘└───┘└───┘└─────┘└───┘└─────┘
 ```
 
-## [XX+YY Gate](../src/pyqasm/maps/gates.py#L168)
+## [XX+YY Gate](../src/pyqasm/maps/gates.py#L176)
 
 The XX+YY gate is implemented using the following qiskit decomposition:
 
@@ -43,7 +75,7 @@ q_1: ┤ Rz(-π/2) ├┤ √X ├┤ Rz(π/2) ├──■──┤ Ry(-theta/2
      └──────────┘└────┘└─────────┘     └──────────────┘     └──────────┘  └──────┘  └─────────┘
 ```
 
-## [RYY Gate](../src/pyqasm/maps/gates.py#L201)
+## [RYY Gate](../src/pyqasm/maps/gates.py#L209)
 
 The RYY gate is implemented using the following qiskit decomposition:
 
@@ -65,7 +97,82 @@ q_1: ┤ Rx(π/2) ├┤ X ├┤ Rz(theta) ├┤ X ├┤ Rx(-π/2) ├
      └─────────┘└───┘└───────────┘└───┘└──────────┘
 ```
 
-## [CRX Gate](../src/pyqasm/maps/gates.py#L307)
+## [ZZ Gate](../src/pyqasm/maps/gates.py#L230)
+
+The rotation about ZZ axis is implemented as a decomposition of other gates using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(2)
+In [11]: q.rzz(np.pi,0,1)
+In [12]: qc.decompose().draw()  
+Out[12]: 
+                                                            
+q_0: ──■─────────────■──
+     ┌─┴─┐┌───────┐┌─┴─┐
+q_1: ┤ X ├┤ Rz(π) ├┤ X ├
+     └───┘└───────┘└───┘
+```
+
+## [Phaseshift Gate](../src/pyqasm/maps/gates.py#L249)
+
+The phaseshift gate is implemented as a decomposition of other gates using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(1)
+In [11]: q.p(theta,0)
+In [12]: new_qc = transpile(q, basis_gates=['rx','h'])
+In [13]: print(new_qc)
+Out[13]: 
+
+   ┌───┐┌───────────┐┌───┐
+q: ┤ H ├┤ Rx(theta) ├┤ H ├
+   └───┘└───────────┘└───┘
+```
+
+## [CSWAP Gate](../src/pyqasm/maps/gates.py#L264)
+
+The CSWAP (Controlled-SWAP) gate is implemented as a decomposition of other gates using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(3)
+In [11]: q.cswap(0,1,2)
+In [12]: q.decompose().draw()
+Out[12]: 
+                                                            ┌───┐           
+q_0: ────────────────────────■─────────────────────■────■───┤ T ├───■───────
+     ┌───┐                   │             ┌───┐   │  ┌─┴─┐┌┴───┴┐┌─┴─┐┌───┐
+q_1: ┤ X ├───────■───────────┼─────────■───┤ T ├───┼──┤ X ├┤ Tdg ├┤ X ├┤ X ├
+     └─┬─┘┌───┐┌─┴─┐┌─────┐┌─┴─┐┌───┐┌─┴─┐┌┴───┴┐┌─┴─┐├───┤└┬───┬┘└───┘└─┬─┘
+q_2: ──■──┤ H ├┤ X ├┤ Tdg ├┤ X ├┤ T ├┤ X ├┤ Tdg ├┤ X ├┤ T ├─┤ H ├────────■──
+          └───┘└───┘└─────┘└───┘└───┘└───┘└─────┘└───┘└───┘ └───┘           
+```
+
+## [PSWAP Gate](../src/pyqasm/maps/gates.py#L295)
+
+The PSWAP (Phase-SWAP) gate is implemented as a decomposition of other gates using the following qiskit decomposition:
+
+```python
+
+```
+
+## [iSWAP Gate](../src/pyqasm/maps/gates.py#L313)
+
+The iSWAP gate is implemented as a decomposition of other gates using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(2)
+In [11]: q.iswap(0,1)
+In [12]: q.decompose().draw()
+Out[12]: 
+
+     ┌───┐┌───┐     ┌───┐     
+q_0: ┤ S ├┤ H ├──■──┤ X ├─────
+     ├───┤└───┘┌─┴─┐└─┬─┘┌───┐
+q_1: ┤ S ├─────┤ X ├──■──┤ H ├
+     └───┘     └───┘     └───┘
+```
+
+## [CRX Gate](../src/pyqasm/maps/gates.py#L334)
 
 The CRX (Controlled-RX) gate is implemented using the following qiskit decomposition:
 
@@ -87,7 +194,7 @@ q_1: ┤ U(0,0,π/2) ├┤ X ├┤ U(-theta/2,0,0) ├┤ X ├┤ U(theta/2,-
      └────────────┘└───┘└─────────────────┘└───┘└───────────────────┘
 ```
 
-## [CRY Gate](../src/pyqasm/maps/gates.py#L326)
+## [CRY Gate](../src/pyqasm/maps/gates.py#L353)
 
 The CRY (Controlled-RY) gate is implemented using the following qiskit decomposition:
 
@@ -109,7 +216,7 @@ q_1: ┤ U3(theta/2,0,0) ├┤ X ├┤ U3(-theta/2,0,0) ├┤ X ├
      └─────────────────┘└───┘└──────────────────┘└───┘
 ```
 
-## [CRZ Gate](../src/pyqasm/maps/gates.py#L344)
+## [CRZ Gate](../src/pyqasm/maps/gates.py#L371)
 
 The CRZ (Controlled-RZ) gate is implemented using the following qiskit decomposition:
 
@@ -132,7 +239,7 @@ q_1: ┤ U3(0,0,theta/2) ├┤ X ├┤ U3(0,0,-theta/2) ├┤ X ├
      └─────────────────┘└───┘└──────────────────┘└───┘
 ```
 
-## [CU Gate](../src/pyqasm/maps/gates.py#L362)
+## [CU Gate](../src/pyqasm/maps/gates.py#L389)
 
 The CU (Controlled-U) gate is implemented using the following qiskit decomposition:
 
@@ -159,7 +266,7 @@ q_1: ┤ U(0,0,lam/2 - phi/2) ├───────────────�
 «     └───┘└──────────────────┘
 ```
 
-## [CU3 Gate](../src/pyqasm/maps/gates.py#L389)
+## [CU3 Gate](../src/pyqasm/maps/gates.py#L416)
 
 The CU3 (Controlled-U3) gate is implemented using the following qiskit decomposition:
 
@@ -181,7 +288,7 @@ q_1: ┤ U(0,0,lam/2 - phi/2) ├┤ X ├┤ U(-theta/2,0,-lam/2 - phi/2) ├�
      └──────────────────────┘└───┘└──────────────────────────────┘└───┘└──────────────────┘
 ```
 
-## [CU1 Gate](../src/pyqasm/maps/gates.py#L414)
+## [CU1 Gate](../src/pyqasm/maps/gates.py#L441)
 
 The CU1 (Controlled-U1) gate is implemented using the following qiskit decomposition:
 
@@ -202,7 +309,7 @@ q_1: ──────────────────┤ X ├┤ U(0,0,-t
                        └───┘└─────────────────┘└───┘└────────────────┘
 ```
 
-## [CSX Gate](../src/pyqasm/maps/gates.py#L434)
+## [CSX Gate](../src/pyqasm/maps/gates.py#L461)
 
 The CSX (Controlled-SX) gate is implemented using the following qiskit decomposition:
 
@@ -229,7 +336,60 @@ Out[22]:
          └─────────┘└───┘└──────────┘└───┘└─────────┘└─────────┘
 ```
 
-## [RZZ Gate](../src/pyqasm/maps/gates.py#L490)
+## [RXX Gate](../src/pyqasm/maps/gates.py#L480)
+
+The RXX gate is implemented using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(2)
+In [11]: q.rxx(theta,0,1)
+In [12]: q.decompose().draw()
+Out[12]: 
+
+     ┌───┐                       ┌───┐
+q_0: ┤ H ├──■─────────────────■──┤ H ├
+     ├───┤┌─┴─┐┌───────────┐┌─┴─┐├───┤
+q_1: ┤ H ├┤ X ├┤ Rz(theta) ├┤ X ├┤ H ├
+     └───┘└───┘└───────────┘└───┘└───┘
+
+In [13]: q.decompose().decompose().draw()
+Out[13]: 
+
+global phase: -theta/2
+     ┌─────────┐                       ┌─────────┐
+q_0: ┤ U2(0,π) ├──■─────────────────■──┤ U2(0,π) ├
+     ├─────────┤┌─┴─┐┌───────────┐┌─┴─┐├─────────┤
+q_1: ┤ U2(0,π) ├┤ X ├┤ U1(theta) ├┤ X ├┤ U2(0,π) ├
+     └─────────┘└───┘└───────────┘└───┘└─────────┘
+```
+
+## [RCCX Gate](../src/pyqasm/maps/gates.py#L504)
+
+The RCCX gate is implemented using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(3)
+In [11]: q.rccx(0,1,2)
+In [12]: q.decompose().draw()
+Out[12]: 
+
+                                                                             »
+q_0: ─────────────────────────────────────────■──────────────────────────────»
+                                              │                              »
+q_1: ────────────────────────■────────────────┼───────────────■──────────────»
+     ┌─────────┐┌─────────┐┌─┴─┐┌──────────┐┌─┴─┐┌─────────┐┌─┴─┐┌──────────┐»
+q_2: ┤ U2(0,π) ├┤ U1(π/4) ├┤ X ├┤ U1(-π/4) ├┤ X ├┤ U1(π/4) ├┤ X ├┤ U1(-π/4) ├»
+     └─────────┘└─────────┘└───┘└──────────┘└───┘└─────────┘└───┘└──────────┘»
+«                
+«q_0: ───────────
+«                
+«q_1: ───────────
+«     ┌─────────┐
+«q_2: ┤ U2(0,π) ├
+«     └─────────┘
+```
+
+## [RZZ Gate](../src/pyqasm/maps/gates.py#L528)
 
 The RZZ gate is implemented using the following qiskit decomposition:
 
@@ -251,7 +411,7 @@ q_1: ┤ X ├┤ U3(0,0,theta) ├┤ X ├
      └───┘└───────────────┘└───┘
 ```
 
-## [CPhaseShift Gate](../src/pyqasm/maps/gates.py#L510)
+## [CPhaseShift Gate](../src/pyqasm/maps/gates.py#L548)
 
 The controlled phase shift gate is implemented using the following qiskit decomposition:
 
@@ -272,7 +432,55 @@ q_1: ──────────────────┤ X ├┤ U(0,0,-t
                        └───┘└─────────────────┘└───┘└────────────────┘
 ```
 
-## [C3SX Gate](../src/pyqasm/maps/gates.py#L685)
+## [CPhaseShift00 Gate](../src/pyqasm/maps/gates.py#L568)
+
+The controlled phase shift 00 gate is implemented using the following qiskit decomposition:
+
+```python
+```
+
+## [CPhaseShift01 Gate](../src/pyqasm/maps/gates.py#L591)
+
+The controlled phase shift 01 gate is implemented using the following qiskit decomposition:
+
+```python
+```
+
+## [CPhaseShift10 Gate](../src/pyqasm/maps/gates.py#L612)
+
+The controlled phase shift 10 gate is implemented using the following qiskit decomposition:
+
+```python
+```
+
+## [ECR Gate](../src/pyqasm/maps/gates.py#L723)
+
+The ECR (Echoed Cross-Resonance) gate is implemented using the following qiskit decomposition:
+
+```python
+In [10]: q = QuantumCircuit(2)
+In [11]: q.ecr(0,1)
+In [12]: q.draw()
+Out[12]:
+
+     ┌──────┐
+q_0: ┤0     ├
+     │  Ecr │
+q_1: ┤1     ├
+     └──────┘
+
+In [13]: new_qc = transpile(q, basis_gates=['x','cx','rx','s'])
+In [14]: new_qc.draw() 
+Out[14]: 
+
+        ┌───┐        ┌───┐
+q_0: ───┤ S ├─────■──┤ X ├
+     ┌──┴───┴──┐┌─┴─┐└───┘
+q_1: ┤ Rx(π/2) ├┤ X ├─────
+     └─────────┘└───┘     
+```
+
+## [C3SX Gate](../src/pyqasm/maps/gates.py#L739)
 
 The C3SX (3-Controlled-SX) gate is implemented using the following qiskit decomposition:
 
@@ -309,3 +517,4 @@ q_3: ┤ H ├─■────────┤ H ├┤ H ├─■────
 «     │U1(π/8) ├───┤┌───┐ │U1(-π/8) ├───┤┌───┐ │U1(π/8) ┌───┐
 «q_3:─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─■────────┤ H ├
 «              └───┘└───┘           └───┘└───┘          └───┘ 
+```

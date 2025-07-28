@@ -51,6 +51,10 @@ def u3_gate(
 
     Returns:
         list: A list of QuantumGate objects representing the decomposition of the U3 gate.
+
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#u3-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_rotation_op("rz", lam, qubit_id))
@@ -125,6 +129,10 @@ def sxdg_gate_op(qubit_id) -> list[QuantumGate]:
 def cy_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[QuantumGate]:
     """
     Implements the CY gate as a decomposition of other gates.
+
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cy-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("sdg", qubit1))
@@ -224,6 +232,10 @@ def zz_gate(
 ) -> list[QuantumGate]:
     """
     Implements the ZZ gate as a decomposition of other gates.
+
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#zz-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(two_qubit_gate_op("cz", qubit0, qubit1))
@@ -237,6 +249,10 @@ def zz_gate(
 def phaseshift_gate(theta: int | float, qubit: IndexedIdentifier) -> list[QuantumGate]:
     """
     Implements the phase shift gate as a decomposition of other gates.
+
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#phaseshift-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("h", qubit))
@@ -250,6 +266,10 @@ def cswap_gate(
 ) -> list[QuantumGate]:
     """
     Implements the CSWAP gate as a decomposition of other gates.
+
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cswap-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(two_qubit_gate_op("cx", qubit2, qubit1))
@@ -277,6 +297,10 @@ def pswap_gate(
 ) -> list[QuantumGate]:
     """
     Implements the PSWAP gate as a decomposition of other gates.
+
+    Reference :
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#pswap-gate
+    for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(two_qubit_gate_op("swap", qubit0, qubit1))
@@ -290,6 +314,9 @@ def iswap_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[Qua
     """Implements the iSwap gate as a decomposition of other gates.
 
     Reference: https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.iSwapGate
+
+    See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#iswap-gate
+    for decomposition details
     """
 
     result: list[QuantumGate] = []
@@ -455,6 +482,10 @@ def rxx_gate(
 ) -> list[QuantumGate | QuantumPhase]:
     """
     Implements the RXX gate as a decomposition of other gates.
+
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#rxx-gate
+       for decomposition details
     """
 
     result: list[QuantumGate | QuantumPhase] = []
@@ -473,6 +504,13 @@ def rxx_gate(
 def rccx_gate(
     qubit0: IndexedIdentifier, qubit1: IndexedIdentifier, qubit2: IndexedIdentifier
 ) -> list[QuantumGate]:
+    """
+    Implements the RCCX gate as a decomposition of other gates.
+
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#rccx-gate
+       for decomposition details
+    """
     result: list[QuantumGate] = []
     result.extend(u2_gate(0, CONSTANTS_MAP["pi"], qubit2))
     result.extend(phaseshift_gate(CONSTANTS_MAP["pi"] / 4, qubit2))
@@ -532,6 +570,10 @@ def cphaseshift00_gate(
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 00 gate as a decomposition of other gates.
+
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cphaseshift00-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("x", qubit0))
@@ -551,6 +593,10 @@ def cphaseshift01_gate(
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 01 gate as a decomposition of other gates.
+
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cphaseshift01-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("x", qubit0))
@@ -568,6 +614,10 @@ def cphaseshift10_gate(
 ) -> list[QuantumGate]:
     """
     Implements the controlled phase shift 10 gate as a decomposition of other gates.
+
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#cphaseshift10-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(u3_gate(0, 0, theta / 2, qubit0))
@@ -673,6 +723,10 @@ def ccx_gate_op(
 def ecr_gate(qubit0: IndexedIdentifier, qubit1: IndexedIdentifier) -> list[QuantumGate]:
     """
     Implements the ECR gate as a decomposition of other gates.
+
+    Reference :
+       See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#ecr-gate
+       for decomposition details
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("s", qubit0))
