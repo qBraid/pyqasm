@@ -18,6 +18,7 @@ Top-level entrypoint functions for pyqasm.
 """
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 import openqasm3
@@ -43,9 +44,9 @@ def load(filename: str, **kwargs) -> QasmModule:
     """
     if not isinstance(filename, str):
         raise TypeError("Input 'filename' must be of type 'str'.")
-    with open(filename, "r", encoding="utf-8") as file:
-        program = file.read()
-        program = process_include_statements(program, filename)
+    if not os.path.isfile(filename):
+        raise FileNotFoundError(f"QASM file '{filename}' not found.")
+    program = process_include_statements(filename)
     return loads(program, **kwargs)
 
 

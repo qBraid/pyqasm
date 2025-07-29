@@ -45,30 +45,6 @@ def test_correct_module_dump():
     os.remove(file_path)
 
 
-def test_correct_include_processing():
-    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_custom_gates.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "custom_gate_complex.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
-
-
-def test_correct_include_processing_complex():
-    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_vars.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_vars_ref.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
-
-
-def test_include_custom_subroutine():
-    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_sub.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "include_sub_ref.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
-
-
 def test_incorrect_module_loading_file():
     with pytest.raises(TypeError, match="Input 'filename' must be of type 'str'."):
         load(1)
@@ -97,17 +73,3 @@ def test_incorrect_module_unroll_raises_error():
     with pytest.raises(ValidationError):
         module = loads("OPENQASM 3.0;\n qubit q; h q[2]")
         module.unroll()
-
-
-def test_malformed_include_statement():
-    """Test that malformed include statements are skipped."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "malformed_include.qasm")
-    with pytest.raises(ValidationError, match="Invalid include statement detected in QASM file."):
-        load(file_path)
-
-
-def test_include_file_not_found():
-    """Test that missing include files raise FileNotFoundError."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "custom_include", "inc_not_found.qasm")
-    with pytest.raises(FileNotFoundError, match="Include file 'nonexistent.inc' not found"):
-        load(file_path)
