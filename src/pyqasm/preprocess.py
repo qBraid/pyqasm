@@ -125,7 +125,8 @@ def _get_custom_includes(
         line (str): The line containing the include statement.
 
     Returns:
-        str | None: The name of the included file or None if not found.
+        list[tuple[str, int, int]]: A list of tuples containing the include filename,
+            line number, and column number where the include was found.
     """
     includes = []
     # Search for custom include statements
@@ -154,7 +155,7 @@ def _resolve_include_path(base_file: str, file_to_include: str) -> str | None:
         file_to_include (str): The file to include.
 
     Returns:
-        str: The resolved include path.
+        str | None: The resolved include path, or None if not found.
     """
     possible_paths = [os.path.join(os.path.dirname(base_file), file_to_include), file_to_include]
     for path in possible_paths:
@@ -168,7 +169,7 @@ def _collect_headers(ctx: IncludeContext, base_filename: str) -> None:
     Args:
         base_filename (str): The base filename to read.
     Returns:
-        list[str]: A list of header lines to include at the top of the final program.
+        None: Modifies the context in place.
     """
 
     with open(base_filename, "r", encoding="utf-8") as f:
