@@ -152,7 +152,26 @@ q_2: ──■──┤ H ├┤ X ├┤ Tdg ├┤ X ├┤ T ├┤ X ├┤ 
 The PSWAP (Phase-SWAP) gate is implemented as a decomposition of other gates using the following qiskit decomposition:
 
 ```python
+In [10]: pswap_matrix = np.array([[1, 0, 0, 0], 
+                                  [0, 0, np.exp(1j * phi), 0], 
+                                  [0, np.exp(1j * phi), 0, 0], 
+                                  [0, 0, 0, 1]])
+In [11]: op = Operator(pswap_matrix)
+In [12]: qc = QuantumCircuit(op.num_qubits)
+In [13]: qc.append(op.to_instruction(), qc.qubits)
+In [14]: qc.decompose().draw()
+Out[14]: 
 
+     ┌───────────────┐         ┌──────────────────┐        »
+q_0: ┤ U(π/2,-π/2,ϕ) ├──■──────┤ U(π/2,-π/2,-π/2) ├─────■──»
+     └──┬──────────┬─┘┌─┴─┐┌───┴──────────────────┴──┐┌─┴─┐»
+q_1: ───┤ U(ϕ,ϕ,ϕ) ├──┤ X ├┤ U(1.8581,2.6524,0.4892) ├┤ X ├»
+        └──────────┘  └───┘└─────────────────────────┘└───┘»
+«              ┌──────────┐             ┌────────────┐
+«q_0: ─────────┤ U(ϕ,ϕ,ϕ) ├──────────■──┤ U(π/2,0,ϕ) ├
+«     ┌────────┴──────────┴───────┐┌─┴─┐├────────────┤
+«q_1: ┤ U(1.1033,0.32306,-2.2097) ├┤ X ├┤ U(π/2,ϕ,0) ├
+«     └───────────────────────────┘└───┘└────────────┘
 ```
 
 ## [iSWAP Gate](../src/pyqasm/maps/gates.py#L313)
@@ -434,23 +453,75 @@ q_1: ──────────────────┤ X ├┤ U(0,0,-t
 
 ## [CPhaseShift00 Gate](../src/pyqasm/maps/gates.py#L568)
 
-The controlled phase shift 00 gate is implemented using the following qiskit decomposition:
+The controlled phase shift-00 gate is implemented using the following qiskit decomposition:
 
 ```python
+In [10]: matrix = np.diag([np.exp(1j * phi), 1.0, 1.0, 1.0])
+In [11]: op = Operator(matrix)
+In [12]: qc = QuantumCircuit(op.num_qubits)
+In [13]: qc.append(op.to_instruction(), qc.qubits)
+In [14]: qc.decompose().draw()
+Out[14]: 
+
+     ┌──────────────────────┐     ┌──────────────────────┐     »
+q_0: ┤ U(0,-2.9717,-1.7407) ├──■──┤ U(π,-0.46112,1.1097) ├──■──»
+     └─┬──────────────────┬─┘┌─┴─┐└─────┬──────────┬─────┘┌─┴─┐»
+q_1: ──┤ U(0.56139,π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ,ϕ) ├──────┤ X ├»
+       └──────────────────┘  └───┘      └──────────┘      └───┘»
+«         ┌──────────┐    
+«q_0: ────┤ U(π,ϕ,ϕ) ├────
+«     ┌───┴──────────┴───┐
+«q_1: ┤ U(1.0094,ϕ,-π/2) ├
+«     └──────────────────┘
+
 ```
 
 ## [CPhaseShift01 Gate](../src/pyqasm/maps/gates.py#L591)
 
-The controlled phase shift 01 gate is implemented using the following qiskit decomposition:
+The controlled phase shift-01 gate is implemented using the following qiskit decomposition:
 
 ```python
+In [10]: matrix = np.diag([1.0, np.exp(1j * phi), 1.0, 1.0])
+In [11]: op = Operator(matrix)
+In [12]: qc = QuantumCircuit(op.num_qubits)
+In [13]: qc.append(op.to_instruction(), qc.qubits)
+In [14]: qc.decompose().draw()
+Out[14]: 
+
+     ┌──────────────────────┐     ┌──────────────────────┐     »
+q_0: ┤ U(0,-2.9717,-1.7407) ├──■──┤ U(π,-0.46112,1.1097) ├──■──»
+     └─┬──────────────────┬─┘┌─┴─┐└─────┬──────────┬─────┘┌─┴─┐»
+q_1: ──┤ U(2.5802,-π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ,ϕ) ├──────┤ X ├»
+       └──────────────────┘  └───┘      └──────────┘      └───┘»
+«         ┌──────────┐   
+«q_0: ────┤ U(π,ϕ,ϕ) ├───
+«     ┌───┴──────────┴──┐
+«q_1: ┤ U(2.1322,ϕ,π/2) ├
+«     └─────────────────┘
 ```
 
 ## [CPhaseShift10 Gate](../src/pyqasm/maps/gates.py#L612)
 
-The controlled phase shift 10 gate is implemented using the following qiskit decomposition:
+The controlled phase shift-10 gate is implemented using the following qiskit decomposition:
 
 ```python
+In [10]: matrix = np.diag([1.0, 1.0, np.exp(1j * phi), 1.0])
+In [11]: op = Operator(matrix)
+In [12]: qc = QuantumCircuit(op.num_qubits)
+In [13]: qc.append(op.to_instruction(), qc.qubits)
+In [14]: qc.decompose().draw()
+Out[14]: 
+
+     ┌──────────────────────┐     ┌──────────────────────┐     »
+q_0: ┤ U(0,-2.9717,-1.7407) ├──■──┤ U(π,-0.46112,1.1097) ├──■──»
+     └─┬──────────────────┬─┘┌─┴─┐└─────┬──────────┬─────┘┌─┴─┐»
+q_1: ──┤ U(2.5802,-π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ,ϕ) ├──────┤ X ├»
+       └──────────────────┘  └───┘      └──────────┘      └───┘»
+«         ┌──────────┐   
+«q_0: ────┤ U(π,ϕ,ϕ) ├───
+«     ┌───┴──────────┴──┐
+«q_1: ┤ U(2.1322,ϕ,π/2) ├
+«     └─────────────────┘
 ```
 
 ## [ECR Gate](../src/pyqasm/maps/gates.py#L723)
