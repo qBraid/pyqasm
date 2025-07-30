@@ -29,29 +29,22 @@ QASM_RESOURCES_DIR = os.path.join(
 )
 
 
-def test_correct_include_processing():
-    """Test that simple custom include statements are processed correctly."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "include_custom_gates.qasm")
+@pytest.mark.parametrize(
+    "test_file, ref_file",
+    [
+        ("include_custom_gates.qasm", "../custom_gate_complex.qasm"),
+        ("include_vars.qasm", "include_vars_ref.qasm"),
+        ("include_sub.qasm", "include_sub_ref.qasm"),
+        ("multi_include.qasm", "multi_include_ref.qasm"),
+        ("include_sandwiched.qasm", "include_sandwiched_ref.qasm"),
+        ("include_nested.qasm", "include_nested_ref.qasm"),
+    ],
+)
+def test_valid_include_processing(test_file, ref_file):
+    """Test that valid include statements are processed correctly."""
+    file_path = os.path.join(QASM_RESOURCES_DIR, test_file)
     module = load(file_path)
-    ref_file_path = os.path.join(os.path.dirname(QASM_RESOURCES_DIR), "custom_gate_complex.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
-
-
-def test_correct_include_processing_complex():
-    """Test that complex custom include statements are processed correctly."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "include_vars.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "include_vars_ref.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
-
-
-def test_include_custom_subroutine():
-    """Test that inclusion of custom subroutines is processed correctly."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "include_sub.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "include_sub_ref.qasm")
+    ref_file_path = os.path.join(QASM_RESOURCES_DIR, ref_file)
     ref_module = load(ref_file_path)
     check_unrolled_qasm(dumps(module), dumps(ref_module))
 
@@ -73,30 +66,3 @@ def test_circular_import():
         match="Circular include detected for file 'circular_import.qasm' at line 3, column 10",
     ):
         load(file_path)
-
-
-def test_multiple_includes():
-    """Test that multiple include statements in a file are processed correctly."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "multi_include.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "multi_include_ref.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
-
-
-def test_include_sandwiched():
-    """Test that include statements sandwiched between other statements are processed correctly."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "include_sandwiched.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "include_sandwiched_ref.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
-
-
-def test_nested_include_processing():
-    """Test that nested include statements are recursively processed correctly."""
-    file_path = os.path.join(QASM_RESOURCES_DIR, "include_nested.qasm")
-    module = load(file_path)
-    ref_file_path = os.path.join(QASM_RESOURCES_DIR, "include_nested_ref.qasm")
-    ref_module = load(ref_file_path)
-    check_unrolled_qasm(dumps(module), dumps(ref_module))
