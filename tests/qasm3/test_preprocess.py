@@ -32,12 +32,22 @@ QASM_RESOURCES_DIR = os.path.join(
 @pytest.mark.parametrize(
     "test_file, ref_file",
     [
+        # Include basic custom gate
         ("include_custom_gates.qasm", "../custom_gate_complex.qasm"),
+        # Include variable definitions
         ("include_vars.qasm", "include_vars_ref.qasm"),
+        # Include subroutines
         ("include_sub.qasm", "include_sub_ref.qasm"),
+        # Multiple includes in single file
         ("multi_include.qasm", "multi_include_ref.qasm"),
+        # Include 'sandwiched' between other code
         ("include_sandwiched.qasm", "include_sandwiched_ref.qasm"),
+        # Recursive inclusions (include files within included files)
         ("include_nested.qasm", "include_nested_ref.qasm"),
+        # Include QASM2 file in QASM2 file
+        ("include_qasm2.qasm", "include_qasm2_ref.qasm"),
+        # Backward compatibility: Include QASM2 file in QASM3 file
+        ("include_qasm2_backward.qasm", "include_qasm2_backward_ref.qasm"),
     ],
 )
 def test_valid_include_processing(test_file, ref_file):
