@@ -92,7 +92,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._user_operations: list[str] = ["load"]
         self._device_cycle_time: Optional[int] = None
 
-
     @property
     def name(self) -> str:
         """Returns the name of the module."""
