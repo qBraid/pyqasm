@@ -17,8 +17,10 @@ Test the compare() method of the QasmModule class.
 """
 
 import pytest
-from pyqasm.entrypoint import loads
+
 from pyqasm.elements import BasisSet
+from pyqasm.entrypoint import loads
+
 
 def test_compare_method_output(capsys):
     """
@@ -39,7 +41,7 @@ def test_compare_method_output(capsys):
     module_b = loads(qasm_str)
 
     module_a.unroll()
-    module_b.unroll(unroll_barriers=False, external_gates=['cx'])
+    module_b.unroll(unroll_barriers=False, external_gates=["cx"])
     module_b.rebase(BasisSet.ROTATIONAL_CX)
 
     module_a.compare(module_b)

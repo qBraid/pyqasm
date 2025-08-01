@@ -62,7 +62,7 @@ def track_user_operation(func):
     return wrapper
 
 
-class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
+class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many-public-methods
     """Abstract class for a Qasm module
 
     Args:
@@ -667,7 +667,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return qasm_module
 
-    def get_gate_counts(self) -> dict[str, int]:
+    def _get_gate_counts(self) -> dict[str, int]:
         """Return a dictionary of gate counts in the unrolled program.
 
         Returns:
@@ -687,18 +687,16 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             other_module (QasmModule): The module to compare with.
         """
-        try:
+        try:  # pylint: disable-next=import-outside-toplevel
             from tabulate import tabulate
         except ImportError as exc:
-            raise ImportError(
-                "tabulate is required for the compare method. "
-            ) from exc
+            raise ImportError("tabulate is required for the compare method. ") from exc
 
         if not isinstance(other_module, QasmModule):
             raise TypeError(f"Expected QasmModule instance, got {type(other_module).__name__}")
 
-        self_counts = self.get_gate_counts()
-        other_counts = other_module.get_gate_counts()
+        self_counts = self._get_gate_counts()
+        other_counts = other_module._get_gate_counts()
         all_gates = sorted(list(set(self_counts) | set(other_counts)))
 
         # Format lists into multi-line strings for better readability
@@ -730,26 +728,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                 tablefmt="grid",
             )
         )
-
-    @staticmethod
-    def skip_qasm_files_with_tag(content: str, mode: str) -> bool:
-        """Check if a file should be skipped for a given mode (e.g., 'unroll', 'validate').
-
-        Args:
-            content (str): The file content.
-            mode (str): The operation mode ('unroll', 'validate', etc.)
-
-        Returns:
-            bool: True if the file should be skipped, False otherwise.
-        """
-        skip_tag = f"// pyqasm disable: {mode}"
-        generic_skip_tag = "// pyqasm: ignore"
-        for line in content.splitlines():
-            if skip_tag in line or generic_skip_tag in line:
-                return True
-            if "OPENQASM" in line:
-                break
-        return False
 
     def __str__(self) -> str:
         """Return the string representation of the QASM program
