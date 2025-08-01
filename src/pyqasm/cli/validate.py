@@ -26,7 +26,8 @@ from rich.console import Console
 
 from pyqasm import load
 from pyqasm.exceptions import QasmParsingError, UnrollError, ValidationError
-from pyqasm.modules.base import QasmModule
+
+from .utils import skip_qasm_files_with_tag
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -62,7 +63,7 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
 
         if file_path in skip_files:
             return
-        if QasmModule.skip_qasm_files_with_tag(content, "validate"):
+        if skip_qasm_files_with_tag(content, "validate"):
             skip_files.append(file_path)
             return
 
