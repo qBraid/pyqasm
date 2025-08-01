@@ -18,6 +18,7 @@ Top-level entrypoint functions for pyqasm.
 """
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 import openqasm3
@@ -25,6 +26,7 @@ import openqasm3
 from pyqasm.exceptions import ValidationError
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
+from pyqasm.preprocess import process_include_statements
 
 if TYPE_CHECKING:
     import openqasm3.ast
@@ -42,8 +44,9 @@ def load(filename: str, **kwargs) -> QasmModule:
     """
     if not isinstance(filename, str):
         raise TypeError("Input 'filename' must be of type 'str'.")
-    with open(filename, "r", encoding="utf-8") as file:
-        program = file.read()
+    if not os.path.isfile(filename):
+        raise FileNotFoundError(f"QASM file '{filename}' not found.")
+    program = process_include_statements(filename)
     return loads(program, **kwargs)
 
 
@@ -55,6 +58,7 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
         **kwargs: Additional arguments to pass to the loads function.
             device_qubits (int): Number of physical qubits available on the target device.
+            device_cycle_time (float): The duration of a hardware device cycle, in seconds.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
@@ -85,6 +89,8 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
     # Store device_qubits on the module for later use
     if dev_qbts := kwargs.get("device_qubits"):
         module._device_qubits = dev_qbts
+    if dev_cycle_time := kwargs.get("device_cycle_time"):
+        module._device_cycle_time = dev_cycle_time
     return module
 
 
