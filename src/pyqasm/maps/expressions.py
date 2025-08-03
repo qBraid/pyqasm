@@ -48,6 +48,7 @@ OPERATOR_MAP: dict[str, OperatorFunction] = {
     "/": lambda x, y: x / y,
     "%": lambda x, y: x % y,
     "==": lambda x, y: x == y,
+    "**": lambda x, y: x**y,
     "!=": lambda x, y: x != y,
     "<": lambda x, y: x < y,
     ">": lambda x, y: x > y,
@@ -128,6 +129,8 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
         if isinstance(rhs_value, bool):
             return ((2 * CONSTANTS_MAP["pi"]) * (1 / 2)) if rhs_value else 0.0
         return rhs_value  # not sure
+    if openqasm_type == ComplexType:
+        return rhs_value
 
 
 # IEEE 754 Standard for floats
@@ -163,6 +166,7 @@ VARIABLE_TYPE_CAST_MAP = {
     UintType: (bool, int, float, np.int64, np.uint64, np.float64, np.bool_),
     FloatType: (bool, int, float, np.int64, np.float64, np.bool_),
     AngleType: (float, np.float64, bool, np.bool_),
+    ComplexType: (complex, np.complex128),
 }
 
 ARRAY_TYPE_MAP = {
@@ -185,4 +189,15 @@ TIME_UNITS_MAP: dict[str, dict[str, float]] = {
     "µs": {"ns": 1000, "s": 1e-6},  # Unicode micro
     "ms": {"ns": 1_000_000, "s": 1e-3},
     "s": {"ns": 1_000_000_000, "s": 1},
+}
+
+# Function map for complex functions
+FUNCTION_MAP = {
+    "abs": np.abs,
+    "real": lambda v: v.real if isinstance(v, complex) else v,
+    "imag": lambda v: v.imag if isinstance(v, complex) else v,
+    "sqrt": np.sqrt,
+    "sin": np.sin,
+    "cos": np.cos,
+    "tan": np.tan,
 }

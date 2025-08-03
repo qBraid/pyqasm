@@ -671,3 +671,77 @@ def test_compiler_angle_type_size():
     angle[4] ang3 = "1010";
     """
     loads(qasm3_string, compiler_angle_type_size=4).validate()
+
+
+def test_complex_type_variables():
+    """Test complex type variables"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    complex c1 = -2.5 - 3.5im;
+    complex c2 = 3.5 + 2.5im;
+    complex c3 = 2.0 + c2;
+    complex c4 = 2.0+sin(π/2) + (3.1 * 5.5im);
+    complex c5 = c1 * c2;
+    complex c6 = c1 + c2;
+    complex c7 = c1 - c2;
+    complex c8 = c1 / c2;
+    complex c9 = c1 ** c2;
+    complex c10 = sqrt(c1);
+    float c11 = abs(c1 * c2);
+    float c12 = real(c1);
+    float c13 = imag(c1);
+    float c14 = sin(π/2);
+    const complex c15 = -2.5 - 3.5im;
+    const complex c16 = 3.5 + 2.5im;
+    const complex c17 = 2.0 + c16;
+    const complex c18 = 2.0+sin(π/2) + (3.1 * 5.5im);
+    const complex c19 = c15 * c16;
+    const complex c20 = c15 + c16;
+    const complex c21 = c15 - c16;
+    const complex c22 = c15 / c16;
+    const complex c23 = c15 ** c16;
+    const complex c24 = sqrt(c15);
+    const float c25 = abs(c15 * c16);
+    const float c26 = real(c15);
+    const float c27 = imag(c15);
+    const float c28 = sin(π/2);
+    complex c29;
+    c29 = -2.5 - 3.5im;
+    complex c30;
+    c30 = 3.5 + 2.5im;
+    complex c31;
+    c31 = 2.0 + c30;
+    complex c32;
+    c32 = 2.0+sin(π/2) + (3.1 * 5.5im);
+    complex c33;
+    c33 = c29 * c30;
+    complex c34;
+    c34 = c29 + c30;
+    complex c35;
+    c35 = c29 - c30;
+    complex c36;
+    c36 = c29 / c30;
+    complex c37;
+    c37 = c29 ** c30;
+    complex c38;
+    c38 = sqrt(c29);
+    float c39;
+    c39 = abs(c29 * c30);
+    float c40;
+    c40 = real(c29);
+    float c41;
+    c41 = imag(c29);
+    float c42;
+    c42 = sin(π/2);
+    complex[float[64]] a = 10.0 + 5.0im;
+    complex[float[64]] b = -2.0 - 7.0im;
+    complex[float[64]] c = a + b;   
+    complex[float[64]] d = a - b;  
+    complex[float[64]] e = a * b;  
+    complex[float[64]] f = a / b;   
+    complex[float[64]] g = a ** b; 
+    complex[float] h = a + b;
+    """
+
+    loads(qasm3_string).validate()

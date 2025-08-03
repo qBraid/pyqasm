@@ -18,8 +18,10 @@ Module with utility functions for Pulse visitor
 """
 from typing import Any, Optional
 
+import numpy as np
 from openqasm3.ast import (
     BinaryExpression,
+    BinaryOperator,
     BitstringLiteral,
     Box,
     Cast,
@@ -29,6 +31,7 @@ from openqasm3.ast import (
     DurationType,
     FloatLiteral,
     Identifier,
+    ImaginaryLiteral,
     IntegerLiteral,
     Statement,
     StretchType,
@@ -270,3 +273,14 @@ class PulseValidator:
                 error_node=statement,
                 span=statement.span,
             )
+
+    @staticmethod
+    def make_complex_binary_expression(value: complex) -> BinaryExpression:
+        """
+        Make a binary expression from a complex number.
+        """
+        return BinaryExpression(
+            lhs=FloatLiteral(value.real),
+            op=(BinaryOperator["+"] if value.imag >= 0 else BinaryOperator["-"]),
+            rhs=ImaginaryLiteral(np.abs(value.imag)),
+        )

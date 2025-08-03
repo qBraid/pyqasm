@@ -430,6 +430,24 @@ class QasmVisitor:
 
         return _valid_statements
 
+    def _handle_function_init_expression(
+        self, expression: Any, init_value: Any
+    ) -> None | qasm3_ast.Expression:
+        """Handle function initialization expression.
+
+        Args:
+            statement (Any): The statement to handle function initialization expression.
+            init_value (Any): The value to handle function initialization expression.
+        """
+        if isinstance(expression, qasm3_ast.FunctionCall):
+            func_name = expression.name.name
+            if func_name in ["abs", "real", "imag", "sqrt", "sin", "cos", "tan"]:
+                if isinstance(init_value, complex):
+                    return PulseValidator.make_complex_binary_expression(init_value)
+                if isinstance(init_value, (float, int)):
+                    return qasm3_ast.FloatLiteral(init_value)
+        return None
+
     def _visit_measurement(  # pylint: disable=too-many-locals, too-many-branches
         self, statement: qasm3_ast.QuantumMeasurementStatement
     ) -> list[qasm3_ast.QuantumMeasurementStatement]:
@@ -1379,6 +1397,15 @@ class QasmVisitor:
 
         self._scope_manager.add_var_in_scope(variable)
 
+        if isinstance(base_type, qasm3_ast.ComplexType) and isinstance(variable.value, complex):
+            statement.init_expression = PulseValidator.make_complex_binary_expression(init_value)
+
+        if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
+            statement.init_expression = (
+                self._handle_function_init_expression(statement.init_expression, init_value)
+                or statement.init_expression
+            )
+
         if self._check_only:
             return []
 
@@ -1594,6 +1621,15 @@ class QasmVisitor:
             statements.append(statement)
             self._module._add_classical_register(var_name, base_size)
 
+        if isinstance(base_type, qasm3_ast.ComplexType) and isinstance(variable.value, complex):
+            statement.init_expression = PulseValidator.make_complex_binary_expression(init_value)
+
+        if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
+            statement.init_expression = (
+                self._handle_function_init_expression(statement.init_expression, init_value)
+                or statement.init_expression
+            )
+
         if self._check_only:
             return []
 
@@ -1736,6 +1772,19 @@ class QasmVisitor:
         else:
             lvar.value = rvalue_eval  # type: ignore[union-attr]
         self._scope_manager.update_var_in_scope(lvar)  # type: ignore[arg-type]
+
+        if isinstance(lvar_base_type, qasm3_ast.ComplexType) and isinstance(
+            lvar.value, complex  # type: ignore[union-attr]
+        ):
+            statement.rvalue = PulseValidator.make_complex_binary_expression(
+                lvar.value  # type: ignore[union-attr]
+            )
+
+        if isinstance(statement.rvalue, qasm3_ast.FunctionCall):
+            statement.rvalue = (
+                self._handle_function_init_expression(statement.rvalue, rvalue_eval)
+                or statement.rvalue
+            )
 
         if self._check_only:
             return []

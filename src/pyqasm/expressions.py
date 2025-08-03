@@ -47,7 +47,12 @@ from openqasm3.ast import (
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.maps.expressions import CONSTANTS_MAP, TIME_UNITS_MAP, qasm3_expression_op_map
+from pyqasm.maps.expressions import (
+    CONSTANTS_MAP,
+    FUNCTION_MAP,
+    TIME_UNITS_MAP,
+    qasm3_expression_op_map,
+)
 from pyqasm.validator import Qasm3Validator
 
 
@@ -217,14 +222,6 @@ class Qasm3ExprEvaluator:
         if expression is None:
             return None, []
 
-        if isinstance(expression, (ImaginaryLiteral)):
-            raise_qasm3_error(
-                f"Unsupported expression type '{type(expression)}'",
-                err_type=ValidationError,
-                error_node=expression,
-                span=expression.span,
-            )
-
         def _check_and_return_value(value):
             if validate_only:
                 return None, statements
@@ -264,6 +261,12 @@ class Qasm3ExprEvaluator:
                         span=expression.span,
                     )
             return base_size
+
+        if isinstance(expression, complex):
+            return _check_and_return_value(expression)
+
+        if isinstance(expression, ImaginaryLiteral):
+            return _check_and_return_value(expression.value * 1j)
 
         if isinstance(expression, Identifier):
             var_name = expression.name
@@ -415,6 +418,15 @@ class Qasm3ExprEvaluator:
         if isinstance(expression, FunctionCall):
             # function will not return a reqd / const type
             # Reference : https://openqasm.com/language/types.html#compile-time-constants, para: 5
+            if expression.name.name in {"abs", "real", "imag", "sqrt", "sin", "cos", "tan"}:
+                _val, _ = cls.evaluate_expression(
+                    expression.arguments[0], const_expr, reqd_type, validate_only
+                )
+                if _val is None or validate_only:
+                    return (None, statements)
+                _val = FUNCTION_MAP[expression.name.name](_val)  # type: ignore
+                return _check_and_return_value(_val)
+
             ret_value, ret_stmts = cls.visitor_obj._visit_function_call(expression)  # type: ignore
             statements.extend(ret_stmts)
             return _check_and_return_value(ret_value)
