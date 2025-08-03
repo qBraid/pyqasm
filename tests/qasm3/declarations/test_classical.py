@@ -668,7 +668,6 @@ def test_compiler_angle_type_size():
     include "stdgates.inc";
     angle[8] ang1 = 7 * (pi / 8);
     const angle[8] ang2 = 9 * (pi / 8);
-    angle[8] ang3; 
-    ang3 = 100.0;
+    angle[4] ang3 = "1010";
     """
-    loads(qasm3_string, compiler_angle_type_size=8).validate()
+    loads(qasm3_string, compiler_angle_type_size=4).validate()
