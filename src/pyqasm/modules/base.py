@@ -60,6 +60,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._device_qubits: Optional[int] = None
         self._consolidate_qubits: Optional[bool] = False
         self._device_cycle_time: Optional[int] = None
+        self._compiler_angle_type_size: Optional[int] = None
 
     @property
     def name(self) -> str:

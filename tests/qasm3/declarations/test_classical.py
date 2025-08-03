@@ -45,6 +45,7 @@ def test_scalar_declarations():
     bool i;
     duration j;
     stretch st;
+    angle[8] ang1;
     """
 
     loads(qasm3_string).validate()
@@ -75,6 +76,9 @@ def test_const_declarations():
     const duration t8 = t2/t3;
     const stretch st = 300ns;
     const stretch st2 = t2/t3;
+    const angle[8] ang1 = 7 * (pi / 8);
+    const angle[8] ang2 = 9 * (pi / 8);
+    const angle[8] ang3 = ang1 + ang2;
     """
 
     loads(qasm3_string).validate()
@@ -98,6 +102,8 @@ def test_scalar_assignments():
     duration du = 200us;
     duration du2;
     du2 = 300s;
+    angle[8] ang1;
+    ang1 = 9 * (pi / 8);
     """
 
     loads(qasm3_string).validate()
@@ -123,6 +129,9 @@ def test_scalar_value_assignment():
     duration t9 = t2 - t7;
     duration t10 = t2 + t7;
     duration t11 = t2 * t7;
+    angle[8] ang1 = 7 * (pi / 8);
+    angle[8] ang2 = 9 * (pi / 8);
+    angle[8] ang3 = ang1 + ang2;
     """
 
     b = 5.0
@@ -603,6 +612,43 @@ def test_duration_casting_error(qasm_code, error_message, error_span, caplog):
     assert error_span in caplog.text
 
 
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            angle[8] ang1 = 7 * (pi / 8);
+            angle[7] ang2 = 9 * (pi / 8);
+            angle[8] ang3 = ang1 + ang2;
+            """,
+            r"All 'Angle' variables in binary expression must have the same size",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            angle ang1 = "1000111111";
+            """,
+            r"BitString angle width '10' does not match with compiler angle width '8'",
+            r"Error at line 4, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_angle_type_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as excinfo:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code, compiler_angle_type_size=8).validate()
+
+    first = excinfo.value.__cause__ or excinfo.value.__context__
+    assert first is not None, "Expected a chained ValidationError"
+    msg = str(first)
+    assert error_message in msg
+    assert error_span in caplog.text
+
+
 def test_device_time_duration_():
     """Test device cycle time duration"""
     qasm3_string = """
@@ -613,3 +659,16 @@ def test_device_time_duration_():
     const duration t3 =300us;
     """
     loads(qasm3_string, device_cycle_time=1e-9).validate()
+
+
+def test_compiler_angle_type_size():
+    """Test compiler angle type size"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    angle[8] ang1 = 7 * (pi / 8);
+    const angle[8] ang2 = 9 * (pi / 8);
+    angle[8] ang3; 
+    ang3 = 100.0;
+    """
+    loads(qasm3_string, compiler_angle_type_size=8).validate()

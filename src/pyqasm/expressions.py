@@ -17,7 +17,9 @@ Module containing the class for evaluating QASM expressions.
 
 """
 from openqasm3.ast import (
+    AngleType,
     BinaryExpression,
+    BitstringLiteral,
     BitType,
     BooleanLiteral,
     BoolType,
@@ -53,6 +55,7 @@ class Qasm3ExprEvaluator:
     """Class for evaluating QASM3 expressions."""
 
     visitor_obj = None
+    angle_vars_in_expr: list[Variable] = []
 
     @classmethod
     def set_visitor_obj(cls, visitor_obj) -> None:
@@ -70,8 +73,8 @@ class Qasm3ExprEvaluator:
         """
 
         scope_manager = cls.visitor_obj._scope_manager
+        var = scope_manager.get_from_global_scope(var_name)
         if not scope_manager.check_in_scope(var_name):
-            var = scope_manager.get_from_global_scope(var_name)
             if var is not None and not var.is_constant:
                 raise_qasm3_error(
                     f"Global variable '{var_name}' must be a constant to use it in a local scope.",
@@ -84,6 +87,17 @@ class Qasm3ExprEvaluator:
                 error_node=expression,
                 span=expression.span,
             )
+        if var and isinstance(var.base_type, AngleType) and var not in cls.angle_vars_in_expr:
+            base_size = var.base_type.size
+            if len(cls.angle_vars_in_expr) > 0:
+                for var in cls.angle_vars_in_expr:
+                    if var.base_type.size != base_size:
+                        raise_qasm3_error(
+                            "All 'Angle' variables in binary expression must have the same size",
+                            error_node=expression,
+                            span=expression.span,
+                        )
+            cls.angle_vars_in_expr.append(var)
 
     @classmethod
     def _check_var_constant(cls, var_name, const_expr, expression):
@@ -254,7 +268,7 @@ class Qasm3ExprEvaluator:
         if isinstance(expression, Identifier):
             var_name = expression.name
             if var_name in CONSTANTS_MAP:
-                if not reqd_type or reqd_type == Qasm3FloatType:
+                if not reqd_type or reqd_type in (Qasm3FloatType, AngleType):
                     return _check_and_return_value(CONSTANTS_MAP[var_name])
                 raise_qasm3_error(
                     f"Constant '{var_name}' not allowed in non-float expression",
@@ -310,13 +324,15 @@ class Qasm3ExprEvaluator:
                 )
             return _check_and_return_value(dimensions[index])
 
-        if isinstance(expression, (BooleanLiteral, IntegerLiteral, FloatLiteral)):
+        if isinstance(expression, (BooleanLiteral, IntegerLiteral, FloatLiteral, BitstringLiteral)):
             if reqd_type:
                 if reqd_type == BoolType and isinstance(expression, BooleanLiteral):
                     return _check_and_return_value(expression.value)
                 if reqd_type == Qasm3IntType and isinstance(expression, IntegerLiteral):
                     return _check_and_return_value(expression.value)
                 if reqd_type == Qasm3FloatType and isinstance(expression, FloatLiteral):
+                    return _check_and_return_value(expression.value)
+                if reqd_type == AngleType:
                     return _check_and_return_value(expression.value)
                 raise_qasm3_error(
                     f"Invalid value {expression.value} with type {type(expression)} "
@@ -365,14 +381,23 @@ class Qasm3ExprEvaluator:
             if validate_only:
                 if isinstance(expression.lhs, Cast) and isinstance(expression.rhs, Cast):
                     return (None, statements)
+
+                _lhs, _lhs_stmts = cls.evaluate_expression(
+                    expression.lhs, const_expr, reqd_type, validate_only
+                )
+                _rhs, _rhs_stmts = cls.evaluate_expression(
+                    expression.rhs, const_expr, reqd_type, validate_only
+                )
+
                 if isinstance(expression.lhs, Cast):
-                    return cls.evaluate_expression(
-                        expression.lhs, const_expr, reqd_type, validate_only
-                    )
+                    return (_lhs, _lhs_stmts)
                 if isinstance(expression.rhs, Cast):
-                    return cls.evaluate_expression(
-                        expression.rhs, const_expr, reqd_type, validate_only
-                    )
+                    return (_rhs, _rhs_stmts)
+
+                if type(reqd_type) is type(AngleType) and len(cls.angle_vars_in_expr) > 0:
+                    var_type = cls.angle_vars_in_expr[0].base_type
+                    cls.angle_vars_in_expr.clear()
+                    return (var_type, statements)
                 return (None, statements)
 
             lhs_value, lhs_statements = cls.evaluate_expression(

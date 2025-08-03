@@ -330,6 +330,11 @@ class QasmVisitor:
                     if not hasattr(base_type, "size") or base_type.size is None
                     else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
                 )
+                if (
+                    isinstance(base_type, qasm3_ast.AngleType)
+                    and self._module._compiler_angle_type_size
+                ):
+                    base_size = self._module._compiler_angle_type_size
             except ValidationError as err:
                 raise_qasm3_error(
                     f"Invalid base size for {var_format} '{var_name}'",
@@ -1337,12 +1342,27 @@ class QasmVisitor:
 
         base_type = statement.type
         base_size = self._check_variable_type_size(statement, var_name, "constant", base_type)
+        angle_val_bit_string = None
+        if isinstance(base_type, qasm3_ast.AngleType):
+            init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
+                statement,
+                init_value=init_value,
+                base_size=base_size,
+                compiler_angle_width=self._module._compiler_angle_type_size,
+            )
         val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
             statement.init_expression, validate_only=True
         )
         self._check_variable_cast_type(statement, val_type, var_name, base_type, base_size, True)
         variable = Variable(
-            var_name, base_type, base_size, [], init_value, is_constant=True, span=statement.span
+            var_name,
+            base_type,
+            len(angle_val_bit_string) if angle_val_bit_string else base_size,
+            [],
+            init_value,
+            is_constant=True,
+            span=statement.span,
+            angle_bit_string=angle_val_bit_string,
         )
 
         if isinstance(base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
@@ -1405,6 +1425,7 @@ class QasmVisitor:
         base_type = statement.type
         dimensions = []
         final_dimensions = []
+        angle_val_bit_string = None
 
         if isinstance(base_type, qasm3_ast.StretchType):
             if statement.init_expression:
@@ -1483,9 +1504,21 @@ class QasmVisitor:
                         statement.init_expression, dt=self._module._device_cycle_time
                     )
                     statements.extend(stmts)
-                    val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
-                        statement.init_expression, validate_only=True
+                    _req_type = (
+                        type(qasm3_ast.AngleType())
+                        if isinstance(base_type, qasm3_ast.AngleType)
+                        else None
                     )
+                    val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
+                        statement.init_expression, validate_only=True, reqd_type=_req_type
+                    )
+                    if isinstance(base_type, qasm3_ast.AngleType):
+                        init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
+                            statement,
+                            init_value=init_value,
+                            base_size=base_size,
+                            compiler_angle_width=self._module._compiler_angle_type_size,
+                        )
                     self._check_variable_cast_type(
                         statement, val_type, var_name, base_type, base_size, False
                     )
@@ -1500,11 +1533,12 @@ class QasmVisitor:
         variable = Variable(
             var_name,
             base_type,
-            base_size,
+            len(angle_val_bit_string) if angle_val_bit_string else base_size,
             final_dimensions,
             init_value,
             is_qubit=False,
             span=statement.span,
+            angle_bit_string=angle_val_bit_string,
         )
 
         if isinstance(base_type, qasm3_ast.DurationType):
@@ -1637,6 +1671,17 @@ class QasmVisitor:
             lvar.base_size,  # type: ignore[union-attr]
             False,
         )
+        angle_val_bit_string = None
+        if isinstance(lvar_base_type, qasm3_ast.AngleType):
+            rvalue_raw, angle_val_bit_string = PulseValidator.validate_angle_type_value(
+                statement,
+                init_value=rvalue_raw,
+                base_size=lvar.base_size,  # type: ignore[union-attr]
+                compiler_angle_width=self._module._compiler_angle_type_size,
+            )
+            lvar.angle_bit_string = angle_val_bit_string  # type: ignore[union-attr]
+            if angle_val_bit_string:
+                lvar.base_size = len(angle_val_bit_string)  # type: ignore[union-attr]
         # cast + validation
         rvalue_eval = None
         if not isinstance(rvalue_raw, np.ndarray):

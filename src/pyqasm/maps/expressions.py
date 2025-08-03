@@ -125,6 +125,8 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     if openqasm_type == BitType:
         return rhs_value != 0
     if openqasm_type == AngleType:
+        if isinstance(rhs_value, bool):
+            return ((2 * CONSTANTS_MAP["pi"]) * (1 / 2)) if rhs_value else 0.0
         return rhs_value  # not sure
 
 
@@ -150,7 +152,7 @@ VARIABLE_TYPE_MAP = {
     ComplexType: complex,
     DurationType: float,
     StretchType: float,
-    # AngleType: None,  # not sure
+    AngleType: float,
 }
 
 # Reference: https://openqasm.com/language/types.html#allowed-casts
@@ -160,7 +162,7 @@ VARIABLE_TYPE_CAST_MAP = {
     BitType: (bool, int, np.int64, np.bool_),
     UintType: (bool, int, float, np.int64, np.uint64, np.float64, np.bool_),
     FloatType: (bool, int, float, np.int64, np.float64, np.bool_),
-    AngleType: (float, np.float64),
+    AngleType: (float, np.float64, bool, np.bool_),
 }
 
 ARRAY_TYPE_MAP = {

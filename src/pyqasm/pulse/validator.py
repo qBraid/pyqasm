@@ -20,6 +20,7 @@ from typing import Any, Optional
 
 from openqasm3.ast import (
     BinaryExpression,
+    BitstringLiteral,
     Box,
     Cast,
     ConstantDeclaration,
@@ -34,10 +35,59 @@ from openqasm3.ast import (
 )
 
 from pyqasm.exceptions import raise_qasm3_error
+from pyqasm.maps.expressions import CONSTANTS_MAP
 
 
 class PulseValidator:
     """Class with validation functions for Pulse visitor"""
+
+    @staticmethod
+    def validate_angle_type_value(
+        statement: Any,
+        init_value: int | float,
+        base_size: int,
+        compiler_angle_width: Optional[int] = None,
+    ) -> tuple:
+        """
+        Validates and processes angle type value.
+
+        Args:
+            statement: The AST statement node
+            init_value: The evaluated initialization value
+            base_size: The base size of the angle type
+            compiler_angle_width: Optional compiler angle width override
+
+        Returns:
+            tuple: The processed angle value and bit string representation
+
+        Raises:
+            ValidationError: If the angle initialization is invalid
+        """
+        # Optimize: check both possible fields for BitstringLiteral in one go
+        init_exp = getattr(statement, "init_expression", None)
+        rval = getattr(statement, "rvalue", None)
+        is_bitstring = isinstance(init_exp, BitstringLiteral) or isinstance(rval, BitstringLiteral)
+        expression = init_exp or rval
+        if is_bitstring and expression is not None:
+            angle_type_size = expression.width
+            if compiler_angle_width:
+                if angle_type_size != compiler_angle_width:
+                    raise_qasm3_error(
+                        f"BitString angle width '{angle_type_size}' does not match "
+                        f"with compiler angle width '{compiler_angle_width}'",
+                        error_node=statement,
+                        span=statement.span,
+                    )
+                angle_type_size = compiler_angle_width
+            angle_bit_string = format(expression.value, f"0{angle_type_size}b")
+            angle_val = (2 * CONSTANTS_MAP["pi"]) * (expression.value / (2**angle_type_size))
+        else:
+            angle_val = init_value % (2 * CONSTANTS_MAP["pi"])
+            angle_type_size = compiler_angle_width or base_size
+            bit_string_value = int((2**angle_type_size) * (angle_val / (2 * CONSTANTS_MAP["pi"])))
+            angle_bit_string = format(bit_string_value, f"0{angle_type_size}b")
+
+        return angle_val, angle_bit_string
 
     @staticmethod
     def validate_duration_or_stretch_statements(

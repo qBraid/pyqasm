@@ -92,6 +92,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
         value (Optional[int | float | np.ndarray]): Value of the variable.
         time_unit (Optional[str]): Time unit associated with the duration variable.
         span (Any): Span of the variable.
+        angle_bit_string (Optional[str]): Bit string representation of the angle value.
         shadow (bool): Flag indicating if the current variable is shadowed from its parent scope.
         is_constant (bool): Flag indicating if the variable is constant.
         is_register (bool): Flag indicating if the variable is a register.
@@ -106,6 +107,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     value: Optional[int | float | np.ndarray] = None
     time_unit: Optional[str] = None
     span: Any = None
+    angle_bit_string: Optional[str] = None
     shadow: bool = False
     is_constant: bool = False
     is_qubit: bool = False
