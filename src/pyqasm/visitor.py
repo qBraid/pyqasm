@@ -2538,6 +2538,8 @@ class QasmVisitor:
             qasm3_ast.ContinueStatement: self._visit_continue,
             qasm3_ast.DelayInstruction: self._visit_delay_statement,
             qasm3_ast.Box: self._visit_box_statement,
+            qasm3_ast.CalibrationStatement: lambda x: [x],
+            qasm3_ast.CalibrationDefinition: lambda x: [x],
         }
 
         visitor_function = visit_map.get(type(statement))
