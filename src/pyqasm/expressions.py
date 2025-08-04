@@ -60,7 +60,7 @@ class Qasm3ExprEvaluator:
     """Class for evaluating QASM3 expressions."""
 
     visitor_obj = None
-    angle_vars_in_expr: list[Variable] = []
+    angle_var_in_expr = None
 
     @classmethod
     def set_visitor_obj(cls, visitor_obj) -> None:
@@ -92,17 +92,14 @@ class Qasm3ExprEvaluator:
                 error_node=expression,
                 span=expression.span,
             )
-        if var and isinstance(var.base_type, AngleType) and var not in cls.angle_vars_in_expr:
-            base_size = var.base_type.size
-            if len(cls.angle_vars_in_expr) > 0:
-                for var in cls.angle_vars_in_expr:
-                    if var.base_type.size != base_size:
-                        raise_qasm3_error(
-                            "All 'Angle' variables in binary expression must have the same size",
-                            error_node=expression,
-                            span=expression.span,
-                        )
-            cls.angle_vars_in_expr.append(var)
+        if var and isinstance(var.base_type, AngleType):
+            if cls.angle_var_in_expr and cls.angle_var_in_expr != var.base_type.size:
+                raise_qasm3_error(
+                    "All 'Angle' variables in binary expression must have the same size",
+                    error_node=expression,
+                    span=expression.span,
+                )
+            cls.angle_var_in_expr = var.base_type.size
 
     @classmethod
     def _check_var_constant(cls, var_name, const_expr, expression):
@@ -397,10 +394,10 @@ class Qasm3ExprEvaluator:
                 if isinstance(expression.rhs, Cast):
                     return (_rhs, _rhs_stmts)
 
-                if type(reqd_type) is type(AngleType) and len(cls.angle_vars_in_expr) > 0:
-                    var_type = cls.angle_vars_in_expr[0].base_type
-                    cls.angle_vars_in_expr.clear()
-                    return (var_type, statements)
+                if type(reqd_type) is type(AngleType) and cls.angle_var_in_expr:
+                    _var_type = AngleType(cls.angle_var_in_expr)
+                    cls.angle_var_in_expr = None
+                    return (_var_type, statements)
                 return (None, statements)
 
             lhs_value, lhs_statements = cls.evaluate_expression(
@@ -418,7 +415,7 @@ class Qasm3ExprEvaluator:
         if isinstance(expression, FunctionCall):
             # function will not return a reqd / const type
             # Reference : https://openqasm.com/language/types.html#compile-time-constants, para: 5
-            if expression.name.name in {"abs", "real", "imag", "sqrt", "sin", "cos", "tan"}:
+            if expression.name.name in FUNCTION_MAP:
                 _val, _ = cls.evaluate_expression(
                     expression.arguments[0], const_expr, reqd_type, validate_only
                 )

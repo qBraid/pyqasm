@@ -49,6 +49,7 @@ from pyqasm.maps import SWITCH_BLACKLIST_STMTS
 from pyqasm.maps.expressions import (
     ARRAY_TYPE_MAP,
     CONSTANTS_MAP,
+    FUNCTION_MAP,
     MAX_ARRAY_DIMENSIONS,
 )
 from pyqasm.maps.gates import (
@@ -441,7 +442,7 @@ class QasmVisitor:
         """
         if isinstance(expression, qasm3_ast.FunctionCall):
             func_name = expression.name.name
-            if func_name in ["abs", "real", "imag", "sqrt", "sin", "cos", "tan"]:
+            if func_name in FUNCTION_MAP:
                 if isinstance(init_value, complex):
                     return PulseValidator.make_complex_binary_expression(init_value)
                 if isinstance(init_value, (float, int)):

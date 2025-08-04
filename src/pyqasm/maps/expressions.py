@@ -200,4 +200,7 @@ FUNCTION_MAP = {
     "sin": np.sin,
     "cos": np.cos,
     "tan": np.tan,
+    "arccos": np.arccos,
+    "arcsin": np.arcsin,
+    "arctan": np.arctan,
 }

@@ -20,6 +20,7 @@ import pytest
 
 from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
+from pyqasm.visitor import QasmVisitor, ScopeManager  # pylint: disable=ungrouped-imports
 from tests.qasm3.resources.variables import (
     ASSIGNMENT_TESTS,
     CASTING_TESTS,
@@ -682,58 +683,63 @@ def test_complex_type_variables():
     complex c2 = 3.5 + 2.5im;
     complex c3 = 2.0 + c2;
     complex c4 = 2.0+sin(π/2) + (3.1 * 5.5im);
-    complex c5 = c1 * c2;
-    complex c6 = c1 + c2;
-    complex c7 = c1 - c2;
-    complex c8 = c1 / c2;
-    complex c9 = c1 ** c2;
-    complex c10 = sqrt(c1);
-    float c11 = abs(c1 * c2);
-    float c12 = real(c1);
-    float c13 = imag(c1);
-    float c14 = sin(π/2);
-    const complex c15 = -2.5 - 3.5im;
-    const complex c16 = 3.5 + 2.5im;
-    const complex c17 = 2.0 + c16;
-    const complex c18 = 2.0+sin(π/2) + (3.1 * 5.5im);
-    const complex c19 = c15 * c16;
-    const complex c20 = c15 + c16;
-    const complex c21 = c15 - c16;
-    const complex c22 = c15 / c16;
-    const complex c23 = c15 ** c16;
-    const complex c24 = sqrt(c15);
-    const float c25 = abs(c15 * c16);
-    const float c26 = real(c15);
-    const float c27 = imag(c15);
-    const float c28 = sin(π/2);
-    complex c29;
-    c29 = -2.5 - 3.5im;
-    complex c30;
-    c30 = 3.5 + 2.5im;
-    complex c31;
-    c31 = 2.0 + c30;
+    complex c5 = 2.0+arcsin(π/2) + (3.1 * 5.5im);
+    complex c6 = 2.0+arctan(π/2) + (3.1 * 5.5im);
+    complex c7 = c1 * c2;
+    complex c8 = c1 + c2;
+    complex c9 = c1 - c2;
+    complex c10 = c1 / c2;
+    complex c11 = c1 ** c2;
+    complex c12 = sqrt(c1);
+    float c13 = abs(c1 * c2);
+    float c14 = real(c1);
+    float c15 = imag(c1);
+    float c16 = sin(π/2);
+    const complex c17 = -2.5 - 3.5im;
+    const complex c18 = 3.5 + 2.5im;
+    const complex c19 = 2.0 + c18;
+    const complex c20 = 2.0+cos(π/2) + (3.1 * 5.5im);
+    const complex c21 = 2.0+arccos(π/2) + (3.1 * 5.5im);
+    const complex c22 = c17 * c18;
+    const complex c23 = c17 + c18;
+    const complex c24 = c17 - c18;
+    const complex c25 = c17 / c18;
+    const complex c26 = c17 ** c18;
+    const complex c27 = sqrt(c17);
+    const float c28 = abs(c17 * c18);
+    const float c29 = real(c17);
+    const float c30 = imag(c17);
+    const float c31 = sin(π/2);
     complex c32;
-    c32 = 2.0+sin(π/2) + (3.1 * 5.5im);
+    c32 = -2.5 - 3.5im;
     complex c33;
-    c33 = c29 * c30;
+    c33 = 3.5 + 2.5im;
     complex c34;
-    c34 = c29 + c30;
+    c34 = 2.0 + c33;
     complex c35;
-    c35 = c29 - c30;
+    c35 = 2.0+tan(π/2) + (3.1 * 5.5im);
     complex c36;
-    c36 = c29 / c30;
+    c36 = 2.0+arctan(π/2) + (3.1 * 5.5im);
     complex c37;
-    c37 = c29 ** c30;
+    c37 = c32 * c33;
     complex c38;
-    c38 = sqrt(c29);
-    float c39;
-    c39 = abs(c29 * c30);
-    float c40;
-    c40 = real(c29);
-    float c41;
-    c41 = imag(c29);
-    float c42;
-    c42 = sin(π/2);
+    c38 = c32 + c33;
+    complex c39;
+    c39 = c32 - c33;
+    complex c40;
+    c40 = c32 / c33;
+    complex c41;
+    c41 = c32 ** c33;
+    complex c42;
+    c42 = sqrt(c32);
+    float c43;
+    c43 = abs(c32 * c33);
+    float c44;
+    c44 = real(c32);
+    float c45;
+    c45 = imag(c32);
+    float c46;
+    c46 = sin(π/2);
     complex[float[64]] a = 10.0 + 5.0im;
     complex[float[64]] b = -2.0 - 7.0im;
     complex[float[64]] c = a + b;   
@@ -745,3 +751,35 @@ def test_complex_type_variables():
     """
 
     loads(qasm3_string).validate()
+
+
+def test_pi_expression_bit_conversion():
+    """Test that pi expressions are correctly converted to bit string representations"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    
+    angle[4] ang1 = pi / 2;
+    angle[8] ang2 = 15 * (pi / 16);
+    angle[4] ang3 = -pi / 2;
+    angle[4] ang4 = -pi;
+    angle[8] ang5 = (pi / 2) + (pi / 4);
+    angle[8] ang6 = (pi / 2) - (pi / 4);
+
+    """
+
+    result = loads(qasm3_string)
+    result.validate()
+
+    # Create a visitor to access the scope manager
+    scope_manager = ScopeManager()
+    visitor = QasmVisitor(result, scope_manager, check_only=True)
+    result.accept(visitor)
+    scope = scope_manager.get_global_scope()
+
+    assert scope["ang1"].angle_bit_string == "0100"  # pi/2
+    assert scope["ang2"].angle_bit_string == "01111000"  # 15*pi/16
+    assert scope["ang3"].angle_bit_string == "1100"  # -pi/2 (wraps to 3*pi/2)
+    assert scope["ang4"].angle_bit_string == "1000"  # -pi (wraps to 1)
+    assert scope["ang5"].angle_bit_string == "01100000"  # (pi/2) + (pi/4) = 3*pi/4
+    assert scope["ang6"].angle_bit_string == "00100000"  # (pi/2) - (pi/4) = pi/4

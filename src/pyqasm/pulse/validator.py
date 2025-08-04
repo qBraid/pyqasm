@@ -83,11 +83,12 @@ class PulseValidator:
                     )
                 angle_type_size = compiler_angle_width
             angle_bit_string = format(expression.value, f"0{angle_type_size}b")
+            # Reference: https://openqasm.com/language/types.html#angles
             angle_val = (2 * CONSTANTS_MAP["pi"]) * (expression.value / (2**angle_type_size))
         else:
             angle_val = init_value % (2 * CONSTANTS_MAP["pi"])
             angle_type_size = compiler_angle_width or base_size
-            bit_string_value = int((2**angle_type_size) * (angle_val / (2 * CONSTANTS_MAP["pi"])))
+            bit_string_value = round((2**angle_type_size) * (angle_val / (2 * CONSTANTS_MAP["pi"])))
             angle_bit_string = format(bit_string_value, f"0{angle_type_size}b")
 
         return angle_val, angle_bit_string
