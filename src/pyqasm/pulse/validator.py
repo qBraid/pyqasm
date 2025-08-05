@@ -20,21 +20,28 @@ from typing import Any, Optional
 
 import numpy as np
 from openqasm3.ast import (
+    ArrayLiteral,
     BinaryExpression,
     BinaryOperator,
     BitstringLiteral,
+    BitType,
+    BooleanLiteral,
     Box,
     Cast,
     ConstantDeclaration,
     DelayInstruction,
     DurationLiteral,
     DurationType,
+    Expression,
+    ExternDeclaration,
     FloatLiteral,
+    FunctionCall,
     Identifier,
     ImaginaryLiteral,
     IntegerLiteral,
     Statement,
     StretchType,
+    TimeUnit,
 )
 
 from pyqasm.exceptions import raise_qasm3_error
@@ -285,3 +292,131 @@ class PulseValidator:
             op=(BinaryOperator["+"] if value.imag >= 0 else BinaryOperator["-"]),
             rhs=ImaginaryLiteral(np.abs(value.imag)),
         )
+
+    @staticmethod
+    def validate_extern_declaration(module: Any, statement: ExternDeclaration) -> None:
+        """
+        Validates an extern declaration.
+        Args:
+            module: The module object
+            statement: The extern declaration statement
+
+        Raises:
+            ValidationError: If the extern declaration is invalid
+        """
+        args = module._extern_functions[statement.name.name][0]
+        if len(args) != len(statement.arguments):
+            raise_qasm3_error(
+                f"Parameter count mismatch for 'extern' subroutine '{statement.name.name}'. "
+                f"Expected {len(args)} but got {len(statement.arguments)}",
+                error_node=statement,
+                span=statement.span,
+            )
+
+        def _get_type_string(type_obj) -> str:
+            """Recursively build type string for nested types"""
+            type_name = type(type_obj).__name__.replace("Type", "").lower()
+            if hasattr(type_obj, "base_type") and type_obj.base_type is not None:
+                base_type_str = _get_type_string(type_obj.base_type)
+                if hasattr(type_obj, "size") and type_obj.size is not None:
+                    size_val = type_obj.size.value
+                    return f"{type_name}[{size_val}][{base_type_str}]"
+                return f"{type_name}[{base_type_str}]"
+            if hasattr(type_obj, "size") and type_obj.size is not None:
+                size_val = type_obj.size.value
+                return f"{type_name}[{size_val}]"
+            return type_name
+
+        for actual_arg, extern_arg in zip(statement.arguments, args):
+            if actual_arg == extern_arg:
+                continue
+            actual_arg_type = _get_type_string(actual_arg.type)
+            if actual_arg_type != str(extern_arg).lower():
+                raise_qasm3_error(
+                    f"Parameter type mismatch for 'extern' subroutine '{statement.name.name}'. "
+                    f"Expected {extern_arg} but got {actual_arg_type}",
+                    error_node=statement,
+                    span=statement.span,
+                )
+        return_type = module._extern_functions[statement.name.name][1]
+        actual_type_name = _get_type_string(statement.return_type)
+        if return_type == statement.return_type:
+            return
+        if str(return_type).lower() != actual_type_name:
+            raise_qasm3_error(
+                f"Return type mismatch for 'extern' subroutine '{statement.name.name}'. Expected "
+                f"{return_type} but got {actual_type_name}",
+                error_node=statement,
+                span=statement.span,
+            )
+
+    @staticmethod
+    def validate_and_process_extern_function_call(  # pylint: disable=too-many-branches
+        statement: FunctionCall, global_scope: dict, device_cycle_time: float | None
+    ) -> FunctionCall:
+        """Validate and process extern function arguments
+        by converting them to appropriate literals.
+
+        Args:
+            statement: The function call statement to process
+            global_scope: The global scope of the module
+            device_cycle_time: The device cycle time of the module
+
+        Returns:
+            The validated and processed function call statement
+
+        Raises:
+            ValidationError: If the function call is invalid
+        """
+        fn_name = statement.name.name
+        # pylint: disable=too-many-nested-blocks
+        for i, arg in enumerate(statement.arguments):
+            if isinstance(arg, Identifier):
+                arg_var = global_scope.get(arg.name)
+                if arg_var is None:
+                    raise_qasm3_error(
+                        f"Undefined variable '{arg.name}' in extern function '{fn_name}'",
+                        error_node=statement,
+                        span=statement.span,
+                    )
+
+                assert arg_var is not None
+
+                if arg_var.base_type is not None and isinstance(arg_var.base_type, DurationType):
+                    statement.arguments[i] = DurationLiteral(
+                        float(arg_var.value) if arg_var.value is not None else 0.0,
+                        unit=(TimeUnit.dt if device_cycle_time else TimeUnit.ns),
+                    )
+                elif (
+                    arg_var.base_type is not None
+                    and isinstance(arg_var.base_type, BitType)
+                    and (isinstance(arg_var.dims, list) or isinstance(arg_var.value, np.ndarray))
+                ):
+                    array_list: list[Expression] = []
+                    if isinstance(arg_var.value, np.ndarray):
+                        for val in arg_var.value:
+                            array_list.append(BooleanLiteral(bool(val)))
+                    else:
+                        if arg_var.dims is not None and len(arg_var.dims) > 0:
+                            for _ in range(arg_var.dims[0]):
+                                array_list.append(BooleanLiteral(bool(arg_var.value)))
+                    statement.arguments[i] = ArrayLiteral(array_list)
+                elif isinstance(arg_var.value, float):
+                    statement.arguments[i] = FloatLiteral(arg_var.value)
+                elif isinstance(arg_var.value, int):
+                    statement.arguments[i] = IntegerLiteral(arg_var.value)
+                elif isinstance(arg_var.value, bool):
+                    statement.arguments[i] = BooleanLiteral(arg_var.value)
+                elif isinstance(arg_var.value, complex):
+                    statement.arguments[i] = PulseValidator.make_complex_binary_expression(
+                        arg_var.value
+                    )
+                else:
+                    raise_qasm3_error(
+                        f"Invalid argument type '{arg_var.base_type}' for extern function "
+                        f"'{fn_name}'",
+                        error_node=statement,
+                        span=statement.span,
+                    )
+
+        return statement

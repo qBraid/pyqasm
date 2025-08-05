@@ -16,11 +16,13 @@
 Module containing the class for validating QASM3 subroutines.
 
 """
+import random
 from typing import Optional
 
 from openqasm3.ast import (
     AccessControl,
     ArrayReferenceType,
+    ExternArgument,
     Identifier,
     IndexExpression,
     IntType,
@@ -97,7 +99,7 @@ class Qasm3SubroutineProcessor:
             formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
         )
 
-    @classmethod  # pylint: disable-next=too-many-arguments
+    @classmethod  # pylint: disable-next=too-many-arguments,too-many-locals
     def _process_classical_arg_by_value(
         cls, formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
     ):
@@ -146,13 +148,53 @@ class Qasm3SubroutineProcessor:
                     error_node=fn_call,
                     span=fn_call.span,
                 )
+
+            if isinstance(formal_arg, ExternArgument):
+                formal_arg_type = formal_arg.type
+                formal_arg_size = None
+                if hasattr(formal_arg_type, "size") and formal_arg_type.size is not None:
+                    formal_arg_size, _ = Qasm3ExprEvaluator.evaluate_expression(
+                        formal_arg_type.size
+                    )
+                actual_arg_var = cls.visitor_obj._scope_manager.get_from_global_scope(
+                    actual_arg_name
+                )
+                if (
+                    actual_arg_var.base_type != formal_arg_type
+                    or actual_arg_var.base_size != formal_arg_size
+                ):
+                    if formal_arg_size is not None:
+                        raise_qasm3_error(
+                            f"Argument type mismatch in function '{fn_name}', expected "
+                            f"{type(formal_arg_type).__name__}[{formal_arg_size}] but got "
+                            f"{type(actual_arg_var.base_type).__name__}"
+                            f"[{actual_arg_var.base_size}]",
+                            error_node=fn_call,
+                            span=fn_call.span,
+                        )
+
         actual_arg_value = Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]
 
-        # save this value to be updated later in scope
+        if isinstance(formal_arg, ExternArgument):
+            # Generate a unique name for the extern argument variable
+            _name = fn_name
+            while not cls.visitor_obj._scope_manager.check_in_scope(_name) and _name == fn_name:
+                _name = f"{fn_name}_{random.randint(1, 1_000_000_000)}"
+            if actual_arg_name:
+                _var = cls.visitor_obj._scope_manager.get_from_global_scope(actual_arg_name)
+                _base_size = _var.base_size
+                _base_type = _var.base_type
+            else:
+                _base_size = Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0]
+                _base_type = formal_arg.type
+        else:
+            _name = formal_arg.name.name
+            _base_size = Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0]
+            _base_type = formal_arg.type
         return Variable(
-            name=formal_arg.name.name,
-            base_type=formal_arg.type,
-            base_size=Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0],
+            name=_name,
+            base_type=_base_type,
+            base_size=_base_size,
             dims=None,
             value=actual_arg_value,
             is_constant=False,

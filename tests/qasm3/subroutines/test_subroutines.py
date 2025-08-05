@@ -19,10 +19,14 @@ Module containing unit tests for parsing and unrolling programs that contain sub
 
 import pytest
 
-from pyqasm.entrypoint import loads
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.subroutines import SUBROUTINE_INCORRECT_TESTS
-from tests.utils import check_single_qubit_gate_op, check_single_qubit_rotation_op
+from tests.utils import (
+    check_single_qubit_gate_op,
+    check_single_qubit_rotation_op,
+    check_unrolled_qasm,
+)
 
 
 def test_function_declaration():
@@ -421,3 +425,225 @@ def test_incorrect_custom_ops(test_name, caplog):
 
     assert f"Error at line {line_num}, column {col_num}" in caplog.text
     assert err_line in caplog.text
+
+
+def test_extern_function_call():
+    """Test extern function call"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    float a = 1.0;
+    int b = 2;
+    extern func1(float, int) -> bit;
+    bit c = 2 * func1(a, b);
+    bit fc = -func1(a, b);
+
+    bit[2] b1 = true;
+    angle ang1 = pi/2;
+    extern func2(bit[2], angle) -> complex;
+    const complex d = func2(b1, ang1);
+    const complex e = func2(b1, ang1) + 2.0;
+    const complex f = -func2(b1, ang1);
+    
+    duration t1 = 100ns;
+    bool b2 = true;
+    extern func3(duration, bool) -> int;
+    int dd;
+    dd = func3(t1, b2);
+    int ee;
+    ee = func3(t1, b2) + 2;
+    int ff;
+    ff = -func3(t1, b2);
+    int gg;
+    gg = func3(t1, b2) * func3(t1, b2);
+
+    float[32] fa = 3.14;
+    float[32] fb = 2.71;
+    extern func4(float[32], float[32]) -> float[32];
+    float[32] fc1 = func4(fa, fb);
+
+    complex[float[64]] ca = 1.0 + 2.0im;
+    complex[float[64]] cb = 3.0 - 4.0im;
+    extern func5(complex[float[64]], complex[float[64]]) -> complex[float[64]];
+    complex[float[64]] cc1 = func5(ca, cb);
+
+    bit[4] bd = true;
+    extern func6(bit[4]) -> bit[4];
+    bit[4] be1 = func6(bd);
+
+    angle[8] an = pi/4;
+    extern func7(angle[8]) -> angle[8];
+    angle[8] af1 = func7(an);
+
+    bool bl = false;
+    extern func8(bool) -> bool;
+    bool bf1 = func8(bl);
+
+    int[24] ix = 42;
+    extern func9(int[24]) -> int[24];
+    int[24] ig1 = func9(ix);
+
+    float[64] fx = 2.718;
+    extern func10(float[64]) -> float[64];
+    float[64] fg1 = func10(fx);
+    """
+
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    extern func1(float, int) -> bit;
+    bit[1] c = 2 * func1(1.0, 2);
+    bit[1] fc = -func1(1.0, 2);
+    bit[2] b1 = true;
+    extern func2(bit[2], angle) -> complex;
+    const complex d = func2({true, true}, 1.5707963267948966);
+    const complex e = func2({true, true}, 1.5707963267948966) + 2.0; 
+    const complex f = -func2({true, true}, 1.5707963267948966);
+    extern func3(duration, bool) -> int;
+    dd = func3(100.0ns, True);
+    ee = func3(100.0ns, True) + 2;
+    ff = -func3(100.0ns, True);
+    gg = func3(100.0ns, True) * func3(100.0ns, True);
+    extern func4(float[32], float[32]) -> float[32];
+    float[32] fc1 = func4(3.14, 2.71);
+    extern func5(complex[float[64]], complex[float[64]]) -> complex[float[64]];
+    complex[float[64]] cc1 = func5(1.0 + 2.0im, 3.0 - 4.0im);
+    bit[4] bd = true;
+    extern func6(bit[4]) -> bit[4];
+    bit[4] be1 = func6({true, true, true, true});
+    extern func7(angle[8]) -> angle[8];
+    angle[8] af1 = func7(0.7853981633974483);
+    extern func8(bool) -> bool;
+    bool bf1 = func8(False);
+    extern func9(int[24]) -> int[24];
+    int[24] ig1 = func9(42);
+    extern func10(float[64]) -> float[64];
+    float[64] fg1 = func10(2.718);
+    """
+
+    extern_functions = {
+        "func1": (["float", "int"], "bit"),
+        "func2": (["bit[2]", "angle"], "complex"),
+        "func3": (["duration", "bool"], "int"),
+        "func4": (["float[32]", "float[32]"], "float[32]"),
+        "func5": (["complex[float[64]]", "complex[float[64]]"], "complex[float[64]]"),
+        "func6": (["bit[4]"], "bit[4]"),
+        "func7": (["angle[8]"], "angle[8]"),
+        "func8": (["bool"], "bool"),
+        "func9": (["int[24]"], "int[24]"),
+        "func10": (["float[64]"], "float[64]"),
+    }
+
+    result = loads(qasm3_string, extern_functions=extern_functions)
+    result.unroll()
+    unrolled_qasm = dumps(result)
+
+    check_unrolled_qasm(unrolled_qasm, expected_qasm)
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            bit[4] bd = true;
+            float[64] fx = 2.718;
+            extern func6(bit[4]) -> bit[4];
+            extern func10(float[64]) -> float[64];
+            bit[4] be1 = func6(bd) * func10(fx);
+            """,
+            r"extern function return type mismatch in binary expression: BitType and FloatType",
+            r"Error at line 8, column 25",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            bit bd = true;
+            extern func6(bit[4]) -> bit[4];
+            bit[4] be1 = func6(bd);
+            """,
+            r"Argument type mismatch in function 'func6', expected BitType[4] but got BitType[1]",
+            r"Error at line 6, column 25",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            bit bd = true;
+            extern func6(bit[4]) -> bit[4];
+            bit[4] be1 = func6(fd);
+            """,
+            r"Undefined variable 'fd' used for function call 'func6'",
+            r"Error at line 6, column 25",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_extern_function_call_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as excinfo:
+        with caplog.at_level("ERROR"):
+            loads(
+                qasm_code,
+            ).validate()
+    first = excinfo.value.__cause__ or excinfo.value.__context__
+    assert first is not None, "Expected a chained ValidationError"
+    msg = str(first)
+    assert error_message in msg
+    assert error_span in caplog.text
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            float fx = 2.718;
+            int ix = 42;
+            extern func1(float) -> bit;
+            bit be1 = func1(fx);
+            """,
+            r"Parameter count mismatch for 'extern' subroutine 'func1'. Expected 2 but got 1",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            float fx = 2.718;
+            int ix = 42;
+            extern func1(float[64], int[64]) -> bit;
+            bit be1 = func1(fx);
+            """,
+            r"Parameter type mismatch for 'extern' subroutine 'func1'."
+            r" Expected float but got float[64]",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            float fx = 2.718;
+            int ix = 42;
+            extern func1(float, int) -> bit[2];
+            bit[2] be1 = func1(fx);
+            """,
+            r"Return type mismatch for 'extern' subroutine 'func1'. Expected bit but got bit[2]",
+            r"Error at line 6, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_extern_function_dict_call_erro(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as excinfo:
+        with caplog.at_level("ERROR"):
+            extern_functions = {
+                "func1": (["float", "int"], "bit"),
+                "func2": (["bit[2]", "angle"], "complex"),
+                "func3": (["uint"], "int"),
+            }
+            loads(qasm_code, extern_functions=extern_functions).validate()
+    msg = str(excinfo.value)
+    assert error_message in msg
+    assert error_span in caplog.text
