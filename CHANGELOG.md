@@ -19,6 +19,7 @@ Types of changes:
 - A github workflow for validating `CHANGELOG` updates in a PR ([#214](https://github.com/qBraid/pyqasm/pull/214))
 - Added `unroll` command support in PYQASM CLI with options skipping files, overwriting originals files, and specifying output paths.([#224](https://github.com/qBraid/pyqasm/pull/224))
 - Added `.github/copilot-instructions.md` to the repository to document coding standards and design principles for pyqasm. This file provides detailed guidance on documentation, static typing, formatting, error handling, and adherence to the QASM specification for all code contributions. ([#234](https://github.com/qBraid/pyqasm/pull/234))
+- Added a new `QasmModule.compare` method to compare two QASM modules, providing a detailed report of differences in gates, qubits, and measurements. This method is useful for comparing two identifying differences in QASM programs, their structure and operations. ([#233](https://github.com/qBraid/pyqasm/pull/233)) 
 
 ### Improved / Modified
 - Added `slots=True` parameter to the data classes in `elements.py` to improve memory efficiency ([#218](https://github.com/qBraid/pyqasm/pull/218))
@@ -55,6 +56,7 @@ Types of changes:
 
 ### Dependencies
 - Add `pillow<11.3.0` dependency for test and visualization to avoid CI errors in Linux builds ([#226](https://github.com/qBraid/pyqasm/pull/226))
+- Added `tabulate` to the testing dependencies to support new comparison table tests. ([#216](https://github.com/qBraid/pyqasm/pull/216))
 
 ### Other
 

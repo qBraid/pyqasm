@@ -29,7 +29,8 @@ from rich.console import Console
 
 from pyqasm import dumps, load
 from pyqasm.exceptions import QasmParsingError, UnrollError, ValidationError
-from pyqasm.modules.base import QasmModule
+
+from .utils import skip_qasm_files_with_tag
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -57,7 +58,7 @@ def unroll_qasm(
 
         if file_path in skip_files:
             return
-        if QasmModule.skip_qasm_files_with_tag(content, "unroll"):
+        if skip_qasm_files_with_tag(content, "unroll"):
             skip_files.append(file_path)
             return
 
