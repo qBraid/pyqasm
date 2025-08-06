@@ -20,11 +20,9 @@ from typing import Any, Optional
 
 import numpy as np
 from openqasm3.ast import (
-    ArrayLiteral,
     BinaryExpression,
     BinaryOperator,
     BitstringLiteral,
-    BitType,
     BooleanLiteral,
     Box,
     Cast,
@@ -32,7 +30,6 @@ from openqasm3.ast import (
     DelayInstruction,
     DurationLiteral,
     DurationType,
-    Expression,
     ExternDeclaration,
     FloatLiteral,
     FunctionCall,
@@ -382,25 +379,13 @@ class PulseValidator:
 
                 assert arg_var is not None
 
-                if arg_var.base_type is not None and isinstance(arg_var.base_type, DurationType):
+                if arg_var.base_type is not None and isinstance(
+                    arg_var.base_type, (DurationType, StretchType)
+                ):
                     statement.arguments[i] = DurationLiteral(
                         float(arg_var.value) if arg_var.value is not None else 0.0,
                         unit=(TimeUnit.dt if device_cycle_time else TimeUnit.ns),
                     )
-                elif (
-                    arg_var.base_type is not None
-                    and isinstance(arg_var.base_type, BitType)
-                    and (isinstance(arg_var.dims, list) or isinstance(arg_var.value, np.ndarray))
-                ):
-                    array_list: list[Expression] = []
-                    if isinstance(arg_var.value, np.ndarray):
-                        for val in arg_var.value:
-                            array_list.append(BooleanLiteral(bool(val)))
-                    else:
-                        if arg_var.dims is not None and len(arg_var.dims) > 0:
-                            for _ in range(arg_var.dims[0]):
-                                array_list.append(BooleanLiteral(bool(arg_var.value)))
-                    statement.arguments[i] = ArrayLiteral(array_list)
                 elif isinstance(arg_var.value, float):
                     statement.arguments[i] = FloatLiteral(arg_var.value)
                 elif isinstance(arg_var.value, int):
@@ -411,6 +396,10 @@ class PulseValidator:
                     statement.arguments[i] = PulseValidator.make_complex_binary_expression(
                         arg_var.value
                     )
+                elif isinstance(arg_var.value, str):
+                    width = len(arg_var.value)
+                    value = int(arg_var.value, 2)
+                    statement.arguments[i] = BitstringLiteral(value, width)
                 else:
                     raise_qasm3_error(
                         f"Invalid argument type '{arg_var.base_type}' for extern function "

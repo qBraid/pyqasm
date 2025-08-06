@@ -338,7 +338,7 @@ class Qasm3ExprEvaluator:
                 )
             return _check_and_return_value(dimensions[index])
 
-        if isinstance(expression, (BooleanLiteral, IntegerLiteral, FloatLiteral, BitstringLiteral)):
+        if isinstance(expression, (BooleanLiteral, IntegerLiteral, FloatLiteral)):
             if reqd_type:
                 if reqd_type == BoolType and isinstance(expression, BooleanLiteral):
                     return _check_and_return_value(expression.value)
@@ -356,6 +356,9 @@ class Qasm3ExprEvaluator:
                     span=expression.span,
                 )
             return _check_and_return_value(expression.value)
+
+        if isinstance(expression, BitstringLiteral):
+            return _check_and_return_value(format(expression.value, f"0{expression.width}b"))
 
         if isinstance(expression, DurationLiteral):
             unit_name = expression.unit.name

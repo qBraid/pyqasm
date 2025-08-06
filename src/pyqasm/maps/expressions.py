@@ -124,7 +124,7 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     # not sure if we wanna hande array bit assignments too.
     # For now, we only cater to single bit assignment.
     if openqasm_type == BitType:
-        return rhs_value != 0
+        return rhs_value
     if openqasm_type == AngleType:
         if isinstance(rhs_value, bool):
             return ((2 * CONSTANTS_MAP["pi"]) * (1 / 2)) if rhs_value else 0.0
@@ -162,7 +162,7 @@ VARIABLE_TYPE_MAP = {
 VARIABLE_TYPE_CAST_MAP = {
     BoolType: (int, float, bool, np.int64, np.float64, np.bool_),
     IntType: (bool, int, float, np.int64, np.float64, np.bool_),
-    BitType: (bool, int, np.int64, np.bool_),
+    BitType: (bool, int, np.int64, np.bool_, str),
     UintType: (bool, int, float, np.int64, np.uint64, np.float64, np.bool_),
     FloatType: (bool, int, float, np.int64, np.float64, np.bool_),
     AngleType: (float, np.float64, bool, np.bool_),

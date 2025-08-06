@@ -466,6 +466,15 @@ class QasmVisitor:
             statements.clear()
             statements.append(statement)
 
+    def _validate_bitstring_literal_width(self, init_value, base_size, var_name, statement):
+        if len(init_value) != base_size:
+            raise_qasm3_error(
+                f"Invalid bitstring literal '{init_value}' width [{len(init_value)}] "
+                f"for variable '{var_name}' of size [{base_size}]",
+                error_node=statement,
+                span=statement.span,
+            )
+
     def _visit_measurement(  # pylint: disable=too-many-locals, too-many-branches
         self, statement: qasm3_ast.QuantumMeasurementStatement
     ) -> list[qasm3_ast.QuantumMeasurementStatement]:
@@ -1404,6 +1413,9 @@ class QasmVisitor:
             angle_bit_string=angle_val_bit_string,
         )
 
+        if isinstance(base_type, qasm3_ast.BitType) and isinstance(init_value, str):
+            self._validate_bitstring_literal_width(init_value, base_size, var_name, statement)
+
         if isinstance(base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
             PulseValidator.validate_duration_literal_value(init_value, statement, base_type)
             if self._module._device_cycle_time:
@@ -1584,6 +1596,8 @@ class QasmVisitor:
                         span=statement.span,
                         raised_from=err,
                     )
+        if isinstance(base_type, qasm3_ast.BitType) and isinstance(init_value, str):
+            self._validate_bitstring_literal_width(init_value, base_size, var_name, statement)
 
         variable = Variable(
             var_name,
@@ -1740,6 +1754,10 @@ class QasmVisitor:
             lvar.base_size,  # type: ignore[union-attr]
             False,
         )
+        if isinstance(lvar_base_type, qasm3_ast.BitType) and isinstance(rvalue_raw, str):
+            self._validate_bitstring_literal_width(
+                rvalue_raw, lvar.base_size, lvar_name, statement  # type: ignore[union-attr]
+            )
         angle_val_bit_string = None
         if isinstance(lvar_base_type, qasm3_ast.AngleType) and not self._in_extern_function:
             rvalue_raw, angle_val_bit_string = PulseValidator.validate_angle_type_value(
@@ -2206,8 +2224,6 @@ class QasmVisitor:
                 PulseValidator.validate_and_process_extern_function_call(
                     statement, global_scope, self._module._device_cycle_time
                 )
-                if not self._check_only
-                else statement
             )
         else:
             for function_op in subroutine_def.body:

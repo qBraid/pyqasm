@@ -467,7 +467,7 @@ def test_extern_function_call():
     extern func5(complex[float[64]], complex[float[64]]) -> complex[float[64]];
     complex[float[64]] cc1 = func5(ca, cb);
 
-    bit[4] bd = true;
+    bit[4] bd = "0101";
     extern func6(bit[4]) -> bit[4];
     bit[4] be1 = func6(bd);
 
@@ -495,9 +495,9 @@ def test_extern_function_call():
     bit[1] fc = -func1(1.0, 2);
     bit[2] b1 = true;
     extern func2(bit[2], angle) -> complex;
-    const complex d = func2({true, true}, 1.5707963267948966);
-    const complex e = func2({true, true}, 1.5707963267948966) + 2.0; 
-    const complex f = -func2({true, true}, 1.5707963267948966);
+    const complex d = func2(True, 1.5707963267948966);
+    const complex e = func2(True, 1.5707963267948966) + 2.0; 
+    const complex f = -func2(True, 1.5707963267948966);
     extern func3(duration, bool) -> int;
     dd = func3(100.0ns, True);
     ee = func3(100.0ns, True) + 2;
@@ -507,9 +507,9 @@ def test_extern_function_call():
     float[32] fc1 = func4(3.14, 2.71);
     extern func5(complex[float[64]], complex[float[64]]) -> complex[float[64]];
     complex[float[64]] cc1 = func5(1.0 + 2.0im, 3.0 - 4.0im);
-    bit[4] bd = true;
+    bit[4] bd = "0101";
     extern func6(bit[4]) -> bit[4];
-    bit[4] be1 = func6({true, true, true, true});
+    bit[4] be1 = func6("0101");
     extern func7(angle[8]) -> angle[8];
     angle[8] af1 = func7(0.7853981633974483);
     extern func8(bool) -> bool;
@@ -635,7 +635,7 @@ def test_extern_function_call_error(qasm_code, error_message, error_span, caplog
         ),
     ],
 )  # pylint: disable-next= too-many-arguments
-def test_extern_function_dict_call_erro(qasm_code, error_message, error_span, caplog):
+def test_extern_function_dict_call_error(qasm_code, error_message, error_span, caplog):
     with pytest.raises(ValidationError) as excinfo:
         with caplog.at_level("ERROR"):
             extern_functions = {
@@ -645,5 +645,111 @@ def test_extern_function_dict_call_erro(qasm_code, error_message, error_span, ca
             }
             loads(qasm_code, extern_functions=extern_functions).validate()
     msg = str(excinfo.value)
+    assert error_message in msg
+    assert error_span in caplog.text
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func1(float) -> bit;
+            bit be1 = func1(2);
+            """,
+            r"Invalid argument value for 'func1', expected 'FloatType' but got value = 2.",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func2(uint) -> complex;
+            complex ce1 = func2(-22);
+            """,
+            r"Invalid argument value for 'func2', expected 'UintType' but got value = -22.",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func3(duration) -> int;
+            int ie1 = func3(true);
+            """,
+            r"Invalid argument value for 'func3', expected 'DurationType' but got value = True.",
+            r"Error at line 5, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func4(bit[4]) -> float[64];
+            float[64] fe1 = func4(3.14);
+            """,
+            r"Invalid argument value for 'func4', expected 'BitType' but got value = 3.14.",
+            r"Error at line 5, column 28",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func5(complex[float[64]]) -> complex[float[64]];
+            complex[float[64]] ce1 = func5(42);
+            """,
+            r"Invalid argument value for 'func5', expected 'ComplexType' but got value = 42.",
+            r"Error at line 5, column 37",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func6(angle[8]) -> angle[8];
+            angle[8] ae1 = func6(100ns);
+            """,
+            r"Invalid argument value for 'func6', expected 'AngleType' but got value = 100.0.",
+            r"Error at line 5, column 27",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func7(bool) -> bool;
+            bool be1 = func7(3.14);
+            """,
+            r"Invalid argument value for 'func7', expected 'BoolType' but got value = 3.14.",
+            r"Error at line 5, column 23",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            extern func8(int[24]) -> int[24];
+            int[24] ie1 = func8(2.0);
+            """,
+            r"Invalid argument value for 'func8', expected 'IntType' but got value = 2.0.",
+            r"Error at line 5, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_extern_function_value_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as excinfo:
+        with caplog.at_level("ERROR"):
+            extern_functions = {
+                "func1": (["float"], "bit"),
+                "func2": (["uint"], "complex"),
+                "func3": (["duration"], "int"),
+                "func4": (["bit[4]"], "float[64]"),
+                "func5": (["complex[float[64]]"], "complex[float[64]]"),
+                "func6": (["angle[8]"], "angle[8]"),
+                "func7": (["bool"], "bool"),
+                "func8": (["int[24]"], "int[24]"),
+            }
+            loads(qasm_code, extern_functions=extern_functions).validate()
+    first = excinfo.value.__cause__ or excinfo.value.__context__
+    assert first is not None, "Expected a chained ValidationError"
+    msg = str(first)
     assert error_message in msg
     assert error_span in caplog.text
