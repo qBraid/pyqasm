@@ -1,4 +1,7 @@
 # Ref : https://docs.github.com/en/get-started/getting-started-with-git/configuring-git-to-handle-line-endings#per-repository-settings
 
-# Set line endings to lf 
+# Set line endings to lf for text files
 * text eol=lf
+
+# Binary files should not be processed as text
+*.png binary
