@@ -446,8 +446,6 @@ class QasmVisitor:
         if isinstance(expression, qasm3_ast.FunctionCall):
             func_name = expression.name.name
             if func_name in FUNCTION_MAP:
-                if isinstance(init_value, complex):
-                    return PulseValidator.make_complex_binary_expression(init_value)
                 if isinstance(init_value, (float, int)):
                     return qasm3_ast.FloatLiteral(init_value)
         return None

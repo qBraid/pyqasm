@@ -273,9 +273,6 @@ class Qasm3ExprEvaluator:
                 return extern_fns[expression.name.name][1]
             return None
 
-        if isinstance(expression, complex):
-            return _check_and_return_value(expression)
-
         if isinstance(expression, ImaginaryLiteral):
             return _check_and_return_value(expression.value * 1j)
 
@@ -489,8 +486,6 @@ class Qasm3ExprEvaluator:
                 _val, _ = cls.evaluate_expression(
                     expression.arguments[0], const_expr, reqd_type, validate_only
                 )
-                if _val is None or validate_only:
-                    return (None, statements)
                 _val = FUNCTION_MAP[expression.name.name](_val)  # type: ignore
                 return _check_and_return_value(_val)
 

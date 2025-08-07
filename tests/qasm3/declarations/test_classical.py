@@ -80,6 +80,7 @@ def test_const_declarations():
     const angle[8] ang1 = 7 * (pi / 8);
     const angle[8] ang2 = 9 * (pi / 8);
     const angle[8] ang3 = ang1 + ang2;
+    const bit[4] a = "1011";
     """
 
     loads(qasm3_string).validate()
@@ -105,6 +106,8 @@ def test_scalar_assignments():
     du2 = 300s;
     angle[8] ang1;
     ang1 = 9 * (pi / 8);
+    bit[4] b;
+    b = "1011";
     """
 
     loads(qasm3_string).validate()
@@ -748,6 +751,7 @@ def test_complex_type_variables():
     complex[float[64]] f = a / b;   
     complex[float[64]] g = a ** b; 
     complex[float] h = a + b;
+    complex i = sqrt(1.0 + 2.0im);
     """
 
     loads(qasm3_string).validate()
@@ -783,3 +787,25 @@ def test_pi_expression_bit_conversion():
     assert scope["ang4"].angle_bit_string == "1000"  # -pi (wraps to 1)
     assert scope["ang5"].angle_bit_string == "01100000"  # (pi/2) + (pi/4) = 3*pi/4
     assert scope["ang6"].angle_bit_string == "00100000"  # (pi/2) - (pi/4) = pi/4
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            bit[4] i = "101";
+            """,
+            r"Invalid bitstring literal '101' width [3] for variable 'i' of size [4]",
+            r"Error at line 4, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_bit_string_literal_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as err:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code).validate()
+    assert error_message in str(err.value)
+    assert error_span in caplog.text

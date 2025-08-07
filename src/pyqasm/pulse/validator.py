@@ -23,7 +23,6 @@ from openqasm3.ast import (
     BinaryExpression,
     BinaryOperator,
     BitstringLiteral,
-    BooleanLiteral,
     Box,
     Cast,
     ConstantDeclaration,
@@ -313,15 +312,10 @@ class PulseValidator:
         def _get_type_string(type_obj) -> str:
             """Recursively build type string for nested types"""
             type_name = type(type_obj).__name__.replace("Type", "").lower()
-            if hasattr(type_obj, "base_type") and type_obj.base_type is not None:
-                base_type_str = _get_type_string(type_obj.base_type)
-                if hasattr(type_obj, "size") and type_obj.size is not None:
-                    size_val = type_obj.size.value
-                    return f"{type_name}[{size_val}][{base_type_str}]"
-                return f"{type_name}[{base_type_str}]"
-            if hasattr(type_obj, "size") and type_obj.size is not None:
-                size_val = type_obj.size.value
-                return f"{type_name}[{size_val}]"
+            if getattr(type_obj, "base_type", None) is not None:
+                return f"{type_name}[{_get_type_string(type_obj.base_type)}]"
+            if getattr(type_obj, "size", None) is not None:
+                return f"{type_name}[{type_obj.size.value}]"
             return type_name
 
         for actual_arg, extern_arg in zip(statement.arguments, args):
@@ -365,18 +359,10 @@ class PulseValidator:
         Raises:
             ValidationError: If the function call is invalid
         """
-        fn_name = statement.name.name
-        # pylint: disable=too-many-nested-blocks
+
         for i, arg in enumerate(statement.arguments):
             if isinstance(arg, Identifier):
                 arg_var = global_scope.get(arg.name)
-                if arg_var is None:
-                    raise_qasm3_error(
-                        f"Undefined variable '{arg.name}' in extern function '{fn_name}'",
-                        error_node=statement,
-                        span=statement.span,
-                    )
-
                 assert arg_var is not None
 
                 if arg_var.base_type is not None and isinstance(
@@ -390,8 +376,6 @@ class PulseValidator:
                     statement.arguments[i] = FloatLiteral(arg_var.value)
                 elif isinstance(arg_var.value, int):
                     statement.arguments[i] = IntegerLiteral(arg_var.value)
-                elif isinstance(arg_var.value, bool):
-                    statement.arguments[i] = BooleanLiteral(arg_var.value)
                 elif isinstance(arg_var.value, complex):
                     statement.arguments[i] = PulseValidator.make_complex_binary_expression(
                         arg_var.value
@@ -400,12 +384,5 @@ class PulseValidator:
                     width = len(arg_var.value)
                     value = int(arg_var.value, 2)
                     statement.arguments[i] = BitstringLiteral(value, width)
-                else:
-                    raise_qasm3_error(
-                        f"Invalid argument type '{arg_var.base_type}' for extern function "
-                        f"'{fn_name}'",
-                        error_node=statement,
-                        span=statement.span,
-                    )
 
         return statement

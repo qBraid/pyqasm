@@ -38,6 +38,7 @@ from openqasm3.ast import (
     IntType,
     QASMNode,
     QubitDeclaration,
+    StretchType,
     UintType,
 )
 from openqasm3.printer import dumps
@@ -221,7 +222,7 @@ class Qasm3SubroutineProcessor:
                     )
                     or (isinstance(_base_type, IntType) and not isinstance(actual_arg_value, int))
                     or (
-                        isinstance(_base_type, DurationType)
+                        isinstance(_base_type, (DurationType, StretchType))
                         and not isinstance(actual_arg, DurationLiteral)
                     )
                     or (

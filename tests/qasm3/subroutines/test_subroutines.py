@@ -534,6 +534,7 @@ def test_extern_function_call():
     }
 
     result = loads(qasm3_string, extern_functions=extern_functions)
+    result.validate()
     result.unroll()
     unrolled_qasm = dumps(result)
 
