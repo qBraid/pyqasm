@@ -201,7 +201,6 @@ class Qasm3ExprEvaluator:
         reqd_type=None,
         validate_only: bool = False,
         dt=None,
-        extern_fns=None,
     ) -> tuple:
         """Evaluate an expression. Scalar types are assigned by value.
 
@@ -211,7 +210,6 @@ class Qasm3ExprEvaluator:
             reqd_type (Any): The required type of the expression. Defaults to None.
             validate_only (bool): Whether to validate the expression only. Defaults to False.
             dt (float): The time step of the compiler. Defaults to None.
-            extern_fns (dict): A dictionary of extern functions. Defaults to None.
 
         Returns:
             tuple[Any, list[Statement]] : The result of the evaluation.
@@ -263,14 +261,16 @@ class Qasm3ExprEvaluator:
                     )
             return base_size
 
-        def _is_external_function_call(expression, extern_fns):
+        def _is_external_function_call(expression):
             """Check if an expression is an external function call"""
-            return isinstance(expression, FunctionCall) and expression.name.name in extern_fns
+            return isinstance(expression, FunctionCall) and (
+                expression.name.name in cls.visitor_obj._module._extern_functions
+            )
 
-        def _get_external_function_return_type(expression, extern_fns):
+        def _get_external_function_return_type(expression):
             """Get the return type of an external function call"""
-            if _is_external_function_call(expression, extern_fns):
-                return extern_fns[expression.name.name][1]
+            if _is_external_function_call(expression):
+                return cls.visitor_obj._module._extern_functions[expression.name.name][1]
             return None
 
         if isinstance(expression, ImaginaryLiteral):
@@ -376,7 +376,7 @@ class Qasm3ExprEvaluator:
                         expression.expression, const_expr, reqd_type, validate_only
                     )
                 # Check for external function in validate_only mode
-                return_type = _get_external_function_return_type(expression.expression, extern_fns)
+                return_type = _get_external_function_return_type(expression.expression)
                 if return_type:
                     return (return_type, statements)
                 return (None, [])
@@ -386,7 +386,7 @@ class Qasm3ExprEvaluator:
             )
 
             # Handle external function replacement
-            if _is_external_function_call(expression.expression, extern_fns):
+            if _is_external_function_call(expression.expression):
                 expression.expression = returned_stats[0]
                 return _check_and_return_value(None)
 
@@ -407,10 +407,16 @@ class Qasm3ExprEvaluator:
                     return (None, statements)
 
                 _lhs, _lhs_stmts = cls.evaluate_expression(
-                    expression.lhs, const_expr, reqd_type, validate_only, extern_fns=extern_fns
+                    expression.lhs,
+                    const_expr,
+                    reqd_type,
+                    validate_only,
                 )
                 _rhs, _rhs_stmts = cls.evaluate_expression(
-                    expression.rhs, const_expr, reqd_type, validate_only, extern_fns=extern_fns
+                    expression.rhs,
+                    const_expr,
+                    reqd_type,
+                    validate_only,
                 )
 
                 if isinstance(expression.lhs, Cast):
@@ -426,8 +432,8 @@ class Qasm3ExprEvaluator:
                 _lhs_return_type = None
                 _rhs_return_type = None
                 # Check for external functions in both operands
-                _lhs_return_type = _get_external_function_return_type(expression.lhs, extern_fns)
-                _rhs_return_type = _get_external_function_return_type(expression.rhs, extern_fns)
+                _lhs_return_type = _get_external_function_return_type(expression.lhs)
+                _rhs_return_type = _get_external_function_return_type(expression.rhs)
 
                 if _lhs_return_type and _rhs_return_type:
                     if _lhs_return_type != _rhs_return_type:
@@ -448,21 +454,21 @@ class Qasm3ExprEvaluator:
                 return (None, statements)
 
             lhs_value, lhs_statements = cls.evaluate_expression(
-                expression.lhs, const_expr, reqd_type, extern_fns=extern_fns
+                expression.lhs, const_expr, reqd_type
             )
             # Handle external function replacement for lhs
             lhs_extern_function = False
-            if _is_external_function_call(expression.lhs, extern_fns):
+            if _is_external_function_call(expression.lhs):
                 expression.lhs = lhs_statements[0]
                 lhs_extern_function = True
             statements.extend(lhs_statements)
 
             rhs_value, rhs_statements = cls.evaluate_expression(
-                expression.rhs, const_expr, reqd_type, extern_fns=extern_fns
+                expression.rhs, const_expr, reqd_type
             )
             # Handle external function replacement for rhs
             rhs_extern_function = False
-            if _is_external_function_call(expression.rhs, extern_fns):
+            if _is_external_function_call(expression.rhs):
                 expression.rhs = rhs_statements[0]
                 rhs_extern_function = True
             if lhs_extern_function or rhs_extern_function:
@@ -477,7 +483,7 @@ class Qasm3ExprEvaluator:
             # function will not return a reqd / const type
             # Reference : https://openqasm.com/language/types.html#compile-time-constants, para: 5
             if validate_only:
-                return_type = _get_external_function_return_type(expression, extern_fns)
+                return_type = _get_external_function_return_type(expression)
                 if return_type:
                     return (return_type, statements)
                 return (None, statements)
