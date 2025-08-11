@@ -62,7 +62,7 @@
 Overview
 ---------
 
-PyQASM is a Python toolkit that providing advanced utilities for semantic analysis and compilation of OpenQASM 3 programs.
+PyQASM is a Python toolkit that provides advanced utilities for semantic analysis and compilation of OpenQASM 3 programs.
 Building upon the `OpenQASM 3 parser <https://github.com/openqasm/openqasm>`_, PyQASM offers additional features such as
 program validation and unrolling, making it a powerful tool for quantum software developers.
 
