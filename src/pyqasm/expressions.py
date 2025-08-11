@@ -17,7 +17,9 @@ Module containing the class for evaluating QASM expressions.
 
 """
 from openqasm3.ast import (
+    AngleType,
     BinaryExpression,
+    BitstringLiteral,
     BitType,
     BooleanLiteral,
     BoolType,
@@ -45,7 +47,12 @@ from openqasm3.ast import (
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.maps.expressions import CONSTANTS_MAP, TIME_UNITS_MAP, qasm3_expression_op_map
+from pyqasm.maps.expressions import (
+    CONSTANTS_MAP,
+    FUNCTION_MAP,
+    TIME_UNITS_MAP,
+    qasm3_expression_op_map,
+)
 from pyqasm.validator import Qasm3Validator
 
 
@@ -53,6 +60,7 @@ class Qasm3ExprEvaluator:
     """Class for evaluating QASM3 expressions."""
 
     visitor_obj = None
+    angle_var_in_expr = None
 
     @classmethod
     def set_visitor_obj(cls, visitor_obj) -> None:
@@ -70,8 +78,8 @@ class Qasm3ExprEvaluator:
         """
 
         scope_manager = cls.visitor_obj._scope_manager
+        var = scope_manager.get_from_global_scope(var_name)
         if not scope_manager.check_in_scope(var_name):
-            var = scope_manager.get_from_global_scope(var_name)
             if var is not None and not var.is_constant:
                 raise_qasm3_error(
                     f"Global variable '{var_name}' must be a constant to use it in a local scope.",
@@ -84,6 +92,14 @@ class Qasm3ExprEvaluator:
                 error_node=expression,
                 span=expression.span,
             )
+        if var and isinstance(var.base_type, AngleType):
+            if cls.angle_var_in_expr and cls.angle_var_in_expr != var.base_type.size:
+                raise_qasm3_error(
+                    "All 'Angle' variables in binary expression must have the same size",
+                    error_node=expression,
+                    span=expression.span,
+                )
+            cls.angle_var_in_expr = var.base_type.size
 
     @classmethod
     def _check_var_constant(cls, var_name, const_expr, expression):
@@ -192,6 +208,8 @@ class Qasm3ExprEvaluator:
             expression (Any): The expression to evaluate.
             const_expr (bool): Whether the expression is a constant. Defaults to False.
             reqd_type (Any): The required type of the expression. Defaults to None.
+            validate_only (bool): Whether to validate the expression only. Defaults to False.
+            dt (float): The time step of the compiler. Defaults to None.
 
         Returns:
             tuple[Any, list[Statement]] : The result of the evaluation.
@@ -202,14 +220,6 @@ class Qasm3ExprEvaluator:
         statements: list[Statement] = []
         if expression is None:
             return None, []
-
-        if isinstance(expression, (ImaginaryLiteral)):
-            raise_qasm3_error(
-                f"Unsupported expression type '{type(expression)}'",
-                err_type=ValidationError,
-                error_node=expression,
-                span=expression.span,
-            )
 
         def _check_and_return_value(value):
             if validate_only:
@@ -251,10 +261,25 @@ class Qasm3ExprEvaluator:
                     )
             return base_size
 
+        def _is_external_function_call(expression):
+            """Check if an expression is an external function call"""
+            return isinstance(expression, FunctionCall) and (
+                expression.name.name in cls.visitor_obj._module._extern_functions
+            )
+
+        def _get_external_function_return_type(expression):
+            """Get the return type of an external function call"""
+            if _is_external_function_call(expression):
+                return cls.visitor_obj._module._extern_functions[expression.name.name][1]
+            return None
+
+        if isinstance(expression, ImaginaryLiteral):
+            return _check_and_return_value(expression.value * 1j)
+
         if isinstance(expression, Identifier):
             var_name = expression.name
             if var_name in CONSTANTS_MAP:
-                if not reqd_type or reqd_type == Qasm3FloatType:
+                if not reqd_type or reqd_type in (Qasm3FloatType, AngleType):
                     return _check_and_return_value(CONSTANTS_MAP[var_name])
                 raise_qasm3_error(
                     f"Constant '{var_name}' not allowed in non-float expression",
@@ -318,6 +343,8 @@ class Qasm3ExprEvaluator:
                     return _check_and_return_value(expression.value)
                 if reqd_type == Qasm3FloatType and isinstance(expression, FloatLiteral):
                     return _check_and_return_value(expression.value)
+                if reqd_type == AngleType:
+                    return _check_and_return_value(expression.value)
                 raise_qasm3_error(
                     f"Invalid value {expression.value} with type {type(expression)} "
                     f"for required type {reqd_type}",
@@ -326,6 +353,9 @@ class Qasm3ExprEvaluator:
                     span=expression.span,
                 )
             return _check_and_return_value(expression.value)
+
+        if isinstance(expression, BitstringLiteral):
+            return _check_and_return_value(format(expression.value, f"0{expression.width}b"))
 
         if isinstance(expression, DurationLiteral):
             unit_name = expression.unit.name
@@ -345,11 +375,21 @@ class Qasm3ExprEvaluator:
                     return cls.evaluate_expression(
                         expression.expression, const_expr, reqd_type, validate_only
                     )
+                # Check for external function in validate_only mode
+                return_type = _get_external_function_return_type(expression.expression)
+                if return_type:
+                    return (return_type, statements)
                 return (None, [])
 
             operand, returned_stats = cls.evaluate_expression(
                 expression.expression, const_expr, reqd_type
             )
+
+            # Handle external function replacement
+            if _is_external_function_call(expression.expression):
+                expression.expression = returned_stats[0]
+                return _check_and_return_value(None)
+
             if expression.op.name == "~" and not isinstance(operand, int):
                 raise_qasm3_error(
                     f"Unsupported expression type '{type(operand)}' in ~ operation",
@@ -365,23 +405,75 @@ class Qasm3ExprEvaluator:
             if validate_only:
                 if isinstance(expression.lhs, Cast) and isinstance(expression.rhs, Cast):
                     return (None, statements)
+
+                _lhs, _lhs_stmts = cls.evaluate_expression(
+                    expression.lhs,
+                    const_expr,
+                    reqd_type,
+                    validate_only,
+                )
+                _rhs, _rhs_stmts = cls.evaluate_expression(
+                    expression.rhs,
+                    const_expr,
+                    reqd_type,
+                    validate_only,
+                )
+
                 if isinstance(expression.lhs, Cast):
-                    return cls.evaluate_expression(
-                        expression.lhs, const_expr, reqd_type, validate_only
-                    )
+                    return (_lhs, _lhs_stmts)
                 if isinstance(expression.rhs, Cast):
-                    return cls.evaluate_expression(
-                        expression.rhs, const_expr, reqd_type, validate_only
-                    )
+                    return (_rhs, _rhs_stmts)
+
+                if type(reqd_type) is type(AngleType) and cls.angle_var_in_expr:
+                    _var_type = AngleType(cls.angle_var_in_expr)
+                    cls.angle_var_in_expr = None
+                    return (_var_type, statements)
+
+                _lhs_return_type = None
+                _rhs_return_type = None
+                # Check for external functions in both operands
+                _lhs_return_type = _get_external_function_return_type(expression.lhs)
+                _rhs_return_type = _get_external_function_return_type(expression.rhs)
+
+                if _lhs_return_type and _rhs_return_type:
+                    if _lhs_return_type != _rhs_return_type:
+                        raise_qasm3_error(
+                            f"extern function return type mismatch in binary expression: "
+                            f"{type(_lhs_return_type).__name__} and "
+                            f"{type(_rhs_return_type).__name__}",
+                            err_type=ValidationError,
+                            error_node=expression,
+                            span=expression.span,
+                        )
+                else:
+                    if _lhs_return_type:
+                        return (_lhs_return_type, statements)
+                    if _rhs_return_type:
+                        return (_rhs_return_type, statements)
+
                 return (None, statements)
 
             lhs_value, lhs_statements = cls.evaluate_expression(
                 expression.lhs, const_expr, reqd_type
             )
+            # Handle external function replacement for lhs
+            lhs_extern_function = False
+            if _is_external_function_call(expression.lhs):
+                expression.lhs = lhs_statements[0]
+                lhs_extern_function = True
             statements.extend(lhs_statements)
+
             rhs_value, rhs_statements = cls.evaluate_expression(
                 expression.rhs, const_expr, reqd_type
             )
+            # Handle external function replacement for rhs
+            rhs_extern_function = False
+            if _is_external_function_call(expression.rhs):
+                expression.rhs = rhs_statements[0]
+                rhs_extern_function = True
+            if lhs_extern_function or rhs_extern_function:
+                return (None, [])
+
             statements.extend(rhs_statements)
             return _check_and_return_value(
                 qasm3_expression_op_map(expression.op.name, lhs_value, rhs_value)
@@ -390,6 +482,19 @@ class Qasm3ExprEvaluator:
         if isinstance(expression, FunctionCall):
             # function will not return a reqd / const type
             # Reference : https://openqasm.com/language/types.html#compile-time-constants, para: 5
+            if validate_only:
+                return_type = _get_external_function_return_type(expression)
+                if return_type:
+                    return (return_type, statements)
+                return (None, statements)
+
+            if expression.name.name in FUNCTION_MAP:
+                _val, _ = cls.evaluate_expression(
+                    expression.arguments[0], const_expr, reqd_type, validate_only
+                )
+                _val = FUNCTION_MAP[expression.name.name](_val)  # type: ignore
+                return _check_and_return_value(_val)
+
             ret_value, ret_stmts = cls.visitor_obj._visit_function_call(expression)  # type: ignore
             statements.extend(ret_stmts)
             return _check_and_return_value(ret_value)

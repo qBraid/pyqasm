@@ -20,6 +20,7 @@ import pytest
 
 from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
+from pyqasm.visitor import QasmVisitor, ScopeManager  # pylint: disable=ungrouped-imports
 from tests.qasm3.resources.variables import (
     ASSIGNMENT_TESTS,
     CASTING_TESTS,
@@ -45,6 +46,7 @@ def test_scalar_declarations():
     bool i;
     duration j;
     stretch st;
+    angle[8] ang1;
     """
 
     loads(qasm3_string).validate()
@@ -75,6 +77,10 @@ def test_const_declarations():
     const duration t8 = t2/t3;
     const stretch st = 300ns;
     const stretch st2 = t2/t3;
+    const angle[8] ang1 = 7 * (pi / 8);
+    const angle[8] ang2 = 9 * (pi / 8);
+    const angle[8] ang3 = ang1 + ang2;
+    const bit[4] bit_check = "1011";
     """
 
     loads(qasm3_string).validate()
@@ -98,6 +104,10 @@ def test_scalar_assignments():
     duration du = 200us;
     duration du2;
     du2 = 300s;
+    angle[8] ang1;
+    ang1 = 9 * (pi / 8);
+    bit[4] bit_check;
+    bit_check = "1011";
     """
 
     loads(qasm3_string).validate()
@@ -123,6 +133,9 @@ def test_scalar_value_assignment():
     duration t9 = t2 - t7;
     duration t10 = t2 + t7;
     duration t11 = t2 * t7;
+    angle[8] ang1 = 7 * (pi / 8);
+    angle[8] ang2 = 9 * (pi / 8);
+    angle[8] ang3 = ang1 + ang2;
     """
 
     b = 5.0
@@ -603,6 +616,43 @@ def test_duration_casting_error(qasm_code, error_message, error_span, caplog):
     assert error_span in caplog.text
 
 
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            angle[8] ang1 = 7 * (pi / 8);
+            angle[7] ang2 = 9 * (pi / 8);
+            angle[8] ang3 = ang1 + ang2;
+            """,
+            r"All 'Angle' variables in binary expression must have the same size",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            angle ang1 = "1000111111";
+            """,
+            r"BitString angle width '10' does not match with compiler angle width '8'",
+            r"Error at line 4, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_angle_type_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as excinfo:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code, compiler_angle_type_size=8).validate()
+
+    first = excinfo.value.__cause__ or excinfo.value.__context__
+    assert first is not None, "Expected a chained ValidationError"
+    msg = str(first)
+    assert error_message in msg
+    assert error_span in caplog.text
+
+
 def test_device_time_duration_():
     """Test device cycle time duration"""
     qasm3_string = """
@@ -613,3 +663,149 @@ def test_device_time_duration_():
     const duration t3 =300us;
     """
     loads(qasm3_string, device_cycle_time=1e-9).validate()
+
+
+def test_compiler_angle_type_size():
+    """Test compiler angle type size"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    angle[8] ang1 = 7 * (pi / 8);
+    const angle[8] ang2 = 9 * (pi / 8);
+    angle[4] ang3 = "1010";
+    """
+    loads(qasm3_string, compiler_angle_type_size=4).validate()
+
+
+def test_complex_type_variables():
+    """Test complex type variables"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    complex c1 = -2.5 - 3.5im;
+    complex c2 = 3.5 + 2.5im;
+    complex c3 = 2.0 + c2;
+    complex c4 = 2.0+sin(π/2) + (3.1 * 5.5im);
+    complex c5 = 2.0+arcsin(π/2) + (3.1 * 5.5im);
+    complex c6 = 2.0+arctan(π/2) + (3.1 * 5.5im);
+    complex c7 = c1 * c2;
+    complex c8 = c1 + c2;
+    complex c9 = c1 - c2;
+    complex c10 = c1 / c2;
+    complex c11 = c1 ** c2;
+    complex c12 = sqrt(c1);
+    float c13 = abs(c1 * c2);
+    float c14 = real(c1);
+    float c15 = imag(c1);
+    float c16 = sin(π/2);
+    const complex c17 = -2.5 - 3.5im;
+    const complex c18 = 3.5 + 2.5im;
+    const complex c19 = 2.0 + c18;
+    const complex c20 = 2.0+cos(π/2) + (3.1 * 5.5im);
+    const complex c21 = 2.0+arccos(π/2) + (3.1 * 5.5im);
+    const complex c22 = c17 * c18;
+    const complex c23 = c17 + c18;
+    const complex c24 = c17 - c18;
+    const complex c25 = c17 / c18;
+    const complex c26 = c17 ** c18;
+    const complex c27 = sqrt(c17);
+    const float c28 = abs(c17 * c18);
+    const float c29 = real(c17);
+    const float c30 = imag(c17);
+    const float c31 = sin(π/2);
+    complex c32;
+    c32 = -2.5 - 3.5im;
+    complex c33;
+    c33 = 3.5 + 2.5im;
+    complex c34;
+    c34 = 2.0 + c33;
+    complex c35;
+    c35 = 2.0+tan(π/2) + (3.1 * 5.5im);
+    complex c36;
+    c36 = 2.0+arctan(π/2) + (3.1 * 5.5im);
+    complex c37;
+    c37 = c32 * c33;
+    complex c38;
+    c38 = c32 + c33;
+    complex c39;
+    c39 = c32 - c33;
+    complex c40;
+    c40 = c32 / c33;
+    complex c41;
+    c41 = c32 ** c33;
+    complex c42;
+    c42 = sqrt(c32);
+    float c43;
+    c43 = abs(c32 * c33);
+    float c44;
+    c44 = real(c32);
+    float c45;
+    c45 = imag(c32);
+    float c46;
+    c46 = sin(π/2);
+    complex[float[64]] a = 10.0 + 5.0im;
+    complex[float[64]] b = -2.0 - 7.0im;
+    complex[float[64]] c = a + b;   
+    complex[float[64]] d = a - b;  
+    complex[float[64]] e = a * b;  
+    complex[float[64]] f = a / b;   
+    complex[float[64]] g = a ** b; 
+    complex[float] h = a + b;
+    complex i = sqrt(1.0 + 2.0im);
+    """
+
+    loads(qasm3_string).validate()
+
+
+def test_pi_expression_bit_conversion():
+    """Test that pi expressions are correctly converted to bit string representations"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    
+    angle[4] ang1 = pi / 2;
+    angle[8] ang2 = 15 * (pi / 16);
+    angle[4] ang3 = -pi / 2;
+    angle[4] ang4 = -pi;
+    angle[8] ang5 = (pi / 2) + (pi / 4);
+    angle[8] ang6 = (pi / 2) - (pi / 4);
+
+    """
+
+    result = loads(qasm3_string)
+    result.validate()
+
+    # Create a visitor to access the scope manager
+    scope_manager = ScopeManager()
+    visitor = QasmVisitor(result, scope_manager, check_only=True)
+    result.accept(visitor)
+    scope = scope_manager.get_global_scope()
+
+    assert scope["ang1"].angle_bit_string == "0100"  # pi/2
+    assert scope["ang2"].angle_bit_string == "01111000"  # 15*pi/16
+    assert scope["ang3"].angle_bit_string == "1100"  # -pi/2 (wraps to 3*pi/2)
+    assert scope["ang4"].angle_bit_string == "1000"  # -pi (wraps to 1)
+    assert scope["ang5"].angle_bit_string == "01100000"  # (pi/2) + (pi/4) = 3*pi/4
+    assert scope["ang6"].angle_bit_string == "00100000"  # (pi/2) - (pi/4) = pi/4
+
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            bit[4] i = "101";
+            """,
+            r"Invalid bitstring literal '101' width [3] for variable 'i' of size [4]",
+            r"Error at line 4, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_bit_string_literal_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as err:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code).validate()
+    assert error_message in str(err.value)
+    assert error_span in caplog.text

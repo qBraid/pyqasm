@@ -146,18 +146,6 @@ DECLARATION_TESTS = {
         8,
         "float[23] x;",
     ),
-    "unsupported_types": (
-        """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-
-        angle x = 3.4;
-        """,
-        "Invalid initialization value for variable 'x'",
-        5,
-        8,
-        "angle x = 3.4;",
-    ),
     "imaginary_variable": (
         """
         OPENQASM 3.0;
@@ -375,6 +363,8 @@ CASTING_TESTS = {
         int ccf1 = float(runtime_u) * int(f1);
         uint ul1 = uint(float[64](int[16](f1))) * 2;
         const int un = -int(u1);
+        angle ang1 = angle(true);
+        angle ang2 = angle(false);
         """
     ),
     "Bool_test": (

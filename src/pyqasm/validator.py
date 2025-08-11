@@ -181,7 +181,7 @@ class Qasm3Validator:
                     error_node=op_node,
                     span=op_node.span if op_node else None,
                 )
-        elif type_to_match == bool:
+        elif type_to_match in (bool, complex):
             pass
         else:
             raise_qasm3_error(

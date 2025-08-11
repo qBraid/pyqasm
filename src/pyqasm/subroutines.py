@@ -16,16 +16,30 @@
 Module containing the class for validating QASM3 subroutines.
 
 """
+import uuid
 from typing import Optional
 
+import numpy as np
 from openqasm3.ast import (
     AccessControl,
+    AngleType,
     ArrayReferenceType,
+    BitstringLiteral,
+    BitType,
+    BooleanLiteral,
+    BoolType,
+    ComplexType,
+    DurationLiteral,
+    DurationType,
+    ExternArgument,
+    FloatType,
     Identifier,
     IndexExpression,
     IntType,
     QASMNode,
     QubitDeclaration,
+    StretchType,
+    UintType,
 )
 from openqasm3.printer import dumps
 
@@ -97,7 +111,7 @@ class Qasm3SubroutineProcessor:
             formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
         )
 
-    @classmethod  # pylint: disable-next=too-many-arguments
+    @classmethod  # pylint: disable-next=too-many-arguments,too-many-locals,too-many-branches
     def _process_classical_arg_by_value(
         cls, formal_arg, actual_arg, actual_arg_name, fn_name, fn_call
     ):
@@ -146,13 +160,100 @@ class Qasm3SubroutineProcessor:
                     error_node=fn_call,
                     span=fn_call.span,
                 )
+
+            if isinstance(formal_arg, ExternArgument):
+                formal_arg_type = formal_arg.type
+                formal_arg_size = None
+                if hasattr(formal_arg_type, "size") and formal_arg_type.size is not None:
+                    formal_arg_size, _ = Qasm3ExprEvaluator.evaluate_expression(
+                        formal_arg_type.size
+                    )
+                actual_arg_var = cls.visitor_obj._scope_manager.get_from_global_scope(
+                    actual_arg_name
+                )
+                if (
+                    actual_arg_var.base_type != formal_arg_type
+                    or actual_arg_var.base_size != formal_arg_size
+                ):
+                    if formal_arg_size is not None:
+                        raise_qasm3_error(
+                            f"Argument type mismatch in function '{fn_name}', expected "
+                            f"{type(formal_arg_type).__name__}[{formal_arg_size}] but got "
+                            f"{type(actual_arg_var.base_type).__name__}"
+                            f"[{actual_arg_var.base_size}]",
+                            error_node=fn_call,
+                            span=fn_call.span,
+                        )
+
         actual_arg_value = Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]
 
-        # save this value to be updated later in scope
+        if isinstance(formal_arg, ExternArgument):
+            # Generate a unique name for the extern argument variable
+            _name = f"{fn_name}_{uuid.uuid4()}"
+            if hasattr(formal_arg.type, "size") and formal_arg.type.size is not None:
+                _base_size = Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0]
+            else:
+                _base_size = None
+            _base_type = formal_arg.type
+
+            # pylint: disable=too-many-boolean-expressions
+            if actual_arg_value and actual_arg_name is None:
+                if (
+                    (
+                        isinstance(_base_type, UintType)
+                        and (not isinstance(actual_arg_value, int) or actual_arg_value < 0)
+                    )
+                    or (
+                        isinstance(_base_type, AngleType)
+                        and (
+                            not isinstance(actual_arg_value, float)
+                            or not 0 <= actual_arg_value <= 2 * np.pi
+                        )
+                    )
+                    or (
+                        isinstance(_base_type, FloatType)
+                        and not isinstance(actual_arg_value, float)
+                    )
+                    or (
+                        isinstance(_base_type, ComplexType)
+                        and not isinstance(actual_arg_value, complex)
+                    )
+                    or (isinstance(_base_type, IntType) and not isinstance(actual_arg_value, int))
+                    or (
+                        isinstance(_base_type, (DurationType, StretchType))
+                        and not isinstance(actual_arg, DurationLiteral)
+                    )
+                    or (
+                        isinstance(_base_type, BoolType)
+                        and (
+                            not isinstance(actual_arg_value, bool)
+                            and actual_arg_value not in (0, 1)
+                        )
+                    )
+                    or (
+                        isinstance(_base_type, BitType)
+                        and (
+                            not isinstance(actual_arg, (BitstringLiteral, BooleanLiteral))
+                            and not isinstance(actual_arg_value, (bool, int))
+                        )
+                    )
+                ):
+                    raise_qasm3_error(
+                        f"Invalid argument value for '{fn_name}', expected "
+                        f"'{type(_base_type).__name__}' but got value = "
+                        f"{actual_arg_value}.",
+                        error_node=fn_call,
+                        span=fn_call.span,
+                    )
+
+        else:
+            _name = formal_arg.name.name
+            _base_size = Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0]
+            _base_type = formal_arg.type
         return Variable(
-            name=formal_arg.name.name,
-            base_type=formal_arg.type,
-            base_size=Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0],
+            name=_name,
+            base_type=_base_type,
+            base_size=_base_size,
             dims=None,
             value=actual_arg_value,
             is_constant=False,

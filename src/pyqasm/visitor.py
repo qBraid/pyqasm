@@ -22,7 +22,7 @@ import copy
 import logging
 from collections import OrderedDict, deque
 from functools import partial
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Optional, Sequence, cast
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
@@ -49,6 +49,7 @@ from pyqasm.maps import SWITCH_BLACKLIST_STMTS
 from pyqasm.maps.expressions import (
     ARRAY_TYPE_MAP,
     CONSTANTS_MAP,
+    FUNCTION_MAP,
     MAX_ARRAY_DIMENSIONS,
 )
 from pyqasm.maps.gates import (
@@ -105,7 +106,9 @@ class QasmVisitor:
         self._global_creg_size_map: dict[str, int] = {}
         self._custom_gates: dict[str, qasm3_ast.QuantumGateDefinition] = {}
         self._external_gates: list[str] = [] if external_gates is None else external_gates
-        self._subroutine_defns: dict[str, qasm3_ast.SubroutineDefinition] = {}
+        self._subroutine_defns: dict[
+            str, qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
+        ] = {}
         self._check_only: bool = check_only
         self._unroll_barriers: bool = unroll_barriers
         self._recording_ext_gate_depth = False
@@ -120,6 +123,7 @@ class QasmVisitor:
         self._qubit_register_offsets: OrderedDict = OrderedDict()
         self._qubit_register_max_offset = 0
         self._total_delay_duration_in_box = 0
+        self._in_extern_function: bool = False
 
         self._scope_manager: ScopeManager = scope_manager
 
@@ -330,6 +334,11 @@ class QasmVisitor:
                     if not hasattr(base_type, "size") or base_type.size is None
                     else Qasm3ExprEvaluator.evaluate_expression(base_type.size, const_expr=True)[0]
                 )
+                if (
+                    isinstance(base_type, qasm3_ast.AngleType)
+                    and self._module._compiler_angle_type_size
+                ):
+                    base_size = self._module._compiler_angle_type_size
             except ValidationError as err:
                 raise_qasm3_error(
                     f"Invalid base size for {var_format} '{var_name}'",
@@ -424,6 +433,45 @@ class QasmVisitor:
                 _valid_statements.append(stmt)
 
         return _valid_statements
+
+    def _handle_function_init_expression(
+        self, expression: Any, init_value: Any
+    ) -> None | qasm3_ast.Expression:
+        """Handle function initialization expression.
+
+        Args:
+            statement (Any): The statement to handle function initialization expression.
+            init_value (Any): The value to handle function initialization expression.
+        """
+        if isinstance(expression, qasm3_ast.FunctionCall):
+            func_name = expression.name.name
+            if func_name in FUNCTION_MAP:
+                if isinstance(init_value, (float, int)):
+                    return qasm3_ast.FloatLiteral(init_value)
+        return None
+
+    def _handle_extern_function_cleanup(
+        self, statements: list, statement: qasm3_ast.Statement
+    ) -> None:
+        """Clean up extern function state and modify statements if needed.
+
+        Args:
+            statements: List of statements to potentially modify
+            statement: The statement to append if in extern function
+        """
+        if self._in_extern_function:
+            self._in_extern_function = False
+            statements.clear()
+            statements.append(statement)
+
+    def _validate_bitstring_literal_width(self, init_value, base_size, var_name, statement):
+        if len(init_value) != base_size:
+            raise_qasm3_error(
+                f"Invalid bitstring literal '{init_value}' width [{len(init_value)}] "
+                f"for variable '{var_name}' of size [{base_size}]",
+                error_node=statement,
+                span=statement.span,
+            )
 
     def _visit_measurement(  # pylint: disable=too-many-locals, too-many-branches
         self, statement: qasm3_ast.QuantumMeasurementStatement
@@ -1323,7 +1371,9 @@ class QasmVisitor:
 
         try:
             init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                statement.init_expression, const_expr=True, dt=self._module._device_cycle_time
+                statement.init_expression,
+                const_expr=True,
+                dt=self._module._device_cycle_time,
             )
         except ValidationError as err:
             raise_qasm3_error(
@@ -1337,13 +1387,32 @@ class QasmVisitor:
 
         base_type = statement.type
         base_size = self._check_variable_type_size(statement, var_name, "constant", base_type)
+        angle_val_bit_string = None
+        if isinstance(base_type, qasm3_ast.AngleType) and not self._in_extern_function:
+            init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
+                statement,
+                init_value=init_value,
+                base_size=base_size,
+                compiler_angle_width=self._module._compiler_angle_type_size,
+            )
         val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
-            statement.init_expression, validate_only=True
+            statement.init_expression,
+            validate_only=True,
         )
         self._check_variable_cast_type(statement, val_type, var_name, base_type, base_size, True)
         variable = Variable(
-            var_name, base_type, base_size, [], init_value, is_constant=True, span=statement.span
+            var_name,
+            base_type,
+            len(angle_val_bit_string) if angle_val_bit_string else base_size,
+            [],
+            init_value,
+            is_constant=True,
+            span=statement.span,
+            angle_bit_string=angle_val_bit_string,
         )
+
+        if isinstance(base_type, qasm3_ast.BitType) and isinstance(init_value, str):
+            self._validate_bitstring_literal_width(init_value, base_size, var_name, statement)
 
         if isinstance(base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
             PulseValidator.validate_duration_literal_value(init_value, statement, base_type)
@@ -1353,11 +1422,22 @@ class QasmVisitor:
                 variable.time_unit = "ns"
 
         # cast + validation
-        variable.value = Qasm3Validator.validate_variable_assignment_value(
-            variable, init_value, op_node=statement
-        )
+        if init_value is not None and not self._in_extern_function:
+            variable.value = Qasm3Validator.validate_variable_assignment_value(
+                variable, init_value, op_node=statement
+            )
 
         self._scope_manager.add_var_in_scope(variable)
+
+        if isinstance(base_type, qasm3_ast.ComplexType) and isinstance(variable.value, complex):
+            statement.init_expression = PulseValidator.make_complex_binary_expression(init_value)
+
+        if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
+            statement.init_expression = (
+                self._handle_function_init_expression(statement.init_expression, init_value)
+                or statement.init_expression
+            )
+        self._handle_extern_function_cleanup(statements, statement)
 
         if self._check_only:
             return []
@@ -1405,6 +1485,7 @@ class QasmVisitor:
         base_type = statement.type
         dimensions = []
         final_dimensions = []
+        angle_val_bit_string = None
 
         if isinstance(base_type, qasm3_ast.StretchType):
             if statement.init_expression:
@@ -1480,12 +1561,27 @@ class QasmVisitor:
             else:
                 try:
                     init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                        statement.init_expression, dt=self._module._device_cycle_time
+                        statement.init_expression,
+                        dt=self._module._device_cycle_time,
                     )
                     statements.extend(stmts)
-                    val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
-                        statement.init_expression, validate_only=True
+                    _req_type = (
+                        type(qasm3_ast.AngleType())
+                        if isinstance(base_type, qasm3_ast.AngleType)
+                        else None
                     )
+                    val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
+                        statement.init_expression,
+                        validate_only=True,
+                        reqd_type=_req_type,
+                    )
+                    if isinstance(base_type, qasm3_ast.AngleType) and not self._in_extern_function:
+                        init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
+                            statement,
+                            init_value=init_value,
+                            base_size=base_size,
+                            compiler_angle_width=self._module._compiler_angle_type_size,
+                        )
                     self._check_variable_cast_type(
                         statement, val_type, var_name, base_type, base_size, False
                     )
@@ -1496,15 +1592,18 @@ class QasmVisitor:
                         span=statement.span,
                         raised_from=err,
                     )
+        if isinstance(base_type, qasm3_ast.BitType) and isinstance(init_value, str):
+            self._validate_bitstring_literal_width(init_value, base_size, var_name, statement)
 
         variable = Variable(
             var_name,
             base_type,
-            base_size,
+            len(angle_val_bit_string) if angle_val_bit_string else base_size,
             final_dimensions,
             init_value,
             is_qubit=False,
             span=statement.span,
+            angle_bit_string=angle_val_bit_string,
         )
 
         if isinstance(base_type, qasm3_ast.DurationType):
@@ -1531,9 +1630,10 @@ class QasmVisitor:
                     )
             else:
                 try:
-                    variable.value = Qasm3Validator.validate_variable_assignment_value(
-                        variable, init_value, op_node=statement
-                    )
+                    if init_value is not None and not self._in_extern_function:
+                        variable.value = Qasm3Validator.validate_variable_assignment_value(
+                            variable, init_value, op_node=statement
+                        )
                 except ValidationError as err:
                     raise_qasm3_error(
                         f"Invalid initialization value for variable '{var_name}'",
@@ -1559,6 +1659,17 @@ class QasmVisitor:
                 )
             statements.append(statement)
             self._module._add_classical_register(var_name, base_size)
+
+        self._handle_extern_function_cleanup(statements, statement)
+
+        if isinstance(base_type, qasm3_ast.ComplexType) and isinstance(variable.value, complex):
+            statement.init_expression = PulseValidator.make_complex_binary_expression(init_value)
+
+        if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
+            statement.init_expression = (
+                self._handle_function_init_expression(statement.init_expression, init_value)
+                or statement.init_expression
+            )
 
         if self._check_only:
             return []
@@ -1625,10 +1736,14 @@ class QasmVisitor:
                 lhs=lvalue, op=binary_op, rhs=rvalue  # type: ignore[arg-type]
             )
         rvalue_raw, rhs_stmts = Qasm3ExprEvaluator.evaluate_expression(
-            rvalue, dt=self._module._device_cycle_time
+            rvalue,
+            dt=self._module._device_cycle_time,
         )  # consists of scope check and index validation
         statements.extend(rhs_stmts)
-        val_type, _ = Qasm3ExprEvaluator.evaluate_expression(rvalue, validate_only=True)
+        val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
+            rvalue,
+            validate_only=True,
+        )
         self._check_variable_cast_type(
             statement,
             val_type,
@@ -1637,13 +1752,29 @@ class QasmVisitor:
             lvar.base_size,  # type: ignore[union-attr]
             False,
         )
+        if isinstance(lvar_base_type, qasm3_ast.BitType) and isinstance(rvalue_raw, str):
+            self._validate_bitstring_literal_width(
+                rvalue_raw, lvar.base_size, lvar_name, statement  # type: ignore[union-attr]
+            )
+        angle_val_bit_string = None
+        if isinstance(lvar_base_type, qasm3_ast.AngleType) and not self._in_extern_function:
+            rvalue_raw, angle_val_bit_string = PulseValidator.validate_angle_type_value(
+                statement,
+                init_value=rvalue_raw,
+                base_size=lvar.base_size,  # type: ignore[union-attr]
+                compiler_angle_width=self._module._compiler_angle_type_size,
+            )
+            lvar.angle_bit_string = angle_val_bit_string  # type: ignore[union-attr]
+            if angle_val_bit_string:
+                lvar.base_size = len(angle_val_bit_string)  # type: ignore[union-attr]
         # cast + validation
         rvalue_eval = None
         if not isinstance(rvalue_raw, np.ndarray):
             # rhs is a scalar
-            rvalue_eval = Qasm3Validator.validate_variable_assignment_value(
-                lvar, rvalue_raw, op_node=statement  # type: ignore[arg-type]
-            )
+            if rvalue_raw is not None and not self._in_extern_function:
+                rvalue_eval = Qasm3Validator.validate_variable_assignment_value(
+                    lvar, rvalue_raw, op_node=statement  # type: ignore[arg-type]
+                )
         else:  # rhs is a list
             rvalue_dimensions = list(rvalue_raw.shape)
 
@@ -1691,6 +1822,21 @@ class QasmVisitor:
         else:
             lvar.value = rvalue_eval  # type: ignore[union-attr]
         self._scope_manager.update_var_in_scope(lvar)  # type: ignore[arg-type]
+
+        if isinstance(lvar_base_type, qasm3_ast.ComplexType) and isinstance(
+            lvar.value, complex  # type: ignore[union-attr]
+        ):
+            statement.rvalue = PulseValidator.make_complex_binary_expression(
+                lvar.value  # type: ignore[union-attr]
+            )
+
+        if isinstance(statement.rvalue, qasm3_ast.FunctionCall):
+            statement.rvalue = (
+                self._handle_function_init_expression(statement.rvalue, rvalue_eval)
+                or statement.rvalue
+            )
+
+        self._handle_extern_function_cleanup(statements, statement)
 
         if self._check_only:
             return []
@@ -1946,7 +2092,9 @@ class QasmVisitor:
                 return []
         return result
 
-    def _visit_subroutine_definition(self, statement: qasm3_ast.SubroutineDefinition) -> list[None]:
+    def _visit_subroutine_definition(
+        self, statement: qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
+    ) -> Sequence[None | qasm3_ast.ExternDeclaration]:
         """Visit a subroutine definition element.
            Reference: https://openqasm.com/language/subroutines.html#subroutines
 
@@ -1957,6 +2105,7 @@ class QasmVisitor:
             None
         """
         fn_name = statement.name.name
+        statements = []
 
         if fn_name in CONSTANTS_MAP:
             raise_qasm3_error(
@@ -1978,14 +2127,26 @@ class QasmVisitor:
                 span=statement.span,
             )
 
-        self._subroutine_defns[fn_name] = statement
+        if isinstance(statement, qasm3_ast.ExternDeclaration):
+            if statement.name.name in self._module._extern_functions:
+                PulseValidator.validate_extern_declaration(self._module, statement)
+            self._module._extern_functions[statement.name.name] = (
+                statement.arguments,
+                statement.return_type,
+            )
 
-        return []
+            statements.append(statement)
+
+        self._subroutine_defns[fn_name] = statement
+        if self._check_only:
+            return []
+
+        return statements
 
     # pylint: disable=too-many-locals, too-many-statements
     def _visit_function_call(
         self, statement: qasm3_ast.FunctionCall
-    ) -> tuple[Any, list[qasm3_ast.Statement]]:
+    ) -> tuple[Any | None, list[qasm3_ast.Statement | qasm3_ast.FunctionCall]]:
         """Visit a function call element.
 
         Args:
@@ -2018,7 +2179,7 @@ class QasmVisitor:
 
         quantum_vars, classical_vars = [], []
         for actual_arg, formal_arg in zip(statement.arguments, subroutine_def.arguments):
-            if isinstance(formal_arg, qasm3_ast.ClassicalArgument):
+            if isinstance(formal_arg, (qasm3_ast.ClassicalArgument, qasm3_ast.ExternArgument)):
                 classical_vars.append(
                     Qasm3SubroutineProcessor.process_classical_arg(
                         formal_arg, actual_arg, fn_name, statement
@@ -2052,25 +2213,34 @@ class QasmVisitor:
         self._function_qreg_transform_map.append(qubit_transform_map)
 
         return_statement = None
-        result = []
-        for function_op in subroutine_def.body:
-            if isinstance(function_op, qasm3_ast.ReturnStatement):
-                return_statement = copy.copy(function_op)
-                break
-            try:
-                result.extend(self.visit_statement(copy.copy(function_op)))
-            except (TypeError, copy.Error):
-                result.extend(self.visit_statement(copy.deepcopy(function_op)))
-
         return_value = None
-        if return_statement:
-            return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                return_statement.expression
+        result: list[qasm3_ast.Statement | qasm3_ast.FunctionCall] = []
+        if isinstance(subroutine_def, qasm3_ast.ExternDeclaration):
+            self._in_extern_function = True
+            global_scope = self._scope_manager.get_global_scope()
+            result.append(
+                PulseValidator.validate_and_process_extern_function_call(
+                    statement, global_scope, self._module._device_cycle_time
+                )
             )
-            return_value = Qasm3Validator.validate_return_statement(
-                subroutine_def, return_statement, return_value
-            )
-            result.extend(stmts)
+        else:
+            for function_op in subroutine_def.body:
+                if isinstance(function_op, qasm3_ast.ReturnStatement):
+                    return_statement = copy.copy(function_op)
+                    break
+                try:
+                    result.extend(self.visit_statement(copy.copy(function_op)))
+                except (TypeError, copy.Error):
+                    result.extend(self.visit_statement(copy.deepcopy(function_op)))
+
+            if return_statement:
+                return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
+                    return_statement.expression,
+                )
+                return_value = Qasm3Validator.validate_return_statement(
+                    subroutine_def, return_statement, return_value
+                )
+                result.extend(stmts)
 
         # remove qubit transformation map
         self._function_qreg_transform_map.pop()
@@ -2080,7 +2250,7 @@ class QasmVisitor:
         self._scope_manager.decrement_scope_level()
         self._scope_manager.pop_scope()
 
-        if self._check_only:
+        if self._check_only and not self._in_extern_function:
             return return_value, []
 
         return return_value, result
@@ -2532,6 +2702,7 @@ class QasmVisitor:
             qasm3_ast.AliasStatement: self._visit_alias_statement,
             qasm3_ast.SwitchStatement: self._visit_switch_statement,
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
+            qasm3_ast.ExternDeclaration: self._visit_subroutine_definition,
             qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.BreakStatement: self._visit_break,
@@ -2594,4 +2765,5 @@ class QasmVisitor:
             if isinstance(stmt, qasm3_ast.QuantumPhase):
                 if len(stmt.qubits) == len(self._qubit_labels):
                     stmt.qubits = []
+        Qasm3ExprEvaluator.angle_var_in_expr = None
         return unrolled_stmts
