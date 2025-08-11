@@ -80,7 +80,7 @@ def test_const_declarations():
     const angle[8] ang1 = 7 * (pi / 8);
     const angle[8] ang2 = 9 * (pi / 8);
     const angle[8] ang3 = ang1 + ang2;
-    const bit[4] a = "1011";
+    const bit[4] bit_a = "1011";
     """
 
     loads(qasm3_string).validate()
@@ -106,8 +106,8 @@ def test_scalar_assignments():
     du2 = 300s;
     angle[8] ang1;
     ang1 = 9 * (pi / 8);
-    bit[4] b;
-    b = "1011";
+    bit[4] bit_b;
+    bit_b = "1011";
     """
 
     loads(qasm3_string).validate()

@@ -204,3 +204,33 @@ FUNCTION_MAP = {
     "arcsin": np.arcsin,
     "arctan": np.arctan,
 }
+
+OPENPULSE_FRAME_FUNCTION_MAP = [
+    "set_phase",
+    "shift_phase",
+    "set_frequency",
+    "shift_frequency",
+    "get_phase",
+    "get_frequency",
+]
+
+OPENPULSE_WAVEFORM_FUNCTION_MAP = [
+    "gaussian",
+    "sech",
+    "gaussian_square",
+    "drag",
+    "constant",
+    "sine",
+    "mix",
+    "sum",
+    "phase_shift",
+    "scale",
+    "capture_v3",
+]
+
+OPENPULSE_CAPTURE_FUNCTION_MAP = [
+    "capture_v1",
+    "capture_v2",
+    "capture_v3",
+    "capture_v4",
+]

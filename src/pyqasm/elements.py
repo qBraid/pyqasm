@@ -42,6 +42,7 @@ class Context(Enum):
     FUNCTION = "function"
     GATE = "gate"
     BOX = "box"
+    PULSE = "pulse"
 
 
 @dataclass(slots=True)
@@ -113,6 +114,61 @@ class Variable:  # pylint: disable=too-many-instance-attributes
     is_qubit: bool = False
     is_alias: bool = False
     readonly: bool = False
+
+
+@dataclass(slots=True)
+class Frame:
+    """
+    Class representing a frame in OpenQASM/OpenPulse.
+
+    Attributes:
+        name (str): The name of the frame.
+        port (Any): The port to which the frame is attached. Immutable after initialization.
+        frequency (float): The frequency of the frame.
+        frequency_type (Any): The type of the frequency of the frame.
+        phase (float): The phase of the frame, in radians.
+        phase_type (Any): The type of the phase of the frame.
+        time (float): The current time of the frame, in duration units.
+                      This is manipulated implicitly and cannot be set directly.
+    """
+
+    name: str
+    port: Any
+    frequency: float
+    phase: float
+    time: Optional[Any] = None
+    phase_type: Optional[Any] = None
+    frequency_type: Optional[Any] = None
+
+
+@dataclass(slots=True)
+class Waveform:  # pylint: disable=too-many-instance-attributes
+    """
+    Class representing a waveform in OpenQASM/OpenPulse.
+
+    Attributes:
+        name (str): The name of the waveform.
+        amplitude (Any): The amplitude of the waveform.
+        total_duration (Any): The total duration of the waveform.
+        standard_deviation (Optional[Any]): The standard deviation of the waveform.
+        square_width (Optional[Any]): The square width of the waveform.
+        y_correction_amp (Optional[Any]): The y correction amplitude of the waveform.
+        frequency (Optional[Any]): The frequency of the waveform.
+        phase (Optional[Any]): The phase of the waveform.
+        waveforms (Optional[list[str]]): The waveforms of the waveform.
+        amp_factor (Optional[Any]): The amplitude factor of the waveform.
+    """
+
+    name: str
+    amplitude: Any
+    total_duration: Any
+    standard_deviation: Optional[Any] = None
+    square_width: Optional[Any] = None
+    y_correction_amp: Optional[Any] = None
+    frequency: Optional[Any] = None
+    phase: Optional[Any] = None
+    waveforms: Optional[list[Any]] = None
+    amp_factor: Optional[Any] = None
 
 
 class BasisSet(Enum):

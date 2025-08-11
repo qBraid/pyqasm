@@ -20,7 +20,7 @@ checking variable visibility, and updating variable values.
 
 from collections import deque
 
-from pyqasm.elements import Context, Variable
+from pyqasm.elements import Context, Frame, Variable
 
 
 # pylint: disable-next=too-many-public-methods
@@ -120,6 +120,10 @@ class ScopeManager:
         """Check if currently in a box scope."""
         return len(self._scope) > 1 and self.get_curr_context() == Context.BOX
 
+    def in_pulse_scope(self) -> bool:
+        """Check if currently in a OpenPulse scope."""
+        return len(self._scope) > 1 and self.get_curr_context() == Context.PULSE
+
     # pylint: disable=too-many-return-statements
     def check_in_scope(self, var_name: str) -> bool:
         """
@@ -145,7 +149,12 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return var_name in global_scope
-        if self.in_function_scope() or self.in_gate_scope() or self.in_box_scope():
+        if (
+            self.in_function_scope()
+            or self.in_gate_scope()
+            or self.in_box_scope()
+            or self.in_pulse_scope()
+        ):
             if var_name in curr_scope:
                 return True
             if var_name in global_scope:
@@ -184,7 +193,12 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return global_scope.get(var_name, None)
-        if self.in_function_scope() or self.in_gate_scope() or self.in_box_scope():
+        if (
+            self.in_function_scope()
+            or self.in_gate_scope()
+            or self.in_box_scope()
+            or self.in_pulse_scope()
+        ):
             if var_name in curr_scope:
                 return curr_scope[var_name]
             if var_name in global_scope and (
@@ -234,6 +248,15 @@ class ScopeManager:
         if variable.name in curr_scope:
             raise ValueError(f"Variable '{variable.name}' already exists in current scope")
         curr_scope[variable.name] = variable
+
+    def add_frame_in_scope(self, frame: Frame) -> None:
+        """
+        Add a frame to the current scope.
+        """
+        curr_scope = self.get_curr_scope()
+        if frame.name in curr_scope:
+            raise ValueError(f"Frame '{frame.name}' already exists in current scope")
+        curr_scope[frame.name] = frame
 
     def update_var_in_scope(self, variable: Variable) -> None:
         """

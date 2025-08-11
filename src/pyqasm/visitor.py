@@ -20,18 +20,25 @@ Module defining Qasm Visitor.
 """
 import copy
 import logging
+import re
+import sys
 from collections import OrderedDict, deque
 from functools import partial
+from io import StringIO
 from typing import Any, Callable, Optional, Sequence, cast
 
 import numpy as np
+import openpulse.ast as openpulse_ast
 import openqasm3.ast as qasm3_ast
+from openpulse.parser import OpenPulseParsingError, parse_openpulse
+from openpulse.printer import dumps as pulse_dumps
 from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import (
     ClbitDepthNode,
     Context,
+    Frame,
     InversionOp,
     QubitDepthNode,
     Variable,
@@ -51,6 +58,9 @@ from pyqasm.maps.expressions import (
     CONSTANTS_MAP,
     FUNCTION_MAP,
     MAX_ARRAY_DIMENSIONS,
+    OPENPULSE_CAPTURE_FUNCTION_MAP,
+    OPENPULSE_FRAME_FUNCTION_MAP,
+    OPENPULSE_WAVEFORM_FUNCTION_MAP,
 )
 from pyqasm.maps.gates import (
     map_qasm_ctrl_op_to_callable,
@@ -58,6 +68,7 @@ from pyqasm.maps.gates import (
     map_qasm_op_num_params,
     map_qasm_op_to_callable,
 )
+from pyqasm.pulse.openpulse_visitor import OpenPulseVisitor
 from pyqasm.pulse.validator import PulseValidator
 from pyqasm.scope import ScopeManager
 from pyqasm.subroutines import Qasm3SubroutineProcessor
@@ -124,8 +135,14 @@ class QasmVisitor:
         self._qubit_register_max_offset = 0
         self._total_delay_duration_in_box = 0
         self._in_extern_function: bool = False
+        self._openpulse_gates: list[str] = []
 
         self._scope_manager: ScopeManager = scope_manager
+        self._openpulse_scope_manager: ScopeManager = ScopeManager()
+        self._pulse_visitor = OpenPulseVisitor(
+            qasm_visitor=self,
+            check_only=check_only,
+        )
 
     def _init_utilities(self):
         """Initialize the utilities for the visitor."""
@@ -1213,6 +1230,19 @@ class QasmVisitor:
         negctrls = []
         if ctrls is None:
             ctrls = []
+        # This is a special register name, e.g., $0, $1, etc.
+        # In OpenQASM 3, these are often used for implicit qubit registers.
+        if isinstance(operation, qasm3_ast.QuantumGate):
+            is_pulse_gate = False
+            for i, qubit in enumerate(operation.qubits):
+                qubit_id = qubit.name.name if hasattr(qubit.name, "name") else qubit.name
+                if qubit_id.startswith("$") and qubit_id[1:].isdigit():
+                    is_pulse_gate = True
+                    self._openpulse_gates.append(operation.name.name)
+                    operation.qubits[i].name = f"__PYQASM_QUBITS__[{qubit_id[1:]}]"
+            if is_pulse_gate:
+                return [operation]
+
         self._in_generic_gate_op_scope += 1
 
         # only needs to be done once for a gate operation
@@ -1353,7 +1383,10 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
-        if self._scope_manager.check_in_scope(var_name):
+        if self._scope_manager.check_in_scope(var_name) or (
+            self._scope_manager.in_pulse_scope()
+            and self._scope_manager.check_in_global_scope(var_name)
+        ):
             raise_qasm3_error(
                 f"Re-declaration of variable '{var_name}'",
                 error_node=statement,
@@ -1389,7 +1422,11 @@ class QasmVisitor:
         base_type = statement.type
         base_size = self._check_variable_type_size(statement, var_name, "constant", base_type)
         angle_val_bit_string = None
-        if isinstance(base_type, qasm3_ast.AngleType) and not self._in_extern_function:
+        if (
+            isinstance(base_type, qasm3_ast.AngleType)
+            and not self._in_extern_function
+            and init_value is not None
+        ):
             init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
                 statement,
                 init_value=init_value,
@@ -1468,7 +1505,10 @@ class QasmVisitor:
             if (
                 self._scope_manager.in_block_scope(),
                 self._scope_manager.in_box_scope(),
-            ) and var_name not in self._scope_manager.get_curr_scope():
+            ) and (
+                var_name not in self._scope_manager.get_curr_scope()
+                and not self._scope_manager.in_pulse_scope()
+            ):
                 # we can re-declare variables once in block scope even if they are
                 # present in the parent scope
                 # Eg. int a = 10;
@@ -1577,7 +1617,11 @@ class QasmVisitor:
                         reqd_type=_req_type,
                         extern_fns=self._module._extern_functions,
                     )
-                    if isinstance(base_type, qasm3_ast.AngleType) and not self._in_extern_function:
+                    if (
+                        isinstance(base_type, qasm3_ast.AngleType)
+                        and not self._in_extern_function
+                        and init_value is not None
+                    ):
                         init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
                             statement,
                             init_value=init_value,
@@ -1757,7 +1801,11 @@ class QasmVisitor:
                 rvalue_raw, lvar.base_size, lvar_name, statement  # type: ignore[union-attr]
             )
         angle_val_bit_string = None
-        if isinstance(lvar_base_type, qasm3_ast.AngleType) and not self._in_extern_function:
+        if (
+            isinstance(lvar_base_type, qasm3_ast.AngleType)
+            and not self._in_extern_function
+            and rvalue_raw is not None
+        ):
             rvalue_raw, angle_val_bit_string = PulseValidator.validate_angle_type_value(
                 statement,
                 init_value=rvalue_raw,
@@ -2157,6 +2205,12 @@ class QasmVisitor:
         """
         fn_name = statement.name.name
         if fn_name not in self._subroutine_defns:
+            if (
+                fn_name in OPENPULSE_WAVEFORM_FUNCTION_MAP
+                or fn_name in OPENPULSE_FRAME_FUNCTION_MAP
+                or fn_name in OPENPULSE_CAPTURE_FUNCTION_MAP
+            ):
+                return None, []
             raise_qasm3_error(
                 f"Undefined subroutine '{fn_name}' was called",
                 error_node=statement,
@@ -2560,6 +2614,29 @@ class QasmVisitor:
         if self._scope_manager.in_box_scope():
             self._total_delay_duration_in_box += duration_val
 
+        if statement.qubits is not None:
+            _is_qubit_id = False
+            for qubit in statement.qubits:
+                if isinstance(qubit, qasm3_ast.Identifier):
+                    frame = self._openpulse_scope_manager.get_from_global_scope(
+                        qubit.name
+                    ) or self._scope_manager.get_from_global_scope(qubit.name)
+                    if frame is None:
+                        raise_qasm3_error(
+                            f"Frame '{qubit.name}' not found in openpulse scope",
+                            error_node=statement,
+                            span=statement.span,
+                        )
+                    if isinstance(frame, Frame):
+                        frame.time = qasm3_ast.DurationLiteral(
+                            frame.time.value + duration_val,
+                            unit=frame.time.unit,
+                        )
+                        _is_qubit_id = True
+            if _is_qubit_id:
+                self._pulse_visitor._update_current_block_time(duration_val)
+                return [statement]
+
         delay_qubit_bits = self._get_op_bits(statement, qubits=True)
 
         duplicate_delay_qubit = Qasm3Analyzer.extract_duplicate_qubit(delay_qubit_bits)
@@ -2653,6 +2730,157 @@ class QasmVisitor:
         statement.body = statements  # type: ignore[assignment]
         return [statement]
 
+    def _visit_calibration_definition(
+        self, statement: qasm3_ast.CalibrationDefinition
+    ) -> list[Any]:
+        """Visit a calibration definition element.
+
+        Args:
+            statement (qasm3_ast.CalibrationDefinition): The calibration definition to visit.
+
+        Returns:
+            None
+        """
+        # TODO: Implement calibration definition handling
+        if not self._consolidate_qubits:
+            raise_qasm3_error(
+                "calibration statements requires qubit register consolidation",
+                error_node=statement,
+                span=statement.span,
+            )
+        try:
+            block_body = parse_openpulse(statement.body, in_defcal=True, permissive=False)
+        except OpenPulseParsingError as err:
+            _error_line = re.sub(
+                r"line (\d+)",
+                lambda m: f"line {statement.span.start_line + int(m.group(1)) - 1}",  # type: ignore
+                str(err),
+            )
+            raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
+
+        result = []
+        self._consolidate_qubits = True
+        calibration_stmts: list[openpulse_ast.Statement] = block_body.body
+        for stmt in calibration_stmts:
+            stmt.span.start_line = statement.span.start_line  # type: ignore
+        result.extend(self._pulse_visitor.visit_basic_block(calibration_stmts, is_def_cal=True))
+        if len(result) == 0:
+            return []
+
+        if self._check_only:
+            return [statement]
+
+        old_stdout = sys.stdout
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        try:
+            body_str = "".join([pulse_dumps(stmt) for stmt in result])
+            body_str = re.sub(r"\n(?![\s])", "\n ", body_str)
+            body_str = re.sub(r"\n +$", "\n", body_str)
+            lines = body_str.splitlines(keepends=True)
+            for i, line in enumerate(lines):
+                if line.strip() != "":
+                    if not line.startswith(" "):
+                        lines[i] = " " + line
+                    break
+            body_str = "".join(lines)
+            _ = captured_output.getvalue()
+        finally:
+            # Restore stdout
+            sys.stdout = old_stdout
+
+        statement.body = "\n" + body_str
+
+        return [statement]
+
+    def _visit_calibration_statement(self, statement: qasm3_ast.CalibrationStatement) -> list[Any]:
+        """Visit a calibration statement element.
+
+        Args:
+            statement (qasm3_ast.CalibrationStatement): The calibration statement to visit.
+
+        Returns:
+            None
+        """
+        # TODO: Implement calibration statement handling
+        if not self._consolidate_qubits:
+            raise_qasm3_error(
+                "calibration statements requires qubit register consolidation",
+                error_node=statement,
+                span=statement.span,
+            )
+
+        self._scope_manager.push_context(Context.PULSE)
+        self._scope_manager.push_scope({})
+
+        try:
+            block_body = parse_openpulse(statement.body, in_defcal=False, permissive=False)
+        except OpenPulseParsingError as err:
+            _error_line = re.sub(
+                r"line (\d+)",
+                lambda m: f"line {statement.span.start_line + int(m.group(1)) - 1}",  # type: ignore
+                str(err),
+            )
+            raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
+
+        result = []
+        calibration_stmts: list[openpulse_ast.Statement] = block_body.body
+        self._consolidate_qubits = True
+        for stmt in calibration_stmts:
+            stmt.span.start_line += statement.span.start_line  # type: ignore
+
+        result.extend(self._pulse_visitor.visit_basic_block(calibration_stmts, is_def_cal=False))
+        if len(result) == 0:
+            return []
+
+        self._scope_manager.pop_scope()
+        self._scope_manager.restore_context()
+
+        if self._check_only:
+            return [statement]
+
+        old_stdout = sys.stdout
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        try:
+            body_str = "".join([pulse_dumps(stmt) for stmt in result])
+            body_str = re.sub(r"\n(?![\s])", "\n ", body_str)
+            body_str = re.sub(r"\n +$", "\n", body_str)
+            lines = body_str.splitlines(keepends=True)
+            for i, line in enumerate(lines):
+                if line.strip() != "":
+                    if not line.startswith(" "):
+                        lines[i] = " " + line
+                    break
+            body_str = "".join(lines)
+            _ = captured_output.getvalue()
+        finally:
+            # Restore stdout
+            sys.stdout = old_stdout
+
+        statement.body = "\n" + body_str
+
+        return [statement]
+
+    def _visit_calibration_grammar_declaration(
+        self, statement: qasm3_ast.CalibrationGrammarDeclaration
+    ) -> list[qasm3_ast.Statement]:
+        """Visit a calibration grammar declaration element.
+
+        Args:
+            statement (qasm3_ast.CalibrationGrammarDeclaration): The calibration grammar declaration
+
+        Returns:
+            None
+        """
+        # TODO: Implement calibration grammar declaration handling
+        if statement.name == "openpulse":
+            self._consolidate_qubits = True
+
+        return [statement]
+
     def _visit_include(self, include: qasm3_ast.Include) -> list[qasm3_ast.Statement]:
         """Visit an include statement element.
 
@@ -2709,6 +2937,9 @@ class QasmVisitor:
             qasm3_ast.ContinueStatement: self._visit_continue,
             qasm3_ast.DelayInstruction: self._visit_delay_statement,
             qasm3_ast.Box: self._visit_box_statement,
+            qasm3_ast.CalibrationDefinition: self._visit_calibration_definition,
+            qasm3_ast.CalibrationStatement: self._visit_calibration_statement,
+            qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
         }
 
         visitor_function = visit_map.get(type(statement))
