@@ -19,11 +19,31 @@ Types of changes:
 - A github workflow for validating `CHANGELOG` updates in a PR ([#214](https://github.com/qBraid/pyqasm/pull/214))
 - Added `unroll` command support in PYQASM CLI with options skipping files, overwriting originals files, and specifying output paths.([#224](https://github.com/qBraid/pyqasm/pull/224))
 - Added `.github/copilot-instructions.md` to the repository to document coding standards and design principles for pyqasm. This file provides detailed guidance on documentation, static typing, formatting, error handling, and adherence to the QASM specification for all code contributions. ([#234](https://github.com/qBraid/pyqasm/pull/234))
-<<<<<<< HEAD
 - Added support for `Angle`,`extern` and `Complex` type in `OPENQASM3` code in pyqasm. ([#239](https://github.com/qBraid/pyqasm/pull/239))
-=======
+  ###### Example:
+  ```qasm
+  OPENQASM 3.0;
+  include "stdgates.inc";
+  angle[8] ang1;
+  ang1 = 9 * (pi / 8);
+  angle[8] ang1 = 7 * (pi / 8);
+  angle[8] ang3 = ang1 + ang2;
+
+  complex c1 = -2.5 - 3.5im;
+  const complex c2 = 2.0+arccos(π/2) + (3.1 * 5.5im);
+  const complex c12 = c1 * c2;
+
+  float a = 1.0;
+  int b = 2;
+  extern func1(float, int) -> bit;
+  bit c = 2 * func1(a, b);
+  bit fc = -func1(a, b);
+
+  bit[4] bd = "0101";
+  extern func6(bit[4]) -> bit[4];
+  bit[4] be1 = func6(bd);
+  ```
 - Added a new `QasmModule.compare` method to compare two QASM modules, providing a detailed report of differences in gates, qubits, and measurements. This method is useful for comparing two identifying differences in QASM programs, their structure and operations. ([#233](https://github.com/qBraid/pyqasm/pull/233)) 
->>>>>>> origin/main
 
 ### Improved / Modified
 - Added `slots=True` parameter to the data classes in `elements.py` to improve memory efficiency ([#218](https://github.com/qBraid/pyqasm/pull/218))

@@ -1374,7 +1374,6 @@ class QasmVisitor:
                 statement.init_expression,
                 const_expr=True,
                 dt=self._module._device_cycle_time,
-                extern_fns=self._module._extern_functions,
             )
         except ValidationError as err:
             raise_qasm3_error(
@@ -1397,7 +1396,8 @@ class QasmVisitor:
                 compiler_angle_width=self._module._compiler_angle_type_size,
             )
         val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
-            statement.init_expression, validate_only=True, extern_fns=self._module._extern_functions
+            statement.init_expression,
+            validate_only=True,
         )
         self._check_variable_cast_type(statement, val_type, var_name, base_type, base_size, True)
         variable = Variable(
@@ -1563,7 +1563,6 @@ class QasmVisitor:
                     init_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
                         statement.init_expression,
                         dt=self._module._device_cycle_time,
-                        extern_fns=self._module._extern_functions,
                     )
                     statements.extend(stmts)
                     _req_type = (
@@ -1575,7 +1574,6 @@ class QasmVisitor:
                         statement.init_expression,
                         validate_only=True,
                         reqd_type=_req_type,
-                        extern_fns=self._module._extern_functions,
                     )
                     if isinstance(base_type, qasm3_ast.AngleType) and not self._in_extern_function:
                         init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
@@ -1738,11 +1736,13 @@ class QasmVisitor:
                 lhs=lvalue, op=binary_op, rhs=rvalue  # type: ignore[arg-type]
             )
         rvalue_raw, rhs_stmts = Qasm3ExprEvaluator.evaluate_expression(
-            rvalue, dt=self._module._device_cycle_time, extern_fns=self._module._extern_functions
+            rvalue,
+            dt=self._module._device_cycle_time,
         )  # consists of scope check and index validation
         statements.extend(rhs_stmts)
         val_type, _ = Qasm3ExprEvaluator.evaluate_expression(
-            rvalue, validate_only=True, extern_fns=self._module._extern_functions
+            rvalue,
+            validate_only=True,
         )
         self._check_variable_cast_type(
             statement,
@@ -2235,7 +2235,7 @@ class QasmVisitor:
 
             if return_statement:
                 return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                    return_statement.expression, extern_fns=self._module._extern_functions
+                    return_statement.expression,
                 )
                 return_value = Qasm3Validator.validate_return_statement(
                     subroutine_def, return_statement, return_value

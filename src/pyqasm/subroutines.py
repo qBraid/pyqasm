@@ -16,7 +16,7 @@
 Module containing the class for validating QASM3 subroutines.
 
 """
-import random
+import uuid
 from typing import Optional
 
 import numpy as np
@@ -189,9 +189,7 @@ class Qasm3SubroutineProcessor:
 
         if isinstance(formal_arg, ExternArgument):
             # Generate a unique name for the extern argument variable
-            _name = fn_name
-            while not cls.visitor_obj._scope_manager.check_in_scope(_name) and _name == fn_name:
-                _name = f"{fn_name}_{random.randint(1, 1_000_000_000)}"
+            _name = f"{fn_name}_{uuid.uuid4()}"
             if hasattr(formal_arg.type, "size") and formal_arg.type.size is not None:
                 _base_size = Qasm3ExprEvaluator.evaluate_expression(formal_arg.type.size)[0]
             else:

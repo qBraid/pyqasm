@@ -60,7 +60,7 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
             device_qubits (int): Number of physical qubits available on the target device.
             device_cycle_time (float): The duration of a hardware device cycle, in seconds.
             compiler_angle_type_size (int): The width of the angle type in the compiler.
-            extern_functions (list): List of extern functions to be added to the module.
+            extern_functions (dict): Dictionary of extern functions to be added to the module.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
