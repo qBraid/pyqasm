@@ -223,13 +223,7 @@ class OpenPulseVisitor:
                 frame_obj.frequency = frequency.value
             if shift_frequency:
                 frame_obj.frequency += frequency.value
-        else:
-            raise_qasm3_error(
-                f"Invalid frequency argument '{frequency}' in "
-                f"{"set_frequency" if set_frequency else "shift_frequency"} function",
-                error_node=statement,
-                span=statement.span,
-            )
+
         statement.arguments[1] = qasm3_ast.FloatLiteral(frame_obj.frequency)
 
     def _get_phase_frequency(
