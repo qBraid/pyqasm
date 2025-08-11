@@ -182,13 +182,6 @@ class OpenPulseVisitor:
                 frame_obj.phase = phase.value
             if shift_phase:
                 frame_obj.phase = (frame_obj.phase + phase.value) % (2 * CONSTANTS_MAP["pi"])
-        else:
-            raise_qasm3_error(
-                f"Invalid phase argument '{phase}' in "
-                f"{"set_phase" if set_phase else "shift_phase"} function",
-                error_node=statement,
-                span=statement.span,
-            )
         statement.arguments[1] = qasm3_ast.FloatLiteral(frame_obj.phase)
 
     def _set_shift_frequency(  # pylint: disable=too-many-arguments
