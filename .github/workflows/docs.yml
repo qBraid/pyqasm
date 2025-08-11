@@ -21,7 +21,7 @@ jobs:
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install -e '.[docs]'
+        python3 -m pip install -e '.[docs, pulse]'
     - name: Build docs
       run: |
         sphinx-build -W -b html docs docs/build/html
