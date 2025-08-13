@@ -68,7 +68,7 @@ Types of changes:
     delay[100ns] q[2];
   }
   ```
-- Enhance function call handling by adding support for nested functions. This change allows for more complex function definitions and calls, enabling better modularity and reusability of code within QASM programs. ([#243](https://github.com/qBraid/pyqasm/pull/243))
+- Enhance function call handling by adding support for nested functions. This change allows for more complex function definitions and calls, enabling better modularity and reusability of code within QASM programs. ([#245](https://github.com/qBraid/pyqasm/pull/245))
 
 ### Deprecated
 
