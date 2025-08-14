@@ -277,23 +277,32 @@ def test_function_call_with_custom_gate():
     check_single_qubit_rotation_op(result.unrolled_ast, 2, [0, 0], [3.14, 6.28], "rx")
 
 
-@pytest.mark.skip(reason="Not implemented nested functions yet")
 def test_function_call_from_within_fn():
     """Test that a function call from within another function is correctly converted."""
     qasm_str = """OPENQASM 3.0;
     include "stdgates.inc";
-
-    def my_function(qubit q1) {
+    def my_function(qubit q1, float[32] a) {
         h q1;
+        rx(a) q1;
         return;
     }
 
-    def my_function_2(qubit[2] q2) {
-        my_function(q2[1]);
+    def my_function_2(qubit[2] q2, float[32] param) {
+        my_function(q2[1], param);
         return;
     }
+
+    def my_function_3(qubit[2] q3) {
+        float[32] a = 3.14;
+        my_function_2(q3, a);
+        my_function(q3[1], a);
+        return;
+    }
+
     qubit[2] q;
-    my_function_2(q);
+    float[32] r = 3.14;
+    my_function_2(q, r);
+    my_function_3(q);
     """
 
     result = loads(qasm_str)
@@ -301,7 +310,8 @@ def test_function_call_from_within_fn():
     assert result.num_clbits == 0
     assert result.num_qubits == 2
 
-    check_single_qubit_gate_op(result.unrolled_ast, 1, [1], "h")
+    check_single_qubit_gate_op(result.unrolled_ast, 3, [1, 1, 1], "h")
+    check_single_qubit_rotation_op(result.unrolled_ast, 3, [1] * 3, [3.14] * 3, "rx")
 
 
 @pytest.mark.skip(reason="Bug: qubit in function scope conflicts with global scope")

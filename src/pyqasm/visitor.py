@@ -235,7 +235,10 @@ class QasmVisitor:
 
     # pylint: disable-next=too-many-locals,too-many-branches
     def _get_op_bits(
-        self, operation: Any, qubits: bool = True
+        self,
+        operation: Any,
+        qubits: bool = True,
+        function_qubit_sizes: Optional[dict[str, int]] = None,
     ) -> list[qasm3_ast.IndexedIdentifier]:
         """Get the quantum / classical bits for the operation.
 
@@ -275,19 +278,28 @@ class QasmVisitor:
             else:
                 reg_name = bit.name
 
+            max_register_size = 0
             reg_var = self._scope_manager.get_from_visible_scope(reg_name)
             if reg_var is None:
-                err_msg = (
-                    f"Missing {'qubit' if qubits else 'clbit'} register declaration "
-                    f"for '{reg_name}' in {type(operation).__name__}"
-                )
-                raise_qasm3_error(
-                    err_msg,
-                    error_node=operation,
-                    span=operation.span,
-                )
-            assert isinstance(reg_var, Variable)
-            max_register_size = reg_var.base_size
+                if function_qubit_sizes is None:
+                    err_msg = (
+                        f"Missing {'qubit' if qubits else 'clbit'} register declaration "
+                        f"for '{reg_name}' in {type(operation).__name__}"
+                    )
+                    raise_qasm3_error(
+                        err_msg,
+                        error_node=operation,
+                        span=operation.span,
+                    )
+                # we are trying to replace the qubits inside a nested function
+                assert function_qubit_sizes is not None
+                reg_size = function_qubit_sizes.get(reg_name, None)
+                if reg_size is not None:
+                    max_register_size = reg_size
+
+            if reg_var:
+                assert isinstance(reg_var, Variable)
+                max_register_size = reg_var.base_size
 
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
                 if isinstance(bit.indices[0], qasm3_ast.DiscreteSet):
@@ -310,7 +322,7 @@ class QasmVisitor:
             else:
                 bit_ids = list(range(max_register_size))
 
-            if reg_var.is_alias:
+            if reg_var and reg_var.is_alias:
                 original_reg_name, _ = self._alias_qubit_labels[(reg_name, bit_ids[0])]
                 bit_ids = [
                     self._alias_qubit_labels[(reg_name, bit_id)][1]  # gives (original_reg, index)
@@ -613,14 +625,19 @@ class QasmVisitor:
         """
         logger.debug("Visiting reset statement '%s'", str(statement))
         if len(self._function_qreg_size_map) > 0:  # atleast in SOME function scope
-            # transform qubits to use the global qreg identifiers
-            statement.qubits = (
-                Qasm3Transformer.transform_function_qubits(  # type: ignore[assignment]
-                    statement,
-                    self._function_qreg_transform_map[-1],
+            # since we may have multiple function scopes, we need to transform the qubits
+            # to use the global qreg identifiers
+            for transform_map, size_map in zip(
+                reversed(self._function_qreg_transform_map), reversed(self._function_qreg_size_map)
+            ):
+                statement.qubits = (
+                    Qasm3Transformer.transform_function_qubits(  # type: ignore[assignment]
+                        statement,
+                        transform_map,
+                        size_map,
+                    )
                 )
-            )
-        qubit_ids = self._get_op_bits(statement, True)
+        qubit_ids = self._get_op_bits(statement, qubits=True)
 
         unrolled_resets = []
         for qid in qubit_ids:
@@ -665,17 +682,22 @@ class QasmVisitor:
         """
         # if barrier is applied to ALL qubits at once, we are fine
         if len(self._function_qreg_size_map) > 0:  # atleast in SOME function scope
-            # transform qubits to use the global qreg identifiers
+            # we have multiple function scopes, so we need to transform the qubits
+            # to use the global qreg identifiers
 
             # since we are changing the qubits to IndexedIdentifiers, we need to supress the
             # error for the type checker
-            barrier.qubits = (
-                Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
-                    barrier,
-                    self._function_qreg_transform_map[-1],
+            for transform_map, size_map in zip(
+                reversed(self._function_qreg_transform_map), reversed(self._function_qreg_size_map)
+            ):
+                barrier.qubits = (
+                    Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
+                        barrier,
+                        transform_map,
+                        size_map,
+                    )
                 )
-            )
-        barrier_qubits = self._get_op_bits(barrier)
+        barrier_qubits = self._get_op_bits(barrier, qubits=True)
         unrolled_barriers = []
         max_involved_depth = 0
         for qubit in barrier_qubits:
@@ -780,7 +802,7 @@ class QasmVisitor:
         Returns:
             The list of all targets that the unrolled gate should act on.
         """
-        op_qubits = self._get_op_bits(operation)
+        op_qubits = self._get_op_bits(operation, qubits=True)
         if len(op_qubits) <= 0 or len(op_qubits) % gate_qubit_count != 0:
             raise_qasm3_error(
                 f"Invalid number of qubits {len(op_qubits)} for operation {operation.name.name}",
@@ -998,7 +1020,7 @@ class QasmVisitor:
         gate_name: str = operation.name.name
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
         op_qubits: list[qasm3_ast.IndexedIdentifier] = self._get_op_bits(
-            operation
+            operation, qubits=True
         )  # type: ignore [assignment]
 
         Qasm3Validator.validate_gate_call(operation, gate_definition, len(op_qubits))
@@ -1253,12 +1275,14 @@ class QasmVisitor:
         ):
             # we are in SOME function scope
             # transform qubits to use the global qreg identifiers
-            operation.qubits = (
-                Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
-                    operation,
-                    self._function_qreg_transform_map[-1],
+            for transform_map, size_map in zip(
+                reversed(self._function_qreg_transform_map), reversed(self._function_qreg_size_map)
+            ):
+                operation.qubits = (
+                    Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
+                        operation, transform_map, size_map
+                    )
                 )
-            )
 
         operation.qubits = self._get_op_bits(operation, qubits=True)  # type: ignore
 
@@ -2230,6 +2254,11 @@ class QasmVisitor:
         duplicate_qubit_detect_map: dict = {}
         qubit_transform_map: dict = {}  # {(formal arg, idx) : (actual arg, idx)}
         formal_qreg_size_map: dict = {}
+        actual_qreg_size_map: dict = (
+            self._function_qreg_size_map[-1]
+            if self._function_qreg_size_map
+            else self._global_qreg_size_map
+        )
 
         quantum_vars, classical_vars = [], []
         for actual_arg, formal_arg in zip(statement.arguments, subroutine_def.arguments):
@@ -2244,6 +2273,7 @@ class QasmVisitor:
                     Qasm3SubroutineProcessor.process_quantum_arg(
                         formal_arg,
                         actual_arg,
+                        actual_qreg_size_map,
                         formal_qreg_size_map,
                         duplicate_qubit_detect_map,
                         qubit_transform_map,
