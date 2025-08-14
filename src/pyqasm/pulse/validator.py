@@ -13,28 +13,33 @@
 # limitations under the License.
 
 """
-Module with utility functions for Pulse visitor
+Module with validation functions for Pulse visitor
 
 """
 from typing import Any, Optional
 
 import numpy as np
+from openpulse.ast import WaveformType
 from openqasm3.ast import (
     BinaryExpression,
     BinaryOperator,
     BitstringLiteral,
+    BitType,
     Box,
     Cast,
+    ComplexType,
     ConstantDeclaration,
     DelayInstruction,
     DurationLiteral,
     DurationType,
     ExternDeclaration,
     FloatLiteral,
+    FloatType,
     FunctionCall,
     Identifier,
     ImaginaryLiteral,
     IntegerLiteral,
+    IntType,
     Statement,
     StretchType,
     TimeUnit,
@@ -386,3 +391,99 @@ class PulseValidator:
                     statement.arguments[i] = BitstringLiteral(value, width)
 
         return statement
+
+    @staticmethod
+    def validate_openpulse_func_arg_length(
+        statement: FunctionCall, name: str, no_of_args: int
+    ) -> None:
+        """Validate the argument lengths.
+
+        Args:
+            statement (Any): The statement that is calling the function.
+            name (str): The name of the function.
+            no_of_args (int): The number of arguments of the function.
+        """
+        # Define argument requirements for each function group
+        arg_requirements = {
+            "set_phase": 2,
+            "shift_phase": 2,
+            "set_frequency": 2,
+            "shift_frequency": 2,
+            "play": 2,
+            "constant": 2,
+            "phase_shift": 2,
+            "scale": 2,
+            "mix": 2,
+            "sum": 2,
+            "capture_v1": 2,
+            "capture_v2": 2,
+            "capture_v3": 2,
+            "capture_v4": 2,
+            "get_phase": 1,
+            "get_frequency": 1,
+            "capture_v0": 1,
+            "gaussian": 3,
+            "sech": 3,
+            "gaussian_square": 4,
+            "drag": 4,
+            "sine": 4,
+            "newframe": (3, 4),
+        }
+
+        expected_args = arg_requirements.get(name)
+        if expected_args is not None:
+            valid = (
+                no_of_args in expected_args
+                if isinstance(expected_args, tuple)
+                else no_of_args == expected_args
+            )
+            if not valid:
+                raise_qasm3_error(
+                    f"Invalid number of arguments for {name} function",
+                    error_node=statement,
+                    span=statement.span,
+                )
+
+    @staticmethod
+    def validate_capture_function_return_type(
+        statement: FunctionCall, f_name: str, _type: Any
+    ) -> None:
+        """Validate the return type for capture functions.
+
+        Args:
+            statement: The AST statement node
+            f_name: The name of the capture function
+            _type: The return type to validate
+
+        Raises:
+            ValidationError: If the return type is invalid for the capture function
+        """
+
+        if f_name == "capture_v1" and not (
+            isinstance(_type, ComplexType)
+            and isinstance(_type.base_type, FloatType)
+            and _type.base_type.size.value == 32  # type: ignore
+        ):
+            raise_qasm3_error(
+                f"Invalid return type '{type(_type).__name__}' " f"for function '{f_name}'",
+                error_node=statement,
+                span=statement.span,
+            )
+        if f_name == "capture_v2" and not isinstance(_type, BitType):
+            raise_qasm3_error(
+                f"Invalid return type '{type(_type).__name__}' " f"for function '{f_name}'",
+                error_node=statement,
+                span=statement.span,
+            )
+        if f_name == "capture_v3" and not isinstance(_type, WaveformType):
+            raise_qasm3_error(
+                f"Invalid return type '{type(_type).__name__}' " f"for function '{f_name}'",
+                error_node=statement,
+                span=statement.span,
+            )
+        if f_name == "capture_v4" and not isinstance(_type, IntType):
+            raise_qasm3_error(
+                f"Invalid return type '{type(_type).__name__}' " "for function '{f_name}'",
+                error_node=statement,
+                span=statement.span,
+            )

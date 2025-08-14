@@ -36,8 +36,8 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | StretchType                    | ✅          | Completed              |
 | DelayInstruction               | ✅          | Completed              |
 | Box                            | ✅          | Completed              |
-| CalibrationStatement           | 📋          | Planned                |
-| CalibrationDefinition          | 📋          | Planned                |
+| CalibrationStatement           | ✅          | Completed              |
+| CalibrationDefinition          | ✅          | Completed              |
 | ComplexType                    | ✅          | Completed              |
 | AngleType                      | ✅          | Completed              |
 | ExternDeclaration              | ✅          | Completed              |

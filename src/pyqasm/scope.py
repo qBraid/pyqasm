@@ -20,7 +20,7 @@ checking variable visibility, and updating variable values.
 
 from collections import deque
 
-from pyqasm.elements import Context, Frame, Variable
+from pyqasm.elements import Context, Variable
 
 
 # pylint: disable-next=too-many-public-methods
@@ -234,6 +234,15 @@ class ScopeManager:
         """
         return self.get_global_scope().get(var_name, None)
 
+    def get_from_all_scopes(self, var_name: str) -> Variable | None:
+        """
+        Retrieve a variable from all scopes.
+        """
+        for scope in self._scope:
+            if var_name in scope:
+                return scope[var_name]
+        return None
+
     def add_var_in_scope(self, variable: Variable) -> None:
         """
         Add a variable to the current scope.
@@ -248,15 +257,6 @@ class ScopeManager:
         if variable.name in curr_scope:
             raise ValueError(f"Variable '{variable.name}' already exists in current scope")
         curr_scope[variable.name] = variable
-
-    def add_frame_in_scope(self, frame: Frame) -> None:
-        """
-        Add a frame to the current scope.
-        """
-        curr_scope = self.get_curr_scope()
-        if frame.name in curr_scope:
-            raise ValueError(f"Frame '{frame.name}' already exists in current scope")
-        curr_scope[frame.name] = frame
 
     def update_var_in_scope(self, variable: Variable) -> None:
         """

@@ -119,7 +119,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
 @dataclass(slots=True)
 class Frame:
     """
-    Class representing a frame in OpenQASM/OpenPulse.
+    Class representing a frame in OpenPulse.
 
     Attributes:
         name (str): The name of the frame.
@@ -144,7 +144,7 @@ class Frame:
 @dataclass(slots=True)
 class Waveform:  # pylint: disable=too-many-instance-attributes
     """
-    Class representing a waveform in OpenQASM/OpenPulse.
+    Class representing a waveform in OpenPulse.
 
     Attributes:
         name (str): The name of the waveform.
@@ -155,8 +155,9 @@ class Waveform:  # pylint: disable=too-many-instance-attributes
         y_correction_amp (Optional[Any]): The y correction amplitude of the waveform.
         frequency (Optional[Any]): The frequency of the waveform.
         phase (Optional[Any]): The phase of the waveform.
-        waveforms (Optional[list[str]]): The waveforms of the waveform.
+        waveforms (Optional[list[Any]]): The waveforms of the waveform.
         amp_factor (Optional[Any]): The amplitude factor of the waveform.
+        is_constant (Optional[bool]): Flag indicating if the waveform is constant.
     """
 
     name: str
@@ -169,6 +170,25 @@ class Waveform:  # pylint: disable=too-many-instance-attributes
     phase: Optional[Any] = None
     waveforms: Optional[list[Any]] = None
     amp_factor: Optional[Any] = None
+    is_constant: Optional[bool] = False
+
+
+@dataclass(slots=True)
+class Capture:
+    """
+    Class representing a capture in OpenPulse.
+
+    Attributes:
+        name (str): The name of the capture.
+        frame (Any): The frame of the capture.
+        total_duration (Any): The total duration of the capture.
+        waveform (Any): The waveform of the capture.
+    """
+
+    name: str
+    frame: Any
+    total_duration: Optional[Any] = None
+    waveform: Optional[Any] = None
 
 
 class BasisSet(Enum):

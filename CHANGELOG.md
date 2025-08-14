@@ -63,10 +63,39 @@ Types of changes:
   extern func6(bit[4]) -> bit[4];
   bit[4] be1 = func6(bd);
   ```
-<<<<<<< HEAD
 - Added a new `QasmModule.compare` method to compare two QASM modules, providing a detailed report of differences in gates, qubits, and measurements. This method is useful for comparing two identifying differences in QASM programs, their structure and operations. ([#233](https://github.com/qBraid/pyqasm/pull/233))
-=======
->>>>>>> origin/main
+- Added support to `OPENPULSE` code in pyqasm. ([#246](https://github.com/qBraid/pyqasm/pull/246))
+  ###### Example:
+  ```qasm
+  OPENQASM 3.0;
+  defcalgrammar "openpulse";
+    
+  complex[float[32]] amp = 1.0 + 2.0im;
+  cal {
+      port d0;
+      frame driveframe = newframe(d0, 5.0e9, 0.0);
+      waveform wf = gaussian(amp, 16ns, 4ns);
+  }
+    
+  const float frequency_start = 4.5e9;
+  const float frequency_step = 1e6;
+  const int frequency_num_steps = 3;
+  
+  defcal saturation_pulse $0 {
+      play(driveframe, constant(amp, 100e-6s));
+  }
+    
+  cal {
+      set_frequency(driveframe, frequency_start);
+  }
+    
+  for int i in [1:frequency_num_steps] {
+      cal {
+          shift_frequency(driveframe, frequency_step);
+      }
+      saturation_pulse $0;
+  }
+  ```
 
 ### Improved / Modified
 - Added `slots=True` parameter to the data classes in `elements.py` to improve memory efficiency ([#218](https://github.com/qBraid/pyqasm/pull/218))

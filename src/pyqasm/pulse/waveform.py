@@ -21,9 +21,10 @@ declarations in OpenPulse programs.
 
 import openqasm3.ast as qasm3_ast
 
-from pyqasm.elements import Waveform
+from pyqasm.elements import Capture, Variable, Waveform
 from pyqasm.exceptions import raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
+from pyqasm.maps.expressions import TIME_UNITS_MAP
 from pyqasm.pulse.validator import PulseValidator
 
 
@@ -34,302 +35,283 @@ class WaveformValidator:
         """Initialize the WaveformValidator.
 
         Args:
-            module: The module containing device cycle time information.
+            module: The qasm3 module.
             get_identifier_func: Function to get identifier information.
             get_frame_func: Function to get frame information.
+            pulse_visitor: The pulse visitor.
         """
         self._module = module
         self._get_identifier = get_identifier_func
         self._get_frame = get_frame_func
         self._pulse_visitor = pulse_visitor
 
-    # pylint: disable-next=too-many-branches,too-many-locals
-    def validate_gaussian_sech_waveform(self, statement, wf_func_name, waveforms, waveform_name):
-        """Validate gaussian and sech waveform declarations.
+    def _validate_amplitude_argument(self, statement, amp_arg, func_name):
+        """Validate amplitude argument for waveform functions.
 
         Args:
             statement: The statement containing the waveform declaration.
-            wf_func_name: The name of the waveform function.
-            waveforms: Dictionary of available waveforms.
-            waveform_name: The name of the waveform.
+            amp_arg: The amplitude argument to validate.
+            func_name: The name of the waveform function.
         """
-        func_args = statement.arguments
-        if len(func_args) != 3:
-            raise_qasm3_error(
-                f"Invalid number of arguments in '{wf_func_name}'",
-                error_node=statement,
-                span=statement.span,
-            )
-        _amp_arg = func_args[0]
-        _duration_arg = func_args[1]
-        _sigma_arg = func_args[2]
-
-        if isinstance(_amp_arg, qasm3_ast.Identifier):
-            _amp_arg_value, _amp_arg_type, _ = self._get_identifier(statement, _amp_arg)
-            if not isinstance(_amp_arg_type, qasm3_ast.ComplexType) or not isinstance(
-                _amp_arg_type.base_type, qasm3_ast.FloatType
+        if isinstance(amp_arg, qasm3_ast.Identifier):
+            _amp_arg_obj = self._get_identifier(statement, amp_arg)
+            if not isinstance(_amp_arg_obj.base_type, qasm3_ast.ComplexType) or not isinstance(
+                _amp_arg_obj.base_type.base_type, qasm3_ast.FloatType
             ):
                 raise_qasm3_error(
-                    f"Invalid amplitude type '{type(_amp_arg_type).__name__}' "
-                    f"for '{_amp_arg.name}' in '{wf_func_name}'",
+                    f"Invalid amplitude type '{type(_amp_arg_obj.base_type).__name__}' "
+                    f"for '{amp_arg.name}' in '{func_name}'",
                     error_node=statement,
                     span=statement.span,
                 )
-            if _amp_arg_value is not None:
-                val = PulseValidator.make_complex_binary_expression(_amp_arg_value)
+            if _amp_arg_obj.value is not None:
+                val = PulseValidator.make_complex_binary_expression(_amp_arg_obj.value)
                 statement.arguments[0] = val
             else:
                 statement.arguments[0] = qasm3_ast.FloatLiteral(None)
-        elif isinstance(_amp_arg, (qasm3_ast.BinaryExpression, qasm3_ast.ImaginaryLiteral)):
-            amp_arg, _ = Qasm3ExprEvaluator.evaluate_expression(_amp_arg)
-            if not isinstance(amp_arg, complex):
+        elif isinstance(amp_arg, (qasm3_ast.BinaryExpression, qasm3_ast.ImaginaryLiteral)):
+            amp_arg_val, _ = Qasm3ExprEvaluator.evaluate_expression(amp_arg)
+            if not isinstance(amp_arg_val, complex):
                 raise_qasm3_error(
-                    f"Invalid amplitude value '{type(_amp_arg).__name__}' in " f"'{wf_func_name}'",
+                    f"Invalid amplitude value '{type(amp_arg).__name__}' in " f"'{func_name}'",
                     error_node=statement,
                     span=statement.span,
                 )
         else:
             raise_qasm3_error(
-                f"Invalid amplitude initialization '{type(_amp_arg).__name__}' in "
-                f"'{wf_func_name}'",
+                f"Invalid amplitude initialization '{type(amp_arg).__name__}' in " f"'{func_name}'",
                 error_node=statement,
                 span=statement.span,
             )
 
-        for idx, arg, arg_name in [
-            (1, _duration_arg, "Total duration"),
-            (2, _sigma_arg, "Standard deviation"),
-        ]:
-            if isinstance(arg, qasm3_ast.Identifier):
-                arg_value, arg_type, _ = self._get_identifier(statement, arg)
-                if not isinstance(arg_type, qasm3_ast.DurationType):
-                    raise_qasm3_error(
-                        f"Invalid '{arg_name}' type '{type(arg_type).__name__}' for "
-                        f"'{arg.name}' in '{wf_func_name}'",
-                        error_node=statement,
-                        span=statement.span,
-                    )
-                if arg_value is None:
-                    arg_value = 0
-                statement.arguments[idx] = qasm3_ast.DurationLiteral(
-                    arg_value,
-                    unit=(
-                        qasm3_ast.TimeUnit.dt
-                        if self._module._device_cycle_time
-                        else qasm3_ast.TimeUnit.ns
-                    ),
-                )
-            elif not isinstance(arg, qasm3_ast.DurationLiteral):
-                raise_qasm3_error(
-                    f"Invalid '{arg_name}' initialization '{arg.value}' in " f"'{wf_func_name}'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-
-        waveform_var = Waveform(
-            name="",
-            amplitude=statement.arguments[0],
-            total_duration=statement.arguments[1],
-            standard_deviation=statement.arguments[2],
-        )
-        if waveform_name is not None:
-            waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
-        else:
-            self._pulse_visitor._temp_waveform = waveform_var
-
-    # pylint: disable-next=too-many-branches,too-many-locals
-    def validate_gaussian_square_waveform(self, statement, waveforms, waveform_name):
-        """Validate gaussian_square waveform declarations.
+    def _validate_amplitude_argument_simple(self, statement, amp_arg, func_name):
+        """Validate amplitude argument for waveform functions.
 
         Args:
             statement: The statement containing the waveform declaration.
-            waveforms: Dictionary of available waveforms.
-            waveform_name: The name of the waveform.
+            amp_arg: The amplitude argument to validate.
+            func_name: The name of the waveform function.
         """
-        wave_form_args = statement.arguments
-        if len(wave_form_args) != 4:
-            raise_qasm3_error(
-                f"Invalid number of arguments for 'gaussian_square' "
-                f"Expected 4, got {len(wave_form_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
-        amp_arg = wave_form_args[0]
-        duration_arg = wave_form_args[1]
-        square_width_arg = wave_form_args[2]
-        std_deviation_arg = wave_form_args[3]
-
         if isinstance(amp_arg, qasm3_ast.Identifier):
-            _amp_arg_value, _amp_arg_type, _ = self._get_identifier(statement, amp_arg)
-            if not isinstance(_amp_arg_type, qasm3_ast.ComplexType) or not isinstance(
-                _amp_arg_type.base_type, qasm3_ast.FloatType
-            ):
+            _amp_arg_obj = self._get_identifier(statement, amp_arg)
+            if not isinstance(_amp_arg_obj.base_type, qasm3_ast.ComplexType):
                 raise_qasm3_error(
-                    f"Invalid amplitude type '{type(_amp_arg_type).__name__}' for "
-                    f"'{amp_arg.name}' in 'gaussian_square'",
+                    f"Invalid amplitude type '{type(_amp_arg_obj.base_type).__name__}' for "
+                    f"'{amp_arg.name}' in '{func_name}'",
                     error_node=statement,
                     span=statement.span,
                 )
-            if _amp_arg_value is not None:
-                val = PulseValidator.make_complex_binary_expression(_amp_arg_value)
-                statement.arguments[0] = val
+            if _amp_arg_obj.value is not None:
+                statement.arguments[0] = PulseValidator.make_complex_binary_expression(
+                    _amp_arg_obj.value
+                )
             else:
                 statement.arguments[0] = qasm3_ast.FloatLiteral(None)
         elif isinstance(amp_arg, qasm3_ast.BinaryExpression):
             amp_val, _ = Qasm3ExprEvaluator.evaluate_expression(amp_arg)
             if not isinstance(amp_val, complex):
                 raise_qasm3_error(
-                    f"Invalid amplitude value '{type(amp_arg).__name__}' in " f"'gaussian_square'",
+                    f"Invalid amplitude value '{type(amp_arg).__name__}' in " f"'{func_name}'",
                     error_node=statement,
                     span=statement.span,
                 )
         else:
             raise_qasm3_error(
-                f"Invalid amplitude initialization '{type(amp_arg).__name__}' in "
-                f"'gaussian_square'",
+                f"Invalid amplitude initialization '{type(amp_arg).__name__}' in " f"'{func_name}'",
                 error_node=statement,
                 span=statement.span,
             )
+
+    # pylint: disable-next=too-many-arguments
+    def _validate_duration_argument(self, statement, arg, arg_name, func_name, idx):
+        """Validate duration argument for waveform functions.
+
+        Args:
+            statement: The statement containing the waveform declaration.
+            arg: The duration argument to validate.
+            arg_name: The name of the argument for error messages.
+            func_name: The name of the waveform function.
+            idx: The index of the argument in statement.arguments.
+        """
+        if isinstance(arg, qasm3_ast.Identifier):
+            arg_obj = self._get_identifier(statement, arg)
+            if not isinstance(arg_obj.base_type, qasm3_ast.DurationType):
+                raise_qasm3_error(
+                    f"Invalid '{arg_name}' type '{type(arg_obj.base_type).__name__}' for "
+                    f"'{arg.name}' in '{func_name}'",
+                    error_node=statement,
+                    span=statement.span,
+                )
+            if arg_obj.value is None:
+                arg_obj.value = 0
+                arg_obj.time_unit = qasm3_ast.TimeUnit.ns
+            statement.arguments[idx] = qasm3_ast.DurationLiteral(
+                arg_obj.value,
+                unit=qasm3_ast.TimeUnit[arg_obj.time_unit],
+            )
+        elif not isinstance(arg, qasm3_ast.DurationLiteral):
+            raise_qasm3_error(
+                f"Invalid '{arg_name}' initialization "
+                f"'{getattr(arg, 'value', arg)}' in "
+                f"'{func_name}'",
+                error_node=statement,
+                span=statement.span,
+            )
+
+    def _validate_standard_deviation(self, statement, arg_obj, arg_name, func_name):
+        """Validate standard deviation argument.
+
+        Args:
+            statement: The statement containing the waveform declaration.
+            arg_obj: The argument object to validate.
+            arg_name: The name of the argument for error messages.
+            func_name: The name of the waveform function.
+        """
+        if arg_name == "Standard deviation" and isinstance(arg_obj, Variable):
+            if arg_obj.value < 0:
+                raise_qasm3_error(
+                    f"Invalid '{arg_name}' value '{arg_obj.value}' in " f"'{func_name}'",
+                    error_node=statement,
+                    span=statement.span,
+                )
+
+    def _convert_duration_to_ns(self, statement):
+        """Convert duration to nanoseconds.
+
+        Args:
+            statement: The statement containing the duration to convert.
+        """
+        total_duration = statement.arguments[1]
+        total_duration.value = total_duration.value * TIME_UNITS_MAP[total_duration.unit.name]["ns"]
+        total_duration.unit = qasm3_ast.TimeUnit.ns
+        statement.arguments[1] = total_duration
+
+    def _create_and_store_waveform(self, statement, waveform_name, **kwargs):
+        """Create and store waveform in scope.
+
+        Args:
+            statement: The statement containing the waveform declaration.
+            waveform_name: The name of the waveform.
+            **kwargs: Additional arguments for Waveform constructor.
+        """
+        waveform_var = Waveform(
+            name="",
+            amplitude=statement.arguments[0],
+            total_duration=statement.arguments[1],
+            **kwargs,
+        )
+        if waveform_name is not None:
+            waveform_var.name = waveform_name
+            self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(waveform_var)
+        else:
+            self._pulse_visitor._temp_waveform = waveform_var
+
+    # pylint: disable-next=too-many-branches,too-many-locals
+    def validate_gaussian_sech_waveform(self, statement, wf_func_name, waveform_name):
+        """Validate gaussian and sech waveform declarations.
+
+        Args:
+            statement: The statement containing the waveform declaration.
+            wf_func_name: The name of the waveform function.
+            waveform_name: The name of the waveform.
+        """
+        func_args = statement.arguments
+        PulseValidator.validate_openpulse_func_arg_length(statement, wf_func_name, len(func_args))
+        _amp_arg = func_args[0]
+        _duration_arg = func_args[1]
+        _sigma_arg = func_args[2]
+
+        self._validate_amplitude_argument(statement, _amp_arg, wf_func_name)
+
+        for idx, arg, arg_name in [
+            (1, _duration_arg, "Total duration"),
+            (2, _sigma_arg, "Standard deviation"),
+        ]:
+            self._validate_duration_argument(statement, arg, arg_name, wf_func_name, idx)
+            if arg_name == "Standard deviation" and isinstance(arg, qasm3_ast.Identifier):
+                arg_obj = self._get_identifier(statement, arg)
+                self._validate_standard_deviation(statement, arg_obj, arg_name, wf_func_name)
+        self._convert_duration_to_ns(statement)
+
+        self._create_and_store_waveform(
+            statement, waveform_name, standard_deviation=statement.arguments[2]
+        )
+
+    # pylint: disable-next=too-many-branches,too-many-locals
+    def validate_gaussian_square_waveform(self, statement, waveform_name):
+        """Validate gaussian_square waveform declarations.
+
+        Args:
+            statement: The statement containing the waveform declaration.
+            waveform_name: The name of the waveform.
+        """
+        wave_form_args = statement.arguments
+        PulseValidator.validate_openpulse_func_arg_length(
+            statement, "gaussian_square", len(wave_form_args)
+        )
+        amp_arg = wave_form_args[0]
+        duration_arg = wave_form_args[1]
+        square_width_arg = wave_form_args[2]
+        std_deviation_arg = wave_form_args[3]
+
+        self._validate_amplitude_argument_simple(statement, amp_arg, "gaussian_square")
 
         for idx, arg, arg_name in [
             (1, duration_arg, "Total duration"),
             (2, square_width_arg, "Square width"),
             (3, std_deviation_arg, "Standard deviation"),
         ]:
-            if isinstance(arg, qasm3_ast.Identifier):
-                arg_value, arg_type, _ = self._get_identifier(statement, arg)
-                if not isinstance(arg_type, qasm3_ast.DurationType):
-                    raise_qasm3_error(
-                        f"Invalid '{arg_name}' type '{type(arg_type).__name__}' "
-                        f"for '{arg.name}' in 'gaussian_square'",
-                        error_node=statement,
-                        span=statement.span,
-                    )
-                if arg_value is None:
-                    arg_value = 0
-                statement.arguments[idx] = qasm3_ast.DurationLiteral(
-                    arg_value,
-                    unit=(
-                        qasm3_ast.TimeUnit.dt
-                        if self._module._device_cycle_time
-                        else qasm3_ast.TimeUnit.ns
-                    ),
-                )
-            elif not isinstance(arg, qasm3_ast.DurationLiteral):
-                raise_qasm3_error(
-                    f"Invalid '{arg_name}' initialization "
-                    f"'{getattr(arg, 'value', arg)}' in 'gaussian_square'",
-                    error_node=statement,
-                    span=statement.span,
-                )
+            self._validate_duration_argument(statement, arg, arg_name, "gaussian_square", idx)
+            if arg_name == "Standard deviation" and isinstance(arg, qasm3_ast.Identifier):
+                arg_obj = self._get_identifier(statement, arg)
+                self._validate_standard_deviation(statement, arg_obj, arg_name, "gaussian_square")
+        self._convert_duration_to_ns(statement)
 
-        waveform_var = Waveform(
-            name="",
-            amplitude=statement.arguments[0],
-            total_duration=statement.arguments[1],
+        self._create_and_store_waveform(
+            statement,
+            waveform_name,
             square_width=statement.arguments[2],
             standard_deviation=statement.arguments[3],
         )
-        if waveform_name is not None:
-            waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
-        else:
-            self._pulse_visitor._temp_waveform = waveform_var
 
     # pylint: disable-next=too-many-branches,too-many-locals
-    def validate_drag_waveform(self, statement, waveforms, waveform_name):
+    def validate_drag_waveform(self, statement, waveform_name):
         """Validate drag waveform declarations.
 
         Args:
             statement: The statement containing the waveform declaration.
-            waveforms: Dictionary of available waveforms.
             waveform_name: The name of the waveform.
         """
         func_args = statement.arguments
-        if len(func_args) != 4:
-            raise_qasm3_error(
-                f"Invalid number of arguments for 'drag' " f"Expected 4, got {len(func_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
+        PulseValidator.validate_openpulse_func_arg_length(statement, "drag", len(func_args))
         amp_arg = func_args[0]
         duration_arg = func_args[1]
         std_deviation_arg = func_args[2]
         beta_arg = func_args[3]
 
-        if isinstance(amp_arg, qasm3_ast.Identifier):
-            _amp_arg_value, _amp_arg_type, _ = self._get_identifier(statement, amp_arg)
-            if not isinstance(_amp_arg_type, qasm3_ast.ComplexType):
-                raise_qasm3_error(
-                    f"Invalid amplitude type '{type(_amp_arg_type).__name__}' for "
-                    f"'{amp_arg.name}' in 'drag'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            if _amp_arg_value is not None:
-                statement.arguments[0] = PulseValidator.make_complex_binary_expression(
-                    _amp_arg_value
-                )
-            else:
-                statement.arguments[0] = qasm3_ast.FloatLiteral(None)
-        elif isinstance(amp_arg, qasm3_ast.BinaryExpression):
-            amp_val, _ = Qasm3ExprEvaluator.evaluate_expression(amp_arg)
-            if not isinstance(amp_val, complex):
-                raise_qasm3_error(
-                    f"Invalid amplitude value '{type(amp_arg).__name__}' in " f"'drag'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-        else:
-            raise_qasm3_error(
-                f"Invalid amplitude initialization '{type(amp_arg).__name__}' in " f"'drag'",
-                error_node=statement,
-                span=statement.span,
-            )
+        self._validate_amplitude_argument_simple(statement, amp_arg, "drag")
 
         for idx, arg, arg_name in [
             (1, duration_arg, "Total duration"),
             (2, std_deviation_arg, "Standard deviation"),
         ]:
-            if isinstance(arg, qasm3_ast.Identifier):
-                arg_value, arg_type, _ = self._get_identifier(statement, arg)
-                if not isinstance(arg_type, qasm3_ast.DurationType):
-                    raise_qasm3_error(
-                        f"Invalid '{arg_name}' type '{type(arg_type).__name__}' for "
-                        f"'{arg.name}' in 'drag'",
-                        error_node=statement,
-                        span=statement.span,
-                    )
-                if arg_value is None:
-                    arg_value = 0
-                statement.arguments[idx] = qasm3_ast.DurationLiteral(
-                    arg_value,
-                    unit=(
-                        qasm3_ast.TimeUnit.dt
-                        if self._module._device_cycle_time
-                        else qasm3_ast.TimeUnit.ns
-                    ),
-                )
-            elif not isinstance(arg, qasm3_ast.DurationLiteral):
-                raise_qasm3_error(
-                    f"Invalid '{arg_name}' initialization "
-                    f"'{getattr(arg, 'value', arg)}' in 'drag'",
-                    error_node=statement,
-                    span=statement.span,
-                )
+            self._validate_duration_argument(statement, arg, arg_name, "drag", idx)
+            if arg_name == "Standard deviation" and isinstance(arg, qasm3_ast.Identifier):
+                arg_obj = self._get_identifier(statement, arg)
+                self._validate_standard_deviation(statement, arg_obj, arg_name, "drag")
+        self._convert_duration_to_ns(statement)
 
         if isinstance(beta_arg, qasm3_ast.Identifier):
-            beta_value, beta_type, _ = self._get_identifier(statement, beta_arg)
-            if not isinstance(beta_type, qasm3_ast.FloatType):
+            beta_arg_obj = self._get_identifier(statement, beta_arg)
+            if not isinstance(beta_arg_obj.base_type, qasm3_ast.FloatType):
                 raise_qasm3_error(
                     f"Invalid 'Y correction amplitude' type "
-                    f"'{type(beta_type).__name__}' for '{beta_arg.name}' in "
+                    f"'{type(beta_arg_obj.base_type).__name__}' for '{beta_arg.name}' in "
                     f"'drag'",
                     error_node=statement,
                     span=statement.span,
                 )
-            statement.arguments[3] = qasm3_ast.FloatLiteral(beta_value)
+            statement.arguments[3] = qasm3_ast.FloatLiteral(beta_arg_obj.value)
         elif not isinstance(beta_arg, qasm3_ast.FloatLiteral):
             raise_qasm3_error(
                 f"Invalid 'Y correction amplitude' initialization "
@@ -338,204 +320,72 @@ class WaveformValidator:
                 error_node=statement,
                 span=statement.span,
             )
-        waveform_var = Waveform(
-            name="",
-            amplitude=statement.arguments[0],
-            total_duration=statement.arguments[1],
+        total_duration = statement.arguments[1]
+        total_duration.value = total_duration.value * TIME_UNITS_MAP[total_duration.unit.name]["ns"]
+        total_duration.unit = qasm3_ast.TimeUnit.ns
+        statement.arguments[1] = total_duration
+        self._create_and_store_waveform(
+            statement,
+            waveform_name,
             standard_deviation=statement.arguments[2],
             y_correction_amp=statement.arguments[3],
         )
-        if waveform_name is not None:
-            waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
-        else:
-            self._pulse_visitor._temp_waveform = waveform_var
 
     # pylint: disable-next=too-many-branches,too-many-locals
-    def validate_constant_waveform(self, statement, waveforms, waveform_name):
+    def validate_constant_waveform(self, statement, waveform_name):
         """Validate constant waveform declarations.
 
         Args:
             statement: The statement containing the waveform declaration.
-            waveforms: Dictionary of available waveforms.
             waveform_name: The name of the waveform.
         """
         func_args = statement.arguments
-        if len(func_args) != 2:
-            raise_qasm3_error(
-                f"Invalid number of arguments for 'constant' " f"Expected 2, got {len(func_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
+        PulseValidator.validate_openpulse_func_arg_length(statement, "constant", len(func_args))
         amp_arg = func_args[0]
         duration_arg = func_args[1]
 
-        if isinstance(amp_arg, qasm3_ast.Identifier):
-            _amp_arg_value, _amp_arg_type, _ = self._get_identifier(statement, amp_arg)
-            if not isinstance(_amp_arg_type, qasm3_ast.ComplexType):
-                raise_qasm3_error(
-                    f"Invalid amplitude type '{type(_amp_arg_type).__name__}' for "
-                    f"'{amp_arg.name}' in 'constant'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            if _amp_arg_value is not None:
-                statement.arguments[0] = PulseValidator.make_complex_binary_expression(
-                    _amp_arg_value
-                )
-            else:
-                statement.arguments[0] = qasm3_ast.FloatLiteral(None)
-        elif isinstance(amp_arg, qasm3_ast.BinaryExpression):
-            amp_val, _ = Qasm3ExprEvaluator.evaluate_expression(amp_arg)
-            if not isinstance(amp_val, complex):
-                raise_qasm3_error(
-                    f"Invalid amplitude value '{type(amp_arg).__name__}' in " f"'constant'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-        else:
-            raise_qasm3_error(
-                f"Invalid amplitude initialization '{type(amp_arg).__name__}' in " f"'constant'",
-                error_node=statement,
-                span=statement.span,
-            )
+        self._validate_amplitude_argument_simple(statement, amp_arg, "constant")
 
-        if isinstance(duration_arg, qasm3_ast.Identifier):
-            arg_value, arg_type, _ = self._get_identifier(statement, duration_arg)
-            if not isinstance(arg_type, qasm3_ast.DurationType):
-                raise_qasm3_error(
-                    f"Invalid 'Total duration' type '{type(arg_type).__name__}' for "
-                    f"'{duration_arg.name}' in 'constant'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            if arg_value is None:
-                arg_value = 0
-            statement.arguments[1] = qasm3_ast.DurationLiteral(
-                arg_value,
-                unit=(
-                    qasm3_ast.TimeUnit.dt
-                    if self._module._device_cycle_time
-                    else qasm3_ast.TimeUnit.ns
-                ),
-            )
-        elif not isinstance(duration_arg, qasm3_ast.DurationLiteral):
-            raise_qasm3_error(
-                f"Invalid 'Total duration' initialization "
-                f"'{getattr(duration_arg, 'value', duration_arg)}' in "
-                f"'constant'",
-                error_node=statement,
-                span=statement.span,
-            )
-        waveform_var = Waveform(
-            name="",
-            amplitude=statement.arguments[0],
-            total_duration=statement.arguments[1],
-        )
-        if waveform_name is not None:
-            waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
-        else:
-            self._pulse_visitor._temp_waveform = waveform_var
+        self._validate_duration_argument(statement, duration_arg, "Total duration", "constant", 1)
+        self._convert_duration_to_ns(statement)
+
+        self._create_and_store_waveform(statement, waveform_name)
 
     # pylint: disable-next=too-many-branches,too-many-locals,too-many-statements
-    def validate_sine_waveform(self, statement, waveforms, waveform_name):
+    def validate_sine_waveform(self, statement, waveform_name):
         """Validate sine waveform declarations.
 
         Args:
             statement: The statement containing the waveform declaration.
-            waveforms: Dictionary of available waveforms.
             waveform_name: The name of the waveform.
         """
         # sine(complex[float[size]] amp, duration d, float[size] frequency, angle[size] phase)
         sine_args = statement.arguments
-        if len(sine_args) != 4:
-            raise_qasm3_error(
-                f"Invalid number of arguments for 'sine' " f"Expected 4, got {len(sine_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
+        PulseValidator.validate_openpulse_func_arg_length(statement, "sine", len(sine_args))
         amp_arg = sine_args[0]
         duration_arg = sine_args[1]
         frequency_arg = sine_args[2]
         phase_arg = sine_args[3]
 
         # Validate amplitude: must be complex[float[size]]
-        if isinstance(amp_arg, qasm3_ast.Identifier):
-            _amp_arg_value, _amp_arg_type, _ = self._get_identifier(statement, amp_arg)
-            if not isinstance(_amp_arg_type, qasm3_ast.ComplexType) or not isinstance(
-                _amp_arg_type.base_type, qasm3_ast.FloatType
-            ):
-                raise_qasm3_error(
-                    f"Invalid amplitude type '{type(_amp_arg_type).__name__}' for "
-                    f"'{amp_arg.name}' in 'sine'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            if _amp_arg_value is not None:
-                statement.arguments[0] = PulseValidator.make_complex_binary_expression(
-                    _amp_arg_value
-                )
-            else:
-                statement.arguments[0] = qasm3_ast.FloatLiteral(None)
-        elif isinstance(amp_arg, qasm3_ast.BinaryExpression):
-            amp_val, _ = Qasm3ExprEvaluator.evaluate_expression(amp_arg)
-            if not isinstance(amp_val, complex):
-                raise_qasm3_error(
-                    f"Invalid amplitude value '{type(amp_arg).__name__}' in 'sine' "
-                    f"for waveform",
-                    error_node=statement,
-                    span=statement.span,
-                )
-        else:
-            raise_qasm3_error(
-                f"Invalid amplitude initialization '{type(amp_arg).__name__}' in " f"'sine'",
-                error_node=statement,
-                span=statement.span,
-            )
+        self._validate_amplitude_argument(statement, amp_arg, "sine")
 
         # Validate duration: must be duration
-        if isinstance(duration_arg, qasm3_ast.Identifier):
-            arg_value, arg_type, _ = self._get_identifier(statement, duration_arg)
-            if not isinstance(arg_type, qasm3_ast.DurationType):
-                raise_qasm3_error(
-                    f"Invalid 'Total duration' type '{type(arg_type).__name__}' for "
-                    f"'{duration_arg.name}' in 'sine'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            if arg_value is None:
-                arg_value = 0
-            statement.arguments[1] = qasm3_ast.DurationLiteral(
-                arg_value,
-                unit=(
-                    qasm3_ast.TimeUnit.dt
-                    if self._module._device_cycle_time
-                    else qasm3_ast.TimeUnit.ns
-                ),
-            )
-        elif not isinstance(duration_arg, qasm3_ast.DurationLiteral):
-            raise_qasm3_error(
-                f"Invalid 'Total duration' initialization "
-                f"'{getattr(duration_arg, 'value', duration_arg)}' in 'sine' "
-                f"for waveform",
-                error_node=statement,
-                span=statement.span,
-            )
+        self._validate_duration_argument(statement, duration_arg, "Total duration", "sine", 1)
 
         # Validate frequency: must be float[size]
         if isinstance(frequency_arg, qasm3_ast.Identifier):
-            freq_value, freq_type, _ = self._get_identifier(statement, frequency_arg)
-            if not isinstance(freq_type, qasm3_ast.FloatType):
+            freq_arg_obj = self._get_identifier(statement, frequency_arg)
+            if not isinstance(freq_arg_obj.base_type, qasm3_ast.FloatType):
                 raise_qasm3_error(
-                    f"Invalid 'frequency' type '{type(freq_type).__name__}' for "
+                    f"Invalid 'frequency' type '{type(freq_arg_obj.base_type).__name__}' for "
                     f"'{frequency_arg.name}' in 'sine'",
                     error_node=statement,
                     span=statement.span,
                 )
             # Optionally, could wrap as FloatLiteral if value is available
-            if freq_value is not None:
-                statement.arguments[2] = qasm3_ast.FloatLiteral(freq_value)
+            if freq_arg_obj.value is not None:
+                statement.arguments[2] = qasm3_ast.FloatLiteral(freq_arg_obj.value)
         elif not isinstance(frequency_arg, qasm3_ast.FloatLiteral):
             raise_qasm3_error(
                 f"Invalid 'frequency' initialization "
@@ -547,17 +397,17 @@ class WaveformValidator:
 
         # Validate phase: must be angle[size]
         if isinstance(phase_arg, qasm3_ast.Identifier):
-            phase_value, phase_type, _ = self._get_identifier(statement, phase_arg)
-            if not isinstance(phase_type, qasm3_ast.AngleType):
+            phase_arg_obj = self._get_identifier(statement, phase_arg)
+            if not isinstance(phase_arg_obj.base_type, qasm3_ast.AngleType):
                 raise_qasm3_error(
-                    f"Invalid 'phase' type '{type(phase_type).__name__}' for "
+                    f"Invalid 'phase' type '{type(phase_arg_obj.base_type).__name__}' for "
                     f"'{phase_arg.name}' in 'sine'",
                     error_node=statement,
                     span=statement.span,
                 )
             # Optionally, could wrap as FloatLiteral if value is available
-            if phase_value is not None:
-                statement.arguments[3] = qasm3_ast.FloatLiteral(phase_value)
+            if phase_arg_obj.value is not None:
+                statement.arguments[3] = qasm3_ast.FloatLiteral(phase_arg_obj.value)
         elif not isinstance(phase_arg, qasm3_ast.FloatLiteral):
             raise_qasm3_error(
                 f"Invalid 'phase' initialization "
@@ -566,46 +416,32 @@ class WaveformValidator:
                 error_node=statement,
                 span=statement.span,
             )
+        self._convert_duration_to_ns(statement)
 
-        waveform_var = Waveform(
-            name="",
-            amplitude=statement.arguments[0],
-            total_duration=statement.arguments[1],
-            frequency=statement.arguments[2],
-            phase=statement.arguments[3],
+        self._create_and_store_waveform(
+            statement, waveform_name, frequency=statement.arguments[2], phase=statement.arguments[3]
         )
-        if waveform_name is not None:
-            waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
-        else:
-            self._pulse_visitor._temp_waveform = waveform_var
 
-    def validate_mix_sum_waveform(self, statement, wf_func_name, waveforms, waveform_name):
+    def validate_mix_sum_waveform(self, statement, wf_func_name, waveform_name):
         """Validate mix and sum waveform declarations.
 
         Args:
             statement: The statement containing the waveform declaration.
             wf_func_name: The name of the waveform function.
-            waveforms: Dictionary of available waveforms.
             waveform_name: The name of the waveform.
         """
         func_args = statement.arguments
-        if len(func_args) != 2:
-            raise_qasm3_error(
-                f"Invalid number of arguments for '{wf_func_name}' "
-                f"Expected 2, got {len(func_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
+        PulseValidator.validate_openpulse_func_arg_length(statement, wf_func_name, len(func_args))
         wf1_arg = func_args[0]
         wf2_arg = func_args[1]
 
         for _, arg, arg_label in [(0, wf1_arg, "Waveform 1"), (1, wf2_arg, "Waveform 2")]:
             if isinstance(arg, qasm3_ast.Identifier):
                 arg_name = arg.name
-                if arg_name not in waveforms:
+                arg_obj = self._get_identifier(statement, arg)
+                if arg_obj is None or not isinstance(arg_obj, Waveform):
                     raise_qasm3_error(
-                        f"Waveform '{arg_name}' is not declared",
+                        f"'{arg_name}' should be a waveform variable",
                         error_node=statement,
                         span=statement.span,
                     )
@@ -620,39 +456,33 @@ class WaveformValidator:
             name="",
             amplitude=None,
             total_duration=qasm3_ast.DurationLiteral(0, unit=qasm3_ast.TimeUnit.ns),
-            waveforms=[waveforms[arg.name] for arg in statement.arguments],
+            waveforms=[self._get_identifier(statement, arg) for arg in statement.arguments],
         )
         if waveform_name is not None:
             waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
+            self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(waveform_var)
         else:
             self._pulse_visitor._temp_waveform = waveform_var
 
-    def validate_phase_shift_waveform(self, statement, waveforms, waveform_name):
+    def validate_phase_shift_waveform(self, statement, waveform_name):
         """Validate phase_shift waveform declarations.
 
         Args:
             statement: The statement containing the waveform declaration.
-            waveforms: Dictionary of available waveforms.
             waveform_name: The name of the waveform.
         """
         func_args = statement.arguments
-        if len(func_args) != 2:
-            raise_qasm3_error(
-                f"Invalid number of arguments for 'phase_shift' "
-                f"Expected 2, got {len(func_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
+        PulseValidator.validate_openpulse_func_arg_length(statement, "phase_shift", len(func_args))
         wf_arg = func_args[0]
         ang_arg = func_args[1]
 
         # Validate waveform argument
         if isinstance(wf_arg, qasm3_ast.Identifier):
             wf_name = wf_arg.name
-            if wf_name not in waveforms:
+            wf_obj = self._get_identifier(statement, wf_arg)
+            if wf_obj is None or not isinstance(wf_obj, Waveform):
                 raise_qasm3_error(
-                    f"Waveform '{wf_name}' is not declared",
+                    f"'{wf_name}' should be a waveform variable",
                     error_node=statement,
                     span=statement.span,
                 )
@@ -665,16 +495,16 @@ class WaveformValidator:
 
         # Validate angle argument
         if isinstance(ang_arg, qasm3_ast.Identifier):
-            ang_value, ang_type, _ = self._get_identifier(statement, ang_arg)
-            if not isinstance(ang_type, qasm3_ast.AngleType):
+            ang_arg_obj = self._get_identifier(statement, ang_arg)
+            if not isinstance(ang_arg_obj.base_type, qasm3_ast.AngleType):
                 raise_qasm3_error(
-                    f"Invalid angle type '{type(ang_type).__name__}' for "
+                    f"Invalid angle type '{type(ang_arg_obj.base_type).__name__}' for "
                     f"'{ang_arg.name}' in 'phase_shift'",
                     error_node=statement,
                     span=statement.span,
                 )
-            if ang_value is not None:
-                statement.arguments[1] = qasm3_ast.FloatLiteral(ang_value)
+            if ang_arg_obj.value is not None:
+                statement.arguments[1] = qasm3_ast.FloatLiteral(ang_arg_obj.value)
         elif not isinstance(ang_arg, qasm3_ast.FloatLiteral):
             raise_qasm3_error(
                 f"Invalid angle initialization "
@@ -686,39 +516,34 @@ class WaveformValidator:
             name="",
             amplitude=None,
             total_duration=qasm3_ast.DurationLiteral(0, unit=qasm3_ast.TimeUnit.ns),
-            waveforms=[waveforms[arg.name] for arg in [statement.arguments[0]]],
+            waveforms=[self._get_identifier(statement, arg) for arg in [statement.arguments[0]]],
             phase=statement.arguments[1],
         )
         if waveform_name is not None:
             waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
+            self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(waveform_var)
         else:
             self._pulse_visitor._temp_waveform = waveform_var
 
-    def validate_scale_waveform(self, statement, waveforms, waveform_name):
+    def validate_scale_waveform(self, statement, waveform_name):
         """Validate scale waveform declarations.
 
         Args:
             statement: The statement containing the waveform declaration.
-            waveforms: Dictionary of available waveforms.
             waveform_name: The name of the waveform.
         """
         func_args = statement.arguments
-        if len(func_args) != 2:
-            raise_qasm3_error(
-                f"Invalid number of arguments for 'scale' " f"Expected 2, got {len(func_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
+        PulseValidator.validate_openpulse_func_arg_length(statement, "scale", len(func_args))
         wf_arg = func_args[0]
         factor_arg = func_args[1]
 
         # Validate waveform argument
         if isinstance(wf_arg, qasm3_ast.Identifier):
             wf_name = wf_arg.name
-            if wf_name not in waveforms:
+            wf_obj = self._get_identifier(statement, wf_arg)
+            if wf_obj is None or not isinstance(wf_obj, Waveform):
                 raise_qasm3_error(
-                    f"Waveform '{wf_name}' is not declared",
+                    f"'{wf_name}' should be a waveform variable",
                     error_node=statement,
                     span=statement.span,
                 )
@@ -731,15 +556,15 @@ class WaveformValidator:
 
         # Validate factor argument
         if isinstance(factor_arg, qasm3_ast.Identifier):
-            factor_value, factor_type, _ = self._get_identifier(statement, factor_arg)
-            if not isinstance(factor_type, qasm3_ast.FloatType):
+            factor_arg_obj = self._get_identifier(statement, factor_arg)
+            if not isinstance(factor_arg_obj.base_type, qasm3_ast.FloatType):
                 raise_qasm3_error(
-                    f"Invalid factor type '{type(factor_type).__name__}' for "
+                    f"Invalid factor type '{type(factor_arg_obj.base_type).__name__}' for "
                     f"'{factor_arg.name}' in 'scale'",
                     error_node=statement,
                     span=statement.span,
                 )
-            statement.arguments[1] = qasm3_ast.FloatLiteral(factor_value)
+            statement.arguments[1] = qasm3_ast.FloatLiteral(factor_arg_obj.value)
         elif not isinstance(factor_arg, qasm3_ast.FloatLiteral):
             raise_qasm3_error(
                 f"Invalid factor initialization "
@@ -752,34 +577,32 @@ class WaveformValidator:
             amplitude=None,
             total_duration=qasm3_ast.DurationLiteral(0, unit=qasm3_ast.TimeUnit.ns),
             amp_factor=statement.arguments[1],
-            waveforms=[waveforms[arg.name] for arg in [statement.arguments[0]]],
+            waveforms=[self._get_identifier(statement, arg) for arg in [statement.arguments[0]]],
         )
         if waveform_name is not None:
             waveform_var.name = waveform_name
-            waveforms[waveform_name] = waveform_var
+            self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(waveform_var)
         else:
             self._pulse_visitor._temp_waveform = waveform_var
 
-    def validate_capture_v3_and_v4_waveform(self, statement):
+    def validate_capture_v3_and_v4_waveform(self, statement, waveform_name):
         """Validate capture_v3 and capture_v4 declarations.
 
         Args:
             statement: The statement containing the capture_v3 or capture_v4 function.
+            waveform_name: The name of the waveform.
         """
         func_args = statement.arguments
-        if len(func_args) != 2:
-            raise_qasm3_error(
-                f"Invalid number of arguments for '{statement.name.name}' "
-                f"Expected 2, got {len(func_args)}.",
-                error_node=statement,
-                span=statement.span,
-            )
+        PulseValidator.validate_openpulse_func_arg_length(
+            statement, statement.name.name, len(func_args)
+        )
         frame_arg = func_args[0]
         duration_arg = func_args[1]
 
         # Validate frame argument
+        frame_obj = None
         if isinstance(frame_arg, qasm3_ast.Identifier):
-            _ = self._get_frame(statement, frame_arg.name)
+            frame_obj = self._get_frame(statement, frame_arg.name)
         else:
             raise_qasm3_error(
                 f"Invalid frame argument '{type(frame_arg).__name__}' in '{statement.name.name}'",
@@ -788,29 +611,59 @@ class WaveformValidator:
             )
 
         # Validate duration argument
-        if isinstance(duration_arg, qasm3_ast.Identifier):
-            duration_value, duration_type, _ = self._get_identifier(statement, duration_arg)
-            if not isinstance(duration_type, qasm3_ast.DurationType):
-                raise_qasm3_error(
-                    f"Invalid duration type '{type(duration_type).__name__}' for "
-                    f"'{duration_arg.name}' in '{statement.name.name}'",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            if duration_value is None:
-                duration_value = 0
-            statement.arguments[1] = qasm3_ast.DurationLiteral(
-                duration_value,
-                unit=(
-                    qasm3_ast.TimeUnit.dt
-                    if self._module._device_cycle_time
-                    else qasm3_ast.TimeUnit.ns
-                ),
-            )
-        elif not isinstance(duration_arg, qasm3_ast.DurationLiteral):
+        self._validate_duration_argument(
+            statement, duration_arg, "duration", statement.name.name, 1
+        )
+        self._convert_duration_to_ns(statement)
+
+        if frame_obj is not None:
+            frame_obj.time.value += statement.arguments[1].value
+
+        if statement.name.name == "capture_v3":
+            self._create_and_store_waveform(statement, waveform_name)
+
+    def validate_capture_v1_v2_waveform(self, statement, waveform_name):
+        """Validate capture_v1 and capture_v2 function calls.
+
+        Args:
+            statement: The statement containing the capture_v1 or capture_v2 function.
+        """
+        frame_arg = statement.arguments[0]
+        frame_obj = None
+        if isinstance(frame_arg, qasm3_ast.Identifier):
+            frame_obj = self._get_frame(statement, frame_arg.name)
+        else:
             raise_qasm3_error(
-                f"Invalid duration initialization "
-                f"'{getattr(duration_arg, 'value', duration_arg)}' in '{statement.name.name}'",
+                f"Invalid frame argument '{type(frame_arg).__name__}' "
+                f"in '{statement.name.name}' function",
                 error_node=statement,
                 span=statement.span,
             )
+        waveform_arg = statement.arguments[1]
+        waveform_obj = None
+        if isinstance(waveform_arg, qasm3_ast.Identifier):
+            waveform_obj = self._get_identifier(statement, waveform_arg)
+            if waveform_obj is None or not isinstance(waveform_obj, Waveform):
+                raise_qasm3_error(
+                    f"'{waveform_arg.name}' should be a waveform variable",
+                    error_node=statement,
+                    span=statement.span,
+                )
+        else:
+            raise_qasm3_error(
+                f"Invalid waveform argument '{type(waveform_arg).__name__}' "
+                f"in '{statement.name.name}' function",
+                error_node=statement,
+                span=statement.span,
+            )
+
+        capture_var = Capture(
+            name="",
+            frame=frame_obj,
+            waveform=waveform_obj,
+        )
+        if waveform_name is not None:
+            capture_var.name = waveform_name
+            self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(capture_var)
+        else:
+            self._pulse_visitor._temp_waveform = capture_var
