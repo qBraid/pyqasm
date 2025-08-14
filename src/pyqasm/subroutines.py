@@ -456,6 +456,7 @@ class Qasm3SubroutineProcessor:
         cls,
         formal_arg,
         actual_arg,
+        actual_qreg_size_map,
         formal_qreg_size_map,
         duplicate_qubit_map,
         qubit_transform_map,
@@ -468,6 +469,7 @@ class Qasm3SubroutineProcessor:
         Args:
             formal_arg (Qasm3Expression): The formal argument in the function signature.
             actual_arg (Qasm3Expression): The actual argument passed to the function.
+            actual_qreg_size_map (dict): The map of actual quantum register sizes.
             formal_qreg_size_map (dict): The map of formal quantum register sizes.
             duplicate_qubit_map (dict): The map of duplicate qubit registers.
             qubit_transform_map (dict): The map of qubit register transformations.
@@ -504,7 +506,9 @@ class Qasm3SubroutineProcessor:
         # we expect that actual arg is qubit type only
         # note that we ONLY check in global scope as
         # we always map the qubit arguments to the global scope
-        if actual_arg_name not in cls.visitor_obj._global_qreg_size_map:
+        actual_arg_var = cls.visitor_obj._scope_manager.get_from_visible_scope(actual_arg_name)
+
+        if actual_arg_var is None or not actual_arg_var.is_qubit:
             # Check if the actual argument is a qubit register
             is_literal = actual_arg_name is None
             arg_desc = (
@@ -522,7 +526,7 @@ class Qasm3SubroutineProcessor:
             )
 
         actual_qids, actual_qubits_size = Qasm3Transformer.get_target_qubits(
-            actual_arg, cls.visitor_obj._global_qreg_size_map, actual_arg_name
+            actual_arg, actual_qreg_size_map, actual_arg_name
         )
 
         if formal_qubit_size != actual_qubits_size:
