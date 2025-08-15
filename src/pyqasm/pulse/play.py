@@ -20,7 +20,7 @@ This module contains functions for validating the play function in OpenPulse pro
 
 from typing import Any
 
-import openpulse.ast as openpulse_ast
+import openqasm3.ast as qasm3_ast
 
 from pyqasm.elements import Frame, Waveform
 from pyqasm.exceptions import raise_qasm3_error
@@ -46,7 +46,7 @@ class PlayValidator:
         self._pulse_visitor = pulse_visitor
 
     def _handle_play_function(
-        self, statement: openpulse_ast.FunctionCall, stmt_args: Any
+        self, statement: qasm3_ast.FunctionCall, stmt_args: Any
     ) -> tuple[Any, Any]:
         """Handle the play function.
 
@@ -58,7 +58,7 @@ class PlayValidator:
         waveform_arg = stmt_args[1]
         waveform_duration = None
         frame_obj = None
-        if isinstance(frame_arg, openpulse_ast.Identifier):
+        if isinstance(frame_arg, qasm3_ast.Identifier):
             frame_obj = self._get_frame(statement, frame_arg.name)
             if not isinstance(frame_obj, Frame):
                 raise_qasm3_error(
@@ -67,7 +67,7 @@ class PlayValidator:
                     span=statement.span,
                 )
 
-        if isinstance(waveform_arg, openpulse_ast.Identifier):
+        if isinstance(waveform_arg, qasm3_ast.Identifier):
             waveform_obj = self._get_identifier(statement, waveform_arg)
             if not isinstance(waveform_obj, Waveform):
                 raise_qasm3_error(
@@ -76,7 +76,7 @@ class PlayValidator:
                     span=statement.span,
                 )
             waveform_duration = waveform_obj
-        elif isinstance(waveform_arg, openpulse_ast.FunctionCall):
+        elif isinstance(waveform_arg, qasm3_ast.FunctionCall):
             wf_func_name = waveform_arg.name.name
             if wf_func_name not in OPENPULSE_WAVEFORM_FUNCTION_MAP:
                 raise_qasm3_error(

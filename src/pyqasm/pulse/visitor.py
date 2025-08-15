@@ -22,7 +22,6 @@ Module defining OpenPulse Visitor.
 import logging
 from typing import Any, Optional
 
-import openpulse.ast as openpulse_ast
 import openqasm3.ast as qasm3_ast
 
 from pyqasm.elements import Capture, Frame, Variable, Waveform
@@ -135,15 +134,15 @@ class OpenPulseVisitor:
         self._update_current_block_time(time)
         frame_obj.time = self._current_block_time
 
-    def _get_identifier(self, statement: Any, identifier: openpulse_ast.Identifier | str) -> Any:
+    def _get_identifier(self, statement: Any, identifier: qasm3_ast.Identifier | str) -> Any:
         """Get the value of an identifier.
 
         Args:
-            identifier (openpulse_ast.Identifier): The identifier to get the value of.
+            identifier (qasm3_ast.Identifier): The identifier to get the value of.
             statement (Any): The statement that is calling the function.
         """
         if isinstance(identifier, str):
-            identifier = openpulse_ast.Identifier(name=identifier)
+            identifier = qasm3_ast.Identifier(name=identifier)
         _id_var_obj = self._openpulse_scope_manager.get_from_all_scopes(
             identifier.name
         ) or self._qasm3_scope_manager.get_from_all_scopes(identifier.name)
@@ -155,7 +154,7 @@ class OpenPulseVisitor:
             )
         return _id_var_obj
 
-    def _check_identifier(self, statement: Any, identifier: openpulse_ast.Identifier) -> None:
+    def _check_identifier(self, statement: Any, identifier: qasm3_ast.Identifier) -> None:
         """Check if an identifier is declared."""
         _id_var_obj = self._openpulse_scope_manager.get_from_global_scope(
             identifier.name
@@ -378,13 +377,11 @@ class OpenPulseVisitor:
             var_obj.value = return_value if return_value is not None else var_obj.value
             self._openpulse_scope_manager.add_var_in_scope(var_obj)
 
-    def _visit_barrier(
-        self, barrier: openpulse_ast.QuantumBarrier
-    ) -> list[openpulse_ast.QuantumBarrier]:
+    def _visit_barrier(self, barrier: qasm3_ast.QuantumBarrier) -> list[qasm3_ast.QuantumBarrier]:
         """Visit a barrier statement element.
 
         Args:
-            statement (openpulse_ast.QuantumBarrier): The barrier statement to visit.
+            statement (qasm3_ast.QuantumBarrier): The barrier statement to visit.
 
         Returns:
             None
@@ -404,8 +401,8 @@ class OpenPulseVisitor:
         return [barrier]
 
     def _visit_classical_assignment(
-        self, statement: openpulse_ast.ClassicalAssignment
-    ) -> list[openpulse_ast.Statement]:
+        self, statement: qasm3_ast.ClassicalAssignment
+    ) -> list[qasm3_ast.Statement]:
         """Visit a classical assignment element.
 
         Args:
@@ -413,11 +410,11 @@ class OpenPulseVisitor:
         """
         r_value = statement.rvalue
         l_value = statement.lvalue
-        if isinstance(l_value, openpulse_ast.Identifier):
+        if isinstance(l_value, qasm3_ast.Identifier):
             arg_obj = self._get_identifier(statement, l_value)
             lvar_name = l_value.name
         return_value = None
-        if isinstance(r_value, openpulse_ast.FunctionCall):
+        if isinstance(r_value, qasm3_ast.FunctionCall):
             f_name = r_value.name.name
             if f_name in ["get_phase", "get_frequency"]:
                 self._frame_validator.validate_get_phase_freq_type(
@@ -481,8 +478,8 @@ class OpenPulseVisitor:
         return [statement]
 
     def _visit_classical_declaration(  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
-        self, statement: openpulse_ast.ClassicalDeclaration
-    ) -> list[openpulse_ast.Statement]:
+        self, statement: qasm3_ast.ClassicalDeclaration
+    ) -> list[qasm3_ast.Statement]:
         """Visit a classical operation element.
 
         Args:
@@ -491,8 +488,13 @@ class OpenPulseVisitor:
         Returns:
             None
         """
+        from openpulse.ast import (  # pylint: disable=import-outside-toplevel
+            FrameType,
+            PortType,
+            WaveformType,
+        )
 
-        if isinstance(statement.type, openpulse_ast.PortType):
+        if isinstance(statement.type, PortType):
             if statement.identifier:
                 _port_name = statement.identifier.name
                 self._check_identifier(statement, statement.identifier)
@@ -507,18 +509,18 @@ class OpenPulseVisitor:
                     Variable(
                         name=_port_name,
                         value=None,
-                        base_type=openpulse_ast.PortType(),
+                        base_type=PortType(),
                         base_size=1,
                     )
                 )
 
-        elif isinstance(statement.type, openpulse_ast.FrameType):
+        elif isinstance(statement.type, FrameType):
             _frame_name = ""
             if statement.identifier:
                 _frame_name = statement.identifier.name
                 self._check_identifier(statement, statement.identifier)
 
-            if isinstance(statement.init_expression, openpulse_ast.FunctionCall):
+            if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
                 (
                     port_name,
                     freq_arg_value,
@@ -569,14 +571,14 @@ class OpenPulseVisitor:
                 )
 
         # Full waveform implementation is yet to be done by openpulse
-        elif isinstance(statement.type, openpulse_ast.WaveformType):
+        elif isinstance(statement.type, WaveformType):
             _waveform_name = None
-            if isinstance(statement.identifier, openpulse_ast.Identifier):
+            if isinstance(statement.identifier, qasm3_ast.Identifier):
                 _waveform_name = statement.identifier.name
                 self._check_identifier(statement, statement.identifier)
 
             if statement.init_expression:
-                if isinstance(statement.init_expression, openpulse_ast.FunctionCall):
+                if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
                     wf_func_name = statement.init_expression.name.name
                     if wf_func_name not in OPENPULSE_WAVEFORM_FUNCTION_MAP:
                         raise_qasm3_error(
@@ -602,7 +604,7 @@ class OpenPulseVisitor:
 
         elif statement.init_expression:
             return_value = None
-            if isinstance(statement.init_expression, openpulse_ast.FunctionCall):
+            if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
                 f_name = statement.init_expression.name.name
                 _id = statement.identifier
                 _type = statement.type
@@ -632,12 +634,12 @@ class OpenPulseVisitor:
         return [statement]
 
     def _visit_function_call(  # pylint: disable=too-many-branches, too-many-statements
-        self, statement: openpulse_ast.FunctionCall
-    ) -> tuple[Any, list[openpulse_ast.Statement | qasm3_ast.FunctionCall]]:
+        self, statement: qasm3_ast.FunctionCall
+    ) -> tuple[Any, list[qasm3_ast.Statement | qasm3_ast.FunctionCall]]:
         """Visit a function call element.
 
         Args:
-            statement (openpulse_ast.FunctionCall): The function call to visit.
+            statement (qasm3_ast.FunctionCall): The function call to visit.
         Returns:
             None
 
@@ -657,7 +659,7 @@ class OpenPulseVisitor:
                 args[0].name,
                 (
                     qasm3_ast.FloatLiteral(Qasm3ExprEvaluator.evaluate_expression(args[1])[0])
-                    if not isinstance(args[1], openpulse_ast.Identifier)
+                    if not isinstance(args[1], qasm3_ast.Identifier)
                     else args[1]
                 ),
                 shift_phase=True,
@@ -672,7 +674,7 @@ class OpenPulseVisitor:
 
         if function_name in (*OPENPULSE_FRAME_FUNCTION_MAP, "get_phase", "get_frequency"):
             frame_arg = stmt_args[0]
-            if isinstance(frame_arg, openpulse_ast.Identifier):
+            if isinstance(frame_arg, qasm3_ast.Identifier):
                 if function_name in ["get_phase", "get_frequency"]:
                     _return_value = self._get_phase_frequency(
                         statement,
@@ -751,11 +753,11 @@ class OpenPulseVisitor:
 
         return _return_value, [statement]
 
-    def visit_statement(self, statement: openpulse_ast.Statement) -> list[openpulse_ast.Statement]:
+    def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
         Args:
-            statement (openpulse_ast.Statement): The statement to visit.
+            statement (qasm3_ast.Statement): The statement to visit.
 
         Returns:
             None
@@ -763,18 +765,18 @@ class OpenPulseVisitor:
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
         visit_map = {
-            openpulse_ast.QuantumBarrier: self._visit_barrier,
-            openpulse_ast.ClassicalDeclaration: self._visit_classical_declaration,
-            openpulse_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
-            openpulse_ast.DelayInstruction: self._qasm_visitor._visit_delay_statement,
-            openpulse_ast.ClassicalAssignment: self._visit_classical_assignment,
-            openpulse_ast.ConstantDeclaration: self._visit_classical_declaration,
+            qasm3_ast.QuantumBarrier: self._visit_barrier,
+            qasm3_ast.ClassicalDeclaration: self._visit_classical_declaration,
+            qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
+            qasm3_ast.DelayInstruction: self._qasm_visitor._visit_delay_statement,
+            qasm3_ast.ClassicalAssignment: self._visit_classical_assignment,
+            qasm3_ast.ConstantDeclaration: self._visit_classical_declaration,
         }
 
         visitor_function = visit_map.get(type(statement))
 
         if visitor_function:
-            if isinstance(statement, openpulse_ast.ExpressionStatement):
+            if isinstance(statement, qasm3_ast.ExpressionStatement):
                 # these return a tuple of return value and list of statements
                 _, ret_stmts = visitor_function(statement)  # type: ignore[operator]
                 result.extend(ret_stmts)
@@ -790,17 +792,17 @@ class OpenPulseVisitor:
 
     def visit_basic_block(
         self,
-        stmt_list: list[openpulse_ast.Statement],
+        stmt_list: list[qasm3_ast.Statement],
         is_def_cal: bool,
-    ) -> list[openpulse_ast.Statement]:
+    ) -> list[qasm3_ast.Statement]:
         """Visit a basic block of statements.
 
         Args:
-            stmt_list (list[openpulse_ast.Statement]): The list of statements to visit.
+            stmt_list (list[qasm3_ast.Statement]): The list of statements to visit.
             is_def_cal (bool): is the given statements from def_cal block.
 
         Returns:
-            list[openpulse_ast.Statement]: The list of unrolled statements.
+            list[qasm3_ast.Statement]: The list of unrolled statements.
         """
         result = []
         self._is_def_cal = is_def_cal

@@ -20,7 +20,6 @@ declarations in OpenPulse programs.
 """
 from typing import Any, Tuple
 
-import openpulse.ast as openpulse_ast
 import openqasm3.ast as qasm3_ast
 
 from pyqasm.elements import Variable
@@ -58,11 +57,8 @@ class FrameValidator:
             actual_type: The actual type to validate
             error_context: Context for error message (e.g., "type" or "return type")
         """
-        if (
-            function_name == "get_phase" and not isinstance(actual_type, openpulse_ast.AngleType)
-        ) or (
-            function_name == "get_frequency"
-            and not isinstance(actual_type, openpulse_ast.FloatType)
+        if (function_name == "get_phase" and not isinstance(actual_type, qasm3_ast.AngleType)) or (
+            function_name == "get_frequency" and not isinstance(actual_type, qasm3_ast.FloatType)
         ):
             raise_qasm3_error(
                 f"Invalid type '{type(actual_type).__name__}' for function '{function_name}'",
@@ -105,7 +101,7 @@ class FrameValidator:
         frame_limit_per_port = self._pulse_visitor._frame_limit_per_port
         ports_usage = self._pulse_visitor._ports_usage
         port_arg = frame_args[0]
-        if not isinstance(port_arg, openpulse_ast.Identifier):
+        if not isinstance(port_arg, qasm3_ast.Identifier):
             _id_port_var_obj = self._get_identifier(statement, port_arg)
             if _id_port_var_obj is None:
                 raise_qasm3_error(
@@ -130,7 +126,7 @@ class FrameValidator:
         freq_arg_value = 0.0
         freq_arg_type = qasm3_ast.FloatType(qasm3_ast.IntegerLiteral(32))
 
-        if isinstance(freq_arg, openpulse_ast.Identifier):
+        if isinstance(freq_arg, qasm3_ast.Identifier):
             _id_freq_var_obj = self._get_identifier(statement, freq_arg)
             if _id_freq_var_obj is None:
                 _id_freq_var_obj = Variable(
@@ -152,9 +148,9 @@ class FrameValidator:
             freq_arg_value = _id_freq_var_obj.value
             freq_arg_type = _id_freq_var_obj.base_type
             freq_arg_type.size = getattr(_id_freq_var_obj, "base_size", None)
-        elif isinstance(freq_arg, openpulse_ast.FloatLiteral):
+        elif isinstance(freq_arg, qasm3_ast.FloatLiteral):
             freq_arg_value = freq_arg.value
-        elif isinstance(freq_arg, openpulse_ast.FunctionCall):
+        elif isinstance(freq_arg, qasm3_ast.FunctionCall):
             if freq_arg.name.name == "get_frequency":
                 freq_arg_value = self._pulse_visitor._visit_function_call(freq_arg)[0]
         else:
@@ -169,7 +165,7 @@ class FrameValidator:
         phase_arg_value = 0.0
         phase_arg_type = qasm3_ast.AngleType(qasm3_ast.IntegerLiteral(32))
 
-        if isinstance(phase_arg, openpulse_ast.Identifier):
+        if isinstance(phase_arg, qasm3_ast.Identifier):
             if phase_arg.name in CONSTANTS_MAP:
                 phase_arg_value = CONSTANTS_MAP[phase_arg.name]
             else:
@@ -189,10 +185,10 @@ class FrameValidator:
                 phase_arg_type.size = getattr(_id_phase_var_obj, "base_size", None)
         elif isinstance(
             phase_arg,
-            (openpulse_ast.BinaryExpression, openpulse_ast.UnaryExpression, qasm3_ast.FloatLiteral),
+            (qasm3_ast.BinaryExpression, qasm3_ast.UnaryExpression, qasm3_ast.FloatLiteral),
         ):
             phase_arg_value, _ = Qasm3ExprEvaluator.evaluate_expression(phase_arg)
-        elif isinstance(phase_arg, openpulse_ast.FunctionCall):
+        elif isinstance(phase_arg, qasm3_ast.FunctionCall):
             if phase_arg.name.name == "get_phase":
                 phase_arg_value = self._pulse_visitor._visit_function_call(phase_arg)[0]
         else:
@@ -206,7 +202,7 @@ class FrameValidator:
         time_arg_value = qasm3_ast.DurationLiteral(0, unit=time_unit)
         if len(frame_args) == 4:
             time_arg = frame_args[3]
-            if isinstance(time_arg, openpulse_ast.Identifier):
+            if isinstance(time_arg, qasm3_ast.Identifier):
                 _id_dur_var_obj = self._get_identifier(statement, time_arg)
                 if (
                     _id_dur_var_obj is None

@@ -19,7 +19,6 @@ Module with validation functions for Pulse visitor
 from typing import Any, Optional
 
 import numpy as np
-from openpulse.ast import WaveformType
 from openqasm3.ast import (
     BinaryExpression,
     BinaryOperator,
@@ -458,6 +457,7 @@ class PulseValidator:
         Raises:
             ValidationError: If the return type is invalid for the capture function
         """
+        from openpulse.ast import WaveformType  # pylint: disable=import-outside-toplevel
 
         if f_name == "capture_v1" and not (
             isinstance(_type, ComplexType)

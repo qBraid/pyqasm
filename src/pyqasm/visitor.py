@@ -28,9 +28,7 @@ from io import StringIO
 from typing import Any, Callable, Optional, Sequence, cast
 
 import numpy as np
-import openpulse.ast as openpulse_ast
 import openqasm3.ast as qasm3_ast
-from openpulse.parser import OpenPulseParsingError, parse_openpulse
 from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
@@ -2824,6 +2822,11 @@ class QasmVisitor:
         Returns:
             None
         """
+        from openpulse.parser import (  # pylint: disable=import-outside-toplevel
+            OpenPulseParsingError,
+            parse_openpulse,
+        )
+
         if not self._consolidate_qubits:
             self._consolidate_qubits = True
 
@@ -2869,7 +2872,7 @@ class QasmVisitor:
                         f"${i}" for i in range(reg_size)
                     )
 
-        calibration_stmts: list[openpulse_ast.Statement] = block_body.body
+        calibration_stmts: list[qasm3_ast.Statement] = block_body.body
         for stmt in calibration_stmts:
             stmt.span.start_line = statement.span.start_line  # type: ignore
         result.extend(self._pulse_visitor.visit_basic_block(calibration_stmts, is_def_cal=True))
@@ -2906,6 +2909,11 @@ class QasmVisitor:
         Returns:
             None
         """
+        from openpulse.parser import (  # pylint: disable=import-outside-toplevel
+            OpenPulseParsingError,
+            parse_openpulse,
+        )
+
         if not self._consolidate_qubits:
             self._consolidate_qubits = True
 
@@ -2923,7 +2931,7 @@ class QasmVisitor:
             raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
 
         result = []
-        calibration_stmts: list[openpulse_ast.Statement] = block_body.body
+        calibration_stmts: list[qasm3_ast.Statement] = block_body.body
         for stmt in calibration_stmts:
             stmt.span.start_line += statement.span.start_line  # type: ignore
 
