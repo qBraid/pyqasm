@@ -18,13 +18,15 @@ Module with utility functions for Pulse visitor
 """
 import re
 
+
 class PulseUtils:
     """Class with utility functions for Pulse visitor"""
 
     @staticmethod
     def format_calibration_body(result):
         """Format the calibration body"""
-        from openpulse.printer import dumps as pulse_dumps # pylint: disable=import-outside-toplevel
+        # pylint: disable=import-outside-toplevel
+        from openpulse.printer import dumps as pulse_dumps
 
         body_str = "".join([pulse_dumps(stmt) for stmt in result])
         body_str = re.sub(r"\n(?![\s])", "\n ", body_str)
