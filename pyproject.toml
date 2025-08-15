@@ -44,7 +44,7 @@ test = ["pytest", "pytest-cov", "pytest-mpl", "pillow<11.4.0", "matplotlib", "ta
 lint = ["black", "isort>=6.0.0", "pylint", "mypy", "qbraid-cli>=0.10.2"]
 docs = ["sphinx>=7.3.7,<8.3.0", "sphinx-autodoc-typehints>=1.24,<3.2", "sphinx-rtd-theme>=2.0.0,<4.0.0", "docutils<0.23", "sphinx-copybutton"]
 visualization = ["pillow<11.4.0", "matplotlib", "tabulate"]
-pulse = ["openpulse[parser]>=1.0.1"]
+pulse = ["openpulse>=1.0.1"]
 
 [tool.setuptools.package-data]
 pyqasm = ["py.typed", "*.pyx"]
