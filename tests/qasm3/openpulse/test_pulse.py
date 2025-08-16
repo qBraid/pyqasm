@@ -62,7 +62,7 @@ cal {
  waveform wf = gaussian(1.0 + 2.0im, 16.0ns, 4.0ns);
 }
 defcal saturation_pulse() $0 {
- play(driveframe, constant(1.0 + 2.0im, 100000.0ns));
+ play(driveframe, constant(amp, 0.0001s));
 }
 cal {
  set_frequency(driveframe, 4500000000.0);
@@ -179,12 +179,71 @@ cal {
  const complex[float[32]] amp = 1.0 + 2.0im;
 }
 defcal cross_resonance() $0, $1 {
- waveform wf1 = gaussian_square(1.0 + 2.0im, 1024.0ns, 128.0ns, 32.0ns);
- waveform wf2 = gaussian_square(1.0 + 2.0im, 1024.0ns, 128.0ns, 32.0ns);
- frame temp_frame = newframe(d1, FloatLiteral(span=None, value=5000000000.0), FloatLiteral(span=None, value=0.0), 0ns);
+ waveform wf1 = gaussian_square(amp, 1024.0ns, 128.0ns, 32.0ns);
+ waveform wf2 = gaussian_square(amp, 1024.0ns, 128.0ns, 32.0ns);
+ frame temp_frame = newframe(d1, get_frequency(frame0), get_phase(frame0));
  play(frame0, wf1);
  play(temp_frame, wf2);
 }
+"""
+    module = loads(qasm_str)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_geometric_gate():
+    qasm_str = """
+    OPENQASM 3.0;
+	 defcalgrammar "openpulse";
+	 qubit q;
+	 cal {
+		 port dq;
+		 float fq_01 = 5e9; // hardcode or pull from some function
+		 float anharm = 300e6; // hardcode or pull from some function
+		 frame frame_01 = newframe(dq, fq_01, 0.0);
+		 frame frame_12 = newframe(dq, fq_01 + anharm, 0.0);
+	 }
+
+	 defcal geo_gate(angle[32] theta) q {
+		 // theta: rotation angle (about z-axis) on Bloch sphere
+		 // Assume we have calibrated 0->1 pi pulses and 1->2 pi pulse
+		 // envelopes (no sideband)
+		 waveform X_01 = gaussian(1.0 + 2.0im, 10.0ns, 0.1ns);
+		 waveform X_12 = gaussian(1.0 + 2.0im, 10.0ns, 0.1ns);
+		 float[32] a = sin(theta/2);
+		 float[32] b = sqrt(1-a**2);
+
+		 // Double-tap
+		 play(frame_01, scale(X_01, a));
+		 play(frame_12, scale(X_12, b));
+		 play(frame_01, scale(X_01, a));
+		 play(frame_12, scale(X_12, b));
+	 }
+	 geo_gate(pi/2) q;
+
+    """
+
+    expected_qasm = """OPENQASM 3.0;
+qubit[1] __PYQASM_QUBITS__;
+defcalgrammar "openpulse";
+cal {
+ port dq;
+ float[32] fq_01 = 5000000000.0;
+ float anharm = 300000000.0;
+ frame frame_01 = newframe(dq, 5000000000.0, 0.0, 0ns);
+ frame frame_12 = newframe(dq, 5300000000.0, 0.0, 0ns);
+}
+defcal geo_gate(angle[32] theta) q {
+ waveform X_01 = gaussian(1.0 + 2.0im, 10.0ns, 0.1ns);
+ waveform X_12 = gaussian(1.0 + 2.0im, 10.0ns, 0.1ns);
+ float[32] a = sin(theta / 2);
+ float[32] b = sqrt(1 - a ** 2);
+ play(frame_01, scale(X_01, a));
+ play(frame_12, scale(X_12, b));
+ play(frame_01, scale(X_01, a));
+ play(frame_12, scale(X_12, b));
+}
+geo_gate(1.5707963267948966) __PYQASM_QUBITS__[0];
 """
     module = loads(qasm_str)
     module.unroll()

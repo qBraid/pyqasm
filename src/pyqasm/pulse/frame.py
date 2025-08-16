@@ -101,7 +101,7 @@ class FrameValidator:
         frame_limit_per_port = self._pulse_visitor._frame_limit_per_port
         ports_usage = self._pulse_visitor._ports_usage
         port_arg = frame_args[0]
-        if not isinstance(port_arg, qasm3_ast.Identifier):
+        if isinstance(port_arg, qasm3_ast.Identifier):
             _id_port_var_obj = self._get_identifier(statement, port_arg)
             if _id_port_var_obj is None:
                 raise_qasm3_error(
@@ -110,7 +110,6 @@ class FrameValidator:
                     error_node=statement,
                     span=statement.span,
                 )
-            port_arg = _id_port_var_obj.name
             ports_usage[port_arg.name] = ports_usage.get(port_arg.name, 0) + 1
 
             if ports_usage[port_arg.name] > frame_limit_per_port:
@@ -137,22 +136,24 @@ class FrameValidator:
                     is_constant=True,
                 )
                 self._pulse_visitor._openpulse_scope_manager.add_var_in_scope(_id_freq_var_obj)
-            if not getattr(_id_freq_var_obj, "is_constant", False) or not isinstance(
-                _id_freq_var_obj.base_type, qasm3_ast.FloatType
-            ):
+            if not isinstance(_id_freq_var_obj.base_type, qasm3_ast.FloatType):
                 raise_qasm3_error(
-                    f"Frequency argument '{freq_arg.name}' must be a constant float",
+                    f"Frequency argument '{freq_arg.name}' must be a float type",
                     error_node=statement,
                     span=statement.span,
                 )
             freq_arg_value = _id_freq_var_obj.value
             freq_arg_type = _id_freq_var_obj.base_type
-            freq_arg_type.size = getattr(_id_freq_var_obj, "base_size", None)
+            _size = getattr(_id_freq_var_obj, "base_size", None)
+            if _size is not None:
+                freq_arg_type.size = qasm3_ast.IntegerLiteral(_size)
         elif isinstance(freq_arg, qasm3_ast.FloatLiteral):
             freq_arg_value = freq_arg.value
         elif isinstance(freq_arg, qasm3_ast.FunctionCall):
             if freq_arg.name.name == "get_frequency":
                 freq_arg_value = self._pulse_visitor._visit_function_call(freq_arg)[0]
+        elif isinstance(freq_arg, qasm3_ast.BinaryExpression):
+            freq_arg_value, _ = Qasm3ExprEvaluator.evaluate_expression(freq_arg)
         else:
             raise_qasm3_error(
                 f"Invalid frequency argument '{freq_arg}' in frame",
@@ -182,7 +183,9 @@ class FrameValidator:
                     )
                 phase_arg_value = _id_phase_var_obj.value
                 phase_arg_type = _id_phase_var_obj.base_type
-                phase_arg_type.size = getattr(_id_phase_var_obj, "base_size", None)
+                _size = getattr(_id_phase_var_obj, "base_size", None)
+                if _size is not None:
+                    phase_arg_type.size = qasm3_ast.IntegerLiteral(_size)
         elif isinstance(
             phase_arg,
             (qasm3_ast.BinaryExpression, qasm3_ast.UnaryExpression, qasm3_ast.FloatLiteral),

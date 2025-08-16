@@ -1290,29 +1290,23 @@ class QasmVisitor:
             ctrls = []
         # This is a special register name, e.g., $0, $1, etc.
         # In OpenQASM 3, these are often used for implicit qubit registers.
-        if isinstance(operation, qasm3_ast.QuantumGate):
-            for i, qubit in enumerate(operation.qubits):
-                qubit_id = qubit.name.name if hasattr(qubit.name, "name") else qubit.name
-                if qubit_id.startswith("$") and qubit_id[1:].isdigit():
-                    if operation.name.name not in self._openpulse_qubit_map:
-                        raise_qasm3_error(
-                            f"Openpulse gate '{operation.name.name}' not "
-                            "found in calibration definition",
-                            error_node=operation,
-                            span=operation.span,
-                        )
-                    if qubit_id not in self._openpulse_qubit_map[operation.name.name]:
-                        raise_qasm3_error(
-                            f"Invalid qubit '{qubit_id}' for gate '{operation.name.name}'",
-                            error_node=operation,
-                            span=operation.span,
-                        )
-                    operation.qubits[i] = qasm3_ast.IndexedIdentifier(
-                        name=qasm3_ast.Identifier("__PYQASM_QUBITS__"),
-                        indices=[[qasm3_ast.IntegerLiteral(int(qubit_id[1:]))]],
-                    )
-            if operation.name.name in self._openpulse_qubit_map:
-                return [operation]
+        if isinstance(operation, qasm3_ast.QuantumGate) and (
+            operation.name.name in self._openpulse_qubit_map
+        ):
+            gate_op = operation.name.name
+            gate_def = self._subroutine_defns[gate_op]
+            operation = PulseValidator.validate_openpulse_gate_parameters(
+                operation,
+                gate_op,
+                gate_def,
+                self._pulse_visitor,
+                self._scope_manager,
+                self._module,
+            )
+            stmts = PulseUtils.process_qubits_for_openpulse_gate(
+                operation, gate_op, self._openpulse_qubit_map, self._global_qreg_size_map
+            )
+            return stmts  # type: ignore
 
         self._in_generic_gate_op_scope += 1
 
@@ -1811,7 +1805,7 @@ class QasmVisitor:
             lvar_name = lvar_name.name
 
         lvar = self._scope_manager.get_from_visible_scope(lvar_name)
-        if self._scope_manager.in_pulse_scope():
+        if lvar is None and self._scope_manager.in_pulse_scope():
             lvar = self._pulse_visitor._get_identifier(statement, lvar_name)
         if lvar is None:  # we check for none here, so type errors are irrelevant afterwards
             raise_qasm3_error(
@@ -2844,8 +2838,12 @@ class QasmVisitor:
             raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
 
         result = []
-        if statement.name.name not in self._openpulse_qubit_map:
-            self._openpulse_qubit_map[statement.name.name] = set()
+        if statement.name.name in self._openpulse_qubit_map:
+            raise_qasm3_error(
+                f"Calibration definition '{statement.name.name}' already defined",
+                error_node=statement,
+                span=statement.span,
+            )
         if len(self._global_qreg_size_map) > 1:
             raise_qasm3_error(
                 "Openpulse program supports only one global qubit register. "
@@ -2853,29 +2851,55 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
-        for qubit in statement.qubits:
-            if isinstance(qubit, qasm3_ast.Identifier):
-                if qubit.name.startswith("$") and qubit.name[1:].isdigit():
-                    self._openpulse_qubit_map[statement.name.name].add(qubit.name)
-                    self._total_pulse_qubits = max(
-                        self._total_pulse_qubits, int(qubit.name[1:]) + 1
-                    )
-                elif qubit.name not in self._global_qreg_size_map:
-                    raise_qasm3_error(
-                        f"Qubit register '{qubit.name}' is not declared",
-                        error_node=statement,
-                        span=statement.span,
-                    )
-                else:
-                    reg_size = self._global_qreg_size_map[qubit.name]
-                    self._openpulse_qubit_map[statement.name.name].update(
-                        f"${i}" for i in range(reg_size)
-                    )
+        self._openpulse_qubit_map[statement.name.name] = set()
+        self._subroutine_defns[statement.name.name] = statement  # type: ignore[assignment]
+        arg_vars = []
+        for arg in getattr(statement, "arguments", []) or []:
+            if isinstance(arg, qasm3_ast.ClassicalArgument) and isinstance(
+                arg.name, qasm3_ast.Identifier
+            ):
+                base_size = self._check_variable_type_size(
+                    statement,
+                    arg.name.name,
+                    var_format="variable",
+                    base_type=arg.type,
+                )
+                var = Variable(
+                    name=arg.name.name,
+                    value=0.0,
+                    base_type=arg.type,
+                    base_size=base_size,
+                )
+                self._scope_manager.add_var_in_scope(var)
+                arg_vars.append(var)
 
-        calibration_stmts: list[qasm3_ast.Statement] = block_body.body
+        for qubit in statement.qubits:
+            if not isinstance(qubit, qasm3_ast.Identifier):
+                continue
+            name = qubit.name
+            if name.startswith("$") and name[1:].isdigit():
+                self._openpulse_qubit_map[statement.name.name].add(name)
+                self._total_pulse_qubits = max(self._total_pulse_qubits, int(name[1:]) + 1)
+            elif name in self._global_qreg_size_map:
+                reg_size = self._global_qreg_size_map[name]
+                self._openpulse_qubit_map[statement.name.name].update(
+                    f"${i}" for i in range(reg_size)
+                )
+            else:
+                raise_qasm3_error(
+                    f"Qubit register '{name}' is not declared",
+                    error_node=statement,
+                    span=statement.span,
+                )
+
+        calibration_stmts: list[qasm3_ast.Statement] = copy.deepcopy(block_body.body)
         for stmt in calibration_stmts:
             stmt.span.start_line = statement.span.start_line  # type: ignore
         result.extend(self._pulse_visitor.visit_basic_block(calibration_stmts, is_def_cal=True))
+
+        for var in arg_vars:
+            self._openpulse_scope_manager.remove_var_from_curr_scope(var)
+
         if len(result) == 0:
             return []
 
@@ -2890,7 +2914,7 @@ class QasmVisitor:
         sys.stdout = captured_output
 
         try:
-            body_str = PulseUtils.format_calibration_body(result)
+            body_str = PulseUtils.format_calibration_body(block_body.body)
             _ = captured_output.getvalue()
         finally:
             # Restore stdout

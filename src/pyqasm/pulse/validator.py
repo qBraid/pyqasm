@@ -19,6 +19,7 @@ Module with validation functions for Pulse visitor
 from typing import Any, Optional
 
 import numpy as np
+import openqasm3.ast as qasm3_ast
 from openqasm3.ast import (
     BinaryExpression,
     BinaryOperator,
@@ -45,6 +46,7 @@ from openqasm3.ast import (
 )
 
 from pyqasm.exceptions import raise_qasm3_error
+from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
 
@@ -294,6 +296,99 @@ class PulseValidator:
         )
 
     @staticmethod
+    def validate_openpulse_gate_parameters(  # pylint: disable=too-many-arguments
+        operation: Any,
+        gate_op: str,
+        gate_def: Any,
+        pulse_visitor: Any,
+        scope_manager: Any,
+        module: Any,
+    ) -> Any:
+        """
+        Validate and process parameters for OpenPulse gates.
+
+        Args:
+            operation: The quantum gate operation to validate
+            gate_op: The name of the gate operation
+            gate_def: The gate definition containing formal arguments
+            pulse_visitor: The pulse visitor instance
+            scope_manager: The scope manager instance
+            module: The module instance
+
+        Returns:
+            The validated and processed operation
+
+        Raises:
+            Qasm3Error: If parameter count or type mismatch occurs
+        """
+        if len(gate_def.arguments) != len(operation.arguments):
+            raise_qasm3_error(
+                f"Parameter count mismatch for gate '{gate_op}'. "
+                f"Expected {len(gate_def.arguments)} arguments, but "
+                f" got {len(operation.arguments)} instead.",
+                error_node=operation,
+                span=operation.span,
+            )
+
+        for j, (formal_arg, actual_arg) in enumerate(zip(gate_def.arguments, operation.arguments)):
+            assert isinstance(formal_arg, qasm3_ast.ClassicalArgument)
+            if isinstance(actual_arg, qasm3_ast.Identifier):
+                arg_obj = pulse_visitor._get_identifier(operation, actual_arg)
+                formal_arg_size = pulse_visitor._check_variable_type_size(
+                    formal_arg, formal_arg.name.name, "variable", formal_arg.type
+                )
+                if not (
+                    isinstance(arg_obj.base_type, type(formal_arg.type))
+                    and arg_obj.base_size == formal_arg_size
+                ):
+                    raise_qasm3_error(
+                        f"Parameter type mismatch for gate '{gate_op}'. "
+                        f"Expected '{type(formal_arg.type).__name__}[{formal_arg_size}]', "
+                        f"but got '{type(arg_obj.base_type).__name__}[{arg_obj.base_size}]'.",
+                        error_node=operation,
+                        span=operation.span,
+                    )
+
+                operation = PulseValidator.validate_and_process_extern_function_call(
+                    operation,
+                    scope_manager.get_global_scope(),
+                    module._device_cycle_time,
+                )
+            else:
+                val = Qasm3ExprEvaluator.evaluate_expression(actual_arg)[0]
+                valid = False
+                if isinstance(actual_arg, qasm3_ast.DurationLiteral):
+                    valid = isinstance(
+                        formal_arg.type, (qasm3_ast.DurationType, qasm3_ast.StretchType)
+                    )
+                elif isinstance(val, float) and isinstance(
+                    formal_arg.type, (qasm3_ast.FloatType, qasm3_ast.AngleType)
+                ):
+                    valid = True
+                    operation.arguments[j] = qasm3_ast.FloatLiteral(val)  # type: ignore
+                elif isinstance(val, int) and isinstance(
+                    formal_arg.type, (qasm3_ast.IntType, qasm3_ast.BoolType)
+                ):
+                    valid = True
+                    operation.arguments[j] = qasm3_ast.IntegerLiteral(val)  # type: ignore
+                elif isinstance(formal_arg.type, qasm3_ast.ComplexType) and isinstance(
+                    val, complex
+                ):
+                    valid = True
+                    operation.arguments[j] = (  # type: ignore
+                        PulseValidator.make_complex_binary_expression(val)
+                    )
+                if not valid:
+                    raise_qasm3_error(
+                        f"Invalid argument type '{type(actual_arg).__name__}' for "
+                        f"parameter '{formal_arg.name.name}' of gate '{gate_op}'",
+                        error_node=operation,
+                        span=operation.span,
+                    )
+
+        return operation
+
+    @staticmethod
     def validate_extern_declaration(module: Any, statement: ExternDeclaration) -> None:
         """
         Validates an extern declaration.
@@ -347,18 +442,18 @@ class PulseValidator:
 
     @staticmethod
     def validate_and_process_extern_function_call(  # pylint: disable=too-many-branches
-        statement: FunctionCall, global_scope: dict, device_cycle_time: float | None
-    ) -> FunctionCall:
+        statement: Any, global_scope: dict, device_cycle_time: float | None
+    ) -> Any:
         """Validate and process extern function arguments
         by converting them to appropriate literals.
 
         Args:
-            statement: The function call statement to process
+            statement: The statement to process
             global_scope: The global scope of the module
             device_cycle_time: The device cycle time of the module
 
         Returns:
-            The validated and processed function call statement
+            The validated and processed statement
 
         Raises:
             ValidationError: If the function call is invalid

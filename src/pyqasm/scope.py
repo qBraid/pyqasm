@@ -258,6 +258,14 @@ class ScopeManager:
             raise ValueError(f"Variable '{variable.name}' already exists in current scope")
         curr_scope[variable.name] = variable
 
+    def remove_var_from_curr_scope(self, variable: Variable) -> None:
+        """
+        Remove a variable from the current scope.
+        """
+        curr_scope = self.get_curr_scope()
+        if variable.name in curr_scope:
+            del curr_scope[variable.name]
+
     def update_var_in_scope(self, variable: Variable) -> None:
         """
         Update the variable in the current scope.
