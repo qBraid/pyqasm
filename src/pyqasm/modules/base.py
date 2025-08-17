@@ -93,6 +93,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._device_cycle_time: Optional[int] = None
         self._compiler_angle_type_size: Optional[int] = None
         self._extern_functions: dict[str, tuple[list[str], str]] = {}
+        self._frame_in_def_cal: Optional[bool] = True
+        self._frame_limit_per_port: Optional[int] = None
+        self._play_in_cal: Optional[bool] = True
+        self._implicit_phase_tracking: Optional[bool] = False
 
     @property
     def name(self) -> str:

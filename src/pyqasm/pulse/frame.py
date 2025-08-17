@@ -98,7 +98,7 @@ class FrameValidator:
             Tuple of (port_name, freq_value, freq_type, phase_value, phase_type, time_value)
         """
         # Port argument
-        frame_limit_per_port = self._pulse_visitor._frame_limit_per_port
+        frame_limit_per_port = self._pulse_visitor._module._frame_limit_per_port
         ports_usage = self._pulse_visitor._ports_usage
         port_arg = frame_args[0]
         if isinstance(port_arg, qasm3_ast.Identifier):
@@ -112,7 +112,7 @@ class FrameValidator:
                 )
             ports_usage[port_arg.name] = ports_usage.get(port_arg.name, 0) + 1
 
-            if ports_usage[port_arg.name] > frame_limit_per_port:
+            if frame_limit_per_port and ports_usage[port_arg.name] > frame_limit_per_port:
                 raise_qasm3_error(
                     f"Port '{port_arg.name}' has exceeded the "
                     f"frame limit of {frame_limit_per_port}",

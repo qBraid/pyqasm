@@ -70,14 +70,7 @@ class OpenPulseVisitor:
         self._openpulse_scope_manager = qasm_visitor._openpulse_scope_manager
         self._check_only: bool = check_only
         self._ports_usage: dict[str, int] = {}
-        self._port_to_qubit_map: dict[str, list[int]] = {}
         self._is_def_cal: bool = False
-        self._frame_in_def_cal: bool = True  # yet to be implemented
-        self._frame_limit_per_port: int = 5  # yet to be implemented
-        self._play_in_cal: bool = (
-            True  # yet to be implemented, init with fales, true is for debug purpose
-        )
-        self._implicit_phase_tracking: bool = False  # yet to be implemented
         self._temp_waveform: Waveform | None = None  # type: ignore
         self._current_block_time: qasm3_ast.DurationLiteral = qasm3_ast.DurationLiteral(
             0,
@@ -515,13 +508,6 @@ class OpenPulseVisitor:
             if statement.identifier:
                 _port_name = statement.identifier.name
                 self._check_identifier(statement, statement.identifier)
-                if _port_name in self._port_to_qubit_map:
-                    raise_qasm3_error(
-                        f"Port '{_port_name}' already declared",
-                        error_node=statement,
-                        span=statement.span,
-                    )
-                self._port_to_qubit_map[_port_name] = []
                 self._openpulse_scope_manager.add_var_in_scope(
                     Variable(
                         name=_port_name,
@@ -709,13 +695,12 @@ class OpenPulseVisitor:
                 )
 
         if function_name == "newframe":
-            if self._is_def_cal and not self._frame_in_def_cal:
+            if self._is_def_cal and not self._module._frame_in_def_cal:
                 raise_qasm3_error(
                     "Frame initialization in defcal block is not allowed",
                     error_node=statement,
                     span=statement.span,
                 )
-            self._frame_in_def_cal = True
             time_unit = (
                 qasm3_ast.TimeUnit.dt if self._module._device_cycle_time else qasm3_ast.TimeUnit.ns
             )
@@ -724,7 +709,7 @@ class OpenPulseVisitor:
             )
 
         if statement.name.name == "play":
-            if not self._is_def_cal and not self._play_in_cal:
+            if not self._is_def_cal and not self._module._play_in_cal:
                 raise_qasm3_error(
                     "Play function is only allowed in defcal block",
                     error_node=statement,
@@ -738,7 +723,7 @@ class OpenPulseVisitor:
                 statement, frame_obj.name, waveform_duration.total_duration.value
             )
             # implicit phase tracking
-            if self._implicit_phase_tracking:
+            if self._module._implicit_phase_tracking:
                 _curr_freq = self._get_phase_frequency(
                     statement, frame_arg.name, get_frequency=True  # type: ignore
                 )
