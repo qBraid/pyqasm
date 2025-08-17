@@ -215,7 +215,8 @@ class OpenPulseVisitor:
                 frame_obj.phase = phase.value
             if shift_phase:
                 frame_obj.phase = (frame_obj.phase + phase.value) % (2 * CONSTANTS_MAP["pi"])
-        # statement.arguments[1] = qasm3_ast.FloatLiteral(frame_obj.phase)
+
+        statement.arguments[1] = qasm3_ast.FloatLiteral(frame_obj.phase)
 
     def _set_shift_frequency(  # pylint: disable=too-many-arguments
         self,
@@ -278,14 +279,14 @@ class OpenPulseVisitor:
         return qasm3_ast.FloatLiteral(0)
 
     def _check_waveform_functions(
-        self, statement: Any, wf_func_name: str, waveform_name: Optional[str] = None
+        self, statement: Any, wf_func_name: str, waveform_name: Optional[str | Any] = None
     ) -> None:
         """Validate the waveform functions.
 
         Args:
             statement (Any): The statement that is calling the function.
             wf_func_name (str): The name of the waveform function.
-            waveform_name (Optional[str]): The name of the waveform.
+            waveform_name (Optional[str|Any]): The name or index identifier of the waveform.
         """
         # Use a dispatch dictionary to mimic the structure of visit statement
         waveform_validators = {
@@ -400,7 +401,7 @@ class OpenPulseVisitor:
 
         return [barrier]
 
-    def _visit_classical_assignment(
+    def _visit_classical_assignment(  # pylint: disable=too-many-branches
         self, statement: qasm3_ast.ClassicalAssignment
     ) -> list[qasm3_ast.Statement]:
         """Visit a classical assignment element.
@@ -413,6 +414,13 @@ class OpenPulseVisitor:
         if isinstance(l_value, qasm3_ast.Identifier):
             arg_obj = self._get_identifier(statement, l_value)
             lvar_name = l_value.name
+        if isinstance(l_value, qasm3_ast.IndexedIdentifier):
+            arg_obj = self._get_identifier(statement, l_value.name)
+            lvar_name = l_value.name.name
+            assert isinstance(l_value.indices[0], list)
+            bit_id = Qasm3ExprEvaluator.evaluate_expression(l_value.indices[0][0])[0]
+            lvar_name = f"{lvar_name}[{bit_id}]"
+
         return_value = None
         if isinstance(r_value, qasm3_ast.FunctionCall):
             f_name = r_value.name.name
@@ -425,7 +433,7 @@ class OpenPulseVisitor:
             elif f_name in OPENPULSE_WAVEFORM_FUNCTION_MAP:
                 if not isinstance(arg_obj, Waveform):
                     raise_qasm3_error(
-                        f"Invalid return type '{type(arg_obj).__name__}' "
+                        f"Invalid return type '{type(arg_obj.base_type).__name__}' "
                         f"for function '{f_name}'",
                         error_node=statement,
                         span=statement.span,
@@ -469,6 +477,15 @@ class OpenPulseVisitor:
                     r_value.arguments[1] = qasm3_ast.FloatLiteral(freq_arg_value)  # type: ignore
                     r_value.arguments[2] = qasm3_ast.FloatLiteral(phase_arg_value)  # type: ignore
                     r_value.arguments[3] = self._current_block_time  # type: ignore
+            elif f_name in OPENPULSE_CAPTURE_FUNCTION_MAP:
+                PulseValidator.validate_capture_function_return_type(
+                    r_value, f_name, arg_obj.base_type
+                )
+                if f_name == "capture_v2" and isinstance(l_value, qasm3_ast.IndexedIdentifier):
+                    self._openpulse_scope_manager.add_var_in_scope(
+                        Capture(name=lvar_name, frame=None)
+                    )
+                self._check_waveform_functions(statement.rvalue, f_name, lvar_name)
             elif f_name in FUNCTION_MAP:
                 self._qasm_visitor.visit_statement(statement)
         else:
@@ -705,6 +722,7 @@ class OpenPulseVisitor:
             _return_value = self._frame_validator.validate_newframe_arguments(
                 statement, stmt_args, time_unit
             )
+
         if statement.name.name == "play":
             if not self._is_def_cal and not self._play_in_cal:
                 raise_qasm3_error(
@@ -783,11 +801,26 @@ class OpenPulseVisitor:
             else:
                 result.extend(visitor_function(statement))  # type: ignore[operator]
         else:
-            raise_qasm3_error(
-                f"Unsupported statement of type {type(statement)}",
-                error_node=statement,
-                span=statement.span,
-            )
+            if isinstance(statement, qasm3_ast.ReturnStatement):
+                if statement.expression:
+                    if isinstance(statement.expression, qasm3_ast.Identifier):
+                        if (
+                            not statement.expression.name
+                            in self._openpulse_scope_manager.get_curr_scope()
+                        ):
+                            raise_qasm3_error(
+                                f"Return Variable '{statement.expression.name}' not "
+                                "declared in OpenPulse scope",
+                                error_node=statement,
+                                span=statement.span,
+                            )
+                        result.append(statement)
+            else:
+                raise_qasm3_error(
+                    f"Unsupported statement of type {type(statement)}",
+                    error_node=statement,
+                    span=statement.span,
+                )
         return result
 
     def visit_basic_block(

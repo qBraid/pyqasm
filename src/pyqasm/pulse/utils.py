@@ -91,7 +91,7 @@ class PulseUtils:
                     name=qasm3_ast.Identifier("__PYQASM_QUBITS__"),
                     indices=[[qasm3_ast.IntegerLiteral(int(qubit_id[1:]))]],
                 )
-                stmts.append(operation)
+                stmts = [operation]
             elif qubit_id in global_qreg_size_map:
                 stmts.extend(
                     qasm3_ast.QuantumGate(

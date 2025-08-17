@@ -196,7 +196,7 @@ class FrameValidator:
                 phase_arg_value = self._pulse_visitor._visit_function_call(phase_arg)[0]
         else:
             raise_qasm3_error(
-                f"Invalid Phase argument '{phase_arg}' in frame",
+                f"Invalid Phase argument '{type(phase_arg).__name__}' in frame",
                 error_node=statement,
                 span=statement.span,
             )

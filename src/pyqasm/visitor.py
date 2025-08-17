@@ -2153,7 +2153,7 @@ class QasmVisitor:
                 else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
             )
             endval = Qasm3ExprEvaluator.evaluate_expression(range_def.end)[0]
-            irange = list(range(startval, endval + stepval, stepval))
+            irange = list(range(int(startval), int(endval) + int(stepval), int(stepval)))
         elif isinstance(statement.set_declaration, qasm3_ast.DiscreteSet):
             init_exp = statement.set_declaration.values[0]
             irange = [
@@ -2676,7 +2676,12 @@ class QasmVisitor:
         _delay_time_var = statement.duration
         global_scope = self._scope_manager.get_global_scope()
         curr_scope = self._scope_manager.get_curr_scope()
-        # validate the time variable assigned to delay operation
+        # If curr_scope is pulse scope, mix the pulse scope and scope before pulse into curr_scope
+        if self._scope_manager.in_pulse_scope():
+            if len(self._scope_manager._context) > 2:
+                if self._scope_manager._context[-2] != Context.GLOBAL:
+                    curr_scope.update(self._scope_manager._scope[-2])
+
         PulseValidator.validate_duration_variable(
             _delay_time_var, statement, global_scope, curr_scope
         )
@@ -2838,12 +2843,6 @@ class QasmVisitor:
             raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
 
         result = []
-        if statement.name.name in self._openpulse_qubit_map:
-            raise_qasm3_error(
-                f"Calibration definition '{statement.name.name}' already defined",
-                error_node=statement,
-                span=statement.span,
-            )
         if len(self._global_qreg_size_map) > 1:
             raise_qasm3_error(
                 "Openpulse program supports only one global qubit register. "
@@ -2851,10 +2850,11 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
-        self._openpulse_qubit_map[statement.name.name] = set()
+        if statement.name.name not in self._openpulse_qubit_map:
+            self._openpulse_qubit_map[statement.name.name] = set()
         self._subroutine_defns[statement.name.name] = statement  # type: ignore[assignment]
         arg_vars = []
-        for arg in getattr(statement, "arguments", []) or []:
+        for i, arg in enumerate(getattr(statement, "arguments", []) or []):
             if isinstance(arg, qasm3_ast.ClassicalArgument) and isinstance(
                 arg.name, qasm3_ast.Identifier
             ):
@@ -2872,6 +2872,10 @@ class QasmVisitor:
                 )
                 self._scope_manager.add_var_in_scope(var)
                 arg_vars.append(var)
+            else:
+                statement.arguments[i] = qasm3_ast.FloatLiteral(
+                    Qasm3ExprEvaluator.evaluate_expression(arg)[0]
+                )
 
         for qubit in statement.qubits:
             if not isinstance(qubit, qasm3_ast.Identifier):
@@ -2902,6 +2906,20 @@ class QasmVisitor:
 
         if len(result) == 0:
             return []
+
+        if statement.return_type and isinstance(result[-1], qasm3_ast.ReturnStatement):
+            return_stmt = result[-1]
+            assert isinstance(return_stmt.expression, qasm3_ast.Identifier)
+            _retrun_obj = self._openpulse_scope_manager.get_from_visible_scope(
+                return_stmt.expression.name
+            )
+            if _retrun_obj and not isinstance(_retrun_obj.base_type, type(statement.return_type)):
+                raise_qasm3_error(
+                    f"Return type '{type(_retrun_obj.base_type).__name__}' does not match "
+                    f"declaration type '{type(statement.return_type).__name__}'",
+                    error_node=return_stmt,
+                    span=return_stmt.span,
+                )
 
         self._scope_manager.pop_scope()
         self._scope_manager.restore_context()
