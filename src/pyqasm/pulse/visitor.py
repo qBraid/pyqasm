@@ -189,7 +189,7 @@ class OpenPulseVisitor:
             _phase_arg_obj = self._get_identifier(statement, phase)
             if (
                 not isinstance(frame_obj.phase_type, type(_phase_arg_obj.base_type))
-                or _phase_arg_obj.base_size != frame_obj.phase_type.size
+                or _phase_arg_obj.base_size != frame_obj.phase_type.size.value
             ):
                 raise_qasm3_error(
                     f"Phase argument '{phase.name}' must be a AngleType "
@@ -382,7 +382,9 @@ class OpenPulseVisitor:
         """
         if barrier.qubits:
             for qubit in barrier.qubits:
-                if isinstance(qubit, qasm3_ast.Identifier):
+                if isinstance(qubit, qasm3_ast.Identifier) and not (
+                    qubit.name.startswith("$") and qubit.name[1:].isdigit()
+                ):
                     frame = self._openpulse_scope_manager.get_from_global_scope(qubit.name)
                     if frame is None:
                         raise_qasm3_error(
@@ -391,6 +393,8 @@ class OpenPulseVisitor:
                             span=barrier.span,
                         )
                     frame.time = self._current_block_time
+                else:
+                    self._qasm_visitor._visit_barrier(barrier)
 
         return [barrier]
 
@@ -774,6 +778,7 @@ class OpenPulseVisitor:
             qasm3_ast.DelayInstruction: self._qasm_visitor._visit_delay_statement,
             qasm3_ast.ClassicalAssignment: self._visit_classical_assignment,
             qasm3_ast.ConstantDeclaration: self._visit_classical_declaration,
+            qasm3_ast.QuantumGate: self._qasm_visitor._visit_generic_gate_operation,
         }
 
         visitor_function = visit_map.get(type(statement))

@@ -709,13 +709,19 @@ class QasmVisitor:
         Returns:
             None
         """
-        if isinstance(barrier.qubits[0], qasm3_ast.Identifier):
-            if barrier.qubits[0].name.startswith("$") and barrier.qubits[0].name[1:].isdigit():
-                raise_qasm3_error(
-                    "Barrier on pulse qubits is not supported",
-                    error_node=barrier,
-                    span=barrier.span,
-                )
+        valid_open_pulse_qubits = False
+        for op_qubit in barrier.qubits:
+            if isinstance(op_qubit, qasm3_ast.Identifier):
+                if op_qubit.name.startswith("$") and op_qubit.name[1:].isdigit():
+                    if int(op_qubit.name[1:]) >= self._total_pulse_qubits:
+                        raise_qasm3_error(
+                            f"Invalid pulse qubit index `{op_qubit.name}` on barrier",
+                            error_node=barrier,
+                            span=barrier.span,
+                        )
+                    valid_open_pulse_qubits = True
+        if valid_open_pulse_qubits:
+            return [barrier]
         # if barrier is applied to ALL qubits at once, we are fine
         if len(self._function_qreg_size_map) > 0:  # atleast in SOME function scope
             # we have multiple function scopes, so we need to transform the qubits
