@@ -19,14 +19,14 @@ It is used to validate the OpenPulse expressions and to generate the OpenPulse c
 
 """
 
-OPENPULSE_FRAME_FUNCTION_MAP = [
+OPENPULSE_FRAME_FUNCTION_MAP = {
     "set_phase",
     "shift_phase",
     "set_frequency",
     "shift_frequency",
-]
+}
 
-OPENPULSE_WAVEFORM_FUNCTION_MAP = [
+OPENPULSE_WAVEFORM_FUNCTION_MAP = {
     "gaussian",
     "sech",
     "gaussian_square",
@@ -38,11 +38,11 @@ OPENPULSE_WAVEFORM_FUNCTION_MAP = [
     "phase_shift",
     "scale",
     "capture_v3",
-]
+}
 
-OPENPULSE_CAPTURE_FUNCTION_MAP = [
+OPENPULSE_CAPTURE_FUNCTION_MAP = {
     "capture_v1",
     "capture_v2",
     "capture_v3",
     "capture_v4",
-]
+}

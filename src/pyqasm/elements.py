@@ -158,6 +158,7 @@ class Waveform:  # pylint: disable=too-many-instance-attributes
         waveforms (Optional[list[Any]]): The waveforms of the waveform.
         amp_factor (Optional[Any]): The amplitude factor of the waveform.
         is_constant (Optional[bool]): Flag indicating if the waveform is constant.
+        frames (Optional[list[Any]]): The frames of the waveform.
     """
 
     name: str
@@ -171,6 +172,7 @@ class Waveform:  # pylint: disable=too-many-instance-attributes
     waveforms: Optional[list[Any]] = None
     amp_factor: Optional[Any] = None
     is_constant: Optional[bool] = False
+    frames: Optional[list[Any]] = None
 
 
 @dataclass(slots=True)
