@@ -1602,7 +1602,7 @@ class QasmVisitor:
                     if isinstance(base_type, qasm3_ast.AngleType) and not self._in_extern_function:
                         init_value, angle_val_bit_string = PulseValidator.validate_angle_type_value(
                             statement,
-                            init_value=init_value,
+                            init_value=init_value,  # type: ignore[arg-type]
                             base_size=base_size,
                             compiler_angle_width=self._module._compiler_angle_type_size,
                         )
@@ -1927,9 +1927,6 @@ class QasmVisitor:
 
         result = []
         condition = statement.condition
-
-        if not statement.if_block:
-            raise_qasm3_error("Missing if block", error_node=statement, span=statement.span)
 
         if Qasm3ExprEvaluator.classical_register_in_expr(condition):
             # leave this condition as is, and start unrolling the block
