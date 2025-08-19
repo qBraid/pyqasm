@@ -117,7 +117,7 @@ class Variable:  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass(slots=True)
-class Frame:
+class Frame: # pylint: disable=too-many-instance-attributes
     """
     Class representing a frame in OpenPulse.
 
