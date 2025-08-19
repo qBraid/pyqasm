@@ -190,6 +190,11 @@ class WaveformValidator:
         )
         if waveform_name is not None:
             waveform_var.name = waveform_name
+            waveform_var.is_constant = (
+                self._pulse_visitor._openpulse_scope_manager.get_from_global_scope(
+                    waveform_name
+                ).is_constant
+            )
             self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(waveform_var)
         else:
             self._pulse_visitor._temp_waveform = waveform_var
@@ -740,8 +745,6 @@ class WaveformValidator:
             if waveform_name is not None:
                 capture_var.name = waveform_name
                 self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(capture_var)
-            else:
-                self._pulse_visitor._temp_waveform = capture_var
 
     def validate_capture_v1_v2_waveform(self, statement, waveform_name):
         """Validate capture_v1 and capture_v2 function calls.
@@ -786,5 +789,3 @@ class WaveformValidator:
         if waveform_name is not None:
             capture_var.name = waveform_name
             self._pulse_visitor._openpulse_scope_manager.update_var_in_scope(capture_var)
-        else:
-            self._pulse_visitor._temp_waveform = capture_var

@@ -101,14 +101,14 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         module._compiler_angle_type_size = compiler_angle_type_size
     if extern_functions := kwargs.get("extern_functions"):
         module._extern_functions = extern_functions
-    if frame_in_def_cal := kwargs.get("frame_in_def_cal"):
-        module._frame_in_def_cal = frame_in_def_cal
+    if "frame_in_def_cal" in kwargs:
+        module._frame_in_def_cal = kwargs["frame_in_def_cal"]
     if frame_limit_per_port := kwargs.get("frame_limit_per_port"):
         module._frame_limit_per_port = frame_limit_per_port
-    if play_in_cal := kwargs.get("play_in_cal_block"):
-        module._play_in_cal = play_in_cal
-    if implicit_phase_tracking := kwargs.get("implicit_phase_tracking"):
-        module._implicit_phase_tracking = implicit_phase_tracking
+    if "play_in_cal_block" in kwargs:
+        module._play_in_cal = kwargs["play_in_cal_block"]
+    if "implicit_phase_tracking" in kwargs:
+        module._implicit_phase_tracking = kwargs["implicit_phase_tracking"]
     return module
 
 

@@ -141,7 +141,7 @@ class OpenPulseVisitor:
         ) or self._qasm3_scope_manager.get_from_all_scopes(identifier.name)
         if _id_var_obj is None:
             raise_qasm3_error(
-                f"{type(_id_var_obj).__name__} '{identifier.name}' not declared",
+                f"Variable '{identifier.name}' is not declared",
                 error_node=statement,
                 span=statement.span,
             )
@@ -155,14 +155,14 @@ class OpenPulseVisitor:
         if isinstance(_id_var_obj, Waveform):
             if _id_var_obj.is_constant:
                 raise_qasm3_error(
-                    f"Waveform '{identifier.name}' is constant",
+                    f"Waveform '{identifier.name}' is constant, cannot be redeclared",
                     error_node=statement,
                     span=statement.span,
                 )
             return
         if _id_var_obj is not None:
             raise_qasm3_error(
-                f"{type(_id_var_obj).__name__} '{identifier.name}' is already declared",
+                f"Variable '{identifier.name}' is already declared",
                 error_node=statement,
                 span=statement.span,
             )
@@ -329,9 +329,7 @@ class OpenPulseVisitor:
 
         waveform_validators[wf_func_name]()
 
-    def _handle_scope_sync(
-        self, statement: Any, return_value: Any = None, is_assignment: bool = False
-    ) -> None:
+    def _handle_scope_sync(self, statement: Any, return_value: Any = None) -> None:
         """Handle synchronization between QASM and OpenPulse scopes.
 
         Args:
@@ -347,29 +345,17 @@ class OpenPulseVisitor:
         var_name, var_obj = list(qasm_scope.items())[-1]
         if not isinstance(var_obj, Variable):
             return
-        # Check scope conflicts based on operation type
-        if is_assignment:
-            # For assignment: variable must exist in pulse scope
-            if var_name not in pulse_scope:
-                raise_qasm3_error(
-                    f"Variable '{var_name}' not declared in OpenPulse scope",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            # Update existing variable
-            var_obj.value = return_value if return_value is not None else var_obj.value
-            self._openpulse_scope_manager.update_var_in_scope(var_obj)
-        else:
-            # For declaration: variable must NOT exist in pulse scope
-            if var_name in pulse_scope:
-                raise_qasm3_error(
-                    f"Variable '{var_name}' already declared in OpenPulse scope",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            # Add new variable
-            var_obj.value = return_value if return_value is not None else var_obj.value
-            self._openpulse_scope_manager.add_var_in_scope(var_obj)
+
+        # For declaration: variable must NOT exist in pulse scope
+        if var_name in pulse_scope:
+            raise_qasm3_error(
+                f"Variable '{var_name}' already declared in OpenPulse scope",
+                error_node=statement,
+                span=statement.span,
+            )
+        # Add new variable
+        var_obj.value = return_value if return_value is not None else var_obj.value
+        self._openpulse_scope_manager.add_var_in_scope(var_obj)
 
     def _visit_barrier(self, barrier: qasm3_ast.QuantumBarrier) -> list[qasm3_ast.QuantumBarrier]:
         """Visit a barrier statement element.
@@ -408,6 +394,7 @@ class OpenPulseVisitor:
         """
         r_value = statement.rvalue
         l_value = statement.lvalue
+        arg_obj = None
         if isinstance(l_value, qasm3_ast.Identifier):
             arg_obj = self._get_identifier(statement, l_value)
             lvar_name = l_value.name
@@ -417,20 +404,33 @@ class OpenPulseVisitor:
             assert isinstance(l_value.indices[0], list)
             bit_id = Qasm3ExprEvaluator.evaluate_expression(l_value.indices[0][0])[0]
             lvar_name = f"{lvar_name}[{bit_id}]"
-
+        if arg_obj and arg_obj.is_constant:
+            raise_qasm3_error(
+                f"Variable '{lvar_name}' is constant, cannot be reassigned",
+                error_node=statement,
+                span=statement.span,
+            )
         return_value = None
         if isinstance(r_value, qasm3_ast.FunctionCall):
             f_name = r_value.name.name
             if f_name in ["get_phase", "get_frequency"]:
                 self._frame_validator.validate_get_phase_freq_type(
-                    r_value, f_name, arg_obj.base_type
+                    r_value, f_name, arg_obj.base_type  # type: ignore
                 )
-                return_value, _ = self._visit_function_call(r_value)
+                return_value, _ = self._visit_function_call(r_value)  # type: ignore
                 statement.rvalue = return_value if return_value is not None else statement.rvalue
+                self._openpulse_scope_manager.update_var_in_scope(
+                    Variable(
+                        name=lvar_name,
+                        value=return_value,
+                        base_type=arg_obj.base_type,  # type: ignore
+                        base_size=arg_obj.base_size,  # type: ignore
+                    )
+                )
             elif f_name in OPENPULSE_WAVEFORM_FUNCTION_MAP:
                 if not isinstance(arg_obj, Waveform):
                     raise_qasm3_error(
-                        f"Invalid return type '{type(arg_obj.base_type).__name__}' "
+                        f"Invalid return type '{type(arg_obj.base_type).__name__}' "  # type: ignore
                         f"for function '{f_name}'",
                         error_node=statement,
                         span=statement.span,
@@ -439,7 +439,7 @@ class OpenPulseVisitor:
             elif f_name in ["newframe"]:
                 if not isinstance(arg_obj, Frame):
                     raise_qasm3_error(
-                        f"Invalid return type '{type(arg_obj).__name__}' "
+                        f"Invalid return type '{type(arg_obj.base_type).__name__}' "  # type: ignore
                         f"for function '{f_name}'",
                         error_node=statement,
                         span=statement.span,
@@ -476,7 +476,7 @@ class OpenPulseVisitor:
                     r_value.arguments[3] = self._current_block_time  # type: ignore
             elif f_name in OPENPULSE_CAPTURE_FUNCTION_MAP:
                 PulseValidator.validate_capture_function_return_type(
-                    r_value, f_name, arg_obj.base_type
+                    r_value, f_name, arg_obj.base_type  # type: ignore
                 )
                 if f_name == "capture_v2" and isinstance(l_value, qasm3_ast.IndexedIdentifier):
                     self._openpulse_scope_manager.add_var_in_scope(
@@ -487,7 +487,6 @@ class OpenPulseVisitor:
                 self._qasm_visitor.visit_statement(statement)
         else:
             self._qasm_visitor._visit_classical_assignment(statement)
-        self._handle_scope_sync(statement, return_value, True)
 
         return [statement]
 
@@ -601,6 +600,7 @@ class OpenPulseVisitor:
                                 total_duration=qasm3_ast.DurationLiteral(
                                     0.0, unit=qasm3_ast.TimeUnit.ns
                                 ),
+                                is_constant=isinstance(statement, qasm3_ast.ConstantDeclaration),
                             )
                         )
                     self._check_waveform_functions(
@@ -616,8 +616,19 @@ class OpenPulseVisitor:
                 _id = statement.identifier
                 _type = statement.type
                 if f_name in ["get_phase", "get_frequency"]:
-                    self._frame_validator.validate_get_phase_freq_type(statement, f_name, _id)
+                    self._frame_validator.validate_get_phase_freq_type(statement, f_name, _type)
                     return_value, _ = self._visit_function_call(statement.init_expression)
+                    _base_size = self._qasm_visitor._check_variable_type_size(
+                        statement, _id.name, "variable", _type
+                    )
+                    self._qasm3_scope_manager.add_var_in_scope(
+                        Variable(
+                            name=_id.name,
+                            value=return_value,
+                            base_type=_type,
+                            base_size=_base_size,
+                        )
+                    )
                 if f_name in OPENPULSE_CAPTURE_FUNCTION_MAP:
                     self._openpulse_scope_manager.add_var_in_scope(
                         Capture(name=_id.name, frame=None)
@@ -633,10 +644,10 @@ class OpenPulseVisitor:
                 )
             else:
                 self._qasm_visitor.visit_statement(statement)
-            self._handle_scope_sync(statement, return_value, False)
+            self._handle_scope_sync(statement, return_value)
         else:
             self._qasm_visitor.visit_statement(statement)
-            self._handle_scope_sync(statement, None, False)
+            self._handle_scope_sync(statement, None)
 
         return [statement]
 
@@ -693,7 +704,8 @@ class OpenPulseVisitor:
                     frame_manipulators[function_name](stmt_args)
             else:
                 raise_qasm3_error(
-                    f"Invalid frame argument '{frame_arg}' in {function_name} function",
+                    f"Invalid frame argument '{type(frame_arg).__name__}' "
+                    f"in {function_name} function",
                     error_node=statement,
                     span=statement.span,
                 )
@@ -729,20 +741,20 @@ class OpenPulseVisitor:
             # implicit phase tracking
             if self._module._implicit_phase_tracking:
                 _curr_freq = self._get_phase_frequency(
-                    statement, frame_arg.name, get_frequency=True  # type: ignore
+                    statement, frame_obj.name, get_frequency=True  # type: ignore
                 )
                 self._set_shift_phase(
                     statement,
-                    frame_arg.name,  # type: ignore
+                    frame_obj.name,  # type: ignore
                     2
                     * CONSTANTS_MAP["pi"]
                     * _curr_freq.value  # type: ignore
                     * (
-                        waveform_duration.value
+                        waveform_duration.total_duration.value
                         * (
                             TIME_UNITS_MAP["ns"]["s"]
-                            if not self._module.device_cycle_time
-                            else self._module.device_cycle_time
+                            if not self._module._device_cycle_time
+                            else self._module._device_cycle_time
                         )
                     ),
                 )

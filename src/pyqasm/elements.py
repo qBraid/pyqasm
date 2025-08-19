@@ -139,6 +139,7 @@ class Frame:
     time: Optional[Any] = None
     phase_type: Optional[Any] = None
     frequency_type: Optional[Any] = None
+    is_constant: Optional[bool] = False
 
 
 @dataclass(slots=True)
