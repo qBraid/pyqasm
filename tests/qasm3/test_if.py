@@ -38,6 +38,9 @@ def test_simple_if():
     if(c[1] == 1){
         cx q[1], q[2];
     }
+    if(c[2] == 1) { 
+        // allow empty if block
+    }
     """
     expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
@@ -58,10 +61,13 @@ def test_simple_if():
     if (c[1] == true) {
     cx q[1], q[2];
     }
+    if (c[2] == true) {
+    }
     """
 
     result = loads(qasm)
     result.unroll()
+    print(result)
     assert result.num_clbits == 4
     assert result.num_qubits == 4
     check_unrolled_qasm(dumps(result), expected_qasm)
@@ -209,22 +215,6 @@ def test_multi_bit_if():
 @pytest.mark.parametrize(
     "qasm_code,error_message,line_num,col_num,err_line",
     [
-        (
-            """
-            OPENQASM 3.0;
-            include "stdgates.inc";
-            qubit[2] q;
-            bit[2] c;
-            h q;
-            measure q->c;
-            if(c[0]){
-            }
-            """,
-            r"Missing if block",
-            8,
-            12,
-            "if (c[0]) {",
-        ),
         (
             """
             OPENQASM 3.0;
