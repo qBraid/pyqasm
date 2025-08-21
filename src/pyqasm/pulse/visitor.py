@@ -32,7 +32,6 @@ from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps.expressions import (
     CONSTANTS_MAP,
     FUNCTION_MAP,
-    TIME_UNITS_MAP,
 )
 from pyqasm.pulse.expressions import (
     OPENPULSE_CAPTURE_FUNCTION_MAP,
@@ -738,26 +737,8 @@ class OpenPulseVisitor:
             self._update_frame_time(
                 statement, frame_obj.name, waveform_duration.total_duration.value
             )
-            # implicit phase tracking
-            if self._module._implicit_phase_tracking:
-                _curr_freq = self._get_phase_frequency(
-                    statement, frame_obj.name, get_frequency=True  # type: ignore
-                )
-                self._set_shift_phase(
-                    statement,
-                    frame_obj.name,  # type: ignore
-                    2
-                    * CONSTANTS_MAP["pi"]
-                    * _curr_freq.value  # type: ignore
-                    * (
-                        waveform_duration.total_duration.value
-                        * (
-                            TIME_UNITS_MAP["ns"]["s"]
-                            if not self._module._device_cycle_time
-                            else self._module._device_cycle_time
-                        )
-                    ),
-                )
+            if self._is_def_cal:
+                self._qasm_visitor._defcal_frames.add(frame_obj.name)
 
         if statement.name.name in ["capture_v1", "capture_v2"]:
             self._check_waveform_functions(statement, statement.name.name)

@@ -46,11 +46,12 @@ class PulseUtils:
         return body_str
 
     @staticmethod
-    def process_qubits_for_openpulse_gate(
+    def process_qubits_for_openpulse_gate(  # pylint: disable=too-many-arguments
         operation: Any,
         gate_op: str,
         openpulse_qubit_map: dict,
         global_qreg_size_map: dict,
+        pulse_gates_qubits_frame_map: list[dict[str, dict[str, set[Any]]]],
     ) -> Sequence[qasm3_ast.QuantumGate]:
         """
         Process qubits for OpenPulse gates, handling special qubit
@@ -69,7 +70,7 @@ class PulseUtils:
             Qasm3Error: If gate is not found in calibration or qubit is invalid
         """
         stmts: list[qasm3_ast.QuantumGate] = []
-
+        _qubit_set = set()
         for i, qubit in enumerate(operation.qubits):
             qubit_id = qubit.name.name if hasattr(qubit.name, "name") else qubit.name
             if qubit_id.startswith("$") and qubit_id[1:].isdigit():
@@ -87,6 +88,7 @@ class PulseUtils:
                         error_node=operation,
                         span=operation.span,
                     )
+                _qubit_set.add(int(qubit_id[1:]))
                 operation.qubits[i] = qasm3_ast.IndexedIdentifier(
                     name=qasm3_ast.Identifier("__PYQASM_QUBITS__"),
                     indices=[[qasm3_ast.IntegerLiteral(int(qubit_id[1:]))]],
@@ -114,4 +116,56 @@ class PulseUtils:
                     span=operation.span,
                 )
 
+        if _qubit_set:
+            _gate_qubits_map: dict[str, set[int]] = {operation.name.name: _qubit_set}
+            PulseUtils.process_frame_collision_check(
+                operation,
+                gate_op,
+                pulse_gates_qubits_frame_map,
+                _gate_qubits_map,
+            )
+
         return stmts
+
+    @staticmethod
+    def process_frame_collision_check(
+        operation: Any,
+        gate_op: str,
+        pulse_gates_qubits_frame_map: list[dict[str, dict[str, set[Any]]]],
+        current_gate_qubits: dict[str, set[int]],
+    ) -> None:
+        """
+        Process frame collision check
+        """
+        current_gate_qubit_set = current_gate_qubits[gate_op]
+        for _gate_set in pulse_gates_qubits_frame_map:
+            if gate_op in _gate_set and _gate_set[gate_op]["qubits"] == current_gate_qubit_set:
+                return
+        # pylint: disable-next=too-many-nested-blocks
+        if len(current_gate_qubit_set) > 1:
+            defcal_frame_list = []
+            for qubit in current_gate_qubit_set:
+                single_qubit_set = {qubit}
+                gate_found = False
+
+                for gate_set in pulse_gates_qubits_frame_map:
+                    if gate_op in gate_set and gate_set[gate_op]["qubits"] == single_qubit_set:
+                        gate_found = True
+                        frames = gate_set[gate_op]["frames"]
+                        for frame in frames:
+                            if frame in defcal_frame_list:
+                                raise_qasm3_error(
+                                    f"'Frame Collision' occured for frame '{frame}' "
+                                    f"in '{gate_op}' gate",
+                                    error_node=operation,
+                                    span=operation.span,
+                                )
+                            defcal_frame_list.append(frame)
+                        break
+
+                if not gate_found:
+                    raise_qasm3_error(
+                        f"Invalid qubit order for gate '{gate_op}:{current_gate_qubit_set}'",
+                        error_node=operation,
+                        span=operation.span,
+                    )

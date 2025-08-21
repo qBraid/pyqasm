@@ -139,6 +139,9 @@ class QasmVisitor:
         self._in_extern_function: bool = False
         self._openpulse_qubit_map: dict[str, set[str]] = {}
         self._total_pulse_qubits: int = 0
+        self._openpulse_grammar_declared: bool = False
+        self._defcal_frames: set[str] = set()
+        self._pulse_gates_qubits_frame_map: list[dict[str, dict[str, set[Any]]]] = []
 
         self._scope_manager: ScopeManager = scope_manager
         self._openpulse_scope_manager: ScopeManager = ScopeManager()
@@ -1309,8 +1312,13 @@ class QasmVisitor:
                 self._scope_manager,
                 self._module,
             )
+
             stmts = PulseUtils.process_qubits_for_openpulse_gate(
-                operation, gate_op, self._openpulse_qubit_map, self._global_qreg_size_map
+                operation,
+                gate_op,
+                self._openpulse_qubit_map,
+                self._global_qreg_size_map,
+                self._pulse_gates_qubits_frame_map,
             )
             return stmts  # type: ignore
 
@@ -2832,6 +2840,13 @@ class QasmVisitor:
             parse_openpulse,
         )
 
+        if not self._openpulse_grammar_declared:
+            raise_qasm3_error(
+                "OpenPulse grammar not declared",
+                error_node=statement,
+                span=statement.span,
+            )
+
         if not self._consolidate_qubits:
             self._consolidate_qubits = True
 
@@ -2882,12 +2897,13 @@ class QasmVisitor:
                 statement.arguments[i] = qasm3_ast.FloatLiteral(
                     Qasm3ExprEvaluator.evaluate_expression(arg)[0]
                 )
-
+        _qubit_set = set()
         for qubit in statement.qubits:
             if not isinstance(qubit, qasm3_ast.Identifier):
                 continue
             name = qubit.name
             if name.startswith("$") and name[1:].isdigit():
+                _qubit_set.add(int(name[1:]))
                 self._openpulse_qubit_map[statement.name.name].add(name)
                 self._total_pulse_qubits = max(self._total_pulse_qubits, int(name[1:]) + 1)
             elif name in self._global_qreg_size_map:
@@ -2906,6 +2922,15 @@ class QasmVisitor:
         for stmt in calibration_stmts:
             stmt.span.start_line = statement.span.start_line  # type: ignore
         result.extend(self._pulse_visitor.visit_basic_block(calibration_stmts, is_def_cal=True))
+        self._pulse_gates_qubits_frame_map.append(
+            {
+                statement.name.name: {
+                    "qubits": _qubit_set,
+                    "frames": copy.deepcopy(self._defcal_frames),
+                }
+            }
+        )
+        self._defcal_frames.clear()
 
         for var in arg_vars:
             self._openpulse_scope_manager.remove_var_from_curr_scope(var)
@@ -2961,6 +2986,13 @@ class QasmVisitor:
             OpenPulseParsingError,
             parse_openpulse,
         )
+
+        if not self._openpulse_grammar_declared:
+            raise_qasm3_error(
+                "OpenPulse grammar not declared",
+                error_node=statement,
+                span=statement.span,
+            )
 
         if not self._consolidate_qubits:
             self._consolidate_qubits = True
@@ -3025,6 +3057,7 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
+        self._openpulse_grammar_declared = True
         self._consolidate_qubits = True
 
         return [statement]

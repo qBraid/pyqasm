@@ -63,7 +63,6 @@ Types of changes:
   extern func6(bit[4]) -> bit[4];
   bit[4] be1 = func6(bd);
   ```
-- Added a new `QasmModule.compare` method to compare two QASM modules, providing a detailed report of differences in gates, qubits, and measurements. This method is useful for comparing two identifying differences in QASM programs, their structure and operations. ([#233](https://github.com/qBraid/pyqasm/pull/233))
 - Added support to `OPENPULSE` code in pyqasm. ([#246](https://github.com/qBraid/pyqasm/pull/246))
   ###### Example:
   ```qasm

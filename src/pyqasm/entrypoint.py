@@ -64,7 +64,6 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
             frame_in_def_cal (bool): Whether to allow frames in defcal.
             frame_limit_per_port (int): The maximum number of frames per port.
             play_in_cal_block (bool): Whether to allow play in defcal.
-            implicit_phase_tracking (bool): Whether to allow implicit phase tracking.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
@@ -107,8 +106,6 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         module._frame_limit_per_port = frame_limit_per_port
     if "play_in_cal_block" in kwargs:
         module._play_in_cal = kwargs["play_in_cal_block"]
-    if "implicit_phase_tracking" in kwargs:
-        module._implicit_phase_tracking = kwargs["implicit_phase_tracking"]
     return module
 
 

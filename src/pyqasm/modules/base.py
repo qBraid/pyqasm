@@ -96,7 +96,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._frame_in_def_cal: Optional[bool] = True
         self._frame_limit_per_port: Optional[int] = None
         self._play_in_cal: Optional[bool] = True
-        self._implicit_phase_tracking: Optional[bool] = False
 
     @property
     def name(self) -> str:

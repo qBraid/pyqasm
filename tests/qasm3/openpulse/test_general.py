@@ -235,6 +235,26 @@ from pyqasm.exceptions import ValidationError
             r"Return Variable 'freq1' not declared in OpenPulse scope",
             r"Error at line 5, column 16",
         ),
+        (
+            """
+            OPENQASM 3.0;
+            cal {
+                port d0;
+            }
+            """,
+            r"OpenPulse grammar not declared",
+            r"Error at line 3, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            defcal test $0 {
+                port d0;
+            }
+            """,
+            r"OpenPulse grammar not declared",
+            r"Error at line 3, column 12",
+        ),
     ],
 )  # pylint: disable-next= too-many-arguments
 def test_pulse_general_error(qasm_code, error_message, error_span, caplog):
@@ -290,7 +310,72 @@ def test_pulse_input_error(qasm_code, error_message, error_span, caplog):
                 qasm_code,
                 frame_in_def_cal=False,
                 play_in_cal_block=False,
-                implicit_phase_tracking=True,
             ).unroll()
+    assert error_message in str(err.value)
+    assert error_span in caplog.text
+
+@pytest.mark.parametrize(
+    "qasm_code,error_message,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            defcalgrammar "openpulse";
+            cal {
+                port d0;
+                frame fr1 = newframe(d0, 100.0, 5.0);
+                frame fr2 = newframe(d0, 100.0, 5.0);
+                frame fr3 = newframe(d0, 100.0, 5.0);
+            }
+            defcal test_waveform $0 {
+                play(fr1, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            defcal test_waveform $1 {
+                play(fr2, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            defcal test_waveform $2, $3 {
+                play(fr2, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            test_waveform $2, $3;
+            test_waveform $0, $1, $2;
+            """,
+            r"Invalid qubit order for gate 'test_waveform:{0, 1, 2}'",
+            r"Error at line 20, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            defcalgrammar "openpulse";
+            cal {
+                port d0;
+                frame fr1 = newframe(d0, 100.0, 5.0);
+                frame fr2 = newframe(d0, 100.0, 5.0);
+            }
+            defcal test_waveform $0 {
+                play(fr1, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            defcal test_waveform $1 {
+                play(fr2, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            defcal test_waveform $0, $1 {
+                play(fr1, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            defcal test_waveform $2, $3 {
+                play(fr2, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            defcal test_waveform $3 {
+                play(fr2, gaussian(1.0 + 2.0im, 100ns, 5.0ns));
+            }
+            test_waveform $0, $1, $3;
+            """,
+            r"'Frame Collision' occured for frame 'fr2' in 'test_waveform' gate",
+            r"Error at line 24, column 12",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_frame_collision_error(qasm_code, error_message, error_span, caplog):
+    with pytest.raises(ValidationError) as err:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code).unroll()
     assert error_message in str(err.value)
     assert error_span in caplog.text

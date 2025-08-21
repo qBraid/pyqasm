@@ -97,28 +97,29 @@ class FrameValidator:
         Returns:
             Tuple of (port_name, freq_value, freq_type, phase_value, phase_type, time_value)
         """
+        from openpulse.ast import PortType  # pylint: disable=import-outside-toplevel
+
         # Port argument
         frame_limit_per_port = self._pulse_visitor._module._frame_limit_per_port
         ports_usage = self._pulse_visitor._ports_usage
         port_arg = frame_args[0]
-        if isinstance(port_arg, qasm3_ast.Identifier):
-            _id_port_var_obj = self._get_identifier(statement, port_arg)
-            if _id_port_var_obj is None:
-                raise_qasm3_error(
-                    f"Invalid or undeclared port argument "
-                    f"'{getattr(port_arg, 'name', port_arg)}' in frame",
-                    error_node=statement,
-                    span=statement.span,
-                )
-            ports_usage[port_arg.name] = ports_usage.get(port_arg.name, 0) + 1
+        _id_port_var_obj = self._get_identifier(statement, port_arg)
+        if _id_port_var_obj and not isinstance(_id_port_var_obj.base_type, PortType):
+            raise_qasm3_error(
+                f"Invalid port argument '{getattr(port_arg, 'name', port_arg)}' of type "
+                f"'{type(_id_port_var_obj.base_type).__name__}' in frame",
+                error_node=statement,
+                span=statement.span,
+            )
+        ports_usage[port_arg.name] = ports_usage.get(port_arg.name, 0) + 1
 
-            if frame_limit_per_port and ports_usage[port_arg.name] > frame_limit_per_port:
-                raise_qasm3_error(
-                    f"Port '{port_arg.name}' has exceeded the "
-                    f"frame limit of {frame_limit_per_port}",
-                    error_node=statement,
-                    span=statement.span,
-                )
+        if frame_limit_per_port and ports_usage[port_arg.name] > frame_limit_per_port:
+            raise_qasm3_error(
+                f"Port '{port_arg.name}' has exceeded the "
+                f"frame limit of {frame_limit_per_port}",
+                error_node=statement,
+                span=statement.span,
+            )
 
         # Frequency argument
         freq_arg = frame_args[1]
