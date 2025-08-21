@@ -314,6 +314,7 @@ def test_pulse_input_error(qasm_code, error_message, error_span, caplog):
     assert error_message in str(err.value)
     assert error_span in caplog.text
 
+
 @pytest.mark.parametrize(
     "qasm_code,error_message,error_span",
     [
