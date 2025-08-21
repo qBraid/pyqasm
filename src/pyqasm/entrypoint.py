@@ -61,6 +61,9 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
             device_cycle_time (float): The duration of a hardware device cycle, in seconds.
             compiler_angle_type_size (int): The width of the angle type in the compiler.
             extern_functions (dict): Dictionary of extern functions to be added to the module.
+            frame_in_def_cal (bool): Whether to allow frames in defcal.
+            frame_limit_per_port (int): The maximum number of frames per port.
+            play_in_cal_block (bool): Whether to allow play in defcal.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
@@ -97,6 +100,12 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         module._compiler_angle_type_size = compiler_angle_type_size
     if extern_functions := kwargs.get("extern_functions"):
         module._extern_functions = extern_functions
+    if "frame_in_def_cal" in kwargs:
+        module._frame_in_def_cal = kwargs["frame_in_def_cal"]
+    if frame_limit_per_port := kwargs.get("frame_limit_per_port"):
+        module._frame_limit_per_port = frame_limit_per_port
+    if "play_in_cal_block" in kwargs:
+        module._play_in_cal = kwargs["play_in_cal_block"]
     return module
 
 

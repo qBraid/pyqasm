@@ -32,7 +32,7 @@ source "$TEMP_ENV_DIR/bin/activate"
 # Install the source distribution
 SCRIPT_DIR="$TARGET_PATH/bin"
 
-"$SCRIPT_DIR/install_wheel_extras.sh" "$TARGET_PATH/dist" --type sdist --extra cli --extra test
+"$SCRIPT_DIR/install_wheel_extras.sh" "$TARGET_PATH/dist" --type sdist --extra cli --extra test --extra pulse
 
 # Print the installed version
 python -c "import pyqasm; print('Installed pyqasm version:', pyqasm.__version__)"

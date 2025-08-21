@@ -120,6 +120,10 @@ class ScopeManager:
         """Check if currently in a box scope."""
         return len(self._scope) > 1 and self.get_curr_context() == Context.BOX
 
+    def in_pulse_scope(self) -> bool:
+        """Check if currently in a OpenPulse scope."""
+        return len(self._scope) > 1 and self.get_curr_context() == Context.PULSE
+
     # pylint: disable=too-many-return-statements
     def check_in_scope(self, var_name: str) -> bool:
         """
@@ -145,7 +149,12 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return var_name in global_scope
-        if self.in_function_scope() or self.in_gate_scope() or self.in_box_scope():
+        if (
+            self.in_function_scope()
+            or self.in_gate_scope()
+            or self.in_box_scope()
+            or self.in_pulse_scope()
+        ):
             if var_name in curr_scope:
                 return True
             if var_name in global_scope:
@@ -184,7 +193,12 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return global_scope.get(var_name, None)
-        if self.in_function_scope() or self.in_gate_scope() or self.in_box_scope():
+        if (
+            self.in_function_scope()
+            or self.in_gate_scope()
+            or self.in_box_scope()
+            or self.in_pulse_scope()
+        ):
             if var_name in curr_scope:
                 return curr_scope[var_name]
             if var_name in global_scope and (
@@ -220,6 +234,15 @@ class ScopeManager:
         """
         return self.get_global_scope().get(var_name, None)
 
+    def get_from_all_scopes(self, var_name: str) -> Variable | None:
+        """
+        Retrieve a variable from all scopes.
+        """
+        for scope in self._scope:
+            if var_name in scope:
+                return scope[var_name]
+        return None
+
     def add_var_in_scope(self, variable: Variable) -> None:
         """
         Add a variable to the current scope.
@@ -234,6 +257,14 @@ class ScopeManager:
         if variable.name in curr_scope:
             raise ValueError(f"Variable '{variable.name}' already exists in current scope")
         curr_scope[variable.name] = variable
+
+    def remove_var_from_curr_scope(self, variable: Variable) -> None:
+        """
+        Remove a variable from the current scope.
+        """
+        curr_scope = self.get_curr_scope()
+        if variable.name in curr_scope:
+            del curr_scope[variable.name]
 
     def update_var_in_scope(self, variable: Variable) -> None:
         """
