@@ -15,6 +15,38 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added support to `OPENPULSE` code in pyqasm. ([#246](https://github.com/qBraid/pyqasm/pull/246))
+  ###### Example:
+  ```qasm
+  OPENQASM 3.0;
+  defcalgrammar "openpulse";
+    
+  complex[float[32]] amp = 1.0 + 2.0im;
+  cal {
+      port d0;
+      frame driveframe = newframe(d0, 5.0e9, 0.0);
+      waveform wf = gaussian(amp, 16ns, 4ns);
+  }
+    
+  const float frequency_start = 4.5e9;
+  const float frequency_step = 1e6;
+  const int frequency_num_steps = 3;
+  
+  defcal saturation_pulse $0 {
+      play(driveframe, constant(amp, 100e-6s));
+  }
+    
+  cal {
+      set_frequency(driveframe, frequency_start);
+  }
+    
+  for int i in [1:frequency_num_steps] {
+      cal {
+          shift_frequency(driveframe, frequency_step);
+      }
+      saturation_pulse $0;
+  }
+  ```
 
 ### Improved / Modified
 - Modified if statement validation to now include empty blocks as well. See [Issue #246](https://github.com/qBraid/pyqasm/issues/246) for details. ([#251](https://github.com/qBraid/pyqasm/pull/251))
