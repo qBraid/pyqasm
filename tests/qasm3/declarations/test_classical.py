@@ -752,6 +752,14 @@ def test_complex_type_variables():
     complex[float[64]] g = a ** b; 
     complex[float] h = a + b;
     complex i = sqrt(1.0 + 2.0im);
+    complex j = 1.0;
+    complex k;
+    k = 1.0;
+    const complex l = 20.0;
+    float m = 1.0;
+    complex n = m;
+    complex o = l * (2 - 1im);
+    complex p = o + (1.0 + 1.0im);
     """
 
     loads(qasm3_string).validate()
