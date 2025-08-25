@@ -56,6 +56,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed Complex value initialization error. ([#253](https://github.com/qBraid/pyqasm/pull/253))
 
 ### Dependencies
 - Bumps `@actions/checkout` from 4 to 5 ([#250](https://github.com/qBraid/pyqasm/pull/250))
