@@ -108,9 +108,9 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
 
     if type_of_rhs not in VARIABLE_TYPE_CAST_MAP[openqasm_type]:
         raise ValidationError(
-            f"Cannot cast {type_of_rhs} to {openqasm_type}. "
-            f"Invalid assignment of type {type_of_rhs} to variable {var_name} "
-            f"of type {openqasm_type}"
+            f"Cannot cast '{type_of_rhs.__name__}' to '{openqasm_type.__name__}'. "
+            f"Invalid assignment of type '{type_of_rhs.__name__}' to variable '{var_name}' "
+            f"of type '{openqasm_type.__name__}'"
         )
 
     if openqasm_type == BoolType:
@@ -130,6 +130,8 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
             return ((2 * CONSTANTS_MAP["pi"]) * (1 / 2)) if rhs_value else 0.0
         return rhs_value  # not sure
     if openqasm_type == ComplexType:
+        if isinstance(rhs_value, float):
+            return complex(rhs_value)
         return rhs_value
 
 
@@ -166,7 +168,7 @@ VARIABLE_TYPE_CAST_MAP = {
     UintType: (bool, int, float, np.int64, np.uint64, np.float64, np.bool_),
     FloatType: (bool, int, float, np.int64, np.float64, np.bool_),
     AngleType: (float, np.float64, bool, np.bool_),
-    ComplexType: (complex, np.complex128),
+    ComplexType: (complex, np.complex128, float, np.float64),
 }
 
 ARRAY_TYPE_MAP = {

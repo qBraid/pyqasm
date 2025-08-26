@@ -447,8 +447,8 @@ FAIL_CASTING_TESTS = {
         const float[64] f1 = 2.5;
         const bit[2] b1 = bit[2](f1);
         """,
-        "Cannot cast <class 'float'> to <class 'openqasm3.ast.BitType'>. Invalid assignment "
-        "of type <class 'float'> to variable f1 of type <class 'openqasm3.ast.BitType'>",
+        "Cannot cast 'float' to 'BitType'. Invalid assignment of type "
+        "'float' to variable 'f1' of type 'BitType'",
         5,
         8,
         "const bit[2] b1 = bit[2](f1);",
