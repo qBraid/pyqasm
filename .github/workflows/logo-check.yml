@@ -1,0 +1,62 @@
+name: Logo Check
+
+on:
+  pull_request_target:
+    branches: ['main']
+    types: [opened, reopened, ready_for_review, synchronize]
+
+jobs:
+  check-logo-changes:
+    name: Check for Logo Changes
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions' && github.actor != 'github-actions[bot]' && github.event.pull_request.draft == false }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Check for logo.png changes
+      run: |
+        # Get the list of changed files
+        CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        
+        # Check if logo.png is in the changed files
+        if echo "$CHANGED_FILES" | grep -q "docs/_static/logo.png"; then
+          echo "❌ ERROR: Changes to docs/_static/logo.png are not allowed!"
+          echo "The logo.png file is protected and cannot be modified through pull requests."
+          echo "If you need to update the logo, please contact the repository maintainers."
+          echo ""
+          echo "Changed files in this PR:"
+          echo "$CHANGED_FILES"
+          exit 1
+        else
+          echo "✅ No changes detected to docs/_static/logo.png"
+        fi
+
+    - name: Comment on PR if logo changes detected
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `🚫 **Logo Change Blocked**
+
+          Changes to \`docs/_static/logo.png\` are not allowed in pull requests.
+
+          **Why is this blocked?**
+          - The logo is a protected asset that should only be updated by repository maintainers
+          - This helps maintain brand consistency and prevents unauthorized logo changes
+
+          **What should you do?**
+          - Remove the logo.png changes from this PR
+          - If you need to update the logo, please contact the repository maintainers directly
+
+          **Files changed in this PR:**
+          \`\`\`
+          ${process.env.CHANGED_FILES || 'Unable to retrieve changed files'}
+          \`\`\``
+          })
