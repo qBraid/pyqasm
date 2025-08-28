@@ -47,6 +47,7 @@ Types of changes:
       saturation_pulse $0;
   }
   ```
+- Added `asv` benchmarking support in `pyqasm`. ([#258](https://github.com/qBraid/pyqasm/pull/258))
 
 ### Improved / Modified
 - Modified if statement validation to now include empty blocks as well. See [Issue #246](https://github.com/qBraid/pyqasm/issues/246) for details. ([#251](https://github.com/qBraid/pyqasm/pull/251))
