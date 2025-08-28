@@ -17,9 +17,13 @@ jobs:
         fetch-depth: 0
 
     - name: Check for logo.png changes
+      id : logo_check
       run: |
         # Get the list of changed files
         CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
         
         # Check if logo.png is in the changed files
         if echo "$CHANGED_FILES" | grep -q "docs/_static/logo.png"; then
@@ -57,6 +61,9 @@ jobs:
 
           **Files changed in this PR:**
           \`\`\`
-          ${process.env.CHANGED_FILES || 'Unable to retrieve changed files'}
+          ${process.env.INPUT_CHANGED_FILES || 'Unable to retrieve changed files'}
           \`\`\``
           })
+      env:
+        INPUT_CHANGED_FILES: ${{ steps.logo_check.outputs.changed_files }}
+
