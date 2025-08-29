@@ -19,21 +19,15 @@
 This module is used to test the openpulse of pyqasm.
 """
 
-import os
-
 from pyqasm import load
+
+from .qasm.benchmark_downloader import get_benchmark_file
 
 
 class Openpulse:
     def setup(self):
-        # Get the project root directory
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(current_dir))
-        self.qasm_file = os.path.join(
-            project_root, "tests", "benchmarks", "qasm", "neutral_atom_gate.qasm"
-        )
-
-        self.pyqasm_obj = load(self.qasm_file)
+        # Get benchmark file, downloading if necessary
+        self.qasm_file = get_benchmark_file("neutral_atom_gate.qasm")
 
     def time_openpulse(self):
-        self.pyqasm_obj.unroll()
+        _ = load(self.qasm_file).unroll()

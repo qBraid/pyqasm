@@ -20,24 +20,24 @@ This module is used to test the basic functions of pyqasm.
 """
 
 import os
+from pathlib import Path
 
 from pyqasm import dump, dumps, load, printer
+
+from .qasm.benchmark_downloader import get_benchmark_file
 
 
 class PyqasmFunctions:
     def setup(self):
-        # Get the project root directory
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(current_dir))
-        self.qasm_file = os.path.join(project_root, "tests", "benchmarks", "qasm", "qft_N100.qasm")
-        self.output_file = os.path.join(
-            project_root, "tests", "benchmarks", "qasm", "qft_N100_unrolled.qasm"
-        )
+        # Get benchmark files, downloading if necessary
+        self.qasm_file = get_benchmark_file("qft_N100.qasm")
+
+        # Create output file path in the same directory as input file
+        input_path = Path(self.qasm_file)
+        self.output_file = str(input_path.parent / "qft_N100_unrolled.qasm")
 
         self.pyqasm_obj = load(self.qasm_file)
-        self.mid_qasm_file = os.path.join(
-            project_root, "tests", "benchmarks", "qasm", "pea_3_pi_8.qasm"
-        )
+        self.mid_qasm_file = get_benchmark_file("pea_3_pi_8.qasm")
         self.mid_pyqasm_obj = load(self.mid_qasm_file)
 
     def teardown(self):

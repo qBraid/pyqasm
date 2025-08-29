@@ -1,0 +1,106 @@
+{
+    "benchmark_files": {
+        "20QBT_45CYC_.0D1_.1D2_3.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/20QBT_45CYC_.0D1_.1D2_3.qasm",
+            "description": "20 qubit benchmark with 45 cycles",
+            "size_bytes": 946
+        },
+        "53QBT_100CYC_QSE_3.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/53QBT_100CYC_QSE_3.qasm",
+            "description": "53 qubit benchmark with 100 cycles",
+            "size_bytes": 41671
+        },
+        "54QBT_25CYC_QSE_3.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/54QBT_25CYC_QSE_3.qasm",
+            "description": "54 qubit benchmark with 25 cycles",
+            "size_bytes": 10814
+        },
+        "depth_4gt10-v1_81.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/depth_4gt10-v1_81.qasm",
+            "description": "Depth benchmark 4gt10-v1 with 81 qubits",
+            "size_bytes": 1694
+        },
+        "depth_4mod5-v0_19.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/depth_4mod5-v0_19.qasm",
+            "description": "Depth benchmark 4mod5-v0 with 19 qubits",
+            "size_bytes": 448
+        },
+        "depth_mod8-10_178.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/depth_mod8-10_178.qasm",
+            "description": "Depth benchmark mod8-10 with 178 qubits",
+            "size_bytes": 3834
+        },
+        "dtc_100_cx_12345.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/dtc_100_cx_12345.qasm",
+            "description": "DTC benchmark with 100 CX gates",
+            "size_bytes": 1204349
+        },
+        "neutral_atom_gate.qasm": {
+            "source": "local",
+            "description": "Neutral atom gate benchmark (local file)",
+            "size_bytes": 3584,
+            "local_only": true
+        },
+        "pea_3_pi_8.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/pea_3_pi_8.qasm",
+            "description": "PEA benchmark with 3 pi/8 rotations",
+            "size_bytes": 695
+        },
+        "qaoa_barabasi_albert_N100_3reps.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/qaoa_barabasi_albert_N100_3reps.qasm",
+            "description": "QAOA benchmark on Barabasi-Albert graph with N=100 and 3 repetitions",
+            "size_bytes": 47302
+        },
+        "qft_N100.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/qft_N100.qasm",
+            "description": "Quantum Fourier Transform benchmark with N=100",
+            "size_bytes": 437131
+        },
+        "square_heisenberg_N100.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/square_heisenberg_N100.qasm",
+            "description": "Square Heisenberg model benchmark with N=100",
+            "size_bytes": 120081
+        },
+        "test_eoh_qasm.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/test_eoh_qasm.qasm",
+            "description": "EOH (Evolution of Hamiltonian) test benchmark",
+            "size_bytes": 72169
+        },
+        "time_cnt3-5_179.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/time_cnt3-5_179.qasm",
+            "description": "Time benchmark cnt3-5 with 179 qubits",
+            "size_bytes": 2124
+        },
+        "time_cnt3-5_180.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/time_cnt3-5_180.qasm",
+            "description": "Time benchmark cnt3-5 with 180 qubits",
+            "size_bytes": 5770
+        },
+        "time_qft_16.qasm": {
+            "source": "Qiskit-benchmark",
+            "url": "https://raw.githubusercontent.com/Qiskit/qiskit/main/test/benchmarks/qasm/time_qft_16.qasm",
+            "description": "Time benchmark QFT with 16 qubits",
+            "size_bytes": 8240
+        }
+    },
+    "repository_info": {
+        "name": "Qiskit-benchmark",
+        "url": "https://github.com/Qiskit/qiskit",
+        "description": "QASM benchmark files from Qiskit repository",
+        "license": "Apache-2.0"
+    }
+}

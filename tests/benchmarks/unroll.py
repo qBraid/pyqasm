@@ -19,17 +19,15 @@
 This module is used to test the unrolling of pyqasm.
 """
 
-import os
-
 from pyqasm import load
+
+from .qasm.benchmark_downloader import get_benchmark_file
 
 
 class Unrolling:
     def setup(self):
-        # Get the project root directory
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(current_dir))
-        self.qasm_file = os.path.join(project_root, "tests", "benchmarks", "qasm", "qft_N100.qasm")
+        # Get benchmark file, downloading if necessary
+        self.qasm_file = get_benchmark_file("qft_N100.qasm")
 
         self.pyqasm_obj = load(self.qasm_file)
 
