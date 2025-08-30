@@ -1,1 +1,1 @@
-{"regressions": []}
+{"regressions": [["pyqasm_functions.PyqasmFunctions.time_load('small (224 lines)')", "graphs/arch-ARM64/branch-main/cpu-Apple M3 (8 cores) @ 2.75-4.05 GHz/machine-pyqasm-benchmarking/num_cpu-8/os-macOS Sequoia 15.6/python-3.13/ram-16GB/pyqasm_functions.PyqasmFunctions.time_load.json", {}, 0, 0.018426811962854117, 0.01718662492930889, [[null, 245, 0.017282667104154825, 0.018426811962854117]]]]}
