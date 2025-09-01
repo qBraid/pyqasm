@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=no-member,invalid-name,missing-docstring,no-name-in-module
-# pylint: disable=attribute-defined-outside-init,unsubscriptable-object
+# pylint: disable=attribute-defined-outside-init
 
 """
-This module is used to test the basic functions of pyqasm.
+This module is used to test the pyqasm functions.
 """
 
 import os
@@ -28,19 +27,40 @@ from .qasm.benchmark_downloader import get_benchmark_file
 
 
 class PyqasmFunctions:
-    def setup(self):
-        # Get benchmark files, downloading if necessary
-        self.qasm_file = get_benchmark_file("qft_N100.qasm")
+    """Test the pyqasm functions."""
 
-        # Create output file path in the same directory as input file
-        input_path = Path(self.qasm_file)
-        self.output_file = str(input_path.parent / "qft_N100_unrolled.qasm")
+    # Define parameters for asv
+    params = [["small (224 lines)", "mid (2335 lines)", "large (17460 lines)"]]
+    param_names = ["qasm_file"]
+    timeout = 600
 
+    def setup(self, file_size):
+        # Extract the original file size name from the parameter value
+        if "(224 lines)" in file_size:
+            file_size_key = "small"
+        elif "(2335 lines)" in file_size:
+            file_size_key = "mid"
+        elif "(17460 lines)" in file_size:
+            file_size_key = "large"
+        else:
+            file_size_key = file_size
+
+        # Define files for each size category
+        self.files = {
+            "small": "vqe_uccsd_n4.qasm",  # 224 lines
+            "mid": "dnn_n16.qasm",  # 2335 lines
+            "large": "qv_N029_12345.qasm",  # 17460 lines
+        }
+
+        # Get benchmark file for the specified size
+        self.qasm_file = get_benchmark_file(self.files[file_size_key])
         self.pyqasm_obj = load(self.qasm_file)
-        self.mid_qasm_file = get_benchmark_file("pea_3_pi_8.qasm")
-        self.mid_pyqasm_obj = load(self.mid_qasm_file)
 
-    def teardown(self):
+        # Create output file path for dump operations
+        input_path = Path(self.qasm_file)
+        self.output_file = str(input_path.parent / f"{file_size_key}_unrolled.qasm")
+
+    def teardown(self, _):
         # Clean up the output file if it was created
         if hasattr(self, "output_file") and os.path.exists(self.output_file):
             try:
@@ -48,14 +68,18 @@ class PyqasmFunctions:
             except OSError:
                 pass
 
-    def time_load(self):
+    def time_load(self, _):
+        """Load QASM file of specified size."""
         _ = load(self.qasm_file)
 
-    def time_dumps(self):
+    def time_dumps(self, _):
+        """Serialize QASM object of specified size to string."""
         _ = dumps(self.pyqasm_obj)
 
-    def time_dump(self):
+    def time_dump(self, _):
+        """Dump QASM object of specified size to file."""
         dump(self.pyqasm_obj, self.output_file)
 
-    def time_draw(self):
-        _ = printer.mpl_draw(self.mid_pyqasm_obj, idle_wires=True, external_draw=False)
+    def time_draw(self, _):
+        """Draw QASM object of specified size."""
+        _ = printer.mpl_draw(self.pyqasm_obj, idle_wires=True, external_draw=False)

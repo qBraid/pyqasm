@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=no-member,invalid-name,missing-docstring,no-name-in-module
-# pylint: disable=attribute-defined-outside-init,unsubscriptable-object
-
 """
 This module is used to test the import time of pyqasm.
 """
@@ -24,5 +21,7 @@ from sys import executable
 
 
 class PyqasmImport:
+    """Test the import time of pyqasm."""
+
     def time_pyqasm_import(self):
         call((executable, "-c", "import pyqasm"))

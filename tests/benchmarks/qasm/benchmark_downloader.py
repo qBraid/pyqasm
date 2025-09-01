@@ -19,8 +19,6 @@ This module handles downloading benchmark QASM files from the Qiskit repository
 and caching them locally to avoid storing large files in version control.
 """
 
-# pylint: disable-all
-
 import json
 import ssl
 import tempfile
@@ -43,29 +41,27 @@ class BenchmarkDownloader:
 
     def get_file_path(self, filename: str) -> Path:
         """Get the path for a benchmark file, fetching from remote repository if needed."""
-        if filename not in self.metadata["benchmark_files"]:
-            raise KeyError(f"Unknown benchmark file: {filename}")
-
-        file_info = self.metadata["benchmark_files"][filename]
-
-        # Check if this is a local-only file
-        if file_info.get("local_only", False):
+        # Check local_files first
+        if filename in self.metadata["local_files"]:
             file_path = self.cache_dir / filename
             if not file_path.exists():
-                raise RuntimeError(
-                    f"Local file {filename} not found. Please ensure it exists in the repository."
-                )
+                raise RuntimeError(f"Local file {filename} not found in {self.cache_dir}")
             return file_path
 
-        # For remote files, fetch and return a temporary file
-        return self._fetch_remote_file(filename, file_info)
+        # Check benchmark_files
+        if filename in self.metadata["benchmark_files"]:
+            file_info = self.metadata["benchmark_files"][filename]
+            # Fetch remote files
+            return self._fetch_remote_file(filename, file_info)
+
+        raise KeyError(f"Unknown benchmark file: {filename}")
 
     def _fetch_remote_file(self, filename: str, file_info: Dict) -> Path:
         """Fetch a remote benchmark file and return a temporary file path."""
         url = file_info["url"]
 
         try:
-            # Create SSL context that doesn't verify certificates (for development)
+            # Create SSL context that doesn't verify certificates (for development/CI)
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
@@ -78,25 +74,20 @@ class BenchmarkDownloader:
                 content = response.read()
 
             # Create temporary file and write content
-            temp_file = tempfile.NamedTemporaryFile(
+            with tempfile.NamedTemporaryFile(
                 mode="wb", suffix=".qasm", prefix=f"benchmark_{filename}_", delete=False
-            )
-            temp_file.write(content)
-            temp_file.close()
+            ) as temp_file:
+                temp_file.write(content)
+                temp_file_path = Path(temp_file.name)
 
-            return Path(temp_file.name)
+            return temp_file_path
 
         except Exception as e:
+            # pylint: disable-next=raise-missing-from
             raise RuntimeError(f"Failed to fetch {filename} from {url}: {e}")
-
-
-# Global instance for convenience
-_downloader = None
 
 
 def get_benchmark_file(filename: str) -> str:
     """Get the path to a benchmark file, downloading if necessary."""
-    global _downloader
-    if _downloader is None:
-        _downloader = BenchmarkDownloader()
-    return str(_downloader.get_file_path(filename))
+    downloader = BenchmarkDownloader()
+    return str(downloader.get_file_path(filename))

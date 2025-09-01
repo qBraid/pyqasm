@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=no-member,invalid-name,missing-docstring,no-name-in-module
-# pylint: disable=attribute-defined-outside-init,unsubscriptable-object
-
 """
 This module is used to test the openpulse of pyqasm.
 """
@@ -25,8 +22,11 @@ from .qasm.benchmark_downloader import get_benchmark_file
 
 
 class Openpulse:
+    """Test the pyqasm openpulse functionality."""
+
     def setup(self):
         # Get benchmark file, downloading if necessary
+        # pylint: disable-next=attribute-defined-outside-init
         self.qasm_file = get_benchmark_file("neutral_atom_gate.qasm")
 
     def time_openpulse(self):
