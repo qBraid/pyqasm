@@ -45,7 +45,7 @@ class BenchmarkDownloader:
         if filename in self.metadata["local_files"]:
             file_path = self.cache_dir / filename
             if not file_path.exists():
-                raise RuntimeError(f"Local file {filename} not found in {self.cache_dir}")
+                raise FileNotFoundError(f"Local file {filename} not found in {self.cache_dir}")
             return file_path
 
         # Check benchmark_files
@@ -54,7 +54,7 @@ class BenchmarkDownloader:
             # Fetch remote files
             return self._fetch_remote_file(filename, file_info)
 
-        raise KeyError(f"Unknown benchmark file: {filename}")
+        raise ValueError(f"Unknown benchmark file: {filename}")
 
     def _fetch_remote_file(self, filename: str, file_info: Dict) -> Path:
         """Fetch a remote benchmark file and return a temporary file path."""
