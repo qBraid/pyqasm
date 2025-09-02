@@ -57,13 +57,20 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         program (openqasm3.ast.Program or str): The OpenQASM program to validate.
 
         **kwargs: Additional arguments to pass to the loads function.
-            device_qubits (int): Number of physical qubits available on the target device.
-            device_cycle_time (float): The duration of a hardware device cycle, in seconds.
-            compiler_angle_type_size (int): The width of the angle type in the compiler.
-            extern_functions (dict): Dictionary of extern functions to be added to the module.
-            frame_in_def_cal (bool): Whether to allow frames in defcal.
-            frame_limit_per_port (int): The maximum number of frames per port.
-            play_in_cal_block (bool): Whether to allow play in defcal.
+
+            - **device_qubits** (int): Number of physical qubits available on the target device.
+
+            - **device_cycle_time** (float): The duration of a hardware device cycle, in seconds.
+
+            - **compiler_angle_type_size** (int): The width of the angle type in the compiler.
+
+            - **extern_functions** (dict): Dictionary of extern functions to be added to the module.
+
+            - **frame_in_def_cal** (bool): Whether to allow frames in defcal.
+
+            - **frame_limit_per_port** (int): The maximum number of frames per port.
+
+            - **play_in_cal_block** (bool): Whether to allow play in defcal.
 
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
