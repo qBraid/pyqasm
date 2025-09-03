@@ -48,7 +48,6 @@ from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.transformer import Qasm3Transformer
-from pyqasm.validator import Qasm3Validator
 
 
 class Qasm3SubroutineProcessor:
@@ -64,6 +63,41 @@ class Qasm3SubroutineProcessor:
             visitor_obj (QasmVisitor): The visitor object to set.
         """
         cls.visitor_obj = visitor_obj
+
+    @staticmethod
+    def validate_unique_qubits(qubit_map: dict, reg_name: str, indices: list) -> bool:
+        """
+        Validate that qubits passed for a given actual register are unique across
+        all quantum arguments in a function call and within the same argument itself.
+
+        This function mutates the provided `qubit_map` by tracking which indices of
+        each register have already been used while validating earlier arguments.
+
+        Args:
+            qubit_map (dict): Map used for duplicate detection; keys are register names,
+                              values are sets of previously seen indices for that register.
+            reg_name (str): Actual register name appearing in the call (e.g., 'q').
+            indices (list): Concrete qubit indices being bound for this argument.
+
+        Returns:
+            bool: False if any duplicate is detected (within this argument or across
+                  previously processed arguments); True otherwise. On success, the
+                  map is updated with the new indices for subsequent checks.
+        """
+        seen = qubit_map.setdefault(reg_name, set())
+
+        # Reject duplicates within the same argument (e.g., q[0], q[0]).
+        if len(set(indices)) != len(indices):
+            return False
+
+        # Reject duplicates against indices already seen for this register.
+        for idx in indices:
+            if idx in seen:
+                return False
+
+        # Update the seen set so subsequent arguments are validated against it.
+        seen.update(indices)
+        return True
 
     @staticmethod
     def get_fn_actual_arg_name(actual_arg: Identifier | IndexExpression) -> Optional[str]:
@@ -540,9 +574,7 @@ class Qasm3SubroutineProcessor:
                 span=fn_call.span,
             )
 
-        if not Qasm3Validator.validate_unique_qubits(
-            duplicate_qubit_map, actual_arg_name, actual_qids
-        ):
+        if not cls.validate_unique_qubits(duplicate_qubit_map, actual_arg_name, actual_qids):
             raise_qasm3_error(
                 f"Duplicate qubit argument for register '{actual_arg_name}' "
                 f"in function call for '{fn_name}'",
