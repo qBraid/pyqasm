@@ -48,7 +48,6 @@ from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.transformer import Qasm3Transformer
-from pyqasm.validator import Qasm3Validator
 
 
 class Qasm3SubroutineProcessor:
@@ -64,6 +63,41 @@ class Qasm3SubroutineProcessor:
             visitor_obj (QasmVisitor): The visitor object to set.
         """
         cls.visitor_obj = visitor_obj
+
+    @staticmethod
+    def validate_unique_qubits(qubit_map: dict, reg_name: str, indices: list) -> bool:
+        """
+        Validate that qubits passed for a given actual register are unique across
+        all quantum arguments in a function call and within the same argument itself.
+
+        This function mutates the provided `qubit_map` by tracking which indices of
+        each register have already been used while validating earlier arguments.
+
+        Args:
+            qubit_map (dict): Map used for duplicate detection; keys are register names,
+                              values are sets of previously seen indices for that register.
+            reg_name (str): Actual register name appearing in the call (e.g., 'q').
+            indices (list): Concrete qubit indices being bound for this argument.
+
+        Returns:
+            bool: False if any duplicate is detected (within this argument or across
+                  previously processed arguments); True otherwise. On success, the
+                  map is updated with the new indices for subsequent checks.
+        """
+        seen = qubit_map.setdefault(reg_name, set())
+
+        # Reject duplicates within the same argument (e.g., q[0], q[0]).
+        if len(set(indices)) != len(indices):
+            return False
+
+        # Reject duplicates against indices already seen for this register.
+        for idx in indices:
+            if idx in seen:
+                return False
+
+        # Update the seen set so subsequent arguments are validated against it.
+        seen.update(indices)
+        return True
 
     @staticmethod
     def get_fn_actual_arg_name(actual_arg: Identifier | IndexExpression) -> Optional[str]:
@@ -525,8 +559,15 @@ class Qasm3SubroutineProcessor:
                 span=fn_call.span,
             )
 
+        # Include alias register sizes when resolving actual target qubits
+        # so that aliased identifiers like `let a = q[i]; dummy(a);` are valid.
+        merged_size_map = {
+            **actual_qreg_size_map,
+            **getattr(cls.visitor_obj, "_global_alias_size_map", {}),
+        }
+
         actual_qids, actual_qubits_size = Qasm3Transformer.get_target_qubits(
-            actual_arg, actual_qreg_size_map, actual_arg_name
+            actual_arg, merged_size_map, actual_arg_name
         )
 
         if formal_qubit_size != actual_qubits_size:
@@ -540,18 +581,28 @@ class Qasm3SubroutineProcessor:
                 span=fn_call.span,
             )
 
-        if not Qasm3Validator.validate_unique_qubits(
-            duplicate_qubit_map, actual_arg_name, actual_qids
-        ):
+        # If the actual argument is an alias, resolve to the underlying
+        # register name and indices for duplicate detection and mapping.
+        resolved_reg_name = actual_arg_name
+        resolved_qids = list(actual_qids)
+        if getattr(actual_arg_var, "is_alias", False):
+            resolved_pairs = [
+                cls.visitor_obj._alias_qubit_labels[(actual_arg_name, qid)] for qid in actual_qids
+            ]
+            # All alias pairs point to the same underlying register
+            resolved_reg_name = resolved_pairs[0][0] if resolved_pairs else actual_arg_name
+            resolved_qids = [pair[1] for pair in resolved_pairs]
+
+        if not cls.validate_unique_qubits(duplicate_qubit_map, resolved_reg_name, resolved_qids):
             raise_qasm3_error(
-                f"Duplicate qubit argument for register '{actual_arg_name}' "
+                f"Duplicate qubit argument for register '{resolved_reg_name}' "
                 f"in function call for '{fn_name}'",
                 error_node=fn_call,
                 span=fn_call.span,
             )
 
-        for idx, qid in enumerate(actual_qids):
-            qubit_transform_map[(formal_reg_name, idx)] = (actual_arg_name, qid)
+        for idx, qid in enumerate(resolved_qids):
+            qubit_transform_map[(formal_reg_name, idx)] = (resolved_reg_name, qid)
 
         return Variable(
             name=formal_reg_name,

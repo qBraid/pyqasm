@@ -58,6 +58,8 @@ Types of changes:
 
 ### Fixed
 - Fixed Complex value initialization error. ([#253](https://github.com/qBraid/pyqasm/pull/253))
+- Fixed duplicate qubit argument check in function calls and  Error in function call with aliased qubit. ([#260](https://github.com/qBraid/pyqasm/pull/260))
+
 
 ### Dependencies
 - Bumps `@actions/checkout` from 4 to 5 ([#250](https://github.com/qBraid/pyqasm/pull/250))

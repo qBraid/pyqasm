@@ -198,6 +198,36 @@ def test_multiple_function_calls():
     check_single_qubit_rotation_op(result.unrolled_ast, 3, [2, 1, 0], [2, 1, 0], "rx")
 
 
+def test_alias_arg_from_loop_validates():
+    """Alias of a dynamic indexed qubit used as function argument should validate."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[4] q;
+
+    def dummy(qubit[1] q_arg) -> bool { 
+        h q_arg;
+        return true;
+    }
+
+    for int i in [0:2]
+    {
+       let new_q = q[i];
+       dummy(new_q);
+    }
+    for int i in [0:2]
+    {
+       let new_q = q[i+1];
+       dummy(new_q);
+    }
+    """
+
+    result = loads(qasm_str)
+    # Should not raise ValidationError
+    result.unroll()
+
+
 def test_function_call_with_return():
     """Test that a function call with a return value is correctly parsed."""
     qasm_str = """OPENQASM 3.0;
