@@ -765,7 +765,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """
 
 
-    def merge(self, other: "QasmModule", device_qubits: Optional[int] = None) -> "QasmModule":
+    def merge(self, other: "QasmModule", device_qubits: Optional[int] = None) -> "QasmModule": 
         """Merge this module with another module into a single consolidated module.
 
         Notes:
@@ -902,13 +902,21 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             merged_program.statements.append(stmt_copy)
 
         # Build merged module
-        merged_module = Qasm3Module(name=f"{left_mod.name}_merged_{right_mod.name}", program=merged_program)
+        merged_module = Qasm3Module(
+            name=f"{left_mod.name}_merged_{right_mod.name}",
+            program=merged_program,
+        )
 
         # inputs already unrolled, we can set the unrolled AST directly
-        merged_module.unrolled_ast = Program(statements=list(merged_program.statements), version="3.0")
+        merged_module.unrolled_ast = Program(
+            statements=list(merged_program.statements),
+            version="3.0",
+        )
 
         # Combine metadata/history in a straightforward manner
-        merged_module._external_gates = list({*left_mod._external_gates, *right_mod._external_gates})
+        merged_module._external_gates = list(
+            {*left_mod._external_gates, *right_mod._external_gates}
+        )
         merged_module._user_operations = list(left_mod.history) + list(right_mod.history)
         merged_module._user_operations.append(f"merge(other={right_mod.name})")
         merged_module.validate()
