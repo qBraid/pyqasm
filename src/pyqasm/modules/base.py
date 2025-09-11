@@ -765,160 +765,73 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """
 
 
-    def merge(self, other: "QasmModule", device_qubits: Optional[int] = None) -> "QasmModule": 
-        """Merge this module with another module into a single consolidated module.
+    @abstractmethod
+    def merge(
+        self,
+        other: "QasmModule",
+        device_qubits: Optional[int] = None,
+    ) -> "QasmModule":
+        """Merge this module with another module.
 
-        Notes:
-            - Both modules are unrolled with consolidated qubit registers prior to merging.
-            - The resulting module has a single declaration: ``qubit[<total>] __PYQASM_QUBITS__``.
-            - All quantum operations from the second module are appended after the first, with
-              qubit indices offset by the size of the first module.
-
-        Args:
-            other (QasmModule): The module to merge with the current module.
-            device_qubits (int | None): Optional device qubit budget to use during unrolling.
-
-        Returns:
-            QasmModule: A new Qasm3Module representing the merged program.
+        Implemented by concrete subclasses to avoid version mixing and
+        import-time cycles. Implementations should ensure both operands
+        are normalized to the same version prior to merging.
         """
 
-        if not isinstance(other, QasmModule):
-            raise TypeError(f"Expected QasmModule instance, got {type(other).__name__}")
 
-        # Normalize both modules to QASM3 form (without mutating originals)
-        from pyqasm.modules.qasm2 import Qasm2Module  # pylint: disable=import-outside-toplevel
-        from pyqasm.modules.qasm3 import Qasm3Module  # pylint: disable=import-outside-toplevel
-        left_mod = self.to_qasm3(as_str=False) if isinstance(self, Qasm2Module) else self.copy()
-        right_mod = other.to_qasm3(as_str=False) if isinstance(other, Qasm2Module) else other.copy()
+def offset_statement_qubits(stmt: qasm3_ast.Statement, offset: int):
+    """Offset qubit indices for a given statement in-place by ``offset``.
 
-        # Unroll with qubit consolidation so both sides use __PYQASM_QUBITS__
-        unroll_kwargs: dict[str, object] = {"consolidate_qubits": True}
-        if device_qubits is not None:
-            unroll_kwargs["device_qubits"] = device_qubits
+    Handles gates, measurements, resets, and barriers (including slice forms).
+    """
+    if isinstance(stmt, qasm3_ast.QuantumMeasurementStatement):
+        bit = stmt.measure.qubit
+        if isinstance(bit, qasm3_ast.IndexedIdentifier):
+            for group in bit.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        return
 
-        left_mod.unroll(**unroll_kwargs)
-        right_mod.unroll(**unroll_kwargs)
+    if isinstance(stmt, qasm3_ast.QuantumGate):
+        for q in stmt.qubits:
+            for group in q.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        return
 
-        # Determine sizes after consolidation
-        left_qubits = left_mod.num_qubits
-        right_qubits = right_mod.num_qubits
-        total_qubits = left_qubits + right_qubits
+    if isinstance(stmt, qasm3_ast.QuantumReset):
+        q = stmt.qubits
+        if isinstance(q, qasm3_ast.IndexedIdentifier):
+            for group in q.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        return
 
-        # Build a new Program. We'll add includes (unique) first, then declaration and ops
-        merged_program = Program(statements=[], version="3.0")
-
-        # gets unique include filenames from both modules
-        # added this because we get duplicate File 'stdgates.inc' errors
-        include_names: list[str] = []
-        for module in (left_mod, right_mod):
-            for stmt in module.unrolled_ast.statements:
-                if isinstance(stmt, qasm3_ast.Include):
-                    if stmt.filename not in include_names:
-                        include_names.append(stmt.filename)
-        for inc_name in include_names:
-            merged_program.statements.append(qasm3_ast.Include(filename=inc_name))
-
-        # single consolidated qubit declaration
-        merged_qubit_decl = qasm3_ast.QubitDeclaration(
-            size=qasm3_ast.IntegerLiteral(value=total_qubits),
-            qubit=qasm3_ast.Identifier(name="__PYQASM_QUBITS__"),
-        )
-        merged_program.statements.append(merged_qubit_decl)
-
-        # Append left (self) statements, skipping its consolidated qubit declaration
-        for stmt in left_mod.unrolled_ast.statements:
-            if isinstance(stmt, (qasm3_ast.QubitDeclaration, qasm3_ast.Include)):
-                continue
-            merged_program.statements.append(deepcopy(stmt))
-
-        # Offsets indices inside a statement by a fixed amount to make sure we merge correctly
-        def _offset_statement_qubits(stmt: qasm3_ast.Statement, offset: int):
-            if isinstance(stmt, qasm3_ast.QuantumMeasurementStatement):
-                # Offset measured qubit source
-                bit = stmt.measure.qubit
-                if isinstance(bit, qasm3_ast.IndexedIdentifier):
-                    for group in bit.indices:
-                        for ind in group:
-                            ind.value += offset  # type: ignore[attr-defined]
-                # target is classical; leave untouched
-                return
-
-            if isinstance(stmt, qasm3_ast.QuantumGate):
-                # Offset all qubit operands
-                for q in stmt.qubits:
-                    for group in q.indices:
-                        for ind in group:
-                            ind.value += offset  # type: ignore[attr-defined]
-                return
-
-            if isinstance(stmt, qasm3_ast.QuantumReset):
-                q = stmt.qubits
-                if isinstance(q, qasm3_ast.IndexedIdentifier):
-                    for group in q.indices:
-                        for ind in group:
-                            ind.value += offset  # type: ignore[attr-defined]
-                return
-
-            if isinstance(stmt, qasm3_ast.QuantumBarrier):
-                # Barrier can be represented with IndexedIdentifier or a string slice on Identifier
-                qubits = stmt.qubits
-                if len(qubits) == 0:
-                    return
-                first = qubits[0]
-                if isinstance(first, qasm3_ast.IndexedIdentifier):
-                    for group in first.indices:
-                        for ind in group:
-                            ind.value += offset  # type: ignore[attr-defined]
-                elif isinstance(first, qasm3_ast.Identifier):
-                    # Handle forms: __PYQASM_QUBITS__[:E], [S:], [S:E]
-                    name = first.name
-                    if name.startswith("__PYQASM_QUBITS__[") and name.endswith("]"):
-                        slice_str = name[len("__PYQASM_QUBITS__"):]
-                        # Parse slice forms [S:E], [:E], or [S:] and capture optional start/end integers
-                        m = re.match(r"\[(?:(\d+)?:(\d+)?)\]", slice_str)
-                        if m:
-                            start_s, end_s = m.group(1), m.group(2)
-                            if start_s is None and end_s is not None:
-                                # [:E]
-                                end_v = int(end_s) + offset
-                                first.name = f"__PYQASM_QUBITS__[:{end_v}]"
-                            elif start_s is not None and end_s is None:
-                                # [S:]
-                                start_v = int(start_s) + offset
-                                first.name = f"__PYQASM_QUBITS__[{start_v}:]"
-                            elif start_s is not None and end_s is not None:
-                                # [S:E]
-                                start_v = int(start_s) + offset
-                                end_v = int(end_s) + offset
-                                first.name = f"__PYQASM_QUBITS__[{start_v}:{end_v}]"
-                return
-
-        # Append statements with index offset, skipping its qubit declaration and include statements
-        for stmt in right_mod.unrolled_ast.statements:
-            if isinstance(stmt, (qasm3_ast.QubitDeclaration, qasm3_ast.Include)):
-                continue
-            stmt_copy = deepcopy(stmt)
-            _offset_statement_qubits(stmt_copy, left_qubits)
-            merged_program.statements.append(stmt_copy)
-
-        # Build merged module
-        merged_module = Qasm3Module(
-            name=f"{left_mod.name}_merged_{right_mod.name}",
-            program=merged_program,
-        )
-
-        # inputs already unrolled, we can set the unrolled AST directly
-        merged_module.unrolled_ast = Program(
-            statements=list(merged_program.statements),
-            version="3.0",
-        )
-
-        # Combine metadata/history in a straightforward manner
-        merged_module._external_gates = list(
-            {*left_mod._external_gates, *right_mod._external_gates}
-        )
-        merged_module._user_operations = list(left_mod.history) + list(right_mod.history)
-        merged_module._user_operations.append(f"merge(other={right_mod.name})")
-        merged_module.validate()
-
-        return merged_module
+    if isinstance(stmt, qasm3_ast.QuantumBarrier):
+        qubits = stmt.qubits
+        if len(qubits) == 0:
+            return
+        first = qubits[0]
+        if isinstance(first, qasm3_ast.IndexedIdentifier):
+            for group in first.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        elif isinstance(first, qasm3_ast.Identifier):
+            # Handle forms: __PYQASM_QUBITS__[:E], [S:], [S:E]
+            name = first.name
+            if name.startswith("__PYQASM_QUBITS__[") and name.endswith("]"):
+                slice_str = name[len("__PYQASM_QUBITS__"):]
+                # Parse slice forms [S:E], [:E], or [S:]
+                m = re.match(r"\[(?:(\d+)?:(\d+)?)\]", slice_str)
+                if m:
+                    start_s, end_s = m.group(1), m.group(2)
+                    if start_s is None and end_s is not None:
+                        end_v = int(end_s) + offset
+                        first.name = f"__PYQASM_QUBITS__[:{end_v}]"
+                    elif start_s is not None and end_s is None:
+                        start_v = int(start_s) + offset
+                        first.name = f"__PYQASM_QUBITS__[{start_v}:]"
+                    elif start_s is not None and end_s is not None:
+                        start_v = int(start_s) + offset
+                        end_v = int(end_s) + offset
+                        first.name = f"__PYQASM_QUBITS__[{start_v}:{end_v}]"
