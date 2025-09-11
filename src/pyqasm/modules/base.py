@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import functools
 from abc import ABC, abstractmethod
+import re
 from collections import Counter
 from copy import deepcopy
 from typing import Optional
@@ -34,6 +35,7 @@ from pyqasm.exceptions import UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
 from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
 from pyqasm.visitor import QasmVisitor, ScopeManager
+
 
 
 def track_user_operation(func):
@@ -761,3 +763,75 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         Args:
             visitor (QasmVisitor): The visitor to accept
         """
+
+
+    @abstractmethod
+    def merge(
+        self,
+        other: "QasmModule",
+        device_qubits: Optional[int] = None,
+    ) -> "QasmModule":
+        """Merge this module with another module.
+
+        Implemented by concrete subclasses to avoid version mixing and
+        import-time cycles. Implementations should ensure both operands
+        are normalized to the same version prior to merging.
+        """
+
+
+def offset_statement_qubits(stmt: qasm3_ast.Statement, offset: int):
+    """Offset qubit indices for a given statement in-place by ``offset``.
+
+    Handles gates, measurements, resets, and barriers (including slice forms).
+    """
+    if isinstance(stmt, qasm3_ast.QuantumMeasurementStatement):
+        bit = stmt.measure.qubit
+        if isinstance(bit, qasm3_ast.IndexedIdentifier):
+            for group in bit.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        return
+
+    if isinstance(stmt, qasm3_ast.QuantumGate):
+        for q in stmt.qubits:
+            for group in q.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        return
+
+    if isinstance(stmt, qasm3_ast.QuantumReset):
+        q = stmt.qubits
+        if isinstance(q, qasm3_ast.IndexedIdentifier):
+            for group in q.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        return
+
+    if isinstance(stmt, qasm3_ast.QuantumBarrier):
+        qubits = stmt.qubits
+        if len(qubits) == 0:
+            return
+        first = qubits[0]
+        if isinstance(first, qasm3_ast.IndexedIdentifier):
+            for group in first.indices:
+                for ind in group:
+                    ind.value += offset  # type: ignore[attr-defined]
+        elif isinstance(first, qasm3_ast.Identifier):
+            # Handle forms: __PYQASM_QUBITS__[:E], [S:], [S:E]
+            name = first.name
+            if name.startswith("__PYQASM_QUBITS__[") and name.endswith("]"):
+                slice_str = name[len("__PYQASM_QUBITS__"):]
+                # Parse slice forms [S:E], [:E], or [S:]
+                m = re.match(r"\[(?:(\d+)?:(\d+)?)\]", slice_str)
+                if m:
+                    start_s, end_s = m.group(1), m.group(2)
+                    if start_s is None and end_s is not None:
+                        end_v = int(end_s) + offset
+                        first.name = f"__PYQASM_QUBITS__[:{end_v}]"
+                    elif start_s is not None and end_s is None:
+                        start_v = int(start_s) + offset
+                        first.name = f"__PYQASM_QUBITS__[{start_v}:]"
+                    elif start_s is not None and end_s is not None:
+                        start_v = int(start_s) + offset
+                        end_v = int(end_s) + offset
+                        first.name = f"__PYQASM_QUBITS__[{start_v}:{end_v}]"
