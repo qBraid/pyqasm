@@ -63,6 +63,11 @@ Types of changes:
 
 ### Dependencies
 - Bumps `@actions/checkout` from 4 to 5 ([#250](https://github.com/qBraid/pyqasm/pull/250))
+- Bump `@codecov/codecov-action` from 5.4.3 to 5.5.0 ([#254](https://github.com/qBraid/pyqasm/pull/254))
+- Bump `@actions/upload-pages-artifact` from 3 to 4 ([#255](https://github.com/qBraid/pyqasm/pull/255))
+- Bump `@actions/setup-python` from 5 to 6 ([#262](https://github.com/qBraid/pyqasm/pull/262))
+- Bump `@codecov/codecov-action` from 5.5.0 to 5.5.1 ([#263](https://github.com/qBraid/pyqasm/pull/263))
+- Bump `@actions/github-script` from 7 to 8 ([#264](https://github.com/qBraid/pyqasm/pull/264))
 
 ### Other
 
