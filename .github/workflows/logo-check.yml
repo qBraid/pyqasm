@@ -16,6 +16,10 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Fetch main changes for diff
+      run: |
+        git fetch origin main
+
     - name: Check for logo.png changes
       id : logo_check
       run: |
