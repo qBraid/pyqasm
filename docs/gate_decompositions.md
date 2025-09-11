@@ -456,24 +456,34 @@ q_1: ──────────────────┤ X ├┤ U(0,0,-t
 The controlled phase shift-00 gate is implemented using the following qiskit decomposition:
 
 ```python
-In [10]: matrix = np.diag([np.exp(1j * phi), 1.0, 1.0, 1.0])
-In [11]: op = Operator(matrix)
-In [12]: qc = QuantumCircuit(op.num_qubits)
-In [13]: qc.append(op.to_instruction(), qc.qubits)
-In [14]: qc.decompose().draw()
-Out[14]: 
-
-     ┌──────────────────────┐     ┌──────────────────────┐     »
-q_0: ┤ U(0,-2.9717,-1.7407) ├──■──┤ U(π,-0.46112,1.1097) ├──■──»
-     └─┬──────────────────┬─┘┌─┴─┐└─────┬──────────┬─────┘┌─┴─┐»
-q_1: ──┤ U(0.56139,π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ,ϕ) ├──────┤ X ├»
-       └──────────────────┘  └───┘      └──────────┘      └───┘»
-«         ┌──────────┐    
-«q_0: ────┤ U(π,ϕ,ϕ) ├────
-«     ┌───┴──────────┴───┐
-«q_1: ┤ U(1.0094,ϕ,-π/2) ├
-«     └──────────────────┘
-
+In [6]: from qiskit import QuantumCircuit
+   ...: 
+   ...: qc = QuantumCircuit(2)
+   ...: theta = Parameter('θ')
+   ...: # X gate on qubits
+   ...: qc.x(0)
+   ...: qc.x(1)
+   ...: qc.barrier()
+   ...: 
+   ...: # Decomposition of CPhaseShift (controlled phase shift gate)
+   ...: qc.u(0, 0, theta/2, 0)
+   ...: qc.cx(0, 1)
+   ...: qc.u(0, 0, -theta/2, 1)
+   ...: qc.cx(0, 1)
+   ...: qc.u(0, 0, theta/2, 1)
+   ...: 
+   ...: qc.barrier()
+   ...: # X gate on qubits
+   ...: qc.x(0)
+   ...: qc.x(1)
+   ...: 
+   ...: qc.decompose().decompose().draw()
+Out[6]: 
+     ┌──────────┐ ░ ┌────────────┐                                        ░ ┌──────────┐
+q_0: ┤ U(π,0,π) ├─░─┤ U(0,0,θ/2) ├──■───────────────────■─────────────────░─┤ U(π,0,π) ├
+     ├──────────┤ ░ └────────────┘┌─┴─┐┌─────────────┐┌─┴─┐┌────────────┐ ░ ├──────────┤
+q_1: ┤ U(π,0,π) ├─░───────────────┤ X ├┤ U(0,0,-θ/2) ├┤ X ├┤ U(0,0,θ/2) ├─░─┤ U(π,0,π) ├
+     └──────────┘ ░               └───┘└─────────────┘└───┘└────────────┘ ░ └──────────┘
 ```
 
 ## [CPhaseShift01 Gate](../src/pyqasm/maps/gates.py#L591)
@@ -481,23 +491,32 @@ q_1: ──┤ U(0.56139,π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ
 The controlled phase shift-01 gate is implemented using the following qiskit decomposition:
 
 ```python
-In [10]: matrix = np.diag([1.0, np.exp(1j * phi), 1.0, 1.0])
-In [11]: op = Operator(matrix)
-In [12]: qc = QuantumCircuit(op.num_qubits)
-In [13]: qc.append(op.to_instruction(), qc.qubits)
-In [14]: qc.decompose().draw()
-Out[14]: 
-
-     ┌──────────────────────┐     ┌──────────────────────┐     »
-q_0: ┤ U(0,-2.9717,-1.7407) ├──■──┤ U(π,-0.46112,1.1097) ├──■──»
-     └─┬──────────────────┬─┘┌─┴─┐└─────┬──────────┬─────┘┌─┴─┐»
-q_1: ──┤ U(2.5802,-π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ,ϕ) ├──────┤ X ├»
-       └──────────────────┘  └───┘      └──────────┘      └───┘»
-«         ┌──────────┐   
-«q_0: ────┤ U(π,ϕ,ϕ) ├───
-«     ┌───┴──────────┴──┐
-«q_1: ┤ U(2.1322,ϕ,π/2) ├
-«     └─────────────────┘
+In [7]: from qiskit import QuantumCircuit
+   ...: 
+   ...: qc = QuantumCircuit(2)
+   ...: theta = Parameter('θ')
+   ...: # X gate on qubit 0
+   ...: qc.x(0)
+   ...: qc.barrier()
+   ...: 
+   ...: # Decomposition of CPhaseShift (controlled phase shift gate)
+   ...: qc.u(0, 0, theta/2, 0)
+   ...: qc.cx(0, 1)
+   ...: qc.u(0, 0, -theta/2, 1)
+   ...: qc.cx(0, 1)
+   ...: qc.u(0, 0, theta/2, 1)
+   ...: 
+   ...: qc.barrier()
+   ...: # X gate on qubit 0
+   ...: qc.x(0)
+   ...: 
+   ...: qc.decompose().decompose().draw()
+Out[7]: 
+     ┌──────────┐ ░ ┌────────────┐                                        ░ ┌──────────┐
+q_0: ┤ U(π,0,π) ├─░─┤ U(0,0,θ/2) ├──■───────────────────■─────────────────░─┤ U(π,0,π) ├
+     └──────────┘ ░ └────────────┘┌─┴─┐┌─────────────┐┌─┴─┐┌────────────┐ ░ └──────────┘
+q_1: ─────────────░───────────────┤ X ├┤ U(0,0,-θ/2) ├┤ X ├┤ U(0,0,θ/2) ├─░─────────────
+                  ░               └───┘└─────────────┘└───┘└────────────┘ ░             
 ```
 
 ## [CPhaseShift10 Gate](../src/pyqasm/maps/gates.py#L612)
@@ -505,23 +524,32 @@ q_1: ──┤ U(2.5802,-π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ
 The controlled phase shift-10 gate is implemented using the following qiskit decomposition:
 
 ```python
-In [10]: matrix = np.diag([1.0, 1.0, np.exp(1j * phi), 1.0])
-In [11]: op = Operator(matrix)
-In [12]: qc = QuantumCircuit(op.num_qubits)
-In [13]: qc.append(op.to_instruction(), qc.qubits)
-In [14]: qc.decompose().draw()
-Out[14]: 
-
-     ┌──────────────────────┐     ┌──────────────────────┐     »
-q_0: ┤ U(0,-2.9717,-1.7407) ├──■──┤ U(π,-0.46112,1.1097) ├──■──»
-     └─┬──────────────────┬─┘┌─┴─┐└─────┬──────────┬─────┘┌─┴─┐»
-q_1: ──┤ U(2.5802,-π/2,0) ├──┤ X ├──────┤ U(ϕ,ϕ,ϕ) ├──────┤ X ├»
-       └──────────────────┘  └───┘      └──────────┘      └───┘»
-«         ┌──────────┐   
-«q_0: ────┤ U(π,ϕ,ϕ) ├───
-«     ┌───┴──────────┴──┐
-«q_1: ┤ U(2.1322,ϕ,π/2) ├
-«     └─────────────────┘
+In [8]: from qiskit import QuantumCircuit
+   ...: 
+   ...: qc = QuantumCircuit(2)
+   ...: theta = Parameter('θ')
+   ...: # X gate on qubit 1
+   ...: qc.x(1)
+   ...: qc.barrier()
+   ...: 
+   ...: # Decomposition of CPhaseShift (controlled phase shift gate)
+   ...: qc.u(0, 0, theta/2, 0)
+   ...: qc.cx(0, 1)
+   ...: qc.u(0, 0, -theta/2, 1)
+   ...: qc.cx(0, 1)
+   ...: qc.u(0, 0, theta/2, 1)
+   ...: 
+   ...: qc.barrier()
+   ...: # X gate on qubit 1
+   ...: qc.x(1)
+   ...: 
+   ...: qc.decompose().decompose().draw()
+Out[8]: 
+                  ░ ┌────────────┐                                        ░             
+q_0: ─────────────░─┤ U(0,0,θ/2) ├──■───────────────────■─────────────────░─────────────
+     ┌──────────┐ ░ └────────────┘┌─┴─┐┌─────────────┐┌─┴─┐┌────────────┐ ░ ┌──────────┐
+q_1: ┤ U(π,0,π) ├─░───────────────┤ X ├┤ U(0,0,-θ/2) ├┤ X ├┤ U(0,0,θ/2) ├─░─┤ U(π,0,π) ├
+     └──────────┘ ░               └───┘└─────────────┘└───┘└────────────┘ ░ └──────────┘
 ```
 
 ## [ECR Gate](../src/pyqasm/maps/gates.py#L723)

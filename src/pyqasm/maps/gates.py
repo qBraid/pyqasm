@@ -578,11 +578,7 @@ def cphaseshift00_gate(
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("x", qubit0))
     result.extend(one_qubit_gate_op("x", qubit1))
-    result.extend(u3_gate(0, 0, theta / 2, qubit0))
-    result.extend(u3_gate(0, 0, theta / 2, qubit1))
-    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
-    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
-    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(cphaseshift_gate(theta, qubit0, qubit1))
     result.extend(one_qubit_gate_op("x", qubit0))
     result.extend(one_qubit_gate_op("x", qubit1))
     return result
@@ -600,11 +596,7 @@ def cphaseshift01_gate(
     """
     result: list[QuantumGate] = []
     result.extend(one_qubit_gate_op("x", qubit0))
-    result.extend(u3_gate(0, 0, theta / 2, qubit1))
-    result.extend(u3_gate(0, 0, theta / 2, qubit0))
-    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
-    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
-    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(cphaseshift_gate(theta, qubit0, qubit1))
     result.extend(one_qubit_gate_op("x", qubit0))
     return result
 
@@ -620,12 +612,8 @@ def cphaseshift10_gate(
        for decomposition details
     """
     result: list[QuantumGate] = []
-    result.extend(u3_gate(0, 0, theta / 2, qubit0))
     result.extend(one_qubit_gate_op("x", qubit1))
-    result.extend(u3_gate(0, 0, theta / 2, qubit1))
-    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
-    result.extend(u3_gate(0, 0, -theta / 2, qubit1))
-    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(cphaseshift_gate(theta, qubit0, qubit1))
     result.extend(one_qubit_gate_op("x", qubit1))
     return result
 
