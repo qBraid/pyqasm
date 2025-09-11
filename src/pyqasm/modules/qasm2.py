@@ -26,7 +26,7 @@ from openqasm3.printer import dumps
 from pyqasm.exceptions import ValidationError
 from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
-
+from pyqasm.modules.base import offset_statement_qubits
 
 class Qasm2Module(QasmModule):
     """
@@ -108,3 +108,74 @@ class Qasm2Module(QasmModule):
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
         self.unrolled_ast.statements = final_stmt_list
+
+    def merge(self, other: QasmModule, device_qubits: int | None = None) -> QasmModule:
+        """Merge two modules and return a QASM2 result without mixing versions.
+        - If ``other`` is QASM3, it is merged into this module's semantics, and
+          any standard gate includes are mapped to ``qelib1.inc``.
+        - The merged program keeps version "2.0" and prints as QASM2.
+        """
+        if not isinstance(other, QasmModule):
+            raise TypeError(f"Expected QasmModule instance, got {type(other).__name__}")
+
+        left_mod = self.copy()
+        right_mod = other.copy()
+
+        # Unroll with qubit consolidation so both sides use __PYQASM_QUBITS__
+        unroll_kwargs: dict[str, object] = {"consolidate_qubits": True}
+        if device_qubits is not None:
+            unroll_kwargs["device_qubits"] = device_qubits
+
+        left_mod.unroll(**unroll_kwargs)
+        right_mod.unroll(**unroll_kwargs)
+
+        left_qubits = left_mod.num_qubits
+        total_qubits = left_qubits + right_mod.num_qubits
+
+        merged_program = Program(statements=[], version="2.0")
+
+        # Unique includes first; map stdgates.inc -> qelib1.inc for QASM2
+        include_names: list[str] = []
+        for module in (left_mod, right_mod):
+            for stmt in module.unrolled_ast.statements:
+                if isinstance(stmt, Include):
+                    fname = stmt.filename
+                    if fname == "stdgates.inc":
+                        fname = "qelib1.inc"
+                    if fname not in include_names:
+                        include_names.append(fname)
+        for name in include_names:
+            merged_program.statements.append(Include(filename=name))
+
+        # Consolidated qubit declaration (converted to qreg on print)
+        merged_program.statements.append(
+            qasm3_ast.QubitDeclaration(
+                size=qasm3_ast.IntegerLiteral(value=total_qubits),
+                qubit=qasm3_ast.Identifier(name="__PYQASM_QUBITS__"),
+            )
+        )
+
+        # Append left ops (skip decls and includes)
+        for stmt in left_mod.unrolled_ast.statements:
+            if isinstance(stmt, (qasm3_ast.QubitDeclaration, Include)):
+                continue
+            merged_program.statements.append(deepcopy(stmt))
+
+        # Append right ops with index offset
+        for stmt in right_mod.unrolled_ast.statements:
+            if isinstance(stmt, (qasm3_ast.QubitDeclaration, Include)):
+                continue
+            stmt_copy = deepcopy(stmt)
+            offset_statement_qubits(stmt_copy, left_qubits)
+            merged_program.statements.append(stmt_copy)
+
+        merged_module = Qasm2Module(
+            name=f"{left_mod.name}_merged_{right_mod.name}",
+            program=merged_program,
+        )
+        merged_module.unrolled_ast = Program(statements=list(merged_program.statements), version="2.0")
+        merged_module._external_gates = list({*left_mod._external_gates, *right_mod._external_gates})
+        merged_module._user_operations = list(left_mod.history) + list(right_mod.history)
+        merged_module._user_operations.append(f"merge(other={right_mod.name})")
+        merged_module.validate()
+        return merged_module

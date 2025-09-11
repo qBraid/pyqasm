@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, cyclic-import
 
 """
 Script demonstrating how to unroll a QASM 3 program using pyqasm.
