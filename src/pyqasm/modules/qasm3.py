@@ -16,11 +16,68 @@
 Defines a module for handling OpenQASM 3.0 programs.
 """
 
+import re
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Program
 from openqasm3.printer import dumps
 
-from pyqasm.modules.base import QasmModule, offset_statement_qubits
+from pyqasm.modules.base import QasmModule
+
+# Backward-compat: older installed versions may not export offset_statement_qubits
+try:
+    from pyqasm.modules.base import offset_statement_qubits  # type: ignore
+except Exception:  # pylint: disable=broad-except
+    def offset_statement_qubits(stmt: qasm3_ast.Statement, offset: int):  # type: ignore[override]  # pylint: disable=too-many-branches
+        """Offset qubit indices for a given statement in-place by ``offset``."""
+        if isinstance(stmt, qasm3_ast.QuantumMeasurementStatement):
+            bit = stmt.measure.qubit
+            if isinstance(bit, qasm3_ast.IndexedIdentifier):
+                for group in bit.indices:
+                    for ind in group:
+                        ind.value += offset  # type: ignore[attr-defined]
+            return
+
+        if isinstance(stmt, qasm3_ast.QuantumGate):
+            for q in stmt.qubits:
+                for group in q.indices:
+                    for ind in group:
+                        ind.value += offset  # type: ignore[attr-defined]
+            return
+
+        if isinstance(stmt, qasm3_ast.QuantumReset):
+            q = stmt.qubits
+            if isinstance(q, qasm3_ast.IndexedIdentifier):
+                for group in q.indices:
+                    for ind in group:
+                        ind.value += offset  # type: ignore[attr-defined]
+            return
+
+        if isinstance(stmt, qasm3_ast.QuantumBarrier):
+            qubits = stmt.qubits
+            if len(qubits) == 0:
+                return
+            first = qubits[0]
+            if isinstance(first, qasm3_ast.IndexedIdentifier):
+                for group in first.indices:
+                    for ind in group:
+                        ind.value += offset  # type: ignore[attr-defined]
+            elif isinstance(first, qasm3_ast.Identifier):
+                name = first.name
+                if name.startswith("__PYQASM_QUBITS__[") and name.endswith("]"):
+                    slice_str = name[len("__PYQASM_QUBITS__"):]
+                    m = re.match(r"\[(?:(\d+)?:(\d+)?)\]", slice_str)
+                    if m:
+                        start_s, end_s = m.group(1), m.group(2)
+                        if start_s is None and end_s is not None:
+                            end_v = int(end_s) + offset
+                            first.name = f"__PYQASM_QUBITS__[:{end_v}]"
+                        elif start_s is not None and end_s is None:
+                            start_v = int(start_s) + offset
+                            first.name = f"__PYQASM_QUBITS__[{start_v}:]"
+                        elif start_s is not None and end_s is not None:
+                            start_v = int(start_s) + offset
+                            end_v = int(end_s) + offset
+                            first.name = f"__PYQASM_QUBITS__[{start_v}:{end_v}]"
 
 
 class Qasm3Module(QasmModule):
@@ -64,7 +121,9 @@ class Qasm3Module(QasmModule):
 
         # Convert right to QASM3 if it supports conversion; otherwise copy
         convert = getattr(other, "to_qasm3", None)
-        right_mod = convert(as_str=False) if callable(convert) else other.copy()  # type: ignore[assignment]
+        right_mod = (
+            convert(as_str=False) if callable(convert) else other.copy()
+        )  # type: ignore[assignment]
 
         left_mod = self.copy()
 
@@ -82,13 +141,13 @@ class Qasm3Module(QasmModule):
         merged_program = Program(statements=[], version="3.0")
 
         # Unique includes first
-        include_names: list[str] = []
+        include_names: set[str] = set()
         for module in (left_mod, right_mod):
             for stmt in module.unrolled_ast.statements:
-                if isinstance(stmt, qasm3_ast.Include) and stmt.filename not in include_names:
-                    include_names.append(stmt.filename)
-        for name in include_names:
-            merged_program.statements.append(qasm3_ast.Include(filename=name))
+                if isinstance(stmt, qasm3_ast.Include):
+                    include_names.add(stmt.filename)
+        for fname in include_names:
+            merged_program.statements.append(qasm3_ast.Include(filename=fname))
 
         # Consolidated qubit declaration
         merged_program.statements.append(
@@ -112,10 +171,20 @@ class Qasm3Module(QasmModule):
             offset_statement_qubits(stmt, left_qubits)
             merged_program.statements.append(stmt)
 
-        merged_module = Qasm3Module(name=f"{left_mod.name}_merged_{right_mod.name}", program=merged_program)
-        merged_module.unrolled_ast = Program(statements=list(merged_program.statements), version="3.0")
-        merged_module._external_gates = list({*left_mod._external_gates, *right_mod._external_gates})
-        merged_module._user_operations = list(left_mod.history) + list(right_mod.history)
+        merged_module = Qasm3Module(
+            name=f"{left_mod.name}_merged_{right_mod.name}",
+            program=merged_program,
+        )
+        merged_module.unrolled_ast = Program(
+            statements=list(merged_program.statements),
+            version="3.0",
+        )
+        merged_module._external_gates = list(
+            { *left_mod._external_gates, *right_mod._external_gates }
+        )
+        merged_module._user_operations = (
+            list(left_mod.history) + list(right_mod.history)
+        )
         merged_module._user_operations.append(f"merge(other={right_mod.name})")
         merged_module.validate()
         return merged_module
