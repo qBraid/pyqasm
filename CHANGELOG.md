@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+
 - Added support to `OPENPULSE` code in pyqasm. ([#246](https://github.com/qBraid/pyqasm/pull/246))
   ###### Example:
   ```qasm
@@ -48,6 +49,8 @@ Types of changes:
   }
   ```
 - Added a workflow to track changes in the `docs/_static/logo.png` file to prevent unnecessary modifications. ([#257](https://github.com/qBraid/pyqasm/pull/257))
+- Added decomposition details for all gates in the `docs/gate_decompositions.md` file. ([#237](https://github.com/qBraid/pyqasm/pull/237))
+
 
 ### Improved / Modified
 - Modified if statement validation to now include empty blocks as well. See [Issue #246](https://github.com/qBraid/pyqasm/issues/246) for details. ([#251](https://github.com/qBraid/pyqasm/pull/251))
@@ -60,9 +63,16 @@ Types of changes:
 - Fixed Complex value initialization error. ([#253](https://github.com/qBraid/pyqasm/pull/253))
 - Fixed duplicate qubit argument check in function calls and  Error in function call with aliased qubit. ([#260](https://github.com/qBraid/pyqasm/pull/260))
 - Fixed Gate ordering across registers. ([#268](https://github.com/qBraid/pyqasm/pull/268))
+=======
+
 
 ### Dependencies
 - Bumps `@actions/checkout` from 4 to 5 ([#250](https://github.com/qBraid/pyqasm/pull/250))
+- Bump `@codecov/codecov-action` from 5.4.3 to 5.5.0 ([#254](https://github.com/qBraid/pyqasm/pull/254))
+- Bump `@actions/upload-pages-artifact` from 3 to 4 ([#255](https://github.com/qBraid/pyqasm/pull/255))
+- Bump `@actions/setup-python` from 5 to 6 ([#262](https://github.com/qBraid/pyqasm/pull/262))
+- Bump `@codecov/codecov-action` from 5.5.0 to 5.5.1 ([#263](https://github.com/qBraid/pyqasm/pull/263))
+- Bump `@actions/github-script` from 7 to 8 ([#264](https://github.com/qBraid/pyqasm/pull/264))
 
 ### Other
 

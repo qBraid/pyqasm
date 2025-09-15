@@ -85,7 +85,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           # cibuildwheel is designed to build wheels for multiple Python versions. 
           # It does this by downloading and using the appropriate Python versions internally, 
@@ -126,7 +126,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -153,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.11
           cache: pip
@@ -172,7 +172,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.python == 311 }}
-        uses: codecov/codecov-action@v5.5.0
+        uses: codecov/codecov-action@v5.5.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
