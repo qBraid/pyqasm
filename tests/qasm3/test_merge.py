@@ -26,10 +26,22 @@ def _qasm3(qasm: str) -> QasmModule:
 
 def test_merge_basic_gates_and_offsets():
     qasm_a = (
-        "OPENQASM 3.0;\n" 'include "stdgates.inc";\n' "qubit[2] q;\n" "x q[0];\n" "cx q[0], q[1];\n"
+        """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q;
+x q[0];
+cx q[0], q[1];
+"""
     )
     qasm_b = (
-        "OPENQASM 3.0;\n" 'include "stdgates.inc";\n' "qubit[3] r;\n" "h r[0];\n" "cx r[1], r[2];\n"
+        """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] r;
+h r[0];
+cx r[1], r[2];
+"""
     )
 
     mod_a = _qasm3(qasm_a)
@@ -88,8 +100,18 @@ def test_merge_with_measurements_and_barriers():
 
 
 def test_merge_qasm2_with_qasm3():
-    qasm2 = "OPENQASM 2.0;\n" 'include "qelib1.inc";\n' "qreg q[1];\n" "h q[0];\n"
-    qasm3 = "OPENQASM 3.0;\n" 'include "stdgates.inc";\n' "qubit[2] r;\n" "x r[0];\n"
+    qasm2 = (
+        "OPENQASM 2.0;\n"
+        'include "qelib1.inc";\n'
+        "qreg q[1];\n"
+        "h q[0];\n"
+    )
+    qasm3 = (
+        "OPENQASM 3.0;\n"
+        'include "stdgates.inc";\n'
+        "qubit[2] r;\n"
+        "x r[0];\n"
+    )
 
     mod2 = loads(qasm2)
     mod3 = loads(qasm3)
