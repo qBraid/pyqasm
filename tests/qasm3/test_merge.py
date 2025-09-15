@@ -26,18 +26,10 @@ def _qasm3(qasm: str) -> QasmModule:
 
 def test_merge_basic_gates_and_offsets():
     qasm_a = (
-        "OPENQASM 3.0;\n"
-        "include \"stdgates.inc\";\n"
-        "qubit[2] q;\n"
-        "x q[0];\n"
-        "cx q[0], q[1];\n"
+        "OPENQASM 3.0;\n" 'include "stdgates.inc";\n' "qubit[2] q;\n" "x q[0];\n" "cx q[0], q[1];\n"
     )
     qasm_b = (
-        "OPENQASM 3.0;\n"
-        "include \"stdgates.inc\";\n"
-        "qubit[3] r;\n"
-        "h r[0];\n"
-        "cx r[1], r[2];\n"
+        "OPENQASM 3.0;\n" 'include "stdgates.inc";\n' "qubit[3] r;\n" "h r[0];\n" "cx r[1], r[2];\n"
     )
 
     mod_a = _qasm3(qasm_a)
@@ -69,7 +61,7 @@ def test_merge_with_measurements_and_barriers():
     # Module A: 1 qubit + classical 1; has barrier and measure
     qasm_a = (
         "OPENQASM 3.0;\n"
-        "include \"stdgates.inc\";\n"
+        'include "stdgates.inc";\n'
         "qubit[1] qa; bit[1] ca;\n"
         "h qa[0];\n"
         "barrier qa;\n"
@@ -78,7 +70,7 @@ def test_merge_with_measurements_and_barriers():
     # Module B: 2 qubits + classical 2
     qasm_b = (
         "OPENQASM 3.0;\n"
-        "include \"stdgates.inc\";\n"
+        'include "stdgates.inc";\n'
         "qubit[2] qb; bit[2] cb;\n"
         "x qb[1];\n"
         "cb[1] = measure qb[1];\n"
@@ -96,18 +88,8 @@ def test_merge_with_measurements_and_barriers():
 
 
 def test_merge_qasm2_with_qasm3():
-    qasm2 = (
-        "OPENQASM 2.0;\n"
-        "include \"qelib1.inc\";\n"
-        "qreg q[1];\n"
-        "h q[0];\n"
-    )
-    qasm3 = (
-        "OPENQASM 3.0;\n"
-        "include \"stdgates.inc\";\n"
-        "qubit[2] r;\n"
-        "x r[0];\n"
-    )
+    qasm2 = "OPENQASM 2.0;\n" 'include "qelib1.inc";\n' "qreg q[1];\n" "h q[0];\n"
+    qasm3 = "OPENQASM 3.0;\n" 'include "stdgates.inc";\n' "qubit[2] r;\n" "x r[0];\n"
 
     mod2 = loads(qasm2)
     mod3 = loads(qasm3)
@@ -117,6 +99,6 @@ def test_merge_qasm2_with_qasm3():
     # Since we are merging starting from a QASM2 module, the merged output
     # should remain in QASM2 syntax (qreg), not QASM3 (qubit).
     assert "OPENQASM 2.0;" in text
-    assert "include \"qelib1.inc\";" in text
+    assert 'include "qelib1.inc";' in text
     assert "qreg __PYQASM_QUBITS__[3];" in text
     assert "x __PYQASM_QUBITS__[1];" in text

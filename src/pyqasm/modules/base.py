@@ -769,7 +769,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         other: "QasmModule",
         device_qubits: Optional[int] = None,
     ) -> "QasmModule":
-
         """Merge this module with another module.
 
         Implemented by concrete subclasses to avoid version mixing and
@@ -777,7 +776,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         are normalized to the same version prior to merging.
         """
 
-def offset_statement_qubits(stmt: qasm3_ast.Statement, offset: int):  # pylint: disable=too-many-branches
+
+def offset_statement_qubits(
+    stmt: qasm3_ast.Statement, offset: int
+):  # pylint: disable=too-many-branches
     """Offset qubit indices for a given statement in-place by ``offset``.
     Handles gates, measurements, resets, and barriers (including slice forms).
     """
@@ -817,7 +819,7 @@ def offset_statement_qubits(stmt: qasm3_ast.Statement, offset: int):  # pylint: 
             # Handle forms: __PYQASM_QUBITS__[:E], [S:], [S:E]
             name = first.name
             if name.startswith("__PYQASM_QUBITS__[") and name.endswith("]"):
-                slice_str = name[len("__PYQASM_QUBITS__"):]
+                slice_str = name[len("__PYQASM_QUBITS__") :]
                 # Parse slice forms [S:E], [:E], or [S:]
                 m = re.match(r"\[(?:(\d+)?:(\d+)?)\]", slice_str)
                 if m:

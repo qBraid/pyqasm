@@ -30,6 +30,7 @@ from pyqasm.modules.qasm3 import Qasm3Module
 try:
     from pyqasm.modules.base import offset_statement_qubits  # type: ignore
 except Exception:  # pylint: disable=broad-except
+
     def offset_statement_qubits(stmt: qasm3_ast.Statement, offset: int):  # type: ignore[override]  # pylint: disable=too-many-branches
         """Offset qubit indices for a given statement in-place by ``offset``."""
         if isinstance(stmt, qasm3_ast.QuantumMeasurementStatement):
@@ -67,7 +68,7 @@ except Exception:  # pylint: disable=broad-except
             elif isinstance(first, qasm3_ast.Identifier):
                 name = first.name
                 if name.startswith("__PYQASM_QUBITS__[") and name.endswith("]"):
-                    slice_str = name[len("__PYQASM_QUBITS__"):]
+                    slice_str = name[len("__PYQASM_QUBITS__") :]
                     m = re.match(r"\[(?:(\d+)?:(\d+)?)\]", slice_str)
                     if m:
                         start_s, end_s = m.group(1), m.group(2)
@@ -81,6 +82,7 @@ except Exception:  # pylint: disable=broad-except
                             start_v = int(start_s) + offset
                             end_v = int(end_s) + offset
                             first.name = f"__PYQASM_QUBITS__[{start_v}:{end_v}]"
+
 
 class Qasm2Module(QasmModule):
     """
@@ -230,11 +232,9 @@ class Qasm2Module(QasmModule):
             version="2.0",
         )
         merged_module._external_gates = list(
-            { *left_mod._external_gates, *right_mod._external_gates }
+            {*left_mod._external_gates, *right_mod._external_gates}
         )
-        merged_module._user_operations = (
-            list(left_mod.history) + list(right_mod.history)
-        )
+        merged_module._user_operations = list(left_mod.history) + list(right_mod.history)
         merged_module._user_operations.append(f"merge(other={right_mod.name})")
         merged_module.validate()
         return merged_module
