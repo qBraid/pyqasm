@@ -17,6 +17,7 @@ Defines a module for handling OpenQASM 3.0 programs.
 """
 
 import re
+
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Program
 from openqasm3.printer import dumps
