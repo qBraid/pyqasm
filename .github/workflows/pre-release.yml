@@ -95,7 +95,7 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh {project}
-          CIBW_TEST_EXTRAS: "test,cli"
+          CIBW_TEST_EXTRAS: "test,cli,pulse"
           CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh {project}
           CIBW_BUILD_VERBOSITY: 1
 
