@@ -12,12 +12,12 @@ authors:
   orcid: https://orcid.org/0009-0006-9222-0810
 repository-code: https://github.com/qBraid/pyqasm
 url: https://qbraid.github.io/pyqasm/
-repository-artifact: https://github.com/qBraid/pyqasm/releases/tag/v0.5.0
+repository-artifact: https://github.com/qBraid/pyqasm/releases/tag/v1.0.0
 keywords:
 - python
 - quantum-computing
 - openqasm
 - qbraid
 license: Apache-2.0
-version: 0.5.0
-date-released: '2025-08-14'
+version: 1.0.0
+date-released: '2025-09-19'
