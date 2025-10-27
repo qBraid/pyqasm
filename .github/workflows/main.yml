@@ -159,7 +159,7 @@ jobs:
           cache: pip
 
       - name: Download built package
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist
