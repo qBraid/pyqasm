@@ -98,7 +98,7 @@ jobs:
         run: bash bin/cibw/build_wheels.sh
 
       - name: Upload built wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
@@ -125,7 +125,7 @@ jobs:
         run: bash bin/test_sdist.sh
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with: 
           name: package-sdist
           path: dist/*.tar.gz
