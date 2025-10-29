@@ -43,6 +43,8 @@ def test_whitelisted_ops():
     h q;
     cx q[0], q[1];
     custom_gate q[0], q[1];
+
+    delay[10.0ns] q[0]; 
     """
 
     expected_qasm = """
@@ -60,6 +62,7 @@ def test_whitelisted_ops():
     h q[1];
     cx q[0], q[1];
     cx q[0], q[1];
+    delay[10.0ns] q[0];
     """
 
     result = loads(qasm2_string)
