@@ -15,64 +15,33 @@ Types of changes:
 ## Unreleased
 
 ### Added
-
-- Added support to `OPENPULSE` code in pyqasm. ([#246](https://github.com/qBraid/pyqasm/pull/246))
-  ###### Example:
-  ```qasm
-  OPENQASM 3.0;
-  defcalgrammar "openpulse";
-    
-  complex[float[32]] amp = 1.0 + 2.0im;
-  cal {
-      port d0;
-      frame driveframe = newframe(d0, 5.0e9, 0.0);
-      waveform wf = gaussian(amp, 16ns, 4ns);
-  }
-    
-  const float frequency_start = 4.5e9;
-  const float frequency_step = 1e6;
-  const int frequency_num_steps = 3;
-  
-  defcal saturation_pulse $0 {
-      play(driveframe, constant(amp, 100e-6s));
-  }
-    
-  cal {
-      set_frequency(driveframe, frequency_start);
-  }
-    
-  for int i in [1:frequency_num_steps] {
-      cal {
-          shift_frequency(driveframe, frequency_step);
-      }
-      saturation_pulse $0;
-  }
-  ```
-- Added a workflow to track changes in the `docs/_static/logo.png` file to prevent unnecessary modifications. ([#257](https://github.com/qBraid/pyqasm/pull/257))
-- Added decomposition details for all gates in the `docs/gate_decompositions.md` file. ([#237](https://github.com/qBraid/pyqasm/pull/237))
-
+- Direct support for `delay` instructions in OpenQASM 2 parsing. ([#275](https://github.com/qBraid/pyqasm/pull/275)) Eg. - 
+```python
+from pyqasm import loads
+qasm_str = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[1];
+delay[100ns] q[0];
+"""
+program = loads(qasm_str)
+program.unroll()
+print(program)
+```
 
 ### Improved / Modified
-- Modified if statement validation to now include empty blocks as well. See [Issue #246](https://github.com/qBraid/pyqasm/issues/246) for details. ([#251](https://github.com/qBraid/pyqasm/pull/251))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Fixed Complex value initialization error. ([#253](https://github.com/qBraid/pyqasm/pull/253))
-- Fixed duplicate qubit argument check in function calls and  Error in function call with aliased qubit. ([#260](https://github.com/qBraid/pyqasm/pull/260))
-- Fixed Gate ordering across registers in `pyqasm.draw()` function. ([#268](https://github.com/qBraid/pyqasm/pull/268))
-=======
 
 
 ### Dependencies
-- Bumps `@actions/checkout` from 4 to 5 ([#250](https://github.com/qBraid/pyqasm/pull/250))
-- Bump `@codecov/codecov-action` from 5.4.3 to 5.5.0 ([#254](https://github.com/qBraid/pyqasm/pull/254))
-- Bump `@actions/upload-pages-artifact` from 3 to 4 ([#255](https://github.com/qBraid/pyqasm/pull/255))
-- Bump `@actions/setup-python` from 5 to 6 ([#262](https://github.com/qBraid/pyqasm/pull/262))
-- Bump `@codecov/codecov-action` from 5.5.0 to 5.5.1 ([#263](https://github.com/qBraid/pyqasm/pull/263))
-- Bump `@actions/github-script` from 7 to 8 ([#264](https://github.com/qBraid/pyqasm/pull/264))
+- Update `pillow` requirement from <11.4.0 to <12.1.0 ([#271](https://github.com/qBraid/pyqasm/pull/271))
+- Bump `actions/download-artifact` from 5 to 6 ([#272](https://github.com/qBraid/pyqasm/pull/272))
+- Bump `actions/upload-artifact` from 4 to 5 ([#273](https://github.com/qBraid/pyqasm/pull/273))
 
 ### Other
 
@@ -80,6 +49,7 @@ Types of changes:
 
 Archive of changelog entries from previous releases:
 
+- [v1.0.0](https://github.com/qBraid/pyqasm/releases/tag/v1.0.0)
 - [v0.5.0](https://github.com/qBraid/pyqasm/releases/tag/v0.5.0)
 - [v0.4.0](https://github.com/qBraid/pyqasm/releases/tag/v0.4.0)
 - [v0.3.2](https://github.com/qBraid/pyqasm/releases/tag/v0.3.2)
