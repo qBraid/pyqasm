@@ -45,6 +45,7 @@ class Qasm2Module(QasmModule):
             qasm3_ast.BranchingStatement,
             qasm3_ast.QubitDeclaration,
             qasm3_ast.ClassicalDeclaration,
+            qasm3_ast.DelayInstruction,
             qasm3_ast.Include,
             qasm3_ast.QuantumGateDefinition,
             qasm3_ast.QuantumGate,
