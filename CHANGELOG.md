@@ -48,8 +48,11 @@ Types of changes:
       saturation_pulse $0;
   }
   ```
+
+- Added `asv` benchmarking and profiling support in `pyqasm`. ([#258](https://github.com/qBraid/pyqasm/pull/258))
 - Added a workflow to track changes in the `docs/_static/logo.png` file to prevent unnecessary modifications. ([#257](https://github.com/qBraid/pyqasm/pull/257))
 - Added decomposition details for all gates in the `docs/gate_decompositions.md` file. ([#237](https://github.com/qBraid/pyqasm/pull/237))
+
 
 
 ### Improved / Modified
