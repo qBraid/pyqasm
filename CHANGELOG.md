@@ -16,6 +16,7 @@ Types of changes:
 
 ### Added
 
+- Added support for `delay` instructions in OpenQASM 2.0 programs. ([#275](https://github.com/qBraid/pyqasm/pull/275))
 - Added support to `OPENPULSE` code in pyqasm. ([#246](https://github.com/qBraid/pyqasm/pull/246))
   ###### Example:
   ```qasm
