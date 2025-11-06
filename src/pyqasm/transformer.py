@@ -409,7 +409,9 @@ class Qasm3Transformer:
                         qid, qreg_size_map[target_name], qubit=True, op_node=target
                     )
                 target_qubits_size = len(target_qids)
-            elif isinstance(target.index[0], (IntegerLiteral, Identifier)):  # "(q[0]); OR (q[i]);"
+            elif isinstance(
+                target.index[0], (IntegerLiteral, Identifier, BinaryExpression)
+            ):  # "(q[0]); OR (q[i]); OR (q[i+1]);"
                 target_qids = [Qasm3ExprEvaluator.evaluate_expression(target.index[0])[0]]
                 Qasm3Validator.validate_register_index(
                     target_qids[0], qreg_size_map[target_name], qubit=True, op_node=target

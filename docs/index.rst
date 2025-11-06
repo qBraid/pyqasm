@@ -46,7 +46,7 @@
    </head>
    <body>
    <h1 style="text-align: center">
-      <img src="_static/pyqasm.svg" alt="qbraid logo" style="width:60px;height:60px;">
+      <img src="_static/pyqasm.svg" alt="pyqasm logo" style="width:60px;height:60px;">
       <span style="color:#808080"> PyQASM</span>
    </h1>
    <p style="text-align:center;font-style:italic;color:#808080">

@@ -2516,48 +2516,35 @@ class QasmVisitor:
             )
         aliased_reg_size = self._global_qreg_size_map[aliased_reg_name]
         if isinstance(value, qasm3_ast.Identifier):  # "let alias = q;"
-            for i in range(aliased_reg_size):
-                self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, i)
+            target_qids = list(range(aliased_reg_size))
             alias_reg_size = aliased_reg_size
         elif isinstance(value, qasm3_ast.IndexExpression):
-            if isinstance(value.index, qasm3_ast.DiscreteSet):  # "let alias = q[{0,1}];"
-                qids = Qasm3Transformer.extract_values_from_discrete_set(value.index, statement)
-                for i, qid in enumerate(qids):
+            if isinstance(value.index, qasm3_ast.DiscreteSet):
+                target_qids = Qasm3Transformer.extract_values_from_discrete_set(
+                    value.index, statement
+                )
+                for qid in target_qids:
                     Qasm3Validator.validate_register_index(
                         qid,
                         self._global_qreg_size_map[aliased_reg_name],
                         qubit=True,
                         op_node=statement,
                     )
-                    self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, qid)
-                alias_reg_size = len(qids)
-            elif len(value.index) != 1:  # like "let alias = q[0,1];"?
-                raise_qasm3_error(
-                    "An index set can be specified by a single integer (signed or unsigned), "
-                    "a comma-separated list of integers contained in braces {a,b,c,…}, "
-                    "or a range",
-                    error_node=statement,
-                    span=statement.span,
+                alias_reg_size = len(target_qids)
+            else:
+                if len(value.index) != 1:
+                    raise_qasm3_error(
+                        "An index set can be specified by a single integer (signed or unsigned), "
+                        "a comma-separated list of integers contained in braces {a,b,c,…}, "
+                        "or a range",
+                        error_node=statement,
+                        span=statement.span,
+                    )
+                target_qids, alias_reg_size = Qasm3Transformer.get_target_qubits(
+                    value, {aliased_reg_name: aliased_reg_size}, aliased_reg_name
                 )
-            elif isinstance(value.index[0], qasm3_ast.IntegerLiteral):  # "let alias = q[0];"
-                qid = value.index[0].value
-                Qasm3Validator.validate_register_index(
-                    qid, self._global_qreg_size_map[aliased_reg_name], qubit=True, op_node=statement
-                )
-                self._alias_qubit_labels[(alias_reg_name, 0)] = (
-                    aliased_reg_name,
-                    value.index[0].value,
-                )
-                alias_reg_size = 1
-            elif isinstance(value.index[0], qasm3_ast.RangeDefinition):  # "let alias = q[0:1:2];"
-                qids = Qasm3Transformer.get_qubits_from_range_definition(
-                    value.index[0],
-                    aliased_reg_size,
-                    is_qubit_reg=True,
-                )
-                for i, qid in enumerate(qids):
-                    self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, qid)
-                alias_reg_size = len(qids)
+        for i, qid in enumerate(target_qids):
+            self._alias_qubit_labels[(alias_reg_name, i)] = (aliased_reg_name, qid)
 
         # we are updating as the alias can be redefined as well
         alias_var = Variable(
@@ -2569,6 +2556,9 @@ class QasmVisitor:
             is_alias=True,
             span=statement.span,
         )
+        # Mark alias variables that reference qubits as qubit variables so they
+        # can be passed as quantum arguments to subroutines.
+        alias_var.is_qubit = True
 
         if self._scope_manager.check_in_scope(alias_reg_name):
             # means, the alias is present in current scope

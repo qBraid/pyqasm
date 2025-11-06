@@ -29,6 +29,40 @@ SUBROUTINE_INCORRECT_TESTS = {
         8,  # Column number
         "my_function(1)",  # Complete line
     ),
+    "test_duplicate_qubit_args_singletons": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        def my_function(qubit a, qubit b) {
+            h b;
+            return;
+        }
+        qubit[2] q;
+        my_function(q[0], q[0]);
+        """,
+        r"Duplicate qubit argument for register 'q' in function call for 'my_function'",
+        10,
+        8,
+        "my_function(q[0], q[0])",
+    ),
+    "test_duplicate_qubit_args_singletons_2": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        def my_function(qubit[2] p) {
+            h p;
+            return;
+        }
+        qubit[3] q;
+        my_function(q[{0, 0}]);
+        """,
+        r"Duplicate qubit argument for register 'q' in function call for 'my_function'",
+        10,
+        8,
+        "my_function(q[{0, 0}])",
+    ),
     "redefinition_raises_error": (
         """
         OPENQASM 3;

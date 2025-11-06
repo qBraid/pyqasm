@@ -340,24 +340,3 @@ class Qasm3Validator:
                 return_value,
                 op_node=return_statement,
             )
-
-    @staticmethod
-    def validate_unique_qubits(qubit_map: dict, reg_name: str, indices: list) -> bool:
-        """
-        Validates that the qubits in the given register are unique.
-
-        Args:
-            qubit_map (dict): Dictionary of qubits.
-            reg_name (str): The name of the register.
-            indices (list): A list of indices representing the qubits.
-
-        Returns:
-            bool: True if the qubits are unique, False otherwise.
-        """
-        if reg_name not in qubit_map:
-            qubit_map[reg_name] = set(indices)
-        else:
-            for idx in indices:
-                if idx in qubit_map[reg_name]:
-                    return False
-        return True

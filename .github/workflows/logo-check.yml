@@ -16,6 +16,10 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Fetch main changes for diff
+      run: |
+        git fetch origin main
+
     - name: Check for logo.png changes
       id : logo_check
       run: |
@@ -40,7 +44,7 @@ jobs:
 
     - name: Comment on PR if logo changes detected
       if: failure()
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           github.rest.issues.createComment({

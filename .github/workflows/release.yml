@@ -81,7 +81,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -91,14 +91,14 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_BEFORE_BUILD: bash {project}/bin/cibw/pre_build.sh {project}
-          CIBW_TEST_EXTRAS: "test,cli"
+          CIBW_TEST_EXTRAS: "test,cli,pulse"
           CIBW_TEST_COMMAND: bash {project}/bin/cibw/test_wheel.sh {project}
           CIBW_BUILD_VERBOSITY: 1
 
         run: bash bin/cibw/build_wheels.sh
 
       - name: Upload built wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
@@ -112,7 +112,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -125,7 +125,7 @@ jobs:
         run: bash bin/test_sdist.sh
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with: 
           name: package-sdist
           path: dist/*.tar.gz
@@ -141,7 +141,7 @@ jobs:
         uses: actions/checkout@v5
     
       - name: Download artifacts 
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           # pattern should match the upload artifact naming convention 
           # of the previous jobs

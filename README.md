@@ -150,6 +150,7 @@ PyQASM ensures your OpenQASM programs are **semantically correct** and **hardwar
 - [API Reference](https://qbraid.github.io/pyqasm/api/pyqasm.html): Developer documentation.
 - [Usage Examples](examples): Scripts and Markdown examples demonstrating core functionality.
 - [Supported Operations](pyqasm/README.md#supported-operations): OpenQASM language features supported, in progress, and planned for future support.
+- [Gate Decompositions](docs/gate_decompositions.md): Detailed decomposition diagrams and explanations for quantum gates.
 
 ## Contributing
 
