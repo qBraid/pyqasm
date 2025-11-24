@@ -12,7 +12,7 @@ jobs:
     if: ${{ github.actor != 'dependabot' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions' && github.actor != 'github-actions[bot]' && github.event.pull_request.draft == false }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
