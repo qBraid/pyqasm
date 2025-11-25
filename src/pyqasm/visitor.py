@@ -142,7 +142,7 @@ class QasmVisitor:
         self._openpulse_grammar_declared: bool = False
         self._defcal_frames: set[str] = set()
         self._pulse_gates_qubits_frame_map: list[dict[str, dict[str, set[Any]]]] = []
-
+        self._visit_map = self._construct_visit_map()
         self._scope_manager: ScopeManager = scope_manager
         self._openpulse_scope_manager: ScopeManager = ScopeManager()
         self._pulse_visitor = OpenPulseVisitor(
@@ -154,6 +154,37 @@ class QasmVisitor:
         """Initialize the utilities for the visitor."""
         for class_obj in [Qasm3Transformer, Qasm3ExprEvaluator, Qasm3SubroutineProcessor]:
             class_obj.set_visitor_obj(self)
+
+    def _construct_visit_map(self):
+        return {
+            qasm3_ast.Include: self._visit_include,  # No operation
+            qasm3_ast.QuantumMeasurementStatement: self._visit_measurement,
+            qasm3_ast.QuantumReset: self._visit_reset,
+            qasm3_ast.QuantumBarrier: self._visit_barrier,
+            qasm3_ast.QubitDeclaration: self._visit_quantum_register,
+            qasm3_ast.QuantumGateDefinition: self._visit_gate_definition,
+            qasm3_ast.QuantumGate: self._visit_generic_gate_operation,
+            qasm3_ast.QuantumPhase: self._visit_generic_gate_operation,
+            qasm3_ast.ClassicalDeclaration: self._visit_classical_declaration,
+            qasm3_ast.ClassicalAssignment: self._visit_classical_assignment,
+            qasm3_ast.ConstantDeclaration: self._visit_constant_declaration,
+            qasm3_ast.BranchingStatement: self._visit_branching_statement,
+            qasm3_ast.ForInLoop: self._visit_forin_loop,
+            qasm3_ast.WhileLoop: self._visit_while_loop,
+            qasm3_ast.AliasStatement: self._visit_alias_statement,
+            qasm3_ast.SwitchStatement: self._visit_switch_statement,
+            qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
+            qasm3_ast.ExternDeclaration: self._visit_subroutine_definition,
+            qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
+            qasm3_ast.IODeclaration: lambda x: [],
+            qasm3_ast.BreakStatement: self._visit_break,
+            qasm3_ast.ContinueStatement: self._visit_continue,
+            qasm3_ast.DelayInstruction: self._visit_delay_statement,
+            qasm3_ast.Box: self._visit_box_statement,
+            qasm3_ast.CalibrationDefinition: self._visit_calibration_definition,
+            qasm3_ast.CalibrationStatement: self._visit_calibration_statement,
+            qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
+        }
 
     def _visit_quantum_register(
         self, register: qasm3_ast.QubitDeclaration
@@ -3080,37 +3111,8 @@ class QasmVisitor:
         """
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
-        visit_map = {
-            qasm3_ast.Include: self._visit_include,  # No operation
-            qasm3_ast.QuantumMeasurementStatement: self._visit_measurement,
-            qasm3_ast.QuantumReset: self._visit_reset,
-            qasm3_ast.QuantumBarrier: self._visit_barrier,
-            qasm3_ast.QubitDeclaration: self._visit_quantum_register,
-            qasm3_ast.QuantumGateDefinition: self._visit_gate_definition,
-            qasm3_ast.QuantumGate: self._visit_generic_gate_operation,
-            qasm3_ast.QuantumPhase: self._visit_generic_gate_operation,
-            qasm3_ast.ClassicalDeclaration: self._visit_classical_declaration,
-            qasm3_ast.ClassicalAssignment: self._visit_classical_assignment,
-            qasm3_ast.ConstantDeclaration: self._visit_constant_declaration,
-            qasm3_ast.BranchingStatement: self._visit_branching_statement,
-            qasm3_ast.ForInLoop: self._visit_forin_loop,
-            qasm3_ast.WhileLoop: self._visit_while_loop,
-            qasm3_ast.AliasStatement: self._visit_alias_statement,
-            qasm3_ast.SwitchStatement: self._visit_switch_statement,
-            qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
-            qasm3_ast.ExternDeclaration: self._visit_subroutine_definition,
-            qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
-            qasm3_ast.IODeclaration: lambda x: [],
-            qasm3_ast.BreakStatement: self._visit_break,
-            qasm3_ast.ContinueStatement: self._visit_continue,
-            qasm3_ast.DelayInstruction: self._visit_delay_statement,
-            qasm3_ast.Box: self._visit_box_statement,
-            qasm3_ast.CalibrationDefinition: self._visit_calibration_definition,
-            qasm3_ast.CalibrationStatement: self._visit_calibration_statement,
-            qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
-        }
 
-        visitor_function = visit_map.get(type(statement))
+        visitor_function = self._visit_map.get(type(statement))
         if visitor_function:
             if isinstance(statement, qasm3_ast.ExpressionStatement):
                 # these return a tuple of return value and list of statements

@@ -17,6 +17,7 @@ Types of changes:
 ### Added
 
 ### Improved / Modified
+- Moved the `visit_map` from the `visit_statement` function to a class level variable for improved efficiency. ([#279](https://github.com/qBraid/pyqasm/pull/279))
 
 ### Deprecated
 
