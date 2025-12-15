@@ -24,7 +24,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
-
+- Updated CI to use `macos-15-intel` image due to deprecation of `macos-13` image. ([#283](https://github.com/qBraid/pyqasm/pull/283))
 
 ### Dependencies
 - Update `pillow` requirement from <11.4.0 to <12.1.0 ([#271](https://github.com/qBraid/pyqasm/pull/271))

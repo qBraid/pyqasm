@@ -46,16 +46,16 @@ jobs:
             manylinux_image: manylinux2014
 
           # MacOS x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 310
             platform_id: macosx_x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 311
             platform_id: macosx_x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 312
             platform_id: macosx_x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 313
             platform_id: macosx_x86_64
 
