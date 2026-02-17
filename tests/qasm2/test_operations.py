@@ -17,6 +17,7 @@ Module containing unit tests for parsing and unrolling programs that contain qua
 declarations.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -71,8 +72,7 @@ def test_subroutine_blacklist():
 
     # subroutines
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -81,15 +81,13 @@ def test_subroutine_blacklist():
             def my_func(int[32] a) -> int[32] {
                 return a;
             }
-            """
-        ).validate()
+            """).validate()
 
 
 def test_switch_blacklist():
     # switch statements
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -101,15 +99,13 @@ def test_switch_blacklist():
                 default:
                     h q[0];
             }
-            """
-        ).validate()
+            """).validate()
 
 
 def test_for_blacklist():
     # for loops
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -118,15 +114,13 @@ def test_for_blacklist():
             for (int i = 0; i < 2; i++) {
                 h q[i];
             }
-            """
-        ).validate()
+            """).validate()
 
 
 def test_while_blacklist():
     # while loops
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -135,8 +129,7 @@ def test_while_blacklist():
             while (1) {
                 h q[0];
             }
-            """
-        ).validate()
+            """).validate()
 
 
 # TODO : extend to more constructs

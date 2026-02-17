@@ -15,6 +15,7 @@
 """
 Definition of the decomposition rules for the gates in the basis sets.
 """
+
 from enum import Enum
 
 from pyqasm.elements import BasisSet

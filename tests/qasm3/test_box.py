@@ -15,6 +15,7 @@
 """
 Module containing unit tests for Box Statement.
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads

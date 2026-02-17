@@ -16,6 +16,7 @@
 Module containing unit tests for the barrier operation.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads

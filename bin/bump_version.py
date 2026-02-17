@@ -16,6 +16,7 @@
 Script to bump the major, minor, or patch version in pyproject.toml.
 
 """
+
 import pathlib
 import sys
 

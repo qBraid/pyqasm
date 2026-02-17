@@ -16,6 +16,7 @@
 Module containing unit tests for reset operation.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads

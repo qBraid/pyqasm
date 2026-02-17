@@ -16,6 +16,7 @@
 Module containing unit tests for program formatting
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
