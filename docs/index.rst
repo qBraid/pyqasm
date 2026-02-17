@@ -45,10 +45,10 @@
    </style>
    </head>
    <body>
-   <h1 style="text-align: center; margin-top: 0; margin-bottom: 0.25em">
-     <img src="_static/pyqasm-light.svg" alt="pyqasm logo" style="width:280px;height:280px;max-width:min(280px, 50vw);">
+   <h1 style="text-align: center; margin-top: 0; margin-bottom: 0.25em; padding-top: 0.5em; padding-bottom: 0.5em">
+     <img src="_static/pyqasm-light.svg" alt="pyqasm logo" style="width:280px;height:auto;max-width:min(280px, 50vw);">
    </h1>
-   <p style="text-align:center;font-style:italic;color:#808080; margin-top: 0">
+   <p style="text-align:center;font-style:italic;color:#808080; margin-top: 0; margin-bottom: 0.5em">
      Python toolkit for OpenQASM program analysis and compilation.
    </p>
    </body>
