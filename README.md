@@ -1,6 +1,9 @@
 # pyqasm
 
-<img align="right" width="100" src="https://qbraid-static.s3.amazonaws.com/pyqasm.svg"/>
+<p align="left">
+  <img src="docs/_static/pyqasm-light.svg#gh-light-mode-only" width="500" alt="PyQASM Logo (Light Mode)">
+  <img src="docs/_static/pyqasm-dark.svg#gh-dark-mode-only" width="500" alt="PyQASM Logo (Dark Mode)">
+</p>
 
 [![CI](https://github.com/qBraid/pyqasm/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/qBraid/pyqasm/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/qBraid/pyqasm/graph/badge.svg?token=92YURMR8T8)](https://codecov.io/gh/qBraid/pyqasm)

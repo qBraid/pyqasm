@@ -18,6 +18,7 @@ Types of changes:
 
 ### Improved / Modified
 - Moved the `visit_map` from the `visit_statement` function to a class level variable for improved efficiency. ([#279](https://github.com/qBraid/pyqasm/pull/279))
+- Added SVG light and dark mode versions of PyQASM logo, with and without text, and added dynamic logo mode to `README.md` based on color palette used on user-side. ([#288](https://github.com/qBraid/pyqasm/pull/288))
 
 ### Deprecated
 
