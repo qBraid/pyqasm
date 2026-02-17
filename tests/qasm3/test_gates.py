@@ -16,6 +16,7 @@
 Module containing unit tests for unrolling quantum gates.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads

@@ -16,6 +16,7 @@
 Module with transformation functions for QASM3 visitor
 
 """
+
 from copy import deepcopy
 from typing import Any, NamedTuple, Optional, Sequence, cast
 

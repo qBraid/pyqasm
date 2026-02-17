@@ -19,7 +19,6 @@ Module mapping supported QASM gates to lower level gate operations.
 
 """
 
-
 from typing import Callable
 
 import numpy as np

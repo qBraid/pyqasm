@@ -18,6 +18,7 @@ Module for frame validation functions.
 This module contains functions for validating different types of frame
 declarations in OpenPulse programs.
 """
+
 from typing import Any, Tuple
 
 import openqasm3.ast as qasm3_ast

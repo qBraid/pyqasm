@@ -18,6 +18,7 @@
 Module defining Qasm Visitor.
 
 """
+
 import copy
 import logging
 import re

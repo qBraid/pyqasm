@@ -16,6 +16,7 @@
 Module with analysis functions for QASM visitor
 
 """
+
 from __future__ import annotations
 
 import re

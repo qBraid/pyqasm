@@ -16,6 +16,7 @@
 Module containing unit tests for loading measurement operations.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads

@@ -16,6 +16,7 @@
 Module containing unit tests for calculating program depth.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import loads

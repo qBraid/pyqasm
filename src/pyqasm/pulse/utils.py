@@ -16,6 +16,7 @@
 Module with utility functions for Pulse visitor
 
 """
+
 import re
 from typing import Any, Sequence
 

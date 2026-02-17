@@ -19,6 +19,7 @@
 Module defining OpenPulse Visitor.
 
 """
+
 import logging
 from typing import Any, Optional
 
