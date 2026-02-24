@@ -166,13 +166,14 @@ class Qasm3Transformer:
 
     @staticmethod
     def transform_gate_qubits(
-        gate_op: QuantumGate | QuantumPhase, qubit_map: dict[str, IndexedIdentifier]
+        gate_op: QuantumGate | QuantumPhase,
+        qubit_map: dict[str, IndexedIdentifier | Identifier],
     ) -> None:
         """Transform the qubits of a gate operation with a qubit map.
 
         Args:
             gate_op (QuantumGate): The gate operation to transform.
-            qubit_map (dict[str, IndexedIdentifier]): The qubit map to use for transformation.
+            qubit_map: Maps qubits to their transformed identifiers.
 
         Returns:
             None
