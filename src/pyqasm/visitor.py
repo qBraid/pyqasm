@@ -283,7 +283,7 @@ class QasmVisitor:
             operation (Any): The operation to get qubits for.
             qubits (bool): Whether the bits are quantum bits or classical bits. Defaults to True.
         Returns:
-            list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] : The bits for the operation.
+            The quantum or classical bits for the operation.
         """
         openqasm_bits: list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] = []
         bit_list = []

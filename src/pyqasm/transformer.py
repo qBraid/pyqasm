@@ -173,7 +173,7 @@ class Qasm3Transformer:
 
         Args:
             gate_op (QuantumGate): The gate operation to transform.
-            qubit_map (dict[str, IndexedIdentifier | Identifier]): The qubit map to use for transformation.
+            qubit_map: Maps qubits to their transformed identifiers.
 
         Returns:
             None
