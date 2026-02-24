@@ -23,6 +23,7 @@ from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
+    PHYSICAL_QUBIT_VALID_TESTS,
     SINGLE_QUBIT_GATE_INCORRECT_TESTS,
     custom_op_tests,
     double_op_tests,
@@ -655,3 +656,40 @@ def test_incorrect_single_qubit_gates(test_name, caplog):
 
     assert f"Error at line {line_num}, column {col_num}" in caplog.text
     assert line in caplog.text
+
+
+# ── Physical-qubit tests ────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("test_name", PHYSICAL_QUBIT_VALID_TESTS.keys())
+def test_physical_qubit_validate(test_name):
+    qasm_input, expected_qubits, expected_clbits = PHYSICAL_QUBIT_VALID_TESTS[test_name]
+    result = loads(qasm_input)
+    result.validate()
+    assert result.num_qubits == expected_qubits
+    assert result.num_clbits == expected_clbits
+
+
+def test_physical_qubit_unroll():
+    """Physical qubits inside a custom gate are expanded without errors."""
+    qasm_input = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    gate my_rx(p) q { rx(p) q; }
+    my_rx(0.5) $0;
+    """
+    result = loads(qasm_input)
+    result.unroll()
+    assert result.num_qubits == 1
+    assert result.num_clbits == 0
+
+
+def test_physical_qubit_duplicate_detection():
+    """Duplicate physical qubits in a two-qubit gate are caught."""
+    qasm_input = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    cx $0, $0;
+    """
+    with pytest.raises(ValidationError, match=r"Duplicate qubit"):
+        loads(qasm_input).validate()

@@ -480,3 +480,70 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         "gate custom_gate(a, b) p, q {",
     ),
 }
+
+
+# ── Physical-qubit tests ────────────────────────────────────────────────────
+
+PHYSICAL_QUBIT_VALID_TESTS = {
+    "basic_gates": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        x $0;
+        h $1;
+        cx $0, $1;
+        """,
+        2,
+        0,
+    ),
+    "custom_gate": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        gate prx(_gate_p_0, _gate_p_1) _gate_q_0 {
+            rz(0) _gate_q_0;
+            rx(pi/2) _gate_q_0;
+            rz(0) _gate_q_0;
+        }
+        bit[2] meas;
+        prx(pi/2, 0) $0;
+        prx(pi/2, 0) $0;
+        prx(pi/2, 0) $0;
+        barrier $0, $1;
+        meas[0] = measure $0;
+        meas[1] = measure $1;
+        """,
+        2,
+        2,
+    ),
+    "barrier_only": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        barrier $0, $1, $2;
+        """,
+        3,
+        0,
+    ),
+    "measure_physical": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        bit[1] c;
+        h $0;
+        c[0] = measure $0;
+        """,
+        1,
+        1,
+    ),
+    "non_contiguous_indices": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        x $0;
+        x $3;
+        """,
+        4,
+        0,
+    ),
+}

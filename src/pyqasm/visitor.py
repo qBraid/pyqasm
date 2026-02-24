@@ -26,7 +26,7 @@ import sys
 from collections import OrderedDict, deque
 from functools import partial
 from io import StringIO
-from typing import Any, Callable, Optional, Sequence, cast
+from typing import Any, Callable, Optional, Sequence, Union, cast
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
@@ -271,22 +271,21 @@ class QasmVisitor:
             return []
         return [register]
 
-    # pylint: disable-next=too-many-locals,too-many-branches
+    # pylint: disable-next=too-many-locals,too-many-branches,too-many-statements
     def _get_op_bits(
         self,
         operation: Any,
         qubits: bool = True,
         function_qubit_sizes: Optional[dict[str, int]] = None,
-    ) -> list[qasm3_ast.IndexedIdentifier]:
+    ) -> list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]:
         """Get the quantum / classical bits for the operation.
-
         Args:
             operation (Any): The operation to get qubits for.
             qubits (bool): Whether the bits are quantum bits or classical bits. Defaults to True.
         Returns:
-            list[qasm3_ast.IndexedIdentifier] : The bits for the operation.
+            list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] : The bits for the operation.
         """
-        openqasm_bits = []
+        openqasm_bits: list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] = []
         bit_list = []
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
@@ -315,6 +314,20 @@ class QasmVisitor:
                 reg_name = bit.name.name
             else:
                 reg_name = bit.name
+
+            if qubits and reg_name.startswith("$"):
+                # Physical qubit reference (e.g. $0, $1).
+                if not reg_name[1:].isdigit():
+                    raise_qasm3_error(
+                        f"Invalid physical qubit identifier '{reg_name}': "
+                        f"expected a non-negative integer index after '$'",
+                        error_node=operation,
+                        span=operation.span,
+                    )
+                self._register_physical_qubit(reg_name)
+                # Keep as an Identifier so it serialises as "$0" rather than "$0[0]".
+                openqasm_bits.append(qasm3_ast.Identifier(reg_name))
+                continue
 
             max_register_size = 0
             reg_var = self._scope_manager.get_from_visible_scope(reg_name)
@@ -374,7 +387,6 @@ class QasmVisitor:
                 )
                 for bit_id in bit_ids
             ]
-
             openqasm_bits.extend(new_bits)
 
         return openqasm_bits
@@ -558,17 +570,33 @@ class QasmVisitor:
         if isinstance(source, qasm3_ast.Identifier):
             is_pulse_gate = False
             if source.name.startswith("$") and source.name[1:].isdigit():
-                is_pulse_gate = True
-                statement.measure.qubit.name = f"__PYQASM_QUBITS__[{source.name[1:]}]"
+                if self._openpulse_grammar_declared:
+                    # OpenPulse program: rename to the internal virtual register used by the
+                    # pulse visitor, and validate the index is in range.
+                    is_pulse_gate = True
+                    statement.measure.qubit.name = f"__PYQASM_QUBITS__[{source.name[1:]}]"
+                    if (
+                        self._total_pulse_qubits <= 0
+                        and sum(self._global_qreg_size_map.values()) == 0
+                    ):
+                        raise_qasm3_error(
+                            "Invalid no of qubits in pulse level measurement",
+                            error_node=statement,
+                            span=statement.span,
+                        )
+                else:
+                    # Plain QASM program: keep the physical qubit identifier as-is.
+                    is_pulse_gate = True
+                    self._register_physical_qubit(source.name)
             elif source.name.startswith("__PYQASM_QUBITS__"):
                 is_pulse_gate = True
                 statement.measure.qubit.name = source.name
-            if self._total_pulse_qubits <= 0 and sum(self._global_qreg_size_map.values()) == 0:
-                raise_qasm3_error(
-                    "Invalid no of qubits in pulse level measurement",
-                    error_node=statement,
-                    span=statement.span,
-                )
+                if self._total_pulse_qubits <= 0 and sum(self._global_qreg_size_map.values()) == 0:
+                    raise_qasm3_error(
+                        "Invalid no of qubits in pulse level measurement",
+                        error_node=statement,
+                        span=statement.span,
+                    )
             if is_pulse_gate:
                 return [statement]
         # # TODO: handle in-function measurements
@@ -748,12 +776,20 @@ class QasmVisitor:
         for op_qubit in barrier.qubits:
             if isinstance(op_qubit, qasm3_ast.Identifier):
                 if op_qubit.name.startswith("$") and op_qubit.name[1:].isdigit():
-                    if int(op_qubit.name[1:]) >= self._total_pulse_qubits:
-                        raise_qasm3_error(
-                            f"Invalid pulse qubit index `{op_qubit.name}` on barrier",
-                            error_node=barrier,
-                            span=barrier.span,
-                        )
+                    phys_idx = int(op_qubit.name[1:])
+                    # In an OpenPulse program all physical qubits are declared up-front via
+                    # defcal; validate that the index is within the known range.
+                    # In a plain QASM program there are no such declarations, so any
+                    # non-negative index is valid.
+                    if self._openpulse_grammar_declared:
+                        if phys_idx >= self._total_pulse_qubits:
+                            raise_qasm3_error(
+                                f"Invalid pulse qubit index `{op_qubit.name}` on barrier",
+                                error_node=barrier,
+                                span=barrier.span,
+                            )
+                    else:
+                        self._register_physical_qubit(op_qubit.name)
                     valid_open_pulse_qubits = True
         if valid_open_pulse_qubits:
             return [barrier]
@@ -868,7 +904,7 @@ class QasmVisitor:
 
     def _unroll_multiple_target_qubits(
         self, operation: qasm3_ast.QuantumGate, gate_qubit_count: int
-    ) -> list[list[qasm3_ast.IndexedIdentifier]]:
+    ) -> list[list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]]:
         """Unroll the complete list of all qubits that the given operation is applied to.
            E.g. this maps 'cx q[0], q[1], q[2], q[3]' to [[q[0], q[1]], [q[2], q[3]]]
 
@@ -895,7 +931,7 @@ class QasmVisitor:
     def _broadcast_gate_operation(
         self,
         gate_function: Callable,
-        all_targets: list[list[qasm3_ast.IndexedIdentifier]],
+        all_targets: list[list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]],
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Broadcasts the application of a gate onto multiple sets of target qubits.
@@ -917,9 +953,42 @@ class QasmVisitor:
             result.extend(gate_function(*ctrls, *targets))
         return result
 
+    def _register_physical_qubit(self, name: str) -> int:
+        """Register a physical qubit ``$n`` for depth / count tracking if not already known.
+
+        Args:
+            name: The physical qubit identifier string (e.g. ``"$0"``).
+
+        Returns:
+            The physical qubit index.
+        """
+        phys_idx = int(name[1:])
+        if (name, phys_idx) not in self._module._qubit_depths:
+            self._module._qubit_depths[(name, phys_idx)] = QubitDepthNode(name, phys_idx)
+            self._total_pulse_qubits = max(self._total_pulse_qubits, phys_idx + 1)
+            self._module.num_qubits = max(self._module.num_qubits, phys_idx + 1)
+        return phys_idx
+
+    @staticmethod
+    def _get_qubit_name_and_id(
+        qubit: qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier,
+    ) -> tuple[str, int]:
+        """Return (register_name, qubit_index) for virtual or physical qubits.
+
+        Physical qubits are represented as ``Identifier("$n")`` and carry their
+        index in the name itself.  Virtual qubits are ``IndexedIdentifier`` with
+        an explicit index in ``.indices``.
+        """
+        if isinstance(qubit, qasm3_ast.Identifier):
+            # Physical qubit: name is "$n", index is n.
+            return qubit.name, int(qubit.name[1:])
+        assert isinstance(qubit.indices[0], list)
+        qubit_id = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]  # type: ignore
+        return qubit.name.name, qubit_id
+
     def _update_qubit_depth_for_gate(
         self,
-        all_targets: list[list[qasm3_ast.IndexedIdentifier]],
+        all_targets: list[list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]],
         ctrls: list[qasm3_ast.IndexedIdentifier],
     ):
         """Updates the depth of the circuit after applying a broadcasted gate.
@@ -934,18 +1003,14 @@ class QasmVisitor:
             for qubit_subset in all_targets:
                 max_involved_depth = 0
                 for qubit in qubit_subset + ctrls:
-                    assert isinstance(qubit.indices[0], list)
-                    _qid_ = qubit.indices[0][0]
-                    qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
-                    qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
+                    qubit_name, qubit_id = self._get_qubit_name_and_id(qubit)
+                    qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
                     qubit_node.num_gates += 1
                     max_involved_depth = max(max_involved_depth, qubit_node.depth + 1)
 
                 for qubit in qubit_subset + ctrls:
-                    assert isinstance(qubit.indices[0], list)
-                    _qid_ = qubit.indices[0][0]
-                    qubit_id = Qasm3ExprEvaluator.evaluate_expression(_qid_)[0]  # type: ignore
-                    qubit_node = self._module._qubit_depths[(qubit.name.name, qubit_id)]
+                    qubit_name, qubit_id = self._get_qubit_name_and_id(qubit)
+                    qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
                     qubit_node.depth = max_involved_depth
 
     # pylint: disable=too-many-branches, too-many-locals
@@ -1043,12 +1108,8 @@ class QasmVisitor:
                     # get qreg in branching operations
                     for qubit_subset in unrolled_targets + [ctrls]:
                         for qubit in qubit_subset:
-                            assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
-                            assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
-                            qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[
-                                0
-                            ]
-                            self._is_branch_qubits.add((qubit.name.name, qubit_idx))
+                            qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
+                            self._is_branch_qubits.add((qubit_name, qubit_idx))
 
         # check for duplicate bits
         for final_gate in result:
@@ -1096,9 +1157,9 @@ class QasmVisitor:
             ctrls = []
         gate_name: str = operation.name.name
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
-        op_qubits: list[qasm3_ast.IndexedIdentifier] = self._get_op_bits(
-            operation, qubits=True
-        )  # type: ignore [assignment]
+        op_qubits: list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] = (
+            self._get_op_bits(operation, qubits=True)
+        )
 
         Qasm3Validator.validate_gate_call(operation, gate_definition, len(op_qubits))
         # we need this because the gates applied inside a gate definition use the
@@ -1164,10 +1225,8 @@ class QasmVisitor:
                 # get qubit registers in branching operations
                 for qubit_subset in [op_qubits] + [ctrls]:
                     for qubit in qubit_subset:
-                        assert isinstance(qubit.indices, list) and len(qubit.indices) > 0
-                        assert isinstance(qubit.indices[0], list) and len(qubit.indices[0]) > 0
-                        qubit_idx = Qasm3ExprEvaluator.evaluate_expression(qubit.indices[0][0])[0]
-                        self._is_branch_qubits.add((qubit.name.name, qubit_idx))
+                        qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
+                        self._is_branch_qubits.add((qubit_name, qubit_idx))
 
         self._scope_manager.pop_scope()
         self._scope_manager.restore_context()
