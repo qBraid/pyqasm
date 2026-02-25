@@ -1,0 +1,37 @@
+{
+    "benchmark_files": {
+        "vqe_uccsd_n4.qasm": {
+            "source": "Qiskit-benchpress",
+            "url": "https://raw.githubusercontent.com/Qiskit/benchpress/573c9ce7a1ffebd4ca6d1b0971eba7aca2c9c9a4/benchpress/qasm/qasmbench-small/vqe_uccsd_n4/vqe_uccsd_n4.qasm",
+            "description": "VQE UCCSD benchmark with 4 qubits (small)",
+            "size_bytes": 15000
+        },
+        "dnn_n16.qasm": {
+            "source": "Qiskit-benchpress",
+            "url": "https://raw.githubusercontent.com/Qiskit/benchpress/573c9ce7a1ffebd4ca6d1b0971eba7aca2c9c9a4/benchpress/qasm/qasmbench-medium/dnn_n16/dnn_n16.qasm",
+            "description": "Deep Neural Network benchmark with 16 qubits (medium)",
+            "size_bytes": 120000
+        },
+        "qv_N029_12345.qasm": {
+            "source": "Qiskit-benchpress",
+            "url": "https://raw.githubusercontent.com/Qiskit/benchpress/573c9ce7a1ffebd4ca6d1b0971eba7aca2c9c9a4/benchpress/qasm/qv/qv_N029_12345.qasm",
+            "description": "Quantum Volume benchmark with 29 qubits (large, 17,460 lines)",
+            "size_bytes": 470000
+        }
+    },
+    "repository_info": {
+        "name": "Qiskit-benchpress",
+        "url": "https://github.com/Qiskit/benchpress",
+        "description": "QASM benchmark files from Qiskit benchpress repository",
+        "license": "Apache-2.0",
+        "commit_hash": "573c9ce7a1ffebd4ca6d1b0971eba7aca2c9c9a4"
+    },
+    "local_files": {
+        "neutral_atom_gate.qasm": {
+            "source": "local",
+            "description": "Neutral atom gate benchmark (local file)",
+            "size_bytes": 3584,
+            "local_only": true
+        }
+    }
+}

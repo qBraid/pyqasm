@@ -15,6 +15,9 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added `asv` benchmarking and profiling support in `pyqasm`. ([#258](https://github.com/qBraid/pyqasm/pull/258))
+- Added a workflow to track changes in the `docs/_static/logo.png` file to prevent unnecessary modifications. ([#257](https://github.com/qBraid/pyqasm/pull/257))
+
 
 ### Improved / Modified
 - Moved the `visit_map` from the `visit_statement` function to a class level variable for improved efficiency. ([#279](https://github.com/qBraid/pyqasm/pull/279))
