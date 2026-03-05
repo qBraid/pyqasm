@@ -26,6 +26,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed barrier unrolling to preserve multi-qubit barrier statements instead of splitting into individual per-qubit barriers. ([#295](https://github.com/qBraid/pyqasm/pull/295))
 - Added support for physical qubit identifiers (`$0`, `$1`, …) in plain QASM 3 programs, including gates, barriers, measurements, and duplicate-qubit detection. ([#291](https://github.com/qBraid/pyqasm/pull/291))
 - Updated CI to use `macos-15-intel` image due to deprecation of `macos-13` image. ([#283](https://github.com/qBraid/pyqasm/pull/283))
 
