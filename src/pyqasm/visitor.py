@@ -845,18 +845,25 @@ class QasmVisitor:
                 )
             return [barrier]
 
+        # Keep barrier as a single multi-qubit statement with expanded qubit
+        # references (e.g. q -> q[0], q[1], q[2]) instead of splitting into
+        # individual per-qubit barriers.
+        expanded_barrier = qasm3_ast.QuantumBarrier(
+            qubits=barrier_qubits  # type: ignore[arg-type]
+        )
+
         if self._consolidate_qubits:
-            unrolled_barriers = cast(
-                list[qasm3_ast.QuantumBarrier],
+            expanded_barrier = cast(
+                qasm3_ast.QuantumBarrier,
                 Qasm3Transformer.consolidate_qubit_registers(
-                    unrolled_barriers,
+                    expanded_barrier,
                     self._qubit_register_offsets,
                     self._global_qreg_size_map,
                     self._module._device_qubits,
                 ),
             )
 
-        return unrolled_barriers
+        return [expanded_barrier]
 
     def _get_op_parameters(self, operation: qasm3_ast.QuantumGate) -> list[float]:
         """Get the parameters for the operation.

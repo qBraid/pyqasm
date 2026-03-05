@@ -57,9 +57,7 @@ def test_barrier():
     expected_qasm = """OPENQASM 3.0;
     qubit[5] __PYQASM_QUBITS__;
     include "stdgates.inc";
-    barrier __PYQASM_QUBITS__[2];
-    barrier __PYQASM_QUBITS__[3];
-    barrier __PYQASM_QUBITS__[4];
+    barrier __PYQASM_QUBITS__[2], __PYQASM_QUBITS__[3], __PYQASM_QUBITS__[4];
     barrier __PYQASM_QUBITS__[1];
     """
     result = loads(qasm, device_qubits=5)
