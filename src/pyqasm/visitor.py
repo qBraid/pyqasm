@@ -848,9 +848,7 @@ class QasmVisitor:
         # Keep barrier as a single multi-qubit statement with expanded qubit
         # references (e.g. q -> q[0], q[1], q[2]) instead of splitting into
         # individual per-qubit barriers.
-        expanded_barrier = qasm3_ast.QuantumBarrier(
-            qubits=barrier_qubits  # type: ignore[arg-type]
-        )
+        expanded_barrier = qasm3_ast.QuantumBarrier(qubits=barrier_qubits)  # type: ignore[arg-type]
 
         if self._consolidate_qubits:
             expanded_barrier = cast(

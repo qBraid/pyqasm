@@ -499,13 +499,14 @@ class Qasm3Transformer:
                         _qubit_id.name = f"__PYQASM_QUBITS__[{_start}:{_end+1}]"
                 else:
                     _qubit_str = cast(str, _qubit_id.name)  # type: ignore[union-attr]
-                    _qubit_ind = cast(
-                        list, _qubit_id.indices
-                    )  # type: ignore[union-attr]
+                    _qubit_ind = cast(list, _qubit_id.indices)  # type: ignore[union-attr]
                     for multi_ind in _qubit_ind:
                         for ind in multi_ind:
                             pyqasm_ind = _get_pyqasm_device_qubit_index(
-                                _qubit_str.name, ind.value, qubit_register_offsets, global_qreg_size_map
+                                _qubit_str.name,
+                                ind.value,
+                                qubit_register_offsets,
+                                global_qreg_size_map,
                             )
                             ind.value = pyqasm_ind
                     _qubit_str.name = "__PYQASM_QUBITS__"
