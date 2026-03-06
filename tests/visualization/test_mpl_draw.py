@@ -117,6 +117,23 @@ def test_draw_qasm2_simple():
     _check_fig(circ, fig)
 
 
+def test_draw_barriers():
+    """Test drawing barriers with various qubit patterns."""
+    qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    qubit[2] r;
+    barrier q[0], q[2];
+    barrier q[0:2];
+    barrier r;
+    barrier r[0], q[1];
+    """
+    circ = loads(qasm)
+    fig = mpl_draw(circ)
+    _check_fig(circ, fig)
+
+
 @pytest.mark.mpl_image_compare(baseline_dir="images", filename="bell.png")
 def test_draw_bell():
     """Test drawing a simple Bell state circuit."""
