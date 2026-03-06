@@ -761,8 +761,8 @@ class QasmVisitor:
 
         return unrolled_resets
 
-    @staticmethod
     def _expand_barrier_ranges(
+        self,
         barrier: qasm3_ast.QuantumBarrier,
         barrier_qubits: list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier],
     ) -> list:
@@ -772,6 +772,12 @@ class QasmVisitor:
         consolidated_qubits: list = []
         expanded_idx = 0
         for op_qubit in barrier.qubits:
+            # Expand this single operand to find how many bits it produces.
+            temp_barrier = qasm3_ast.QuantumBarrier(qubits=[op_qubit])
+            temp_barrier.span = barrier.span
+            op_expanded = self._get_op_bits(temp_barrier, qubits=True)
+            num_bits = len(op_expanded)
+
             if isinstance(op_qubit, qasm3_ast.IndexedIdentifier):
                 has_range = any(
                     isinstance(ind, qasm3_ast.RangeDefinition)
@@ -779,24 +785,16 @@ class QasmVisitor:
                     for ind in dim  # type: ignore[union-attr]
                 )
                 if has_range:
-                    while expanded_idx < len(barrier_qubits):
-                        eq = barrier_qubits[expanded_idx]
-                        if eq.name.name != op_qubit.name.name:  # type: ignore
-                            break
-                        consolidated_qubits.append(eq)
-                        expanded_idx += 1
+                    consolidated_qubits.extend(
+                        barrier_qubits[expanded_idx : expanded_idx + num_bits]
+                    )
                 else:
                     consolidated_qubits.append(op_qubit)
-                    expanded_idx += 1
             else:
                 # Bare Identifier — keep as-is for compact slice notation
                 consolidated_qubits.append(op_qubit)
-                qubit_name = op_qubit.name  # type: ignore
-                while expanded_idx < len(barrier_qubits):
-                    eq = barrier_qubits[expanded_idx]
-                    if eq.name.name != qubit_name:  # type: ignore
-                        break
-                    expanded_idx += 1
+
+            expanded_idx += num_bits
         return consolidated_qubits
 
     def _visit_barrier(  # pylint: disable=too-many-locals, too-many-branches

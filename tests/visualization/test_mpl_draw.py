@@ -133,6 +133,15 @@ def test_draw_barriers():
     fig = mpl_draw(circ)
     _check_fig(circ, fig)
 
+    from matplotlib.patches import Rectangle
+
+    ax = fig.axes[0]
+    # Barriers are drawn as Rectangle patches (one per qubit line per barrier)
+    # and dashed vlines (added to collections). 4 barriers touching 2+2+2+2=8 lines total.
+    barrier_patches = [p for p in ax.patches if isinstance(p, Rectangle)]
+    assert len(barrier_patches) == 8
+    assert len(ax.collections) > 0
+
 
 @pytest.mark.mpl_image_compare(baseline_dir="images", filename="bell.png")
 def test_draw_bell():
