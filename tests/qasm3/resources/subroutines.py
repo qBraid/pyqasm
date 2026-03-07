@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module defining subroutine tests.
@@ -22,6 +26,43 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(1);
         """,
         "Undefined subroutine 'my_function' was called",
+        5,  # Line number
+        8,  # Column number
+        "my_function(1)",  # Complete line
+    ),
+    "test_duplicate_qubit_args_singletons": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        def my_function(qubit a, qubit b) {
+            h b;
+            return;
+        }
+        qubit[2] q;
+        my_function(q[0], q[0]);
+        """,
+        r"Duplicate qubit argument for register 'q' in function call for 'my_function'",
+        10,
+        8,
+        "my_function(q[0], q[0])",
+    ),
+    "test_duplicate_qubit_args_singletons_2": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        def my_function(qubit[2] p) {
+            h p;
+            return;
+        }
+        qubit[3] q;
+        my_function(q[{0, 0}]);
+        """,
+        r"Duplicate qubit argument for register 'q' in function call for 'my_function'",
+        10,
+        8,
+        "my_function(q[{0, 0}])",
     ),
     "redefinition_raises_error": (
         """
@@ -39,6 +80,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         qubit q;
         """,
         "Redefinition of subroutine 'my_function'",
+        9,
+        8,
+        "def my_function(qubit q) -> float[32]",
     ),
     "redefinition_raises_error_2": (
         """
@@ -51,7 +95,10 @@ SUBROUTINE_INCORRECT_TESTS = {
         qubit q;
         my_function(q);
         """,
-        "Re-declaration of variable q",
+        "Re-declaration of variable 'q'",
+        5,
+        12,
+        "int[32] q = 1;",
     ),
     "incorrect_param_count_1": (
         """
@@ -66,6 +113,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(q);
         """,
         "Parameter count mismatch for subroutine 'my_function'. Expected 2 but got 1 in call",
+        10,
+        8,
+        "my_function(q)",
     ),
     "incorrect_param_count_2": (
         """
@@ -80,6 +130,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(q, q);
         """,
         "Parameter count mismatch for subroutine 'my_function'. Expected 1 but got 2 in call",
+        10,
+        8,
+        "my_function(q, q)",
     ),
     "return_value_mismatch": (
         """
@@ -95,6 +148,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(q);
         """,
         "Return type mismatch for subroutine 'my_function'.",
+        8,
+        12,
+        "return a;",
     ),
     "return_value_mismatch_2": (
         """
@@ -110,6 +166,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(q);
         """,
         "Return type mismatch for subroutine 'my_function'.",
+        8,
+        12,
+        "return;",
     ),
     "subroutine_keyword_naming": (
         """
@@ -124,6 +183,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         pi(q);
         """,
         "Subroutine name 'pi' is a reserved keyword",
+        5,
+        8,
+        "def pi(qubit q) {",
     ),
     "qubit_size_arg_mismatch": (
         """
@@ -138,6 +200,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(q);
         """,
         "Qubit register size mismatch for function 'my_function'.",
+        10,
+        8,
+        "my_function(q)",
     ),
     "subroutine_var_name_conflict": (
         """
@@ -152,6 +217,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         a(q);
         """,
         r"Can not declare subroutine with name 'a' .*",
+        5,
+        8,
+        "def a(qubit q) {",
     ),
     "undeclared_register_usage": (
         """
@@ -167,6 +235,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(b);
         """,
         "Expecting qubit argument for 'q'. Qubit register 'b' not found for function 'my_function'",
+        11,
+        8,
+        "my_function(b)",
     ),
     "test_invalid_qubit_size": (
         """
@@ -180,7 +251,10 @@ SUBROUTINE_INCORRECT_TESTS = {
         qubit[4] q;
         my_function(q);
         """,
-        "Invalid qubit size -3 for variable 'q' in function 'my_function'",
+        "Invalid qubit size '-3' for variable 'q' in function 'my_function'",
+        5,
+        24,
+        "qubit[-3] q",
     ),
     "test_type_mismatch_for_function": (
         """
@@ -196,6 +270,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(q, b);
         """,
         "Expecting classical argument for 'a'. Qubit register 'q' found for function 'my_function'",
+        11,
+        8,
+        "my_function(q, b)",
     ),
     "test_duplicate_qubit_args": (
         """
@@ -210,6 +287,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(q[0:3], q[2]);
         """,
         r"Duplicate qubit argument for register 'q' in function call for 'my_function'",
+        10,
+        8,
+        "my_function(q[0:3], q[2])",
     ),
     "undefined_variable_in_actual_arg_1": (
         """
@@ -224,6 +304,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(b);
         """,
         "Undefined variable 'b' used for function call 'my_function'",
+        10,
+        8,
+        "my_function(b)",
     ),
     "undefined_array_arg_in_function_call": (
         """
@@ -236,6 +319,9 @@ SUBROUTINE_INCORRECT_TESTS = {
         my_function(b);
         """,
         "Undefined variable 'b' used for function call 'my_function'",
+        8,
+        8,
+        "my_function(b)",
     ),
 }
 
@@ -253,7 +339,10 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         my_function(q, arr);
         """,
         r"Expecting type 'array\[int\[8\],...\]' for 'my_arr' in function 'my_function'."
-        r" Variable 'arr' has type 'int\[8\]'.",
+        r" Variable 'arr' has type 'int\[8\]'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "literal_raises_error": (
         """
@@ -267,7 +356,10 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         my_function(q, 5);
         """,
         r"Expecting type 'array\[int\[8\],...\]' for 'my_arr' in function 'my_function'."
-        r" Literal 5 found in function call",
+        r" Literal '5' found in function call",
+        9,
+        8,
+        "my_function(q, 5)",
     ),
     "type_mismatch_in_array": (
         """
@@ -282,7 +374,10 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         my_function(q, arr);
         """,
         r"Expecting type 'array\[int\[8\],...\]' for 'my_arr' in function 'my_function'."
-        r" Variable 'arr' has type 'array\[uint\[32\], 2, 2\]'.",
+        r" Variable 'arr' has type 'array\[uint\[32\], 2, 2\]'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "dimension_count_mismatch_1": (
         """
@@ -296,8 +391,11 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         array[int[8], 2] arr;
         my_function(q, arr);
         """,
-        r"Dimension mismatch for 'my_arr' in function 'my_function'. Expected 2 dimensions"
-        r" but variable 'arr' has 1",
+        r"Dimension mismatch. Expected 2 dimensions but variable 'arr'"
+        r" has 1 for 'my_arr' in function 'my_function'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "dimension_count_mismatch_2": (
         """
@@ -311,8 +409,11 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         array[int[8], 2, 2] arr;
         my_function(q, arr);
         """,
-        r"Dimension mismatch for 'my_arr' in function 'my_function'. Expected 4 dimensions "
-        r"but variable 'arr' has 2",
+        r"Dimension mismatch. Expected 4 dimensions but variable 'arr'"
+        r" has 2 for 'my_arr' in function 'my_function'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "qubit_passed_as_array": (
         """
@@ -327,6 +428,9 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         """,
         r"Expecting type 'array\[int\[8\],...\]' for 'my_arr' in function 'my_function'."
         r" Qubit register 'q' found for function call",
+        9,
+        8,
+        "my_function(q)",
     ),
     "invalid_dimension_number": (
         """
@@ -341,6 +445,9 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         my_function(q, arr);
         """,
         r"Invalid number of dimensions -3 for 'my_arr' in function 'my_function'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "invalid_non_int_dimensions_1": (
         """
@@ -354,8 +461,10 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         array[int[8], 2, 2] arr;
         my_function(q, arr);
         """,
-        r"Invalid value 2.5 with type <class 'openqasm3.ast.FloatLiteral'> for required type "
-        r"<class 'openqasm3.ast.IntType'>",
+        r"Invalid dimension size 2.5 for 'my_arr' in function 'my_function'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "invalid_non_int_dimensions_2": (
         """
@@ -369,8 +478,10 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         array[int[8], 2, 2] arr;
         my_function(q, arr);
         """,
-        r"Invalid value 2.5 with type <class 'openqasm3.ast.FloatLiteral'> for required type"
-        r" <class 'openqasm3.ast.IntType'>",
+        r"Invalid dimension size 2.5 for 'my_arr' in function 'my_function'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "extra_dimensions_for_array": (
         """
@@ -384,8 +495,10 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         array[int[8], 2, 2] arr;
         my_function(q, arr);
         """,
-        r"Dimension mismatch for 'my_arr' in function 'my_function'. "
-        r"Expected dimension 0 with size >= 4 but got 2",
+        r"Invalid dimension size 4 for 'my_arr' in function 'my_function'",
+        10,
+        8,
+        "my_function(q, arr)",
     ),
     "invalid_array_dimensions_formal_arg": (
         """
@@ -399,6 +512,9 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         my_function(b);
         """,
         r"Invalid dimension size -1 for 'a' in function 'my_function'",
+        9,
+        8,
+        "my_function(b)",
     ),
     "invalid_array_mutation_for_readonly_arg": (
         """
@@ -413,5 +529,8 @@ SUBROUTINE_INCORRECT_TESTS_WITH_ARRAYS = {
         my_function(b);
         """,
         r"Assignment to readonly variable 'a' not allowed in function call",
+        6,
+        12,
+        "a[1][0] = 5",
     ),
 }

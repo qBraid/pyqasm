@@ -12,15 +12,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install tox>=4.2.0
-      - name: Check isort, black, EOL, mypy, pylint, headers
+      - name: Check isort, black, mypy, pylint, headers
         run: |
           tox -e format-check

@@ -1,32 +1,68 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Definition of the base Qasm module
 """
 
+from __future__ import annotations
+
+import functools
 from abc import ABC, abstractmethod
+from collections import Counter
 from copy import deepcopy
 from typing import Optional
 
 import openqasm3.ast as qasm3_ast
-from openqasm3.ast import Program
+from openqasm3.ast import BranchingStatement, Program, QuantumGate
 
 from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.decomposer import Decomposer
 from pyqasm.elements import ClbitDepthNode, QubitDepthNode
 from pyqasm.exceptions import UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
-from pyqasm.visitor import QasmVisitor
+from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
+from pyqasm.visitor import QasmVisitor, ScopeManager
 
 
-class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
+def track_user_operation(func):
+    """Decorator to track user operations on a QasmModule."""
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        """Wrapper that logs the operation and its arguments."""
+        func_name = func.__name__
+        log_message = func_name
+
+        if func_name == "depth":
+            decompose_native_gates = kwargs.get("decompose_native_gates", True)
+            if args:
+                decompose_native_gates = args[0]
+            log_message = f"depth(decompose_native_gates={decompose_native_gates})"
+        elif func_name == "unroll":
+            log_message = f"unroll({kwargs or {}})"
+        elif func_name == "rebase":
+            target_basis_set = args[0]
+            log_message = f"rebase({target_basis_set})"
+
+        self._user_operations.append(log_message)
+        return func(self, *args, **kwargs)
+
+    return wrapper
+
+
+class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many-public-methods
     """Abstract class for a Qasm module
 
     Args:
@@ -49,11 +85,27 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         self._has_barriers: Optional[bool] = None
         self._validated_program = False
         self._unrolled_ast = Program(statements=[])
+        self._external_gates: list[str] = []
+        self._decompose_native_gates: Optional[bool] = None
+        self._device_qubits: Optional[int] = None
+        self._consolidate_qubits: Optional[bool] = False
+        self._user_operations: list[str] = ["load"]
+        self._device_cycle_time: Optional[int] = None
+        self._compiler_angle_type_size: Optional[int] = None
+        self._extern_functions: dict[str, tuple[list[str], str]] = {}
+        self._frame_in_def_cal: Optional[bool] = True
+        self._frame_limit_per_port: Optional[int] = None
+        self._play_in_cal: Optional[bool] = True
 
     @property
     def name(self) -> str:
         """Returns the name of the module."""
         return self._name
+
+    @property
+    def history(self) -> list[str]:
+        """Returns the user operations performed on the module."""
+        return self._user_operations
 
     @property
     def num_qubits(self) -> int:
@@ -137,6 +189,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     break
         return self._has_measurements
 
+    @track_user_operation
     def remove_measurements(self, in_place: bool = True) -> Optional["QasmModule"]:
         """Remove the measurement operations
 
@@ -196,6 +249,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
                     break
         return self._has_barriers
 
+    @track_user_operation
     def remove_barriers(self, in_place: bool = True) -> Optional["QasmModule"]:
         """Remove the barrier operations
 
@@ -226,6 +280,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return curr_module
 
+    @track_user_operation
     def remove_includes(self, in_place=True) -> Optional["QasmModule"]:
         """Remove the include statements from the module
 
@@ -252,11 +307,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return curr_module
 
-    def depth(self):
+    @track_user_operation
+    def depth(self, decompose_native_gates=True):
         """Calculate the depth of the unrolled openqasm program.
 
         Args:
-            None
+        decompose_native_gates (bool): If True, calculate depth after decomposing gates.
+                                If False, treat all decompsable gates as a single gate operation.
+                                Defaults to True.
 
         Returns:
             int: The depth of the current "unrolled" openqasm program
@@ -272,7 +330,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         qasm_module = self.copy()
         qasm_module._qubit_depths = {}
         qasm_module._clbit_depths = {}
-        qasm_module.unroll()
+        qasm_module._decompose_native_gates = decompose_native_gates
+        # Unroll using any external gates that have been recorded for this
+        # module
+        qasm_module.unroll(external_gates=self._external_gates)
 
         max_depth = 0
         max_qubit_depth, max_clbit_depth = 0, 0
@@ -438,6 +499,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
 
         return qasm_module
 
+    @track_user_operation
     def reverse_qubit_order(self, in_place=True):
         """Reverse the order of qubits in the module.
 
@@ -498,32 +560,180 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes
         # 4. return the module
         return qasm_module
 
+    @track_user_operation
     def validate(self):
         """Validate the module"""
         if self._validated_program is True:
             return
         try:
             self.num_qubits, self.num_clbits = 0, 0
-            visitor = QasmVisitor(self, check_only=True)
+            visitor = QasmVisitor(self, ScopeManager(), check_only=True)
             self.accept(visitor)
+            # Implicit validation: check total qubits if device_qubits is set and not consolidating
+            if self._device_qubits:
+                if self.num_qubits > self._device_qubits:
+                    raise ValidationError(
+                        # pylint: disable-next=line-too-long
+                        f"Total qubits '{self.num_qubits}' exceed device qubits '{self._device_qubits}'."
+                    )
         except (ValidationError, NotImplementedError) as err:
             self.num_qubits, self.num_clbits = -1, -1
             raise err
         self._validated_program = True
 
+    @track_user_operation
     def unroll(self, **kwargs):
-        """Unroll the module into basic qasm operations"""
+        """Unroll the module into basic qasm operations.
+
+        Args:
+            **kwargs: Additional arguments to pass to the QasmVisitor.
+                external_gates (list[str]): List of gates that should not be unrolled.
+                unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
+                max_loop_iters (int): Max number of iterations for unrolling loops. Defaults to 1e9.
+                check_only (bool): If True, only check the program without executing it.
+                                   Defaults to False.
+                device_qubits (int): Number of physical qubits available on the target device.
+                consolidate_qubits (bool): If True, consolidate all quantum registers into
+                                           single register.
+
+        Raises:
+            ValidationError: If the module fails validation during unrolling.
+            UnrollError: If an error occurs during the unrolling process.
+
+        Notes:
+            This method resets the module's qubit and classical bit counts before unrolling,
+            and sets them to -1 if an error occurs during unrolling.
+        """
         if not kwargs:
             kwargs = {}
+
         try:
             self.num_qubits, self.num_clbits = 0, 0
-            visitor = QasmVisitor(module=self, **kwargs)
+            if ext_gates := kwargs.get("external_gates"):
+                self._external_gates = ext_gates
+            else:
+                self._external_gates = []
+            if consolidate_qbts := kwargs.get("consolidate_qubits"):
+                self._consolidate_qubits = consolidate_qbts
+            visitor = QasmVisitor(module=self, scope_manager=ScopeManager(), **kwargs)
             self.accept(visitor)
         except (ValidationError, UnrollError) as err:
             # reset the unrolled ast and qasm
             self.num_qubits, self.num_clbits = -1, -1
             self._unrolled_ast = Program(statements=[], version=self.original_program.version)
             raise err
+
+    @track_user_operation
+    def rebase(self, target_basis_set, in_place=True):
+        """Rebase the AST to use a specified target basis set.
+
+        Will unroll the module if not already done.
+
+        Args:
+            target_basis_set: The target basis set to rebase the module to.
+            in_place (bool): Flag to indicate if the rebase operation should be done in place.
+
+        Returns:
+            QasmModule: The module with the gates rebased to the target basis set.
+        """
+        if target_basis_set not in DECOMPOSITION_RULES:
+            raise ValueError(f"Target basis set '{target_basis_set}' is not defined.")
+
+        qasm_module = self if in_place else self.copy()
+
+        if len(qasm_module._unrolled_ast.statements) == 0:
+            qasm_module.unroll()
+
+        rebased_statements = []
+
+        for statement in qasm_module._unrolled_ast.statements:
+            if isinstance(statement, QuantumGate):
+                gate_name = statement.name.name
+
+                # Decompose the gate
+                processed_gates_list = Decomposer.process_gate_statement(
+                    gate_name, statement, target_basis_set
+                )
+                for processed_gate in processed_gates_list:
+                    rebased_statements.append(processed_gate)
+
+            elif isinstance(statement, BranchingStatement):
+                # Recursively process the if_block and else_block
+
+                rebased_statements.append(
+                    Decomposer.process_branching_statement(statement, target_basis_set)
+                )
+
+            else:
+                # Non-gate statements are directly appended
+                rebased_statements.append(statement)
+
+        # Replace the unrolled AST with the rebased one
+        qasm_module._unrolled_ast.statements = rebased_statements
+
+        return qasm_module
+
+    def _get_gate_counts(self) -> dict[str, int]:
+        """Return a dictionary of gate counts in the unrolled program.
+
+        Returns:
+            dict[str, int]: A dictionary of gate counts.
+        """
+        if not self._unrolled_ast.statements:
+            self.unroll()
+
+        gate_nodes = [
+            s for s in self._unrolled_ast.statements if isinstance(s, qasm3_ast.QuantumGate)
+        ]
+        return dict(Counter(gate.name.name for gate in gate_nodes))
+
+    def compare(self, other_module: QasmModule):
+        """Compare two QasmModule objects across multiple attributes.
+
+        Args:
+            other_module (QasmModule): The module to compare with.
+        """
+        try:  # pylint: disable-next=import-outside-toplevel
+            from tabulate import tabulate
+        except ImportError as exc:
+            raise ImportError("tabulate is required for the compare method. ") from exc
+
+        if not isinstance(other_module, QasmModule):
+            raise TypeError(f"Expected QasmModule instance, got {type(other_module).__name__}")
+
+        self_counts = self._get_gate_counts()
+        other_counts = other_module._get_gate_counts()
+        all_gates = sorted(list(set(self_counts) | set(other_counts)))
+
+        # Format lists into multi-line strings for better readability
+        self_history_str = "\n".join(map(str, self.history))
+        other_history_str = "\n".join(map(str, other_module.history))
+        self_ext_gates_str = "\n".join(self._external_gates)
+        other_ext_gates_str = "\n".join(other_module._external_gates)
+
+        table_data = [
+            ["Qubits", self.num_qubits, other_module.num_qubits],
+            ["Classical Bits", self.num_clbits, other_module.num_clbits],
+            ["Measurements", self.has_measurements(), other_module.has_measurements()],
+            ["Barriers", self.has_barriers(), other_module.has_barriers()],
+            ["Depth", self.depth(), other_module.depth()],
+            ["External Gates", self_ext_gates_str, other_ext_gates_str],
+            ["History", self_history_str, other_history_str],
+            ["-" * 15, "-" * 15, "-" * 15],  # Separator
+            ["Gate Counts", "Self", "Other"],
+            ["-" * 15, "-" * 15, "-" * 15],  # Separator
+        ]
+
+        for gate in all_gates:
+            table_data.append([gate, self_counts.get(gate, 0), other_counts.get(gate, 0)])
+
+        print(
+            tabulate(
+                table_data,
+                headers=["Attribute", "Self", "Other"],
+                tablefmt="grid",
+            )
+        )
 
     def __str__(self) -> str:
         """Return the string representation of the QASM program

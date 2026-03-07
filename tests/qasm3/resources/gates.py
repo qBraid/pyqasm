@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # pylint: disable=invalid-name
 
@@ -14,6 +18,7 @@
 Module defining QASM3 gate tests.
 
 """
+
 import os
 
 import pytest
@@ -251,7 +256,10 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         h q2;  // undeclared register
         """,
-        "Missing register declaration for q2 .*",
+        "Missing qubit register declaration for 'q2' in QuantumGate",
+        6,
+        8,
+        "h q2;",
     ),
     "undeclared_1qubit_op": (
         """
@@ -262,6 +270,9 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         u_abc(0.5, 0.5, 0.5) q1;  // unsupported gate
         """,
         "Unsupported / undeclared QASM operation: u_abc",
+        6,
+        8,
+        "u_abc(0.5, 0.5, 0.5) q1",
     ),
     "undeclared_1qubit_op_with_indexing": (
         """
@@ -273,6 +284,9 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         u_abc(0.5, 0.5, 0.5) q1[0], q1[1];  // unsupported gate
         """,
         "Unsupported / undeclared QASM operation: u_abc",
+        7,
+        8,
+        "u_abc(0.5, 0.5, 0.5) q1[0], q1[1];",
     ),
     "undeclared_3qubit_op": (
         """
@@ -283,6 +297,9 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         u_abc(0.5, 0.5, 0.5) q1[0], q1[1], q1[2];  // unsupported gate
         """,
         "Unsupported / undeclared QASM operation: u_abc",
+        6,
+        8,
+        "u_abc(0.5, 0.5, 0.5) q1[0], q1[1], q1[2];",
     ),
     "invalid_gate_application": (
         """
@@ -293,6 +310,9 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         cx q1;  // invalid application of gate, as we apply it to 3 qubits in blocks of 2
         """,
         "Invalid number of qubits 3 for operation cx",
+        6,
+        8,
+        "cx q1[0], q1[1], q1[2];",  # expanded line
     ),
     "unsupported_parameter_type": (
         """
@@ -300,9 +320,25 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         include "stdgates.inc";
 
         qubit[2] q1;
-        rx(a) q1; // unsupported parameter type
+        rx(a) q1;
         """,
-        "Undefined identifier a in.*",
+        "Invalid parameter 'a' for .*",
+        6,
+        11,
+        "rx(a) q1[0], q1[1];",  # expanded line
+    ),
+    "duplicate_qubits": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        qubit[2] q1;
+        cx q1[0] , q1[0];  // duplicate qubit
+        """,
+        r"Duplicate qubit 'q1\[0\]' arg in gate cx",
+        6,
+        8,
+        "cx q1[0], q1[0];",
     ),
 }
 
@@ -314,7 +350,10 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit q;
         gphase(pi) q;
         """,
-        r"Qubit arguments not allowed for phase operation",
+        r"Qubit arguments not allowed for 'gphase' operation",
+        4,
+        8,
+        "gphase(3.141592653589793) q[0];",
     ),
     "undeclared_custom": (
         """
@@ -325,8 +364,11 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         custom_gate q1;  // undeclared gate
         """,
         "Unsupported / undeclared QASM operation: custom_gate",
+        6,
+        8,
+        "custom_gate q1[0], q1[1];",  # expanded line
     ),
-    "parameter_mismatch": (
+    "parameter_mismatch_1": (
         """
         OPENQASM 3;
         include "stdgates.inc";
@@ -339,7 +381,27 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         custom_gate(0.5) q1;  // parameter count mismatch
         """,
-        "Parameter count mismatch for gate custom_gate: expected 2 arguments, but got 1 instead.",
+        "Parameter count mismatch for gate 'custom_gate'. Expected 2 arguments, but got 1 instead.",
+        11,
+        8,
+        "custom_gate(0.5) q1[0], q1[1];",  # expanded line
+    ),
+    "parameter_mismatch_2": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        qubit[2] q;
+
+        rx(0.5) q[1];
+
+        // too many parameters
+        rz(0.5, 0.0) q[0];
+        """,
+        "Expected 1 parameter for gate 'rz', but got 2",
+        10,
+        8,
+        "rz(0.5, 0.0) q[0];",
     ),
     "qubit_mismatch": (
         """
@@ -354,7 +416,10 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[3] q1;
         custom_gate(0.5, 0.5) q1;  // qubit count mismatch
         """,
-        "Qubit count mismatch for gate custom_gate: expected 2 qubits, but got 3 instead.",
+        "Qubit count mismatch for gate 'custom_gate'. Expected 2 qubits, but got 3 instead.",
+        11,
+        8,
+        "custom_gate(0.5, 0.5) q1[0], q1[1], q1[2];",  # expanded line
     ),
     "indexing_not_supported": (
         """
@@ -370,6 +435,9 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         custom_gate(0.5, 0.5) q1;  // indexing not supported
         """,
         "Indexing .* not supported in gate definition",
+        7,
+        18,
+        "ry(0.5) q[0];",  # expanded line
     ),
     "recursive_definition": (
         """
@@ -384,6 +452,9 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         custom_gate(0.5, 0.5) q1;  // recursive definition
         """,
         "Recursive definitions not allowed .*",
+        6,
+        12,
+        "custom_gate(a, b) p, q;",
     ),
     "duplicate_definition": (
         """
@@ -403,6 +474,76 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[2] q1;
         custom_gate(0.5, 0.5) q1;  // duplicate definition
         """,
-        "Duplicate gate definition for custom_gate",
+        "Duplicate quantum gate definition for 'custom_gate'",
+        10,
+        8,
+        "gate custom_gate(a, b) p, q {",
+    ),
+}
+
+
+# ── Physical-qubit tests ────────────────────────────────────────────────────
+
+PHYSICAL_QUBIT_VALID_TESTS = {
+    "basic_gates": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        x $0;
+        h $1;
+        cx $0, $1;
+        """,
+        2,
+        0,
+    ),
+    "custom_gate": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        gate prx(_gate_p_0, _gate_p_1) _gate_q_0 {
+            rz(0) _gate_q_0;
+            rx(pi/2) _gate_q_0;
+            rz(0) _gate_q_0;
+        }
+        bit[2] meas;
+        prx(pi/2, 0) $0;
+        prx(pi/2, 0) $0;
+        prx(pi/2, 0) $0;
+        barrier $0, $1;
+        meas[0] = measure $0;
+        meas[1] = measure $1;
+        """,
+        2,
+        2,
+    ),
+    "barrier_only": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        barrier $0, $1, $2;
+        """,
+        3,
+        0,
+    ),
+    "measure_physical": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        bit[1] c;
+        h $0;
+        c[0] = measure $0;
+        """,
+        1,
+        1,
+    ),
+    "non_contiguous_indices": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        x $0;
+        x $3;
+        """,
+        4,
+        0,
     ),
 }

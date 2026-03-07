@@ -1,17 +1,22 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for reset operation.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -79,7 +84,7 @@ def test_reset_inside_function():
     check_unrolled_qasm(dumps(result), expected_qasm)
 
 
-def test_incorrect_resets():
+def test_incorrect_resets(caplog):
     undeclared = """
     OPENQASM 3.0;
     include "stdgates.inc";
@@ -90,7 +95,11 @@ def test_incorrect_resets():
     reset q2[0];
     """
     with pytest.raises(ValidationError):
-        loads(undeclared).validate()
+        with caplog.at_level("ERROR"):
+            loads(undeclared).validate()
+
+    assert "Error at line 8, column 4" in caplog.text
+    assert "reset q2[0]" in caplog.text
 
     index_error = """
     OPENQASM 3.0;
@@ -101,5 +110,11 @@ def test_incorrect_resets():
     // out of bounds 
     reset q1[4];
     """
-    with pytest.raises(ValidationError):
-        loads(index_error).validate()
+    with pytest.raises(
+        ValidationError, match=r"Index 4 out of range for register of size 2 in qubit"
+    ):
+        with caplog.at_level("ERROR"):
+            loads(index_error).validate()
+
+    assert "Error at line 8, column 4" in caplog.text
+    assert "reset q1[4]" in caplog.text

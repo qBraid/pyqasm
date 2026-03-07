@@ -1,17 +1,22 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for expressions.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import loads
@@ -70,18 +75,33 @@ def test_bit_in_expression():
     check_measure_op(result.unrolled_ast, 1, meas_pairs)
 
 
-def test_incorrect_expressions():
-    with pytest.raises(ValidationError, match=r"Unsupported expression type .*"):
-        loads("OPENQASM 3; qubit q; rz(1 - 2 + 32im) q;").validate()
+def test_incorrect_expressions(caplog):
+    with pytest.raises(ValidationError, match=r"Invalid parameter .*"):
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; rx(~1.3) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "~1.3" in caplog.text
 
-    with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
-        loads("OPENQASM 3; qubit q; rx(~1.3) q;").validate()
+    caplog.clear()
 
-    with pytest.raises(ValidationError, match=r"Unsupported expression type .* in ~ operation"):
-        loads("OPENQASM 3; qubit q; rx(~1.3+5im) q;").validate()
+    with pytest.raises(ValidationError, match=r"Invalid parameter .*"):
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; rx(~1.3+5im) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "~1.3" in caplog.text
 
-    with pytest.raises(ValidationError, match="Undefined identifier x in expression"):
-        loads("OPENQASM 3; qubit q; rx(x) q;").validate()
+    caplog.clear()
 
-    with pytest.raises(ValidationError, match="Uninitialized variable x in expression"):
-        loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
+    with pytest.raises(ValidationError, match="Invalid parameter 'x' .*"):
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; rx(x) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "x" in caplog.text
+
+    caplog.clear()
+
+    with pytest.raises(ValidationError, match="Invalid parameter 'x' .*"):
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "x" in caplog.text

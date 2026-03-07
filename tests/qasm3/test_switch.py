@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for switch statements.
@@ -271,7 +275,7 @@ def test_subroutine_inside_switch():
 
 
 @pytest.mark.parametrize("invalid_type", ["float", "bool", "bit"])
-def test_invalid_scalar_switch_target(invalid_type):
+def test_invalid_scalar_switch_target(invalid_type, caplog):
     """Test that switch raises error if target is not an integer."""
 
     base_invalid_program = (
@@ -296,12 +300,16 @@ def test_invalid_scalar_switch_target(invalid_type):
     )
 
     with pytest.raises(ValidationError, match=re.escape("Switch target i must be of type int")):
-        qasm3_switch_program = base_invalid_program
-        loads(qasm3_switch_program).validate()
+        with caplog.at_level("ERROR"):
+            qasm3_switch_program = base_invalid_program
+            loads(qasm3_switch_program).validate()
+
+    assert "Error at line 8, column 4" in caplog.text
+    assert "switch (i)" in caplog.text
 
 
 @pytest.mark.parametrize("invalid_type", ["float", "bool"])
-def test_invalid_array_switch_target(invalid_type):
+def test_invalid_array_switch_target(invalid_type, caplog):
     """Test that switch raises error if target is array element and not an integer."""
 
     base_invalid_program = (
@@ -326,15 +334,19 @@ def test_invalid_array_switch_target(invalid_type):
     )
 
     with pytest.raises(ValidationError, match=re.escape("Switch target i must be of type int")):
-        qasm3_switch_program = base_invalid_program
-        loads(qasm3_switch_program).validate()
+        with caplog.at_level("ERROR"):
+            qasm3_switch_program = base_invalid_program
+            loads(qasm3_switch_program).validate()
+
+    assert "Error at line 8, column 4" in caplog.text
+    assert "switch (i[0][1])" in caplog.text
 
 
 @pytest.mark.parametrize(
     "invalid_stmt",
     ["def test1() { int i = 1; }", "array[int[32], 3, 2] arr_int;", "gate test_1() q { h q;}"],
 )
-def test_unsupported_statements_in_case(invalid_stmt):
+def test_unsupported_statements_in_case(invalid_stmt, caplog):
     """Test that switch raises error if invalid statements are present in the case block"""
 
     base_invalid_program = (
@@ -359,86 +371,91 @@ def test_unsupported_statements_in_case(invalid_stmt):
     """
     )
     with pytest.raises(ValidationError, match=r"Unsupported statement .*"):
-        qasm3_switch_program = base_invalid_program
-        loads(qasm3_switch_program).validate()
+        with caplog.at_level("ERROR"):
+            qasm3_switch_program = base_invalid_program
+            loads(qasm3_switch_program).validate()
+
+    assert "Error at line 11, column 4" in caplog.text
+    assert invalid_stmt.split()[0] in caplog.text  # only test for def / array / gate keywords
 
 
-def test_non_int_expression_case():
-    """Test that switch raises error if case expression is not an integer."""
+@pytest.mark.parametrize(
+    "qasm3_code,error_message,line_num,col_num,err_line",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const int i = 4;
+            qubit q;
 
-    base_invalid_program = """
-    OPENQASM 3.0;
-    include "stdgates.inc";
-    const int i = 4;
-    qubit q;
+            switch(i) {
+                case 4.3, 2 {
+                    x q;
+                }
+                default {
+                    z q;
+                }
+            }
+            """,
+            r"Invalid value 4.3 with type .* for required type <class 'openqasm3.ast.IntType'>",
+            8,
+            21,
+            "4.3",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            const int i = 4;
+            const float f = 4.0;
+            qubit q;
 
-    switch(i) {
-        case 4.3, 2 {
-            x q;
-        }
-        default {
-            z q;
-        }
-    }
-    """
+            switch(i) {
+                case f, 2 {
+                    x q;
+                }
+                default {
+                    z q;
+                }
+            }
+            """,
+            r"Invalid type .* of variable 'f' for required type <class 'openqasm3.ast.IntType'>",
+            9,
+            21,
+            "f",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            int i = 4;
+            qubit q;
+            int j = 3;
+            int k = 2;
 
-    with pytest.raises(
-        ValidationError,
-        match=r"Invalid value 4.3 with type .* for required type <class 'openqasm3.ast.IntType'>",
-    ):
-        qasm3_switch_program = base_invalid_program
-        loads(qasm3_switch_program).validate()
+            switch(i) {
+                case j + k {
+                    x q;
+                }
+                default {
+                    z q;
+                }
+            }
+            """,
+            r"Expected variable .* to be constant in given expression",
+            10,
+            21,
+            "j",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_switch_case_errors(qasm3_code, error_message, line_num, col_num, err_line, caplog):
+    """Test that switch raises appropriate errors for various invalid case conditions."""
 
+    with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level("ERROR"):
+            loads(qasm3_code).validate()
 
-def test_non_int_variable_expression():
-    """Test that switch raises error if case expression has a non-int
-    variable in expression."""
-
-    base_invalid_program = """
-    OPENQASM 3.0;
-    include "stdgates.inc";
-    const int i = 4;
-    const float f = 4.0;
-    qubit q;
-
-    switch(i) {
-        case f, 2 {
-            x q;
-        }
-        default {
-            z q;
-        }
-    }
-    """
-    with pytest.raises(
-        ValidationError,
-        match=r"Invalid type of variable .* for required type <class 'openqasm3.ast.IntType'>",
-    ):
-        qasm3_switch_program = base_invalid_program
-        loads(qasm3_switch_program).validate()
-
-
-def test_non_constant_expression_case():
-    """Test that switch raises error if case expression is not a constant."""
-
-    base_invalid_program = """
-    OPENQASM 3.0;
-    include "stdgates.inc";
-    int i = 4;
-    qubit q;
-    int j = 3;
-    int k = 2;
-
-    switch(i) {
-        case j + k {
-            x q;
-        }
-        default {
-            z q;
-        }
-    }
-    """
-
-    with pytest.raises(ValidationError, match=r"Variable .* is not a constant in given expression"):
-        qasm3_switch_program = base_invalid_program
-        loads(qasm3_switch_program).validate()
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text

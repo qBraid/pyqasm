@@ -1,34 +1,43 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module with analysis functions for QASM visitor
 
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+import re
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
-from openqasm3 import parse
 from openqasm3.ast import (
+    BinaryExpression,
     DiscreteSet,
     Expression,
     Identifier,
+    IndexedIdentifier,
     IndexExpression,
     IntegerLiteral,
     IntType,
+    QuantumGate,
     QuantumMeasurementStatement,
     RangeDefinition,
+    Span,
+    UnaryExpression,
 )
-from openqasm3.parser import QASM3ParsingError
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
 
@@ -40,14 +49,14 @@ if TYPE_CHECKING:
 class Qasm3Analyzer:
     """Class with utility functions for analyzing QASM3 elements"""
 
-    @classmethod
+    @staticmethod
     def analyze_classical_indices(
-        cls, indices: list[Any], var: Variable, expr_evaluator: Qasm3ExprEvaluator
+        indices: list[Any], var: Variable, expr_evaluator: Qasm3ExprEvaluator
     ) -> list:
         """Validate the indices for a classical variable.
 
         Args:
-            indices (list[list[Any]]): The indices to validate.
+            indices (list[Any]): The indices to validate.
             var (Variable): The variable to verify
 
         Raises:
@@ -64,6 +73,7 @@ class Qasm3Analyzer:
             raise_qasm3_error(
                 message=f"Indexing error. Variable {var.name} is not an array",
                 err_type=ValidationError,
+                error_node=indices[0],
                 span=indices[0].span,
             )
         if isinstance(indices, DiscreteSet):
@@ -74,34 +84,38 @@ class Qasm3Analyzer:
                 message=f"Invalid number of indices for variable {var.name}. "
                 f"Expected {len(var_dimensions)} but got {len(indices)}",  # type: ignore[arg-type]
                 err_type=ValidationError,
+                error_node=indices[0],
                 span=indices[0].span,
             )
 
-        def _validate_index(index, dimension, var_name, span, dim_num):
+        def _validate_index(index, dimension, var_name, index_node, dim_num):
             if index < 0 or index >= dimension:
                 raise_qasm3_error(
                     message=f"Index {index} out of bounds for dimension {dim_num} "
-                    f"of variable {var_name}",
+                    f"of variable '{var_name}'. Expected index in range [0, {dimension-1}]",
                     err_type=ValidationError,
-                    span=span,
+                    error_node=index_node,
+                    span=index_node.span,
                 )
 
-        def _validate_step(start_id, end_id, step, span):
+        def _validate_step(start_id, end_id, step, index_node):
             if (step < 0 and start_id < end_id) or (step > 0 and start_id > end_id):
                 direction = "less than" if step < 0 else "greater than"
                 raise_qasm3_error(
                     message=f"Index {start_id} is {direction} {end_id} but step"
                     f" is {'negative' if step < 0 else 'positive'}",
                     err_type=ValidationError,
-                    span=span,
+                    error_node=index_node,
+                    span=index_node.span,
                 )
 
         for i, index in enumerate(indices):
             if not isinstance(index, (Identifier, Expression, RangeDefinition, IntegerLiteral)):
                 raise_qasm3_error(
-                    message=f"Unsupported index type {type(index)} for "
-                    f"classical variable {var.name}",
+                    message=f"Unsupported index type '{type(index)}' for "
+                    f"classical variable '{var.name}'",
                     err_type=ValidationError,
+                    error_node=index,
                     span=index.span,
                 )
 
@@ -120,16 +134,16 @@ class Qasm3Analyzer:
                 if index.step is not None:
                     step = expr_evaluator.evaluate_expression(index.step, reqd_type=IntType)[0]
 
-                _validate_index(start_id, var_dimensions[i], var.name, index.span, i)
-                _validate_index(end_id, var_dimensions[i], var.name, index.span, i)
-                _validate_step(start_id, end_id, step, index.span)
+                _validate_index(start_id, var_dimensions[i], var.name, index, i)
+                _validate_index(end_id, var_dimensions[i], var.name, index, i)
+                _validate_step(start_id, end_id, step, index)
 
                 indices_list.append((start_id, end_id, step))
 
             if isinstance(index, (Identifier, IntegerLiteral, Expression)):
                 index_value = expr_evaluator.evaluate_expression(index, reqd_type=IntType)[0]
                 curr_dimension = var_dimensions[i]  # type: ignore[index]
-                _validate_index(index_value, curr_dimension, var.name, index.span, i)
+                _validate_index(index_value, curr_dimension, var.name, index, i)
 
                 indices_list.append((index_value, index_value, 1))
 
@@ -138,7 +152,7 @@ class Qasm3Analyzer:
     @staticmethod
     def analyze_index_expression(
         index_expr: IndexExpression,
-    ) -> tuple[str, list[Union[Any, Expression, RangeDefinition]]]:
+    ) -> tuple[str, list[Any | Expression | RangeDefinition]]:
         """Analyze an index expression to get the variable name and indices.
 
         Args:
@@ -209,27 +223,103 @@ class Qasm3Analyzer:
             )
         return bit_list
 
-    @staticmethod
-    def extract_qasm_version(qasm: str) -> int:  # type: ignore # pylint: disable=R1710
+    @staticmethod  # pylint: disable-next=inconsistent-return-statements
+    def extract_qasm_version(qasm: str) -> float:  # type: ignore[return]
         """
-        Parses an OpenQASM program string to determine its major version, either 2 or 3.
+        Extracts the OpenQASM version from a given OpenQASM string.
 
         Args:
-            qasm (str): The OpenQASM program string.
+            qasm (str): The OpenQASM program as a string.
 
         Returns:
-            int: The OpenQASM version as an integer.
+            The semantic version as a float.
+        """
+        qasm = re.sub(r"//.*", "", qasm)
+        qasm = re.sub(r"/\*.*?\*/", "", qasm, flags=re.DOTALL)
+
+        lines = qasm.strip().splitlines()
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith("OPENQASM"):
+                match = re.match(r"OPENQASM\s+(\d+)(?:\.(\d+))?;", line)
+                if match:
+                    major = int(match.group(1))
+                    minor = int(match.group(2)) if match.group(2) else 0
+                    return float(f"{major}.{minor}")
+
+        raise_qasm3_error("Could not determine the OpenQASM version.", err_type=QasmParsingError)
+
+    @staticmethod
+    def extract_duplicate_qubit(qubit_list: list[IndexedIdentifier | Identifier]):
+        """
+        Extracts the duplicate qubit from a list of qubits.
+
+        Args:
+            qubit_list (list[IndexedIdentifier | Identifier]): The list of qubits.
+
+        Returns:
+            tuple(string, int): The duplicate qubit name and id.
+        """
+        qubit_set = set()
+        for qubit in qubit_list:
+            if isinstance(qubit, Identifier):
+                # Physical qubit: name is "$n", identity is the name itself.
+                qubit_name = qubit.name
+                qubit_id = int(qubit.name[1:])
+            else:
+                assert isinstance(qubit, IndexedIdentifier)
+                qubit_name = qubit.name.name
+                qubit_id = qubit.indices[0][0].value  # type: ignore
+            if (qubit_name, qubit_id) in qubit_set:
+                return (qubit_name, qubit_id)
+            qubit_set.add((qubit_name, qubit_id))
+        return None
+
+    @staticmethod
+    def verify_gate_qubits(gate: QuantumGate, span: Optional[Span] = None):
+        """
+        Verify the qubits for a quantum gate.
+
+        Args:
+            gate (QuantumGate): The quantum gate.
+            span (Span, optional): The span of the gate.
 
         Raises:
-            QasmError: If the string does not represent a valid OpenQASM program.
+            ValidationError: If qubits are duplicated.
+
+        Returns:
+            None
         """
-        try:
-            # TODO: optimize this to just check the start of the program for version
-            parsed_program = parse(qasm)
-            assert parsed_program.version is not None
-            version = int(float(parsed_program.version))
-            return version
-        except (QASM3ParsingError, ValueError, TypeError):
+        # 1. check for duplicate bits
+        duplicate_qubit = Qasm3Analyzer.extract_duplicate_qubit(gate.qubits)  # type: ignore
+        if duplicate_qubit:
+            qubit_name, qubit_id = duplicate_qubit
             raise_qasm3_error(
-                "Could not determine the OpenQASM version.", err_type=QasmParsingError
+                f"Duplicate qubit '{qubit_name}[{qubit_id}]' arg in gate {gate.name.name}",
+                error_node=gate,
+                span=span,
             )
+
+    @staticmethod
+    def condition_depends_on_measurement(condition: Expression, measurement_set: set[str]) -> bool:
+        """Recursively check if the condition depends on a classical register set by measurement."""
+
+        def _depends(expr) -> bool:
+            if isinstance(expr, Identifier):
+                return expr.name in measurement_set
+
+            if isinstance(expr, IndexExpression):
+                # Check if the collection being indexed is in the measurement set
+                if isinstance(expr.collection, Identifier):
+                    return expr.collection.name in measurement_set
+                return _depends(expr.collection) or _depends(expr.index)
+
+            if isinstance(expr, BinaryExpression):
+                return _depends(expr.lhs) or _depends(expr.rhs)
+
+            if isinstance(expr, UnaryExpression):
+                return _depends(expr.expression)
+            return False
+
+        return _depends(condition)

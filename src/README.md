@@ -26,16 +26,18 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | ForLoops                       | ✅          | Completed              |
 | RangeDefinition                | ✅          | Completed              |
 | QuantumGate                    | ✅          | Completed              |
-| QuantumGateModifier (ctrl)     | 📋          | Planned                |
-| WhileLoop                      | 📋          | Planned                |
+| Cast                           | ✅          | Completed              |
+| QuantumGateModifier (ctrl)     | ✅          | Completed              |
+| WhileLoop                      | ✅          | Completed              |
 | IODeclaration                  | 📋          | Planned                |
 | Pragma                         | 📋          | Planned                |
 | Annotation                     | 📋          | Planned                |
-| DurationType                   | 📋          | Planned                |
-| StretchType                    | 📋          | Planned                |
-| DelayInstruction               | 📋          | Planned                |
-| Box                            | 📋          | Planned                |
-| CalibrationStatement           | 📋          | Planned                |
-| CalibrationDefinition          | 📋          | Planned                |
-| ComplexType                    | 📋          | Planned                |
-| AngleType                      | 📋          | Planned                |
+| DurationType                   | ✅          | Completed              |
+| StretchType                    | ✅          | Completed              |
+| DelayInstruction               | ✅          | Completed              |
+| Box                            | ✅          | Completed              |
+| CalibrationStatement           | ✅          | Completed              |
+| CalibrationDefinition          | ✅          | Completed              |
+| ComplexType                    | ✅          | Completed              |
+| AngleType                      | ✅          | Completed              |
+| ExternDeclaration              | ✅          | Completed              |

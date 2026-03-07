@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Script to verify OpenQASM files
@@ -23,13 +27,16 @@ from rich.console import Console
 from pyqasm import load
 from pyqasm.exceptions import QasmParsingError, UnrollError, ValidationError
 
+from .utils import skip_qasm_files_with_tag
+
 logger = logging.getLogger(__name__)
+logger.propagate = False
 
 
 def validate_paths_exist(paths: Optional[list[str]]) -> Optional[list[str]]:
     """Verifies that each path in the provided list exists."""
     if not paths:
-        return paths
+        return []
 
     non_existent_paths = [path for path in paths if not os.path.exists(path)]
     if non_existent_paths:
@@ -50,25 +57,14 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
 
     console = Console()
 
-    def should_skip(filepath: str, content: str) -> bool:
-        if filepath in skip_files:
-            return True
-
-        skip_tag = "// pyqasm: ignore"
-
-        for line in content.splitlines():
-            if skip_tag in line:
-                return True
-            if "OPENQASM" in line:
-                break
-
-        return False
-
     def validate_qasm_file(file_path: str) -> None:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        if should_skip(file_path, content):
+        if file_path in skip_files:
+            return
+        if skip_qasm_files_with_tag(content, "validate"):
+            skip_files.append(file_path)
             return
 
         try:
@@ -105,6 +101,10 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
     if checked == 0:
         console.print("No .qasm files present. Nothing to do.")
         raise typer.Exit(0)
+
+    if skip_files:
+        skiped = "" if len(skip_files) == 1 else "s"
+        console.print(f"[yellow]Skipped {len(skip_files)} file{skiped}[/yellow]")
 
     s_checked = "" if checked == 1 else "s"
     if failed_files:

@@ -1,17 +1,22 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for loading measurement operations.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -160,79 +165,120 @@ def test_init_measure():
 
     module = loads(qasm3_string)
     module.unroll()
-    print(dumps(module))
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
-def test_incorrect_measure():
-    def run_test(qasm3_code, error_message):
-        with pytest.raises(ValidationError, match=error_message):
+def test_standalone_measurement():
+    qasm3_string = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    h q;
+    measure q;
+    """
+
+    expected_qasm = """
+    OPENQASM 3.0;
+    qubit[2] q;
+    h q[0];
+    h q[1];
+    measure q[0];
+    measure q[1];
+    """
+
+    module = loads(qasm3_string)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+@pytest.mark.parametrize(
+    "qasm3_code,error_message,line_num,col_num,err_line",
+    [
+        # Test for undeclared register q2
+        (
+            """
+            OPENQASM 3.0;
+            qubit[2] q1;
+            bit[2] c1;
+            c1[0] = measure q2[0];  // undeclared register
+            """,
+            r"Missing register declaration for 'q2' .*",
+            5,
+            12,
+            "c1[0] = measure q2[0];",
+        ),
+        # Test for undeclared register c2
+        (
+            """
+            OPENQASM 3.0;
+            qubit[2] q1;
+            bit[2] c1;
+            measure q1 -> c2;  // undeclared register
+            """,
+            r"Missing register declaration for 'c2' .*",
+            5,
+            12,
+            "c2 = measure q1;",
+        ),
+        # Test for size mismatch between q1 and c2
+        (
+            """
+            OPENQASM 3.0;
+            qubit[2] q1;
+            bit[2] c1;
+            bit[1] c2;
+            c2 = measure q1;  // size mismatch
+            """,
+            r"Register sizes of q1 and c2 do not match .*",
+            6,
+            12,
+            "c2 = measure q1;",
+        ),
+        # Test for size mismatch between q1 and c1 in ranges
+        (
+            """
+            OPENQASM 3.0;
+            qubit[5] q1;
+            bit[4] c1;
+            bit[1] c2;
+            c1[:3] = measure q1;  // size mismatch
+            """,
+            r"Register sizes of q1 and c1 do not match .*",
+            6,
+            12,
+            "c1[:3] = measure q1;",
+        ),
+        # Test for out of bounds index for q1
+        (
+            """
+            OPENQASM 3.0;
+            qubit[2] q1;
+            bit[2] c1;
+            measure q1[3] -> c1[0];  // out of bounds
+            """,
+            r"Index 3 out of range for register of size 2 in qubit",
+            5,
+            12,
+            "c1[0] = measure q1[3];",
+        ),
+        # Test for out of bounds index for c1
+        (
+            """
+            OPENQASM 3.0;
+            qubit[2] q1;
+            bit[2] c1;
+            measure q1 -> c1[3];  // out of bounds
+            """,
+            r"Index 3 out of range for register of size 2 in clbit",
+            5,
+            12,
+            "c1[3] = measure q1;",
+        ),
+    ],
+)  # pylint: disable-next= too-many-arguments
+def test_incorrect_measure(qasm3_code, error_message, line_num, col_num, err_line, caplog):
+    with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level(level="ERROR"):
             loads(qasm3_code).validate()
 
-    # Test for undeclared register q2
-    run_test(
-        """
-        OPENQASM 3.0;
-        qubit[2] q1;
-        bit[2] c1;
-        c1[0] = measure q2[0];  // undeclared register
-    """,
-        r"Missing register declaration for q2 .*",
-    )
-
-    # Test for undeclared register c2
-    run_test(
-        """
-        OPENQASM 3.0;
-        qubit[2] q1;
-        bit[2] c1;
-        measure q1 -> c2;  // undeclared register
-    """,
-        r"Missing register declaration for c2 .*",
-    )
-
-    # Test for size mismatch between q1 and c2
-    run_test(
-        """
-        OPENQASM 3.0;
-        qubit[2] q1;
-        bit[2] c1;
-        bit[1] c2;
-        c2 = measure q1;  // size mismatch
-    """,
-        r"Register sizes of q1 and c2 do not match .*",
-    )
-
-    # Test for size mismatch between q1 and c2 in ranges
-    run_test(
-        """
-        OPENQASM 3.0;
-        qubit[5] q1;
-        bit[4] c1;
-        bit[1] c2;
-        c1[:3] = measure q1;  // size mismatch
-    """,
-        r"Register sizes of q1 and c1 do not match .*",
-    )
-
-    # Test for out of bounds index for q1
-    run_test(
-        """
-        OPENQASM 3.0;
-        qubit[2] q1;
-        bit[2] c1;
-        measure q1[3] -> c1[0];  // out of bounds
-    """,
-        r"Index 3 out of range for register of size 2 in qubit",
-    )
-
-    # Test for out of bounds index for c1
-    run_test(
-        """
-        OPENQASM 3.0;
-        qubit[2] q1;
-        bit[2] c1;
-        measure q1 -> c1[3];  // out of bounds
-    """,
-        r"Index 3 out of range for register of size 2 in clbit",
-    )
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert err_line in caplog.text

@@ -15,97 +15,39 @@ Types of changes:
 ## Unreleased
 
 ### Added
-- Added support for classical declarations with measurement ([#120](https://github.com/qBraid/pyqasm/pull/120)). Usage example -
-
-```python
-In [1]: from pyqasm import loads, dumps
-
-In [2]: module = loads(
-   ...: """OPENQASM 3.0;
-   ...: qubit q;
-   ...: bit b = measure q;
-   ...: """)
-
-In [3]: module.unroll()
-
-In [4]: dumps(module).splitlines()
-Out[4]: ['OPENQASM 3.0;', 'qubit[1] q;', 'bit[1] b;', 'b[0] = measure q[0];']
-```
-
-- Added support for `gphase`, `toffoli`, `not`, `c3sx` and `c4x` gates ([#86](https://github.com/qBraid/pyqasm/pull/86))
-- Added a `remove_includes` method to `QasmModule` to remove include statements from the generated QASM code ([#100](https://github.com/qBraid/pyqasm/pull/100)). Usage example - 
-
-```python
-In [1]: from pyqasm import loads
-
-In [2]: module = loads(
-   ...: """OPENQASM 3.0;
-   ...: include "stdgates.inc";
-   ...: include "random.qasm";
-   ...: 
-   ...: qubit[2] q;
-   ...: h q;
-   ...: """)
-
-In [3]: module.remove_includes()
-Out[3]: <pyqasm.modules.qasm3.Qasm3Module at 0x10442b190>
-
-In [4]: from pyqasm import dumps
-
-In [5]: dumps(module).splitlines()
-Out[5]: ['OPENQASM 3.0;', 'qubit[2] q;', 'h q;']
-```
-- Added support for unrolling multi-bit branching with `==`, `>=`, `<=`, `>`, and `<`. Usage example -
-```python
-In [1]: from pyqasm import loads
-
-In [2]: module = loads(
-   ...: """OPENQASM 3.0;
-   ...: include "stdgates.inc";
-   ...: qubit[1] q;
-   ...: bit[4] c;
-   ...: if(c == 3){
-   ...:     h q[0];
-   ...: }
-   ...: """)
-
-In [3]: module.unroll()
-
-In [4]: dumps(module)
-OPENQASM 3.0;
-include "stdgates.inc";
-qubit[1] q;
-bit[4] c;
-if (c[0] == false) {
-  if (c[1] == false) {
-    if (c[2] == true) {
-      if (c[3] == true) {
-        h q[0];
-      }
-    }
-  }
-}
-```
-- Add formatting check for Unix style line endings i.e. `\n`. For any other line endings, errors are raised. ([#130](https://github.com/qBraid/pyqasm/pull/130))
 
 ### Improved / Modified
- - Refactored the initialization of `QasmModule` to remove default include statements. Only user supplied include statements are now added to the generated QASM code ([#86](https://github.com/qBraid/pyqasm/pull/86))
-- Update the `pre-release.yml` workflow to multi-platform builds. Added the pre-release version bump to the `pre_build.sh` script. ([#99](https://github.com/qBraid/pyqasm/pull/99))
-- Bumped qBraid-CLI dep in `tox.ini` to fix `qbraid headers` command formatting bug ([#129](https://github.com/qBraid/pyqasm/pull/129))
+- Moved the `visit_map` from the `visit_statement` function to a class level variable for improved efficiency. ([#279](https://github.com/qBraid/pyqasm/pull/279))
+- Added SVG light and dark mode versions of PyQASM logo, with and without text, and added dynamic logo mode to `README.md` based on color palette used on user-side. ([#288](https://github.com/qBraid/pyqasm/pull/288))
+- Updated docs with new logo, added v2 links, and applied minor Python formatting fixes for style consistency. ([#289](https://github.com/qBraid/pyqasm/pull/289))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Fixed bugs in implementations of `gpi2` and `prx` gates ([#86](https://github.com/qBraid/pyqasm/pull/86))
+- Added support for physical qubit identifiers (`$0`, `$1`, …) in plain QASM 3 programs, including gates, barriers, measurements, and duplicate-qubit detection. ([#291](https://github.com/qBraid/pyqasm/pull/291))
+- Updated CI to use `macos-15-intel` image due to deprecation of `macos-13` image. ([#283](https://github.com/qBraid/pyqasm/pull/283))
 
 ### Dependencies
+- Update `pillow` requirement from <11.4.0 to <12.1.0 ([#271](https://github.com/qBraid/pyqasm/pull/271))
+- Bump `actions/download-artifact` from 5 to 6 ([#272](https://github.com/qBraid/pyqasm/pull/272))
+- Bump `actions/upload-artifact` from 4 to 5 ([#273](https://github.com/qBraid/pyqasm/pull/273))
+
+### Other
 
 ## Past Release Notes
 
 Archive of changelog entries from previous releases:
 
+- [v1.0.0](https://github.com/qBraid/pyqasm/releases/tag/v1.0.0)
+- [v0.5.0](https://github.com/qBraid/pyqasm/releases/tag/v0.5.0)
+- [v0.4.0](https://github.com/qBraid/pyqasm/releases/tag/v0.4.0)
+- [v0.3.2](https://github.com/qBraid/pyqasm/releases/tag/v0.3.2)
+- [v0.3.1](https://github.com/qBraid/pyqasm/releases/tag/v0.3.1)
+- [v0.3.0](https://github.com/qBraid/pyqasm/releases/tag/v0.3.0)
+- [v0.2.1](https://github.com/qBraid/pyqasm/releases/tag/v0.2.1)
+- [v0.2.0](https://github.com/qBraid/pyqasm/releases/tag/v0.2.0)
 - [v0.1.0](https://github.com/qBraid/pyqasm/releases/tag/v0.1.0)
 - [v0.1.0-alpha](https://github.com/qBraid/pyqasm/releases/tag/v0.1.0-alpha)
 - [v0.0.3](https://github.com/qBraid/pyqasm/releases/tag/v0.0.3)

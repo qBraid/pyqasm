@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Defines a module for handling OpenQASM 2.0 programs.
@@ -14,7 +18,6 @@ Defines a module for handling OpenQASM 2.0 programs.
 
 import re
 from copy import deepcopy
-from typing import Union
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
@@ -74,7 +77,7 @@ class Qasm2Module(QasmModule):
         raw_qasm = dumps(qasm_ast, old_measurement=True)
         return self._format_declarations(raw_qasm)
 
-    def to_qasm3(self, as_str: bool = False) -> Union[str, Qasm3Module]:
+    def to_qasm3(self, as_str: bool = False) -> str | Qasm3Module:
         """Convert the module to openqasm3 format
 
         Args:
@@ -83,7 +86,7 @@ class Qasm2Module(QasmModule):
                            Default is False.
 
         Returns:
-            Union[str, Qasm3Module]: The module in openqasm3 format.
+            str | Qasm3Module: The module in openqasm3 format.
         """
         qasm_program = deepcopy(self._original_program)
         # replace the include with stdgates.inc

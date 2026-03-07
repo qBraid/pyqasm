@@ -1,23 +1,29 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for unrolling quantum gates.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 from tests.qasm3.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
+    PHYSICAL_QUBIT_VALID_TESTS,
     SINGLE_QUBIT_GATE_INCORRECT_TESTS,
     custom_op_tests,
     double_op_tests,
@@ -185,6 +191,24 @@ def test_qasm_u3_gates_external_with_multiple_qubits():
     check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 1], "u3")
 
 
+def test_qasm_u3_gates_external_with_ctrl():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[2] q;
+    ctrl @ u3(0.5, 0.5, 0.5) q[0], q[1];
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    ctrl(1) @ u3(0.5, 0.5, 0.5) q[0], q[1];
+    """
+    result = loads(qasm3_string)
+    result.unroll(external_gates=["u3"])
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
 def test_qasm_u2_gates():
     qasm3_string = """
     OPENQASM 3;
@@ -198,13 +222,6 @@ def test_qasm_u2_gates():
     assert result.num_qubits == 2
     assert result.num_clbits == 0
     check_single_qubit_rotation_op(result.unrolled_ast, 1, [0], [0.5, 0.5], "u2")
-
-
-@pytest.mark.parametrize("test_name", SINGLE_QUBIT_GATE_INCORRECT_TESTS.keys())
-def test_incorrect_single_qubit_gates(test_name):
-    qasm_input, error_message = SINGLE_QUBIT_GATE_INCORRECT_TESTS[test_name]
-    with pytest.raises(ValidationError, match=error_message):
-        loads(qasm_input).validate()
 
 
 @pytest.mark.parametrize("test_name", custom_op_tests)
@@ -315,6 +332,23 @@ def test_inverse_global_phase():
     check_unrolled_qasm(dumps(module), qasm3_expected)
 
 
+def test_duplicate_qubit_broadcast():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    
+    cx q[0], q[1], q[1], q[2];"""
+
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 3
+    assert module.num_clbits == 0
+
+    check_two_qubit_gate_op(module.unrolled_ast, 2, [[0, 1], [1, 2]], "cx")
+
+
 @pytest.mark.parametrize("test_name", custom_op_tests)
 def test_custom_ops_with_external_gates(test_name, request):
     qasm3_string = request.getfixturevalue(test_name)
@@ -370,48 +404,292 @@ def test_inv_gate_modifier():
     check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 0, 1]], "ccx")
 
 
-def test_nested_gate_modifiers():
+def test_ctrl_gate_modifier():
     qasm3_string = """
-    OPENQASM 3;
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    ctrl @ z q[0], q[1];
+    ctrl @ ctrl @ x q[0], q[1], q[2];
+    ctrl(2) @ x q[1], q[2], q[3];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 4
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
+    check_three_qubit_gate_op(result.unrolled_ast, 2, [[0, 1, 2], [1, 2, 3]], "ccx")
+
+
+def test_negctrl_gate_modifier():
+    qasm3_string = """
+    OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q;
-    gate custom2 p, q{
-        y p;
-        z q;
-    }
-    gate custom p, q {
-        pow(1) @ custom2 p, q;
-    }
-    pow(1) @ inv @ pow(2) @ custom q;
-    pow(-1) @ custom q;
+    negctrl @ z q[0], q[1];
     """
     result = loads(qasm3_string)
     result.unroll()
     assert result.num_qubits == 2
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "x")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
+
+
+def test_ctrl_in_custom_gate():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    gate custom a, b, c {
+        ctrl @ x a, b;
+        ctrl(2) @ x a, b, c;
+    }
+    custom q[0], q[1], q[2];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 3
     assert result.num_clbits == 0
-    check_single_qubit_gate_op(result.unrolled_ast, 3, [1, 1, 1], "z")
-    check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 0, 0], "y")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cx")
+    check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 1, 2]], "ccx")
 
 
-def test_unsupported_modifiers():
-    # TO DO : add implementations, but till then we have tests
-    for modifier in ["ctrl", "negctrl"]:
-        with pytest.raises(
-            NotImplementedError,
-            match=r"Controlled modifier gates not yet supported .*",
-        ):
-            loads(
-                f"""
-                OPENQASM 3;
-                include "stdgates.inc";
-                qubit[2] q;
-                {modifier} @ h q[0], q[1];
-                """
-            ).validate()
+def test_ctrl_in_subroutine():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    def f(qubit a, qubit b) {
+        ctrl @ x a, b;
+        return;
+    }
+    qubit[2] q;
+    f(q[0], q[1]);
+    """
+
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 2
+    assert result.num_clbits == 0
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cx")
+
+
+def test_ctrl_in_if_block():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit b;
+    b = measure q[0];
+    if(b == 1) {
+        ctrl @ x q[0], q[1];
+    }
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[1] b;
+    b[0] = measure q[0];
+    if (b[0] == true) {
+        cx q[0], q[1];
+    }
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+def test_ctrl_in_for_loop():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+
+    for int i in [0:2]{
+        ctrl @ x q[i], q[i+1];
+    }
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 4
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
+
+
+def test_ctrl_unroll():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] a;
+    qubit b;
+    ctrl (2) @ x a, b[0];
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] a;
+    qubit[1] b;
+    ccx a[0], a[1], b[0];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+def test_ctrl_gphase_eq_p():
+    qasm3_str_gphase = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit a;
+    ctrl @ gphase(1) a;
+    """
+    qasm3_str_p = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit a;
+    p(1) a;
+    """
+    result_gphase, result_p = loads(qasm3_str_gphase), loads(qasm3_str_p)
+    result_gphase.unroll()
+    result_p.unroll()
+    check_unrolled_qasm(dumps(result_gphase), dumps(result_p))
+
+
+def test_nested_gate_modifiers():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[3] q;
+    gate custom2 p, q{
+        x p;
+        z q;
+        ctrl @ x q, p;
+    }
+    gate custom p, q {
+        pow(1) @ custom2 p, q;
+    }
+    pow(1) @ inv @ pow(2) @ custom q[0], q[1];
+    ctrl @ pow(-1) @ custom q[0], q[1], q[2];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == 3
+    assert result.num_clbits == 0
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [1, 1, 1], "z")
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0, 0], "x")
+    check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 2]], "cz")
+    check_two_qubit_gate_op(result.unrolled_ast, 3, [[1, 0], [1, 0], [0, 1]], "cx")
+    check_three_qubit_gate_op(result.unrolled_ast, 1, [[0, 2, 1]], "ccx")
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        (
+            """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q;
+    bit b;
+    b = measure q[0];
+    ctrl(b+1) @ x q[0], q[1];
+    """,
+            "Controlled modifier arguments must be compile-time constants.*",
+            8,
+            4,
+            "ctrl(b + 1) @ x q[0], q[1];",
+        ),
+        (
+            """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    ctrl(1.5) @ x q[0], q[1];
+    """,
+            "Controlled modifier argument must be a positive integer.*",
+            5,
+            4,
+            "ctrl(1.5) @ x q[0], q[1];",
+        ),
+        (
+            """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit q;
+    pow(1.5) @ x q;
+    """,
+            "Power modifier argument must be an integer.*",
+            5,
+            4,
+            "pow(1.5) @ x q[0];",
+        ),
+    ],
+)
+def test_modifier_arg_error(test, caplog):
+    qasm3_string, error_message, line_num, col_num, line = test
+    with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level("ERROR"):
+            loads(qasm3_string).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert line in caplog.text
 
 
 @pytest.mark.parametrize("test_name", CUSTOM_GATE_INCORRECT_TESTS.keys())
-def test_incorrect_custom_ops(test_name):
-    qasm_input, error_message = CUSTOM_GATE_INCORRECT_TESTS[test_name]
+def test_incorrect_custom_ops(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, line = CUSTOM_GATE_INCORRECT_TESTS[test_name]
     with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level("ERROR"):
+            loads(qasm_input).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert line in caplog.text
+
+
+@pytest.mark.parametrize("test_name", SINGLE_QUBIT_GATE_INCORRECT_TESTS.keys())
+def test_incorrect_single_qubit_gates(test_name, caplog):
+    qasm_input, error_message, line_num, col_num, line = SINGLE_QUBIT_GATE_INCORRECT_TESTS[
+        test_name
+    ]
+    with pytest.raises(ValidationError, match=error_message):
+        with caplog.at_level("ERROR"):
+            loads(qasm_input).validate()
+
+    assert f"Error at line {line_num}, column {col_num}" in caplog.text
+    assert line in caplog.text
+
+
+# ── Physical-qubit tests ────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("test_name", PHYSICAL_QUBIT_VALID_TESTS.keys())
+def test_physical_qubit_validate(test_name):
+    qasm_input, expected_qubits, expected_clbits = PHYSICAL_QUBIT_VALID_TESTS[test_name]
+    result = loads(qasm_input)
+    result.validate()
+    assert result.num_qubits == expected_qubits
+    assert result.num_clbits == expected_clbits
+
+
+def test_physical_qubit_unroll():
+    """Physical qubits inside a custom gate are expanded without errors."""
+    qasm_input = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    gate my_rx(p) q { rx(p) q; }
+    my_rx(0.5) $0;
+    """
+    result = loads(qasm_input)
+    result.unroll()
+    assert result.num_qubits == 1
+    assert result.num_clbits == 0
+
+
+def test_physical_qubit_duplicate_detection():
+    """Duplicate physical qubits in a two-qubit gate are caught."""
+    qasm_input = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    cx $0, $0;
+    """
+    with pytest.raises(ValidationError, match=r"Duplicate qubit"):
         loads(qasm_input).validate()

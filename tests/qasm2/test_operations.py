@@ -1,18 +1,23 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for parsing and unrolling programs that contain quantum
 declarations.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -67,8 +72,7 @@ def test_subroutine_blacklist():
 
     # subroutines
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -77,15 +81,13 @@ def test_subroutine_blacklist():
             def my_func(int[32] a) -> int[32] {
                 return a;
             }
-            """
-        ).validate()
+            """).validate()
 
 
 def test_switch_blacklist():
     # switch statements
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -97,15 +99,13 @@ def test_switch_blacklist():
                 default:
                     h q[0];
             }
-            """
-        ).validate()
+            """).validate()
 
 
 def test_for_blacklist():
     # for loops
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -114,15 +114,13 @@ def test_for_blacklist():
             for (int i = 0; i < 2; i++) {
                 h q[i];
             }
-            """
-        ).validate()
+            """).validate()
 
 
 def test_while_blacklist():
     # while loops
     with pytest.raises(ValidationError):
-        loads(
-            """
+        loads("""
             OPENQASM 2.0;
             include 'qelib1.inc';
             qreg q[2];
@@ -131,8 +129,7 @@ def test_while_blacklist():
             while (1) {
                 h q[0];
             }
-            """
-        ).validate()
+            """).validate()
 
 
 # TODO : extend to more constructs

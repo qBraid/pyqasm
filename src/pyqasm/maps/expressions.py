@@ -1,30 +1,44 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module mapping supported QASM expressions to lower level gate operations.
 
 """
 
-from typing import Callable, Union
+from typing import Callable
 
 import numpy as np
-from openqasm3.ast import AngleType, BitType, BoolType, ComplexType, FloatType, IntType, UintType
+from openqasm3.ast import (
+    AngleType,
+    BitType,
+    BoolType,
+    ComplexType,
+    DurationType,
+    FloatType,
+    IntType,
+    StretchType,
+    UintType,
+)
 
 from pyqasm.exceptions import ValidationError
 
 # Define the type for the operator functions
-OperatorFunction = Union[
-    Callable[[Union[int, float, bool]], Union[int, float, bool]],
-    Callable[[Union[int, float, bool], Union[int, float, bool]], Union[int, float, bool]],
-]
+OperatorFunction = (
+    Callable[[int | float | bool], int | float | bool]
+    | Callable[[int | float | bool, int | float | bool], int | float | bool]
+)
 
 
 OPERATOR_MAP: dict[str, OperatorFunction] = {
@@ -34,6 +48,7 @@ OPERATOR_MAP: dict[str, OperatorFunction] = {
     "/": lambda x, y: x / y,
     "%": lambda x, y: x % y,
     "==": lambda x, y: x == y,
+    "**": lambda x, y: x**y,
     "!=": lambda x, y: x != y,
     "<": lambda x, y: x < y,
     ">": lambda x, y: x > y,
@@ -52,18 +67,18 @@ OPERATOR_MAP: dict[str, OperatorFunction] = {
 }
 
 
-def qasm3_expression_op_map(op_name: str, *args) -> Union[float, int, bool]:
+def qasm3_expression_op_map(op_name: str, *args) -> float | int | bool:
     """
     Return the result of applying the given operator to the given operands.
 
     Args:
         op_name (str): The operator name.
-        *args: The operands of type Union[int, float, bool]
+        *args: The operands of type int | float | bool
                 1. For unary operators, a single operand (e.g., ~3)
                 2. For binary operators, two operands (e.g., 3 + 2)
 
     Returns:
-        (Union[float, int, bool]): The result of applying the operator to the operands.
+        (float | int | bool): The result of applying the operator to the operands.
     """
     try:
         operator = OPERATOR_MAP[op_name]
@@ -72,7 +87,7 @@ def qasm3_expression_op_map(op_name: str, *args) -> Union[float, int, bool]:
         raise ValidationError(f"Unsupported / undeclared QASM operator: {op_name}") from exc
 
 
-# pylint: disable=inconsistent-return-statements
+# pylint: disable=inconsistent-return-statements,too-many-return-statements
 def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     """Cast the variable type to the type to match, if possible.
 
@@ -88,11 +103,14 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     """
     type_of_rhs = type(rhs_value)
 
+    if openqasm_type in (DurationType, StretchType):
+        return rhs_value
+
     if type_of_rhs not in VARIABLE_TYPE_CAST_MAP[openqasm_type]:
         raise ValidationError(
-            f"Cannot cast {type_of_rhs} to {openqasm_type}. "
-            f"Invalid assignment of type {type_of_rhs} to variable {var_name} "
-            f"of type {openqasm_type}"
+            f"Cannot cast '{type_of_rhs.__name__}' to '{openqasm_type.__name__}'. "
+            f"Invalid assignment of type '{type_of_rhs.__name__}' to variable '{var_name}' "
+            f"of type '{openqasm_type.__name__}'"
         )
 
     if openqasm_type == BoolType:
@@ -106,9 +124,15 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     # not sure if we wanna hande array bit assignments too.
     # For now, we only cater to single bit assignment.
     if openqasm_type == BitType:
-        return rhs_value != 0
+        return rhs_value
     if openqasm_type == AngleType:
+        if isinstance(rhs_value, bool):
+            return ((2 * CONSTANTS_MAP["pi"]) * (1 / 2)) if rhs_value else 0.0
         return rhs_value  # not sure
+    if openqasm_type == ComplexType:
+        if isinstance(rhs_value, float):
+            return complex(rhs_value)
+        return rhs_value
 
 
 # IEEE 754 Standard for floats
@@ -131,17 +155,20 @@ VARIABLE_TYPE_MAP = {
     BoolType: bool,
     FloatType: float,
     ComplexType: complex,
-    # AngleType: None,  # not sure
+    DurationType: float,
+    StretchType: float,
+    AngleType: float,
 }
 
 # Reference: https://openqasm.com/language/types.html#allowed-casts
 VARIABLE_TYPE_CAST_MAP = {
     BoolType: (int, float, bool, np.int64, np.float64, np.bool_),
     IntType: (bool, int, float, np.int64, np.float64, np.bool_),
-    BitType: (bool, int, np.int64, np.bool_),
+    BitType: (bool, int, np.int64, np.bool_, str),
     UintType: (bool, int, float, np.int64, np.uint64, np.float64, np.bool_),
     FloatType: (bool, int, float, np.int64, np.float64, np.bool_),
-    AngleType: (float, np.float64),
+    AngleType: (float, np.float64, bool, np.bool_),
+    ComplexType: (complex, np.complex128, float, np.float64),
 }
 
 ARRAY_TYPE_MAP = {
@@ -156,3 +183,26 @@ ARRAY_TYPE_MAP = {
 
 # Reference : https://openqasm.com/language/types.html#arrays
 MAX_ARRAY_DIMENSIONS = 7
+
+# Time units supported in OpenQASM3 (https://openqasm.com/language/delays.html#duration-and-stretch)
+TIME_UNITS_MAP: dict[str, dict[str, float]] = {
+    "ns": {"ns": 1, "s": 1e-9},
+    "us": {"ns": 1000, "s": 1e-6},
+    "µs": {"ns": 1000, "s": 1e-6},  # Unicode micro
+    "ms": {"ns": 1_000_000, "s": 1e-3},
+    "s": {"ns": 1_000_000_000, "s": 1},
+}
+
+# Function map for complex functions
+FUNCTION_MAP = {
+    "abs": np.abs,
+    "real": lambda v: v.real if isinstance(v, complex) else v,
+    "imag": lambda v: v.imag if isinstance(v, complex) else v,
+    "sqrt": np.sqrt,
+    "sin": np.sin,
+    "cos": np.cos,
+    "tan": np.tan,
+    "arccos": np.arccos,
+    "arcsin": np.arcsin,
+    "arctan": np.arctan,
+}

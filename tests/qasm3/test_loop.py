@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for parsing and unrolling programs that contain loops.
@@ -16,7 +20,7 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 import pytest
 
 from pyqasm.entrypoint import loads
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import LoopLimitExceededError, ValidationError
 from tests.utils import (
     check_single_qubit_gate_op,
     check_single_qubit_rotation_op,
@@ -42,8 +46,7 @@ measure q->c;
 
 def test_convert_qasm3_for_loop():
     """Test converting a QASM3 program that contains a for loop."""
-    result = loads(
-        """
+    result = loads("""
         OPENQASM 3.0;
         include "stdgates.inc";
 
@@ -55,8 +58,7 @@ def test_convert_qasm3_for_loop():
             cx q[i], q[i+1];
         }
         measure q->c;
-        """
-    )
+        """)
     result.unroll()
     assert result.num_qubits == 4
     assert result.num_clbits == 4
@@ -67,8 +69,7 @@ def test_convert_qasm3_for_loop():
 
 def test_convert_qasm3_for_loop_shadow():
     """Test for loop where loop variable shadows variable from global scope."""
-    result = loads(
-        """
+    result = loads("""
         OPENQASM 3.0;
         include "stdgates.inc";
 
@@ -83,8 +84,7 @@ def test_convert_qasm3_for_loop_shadow():
         }
         h q[i];
         measure q->c;
-        """
-    )
+        """)
     result.unroll()
 
     assert result.num_clbits == 4
@@ -96,8 +96,7 @@ def test_convert_qasm3_for_loop_shadow():
 
 def test_convert_qasm3_for_loop_enclosing():
     """Test for loop where variable from outer loop is accessed from inside the loop."""
-    result = loads(
-        """
+    result = loads("""
         OPENQASM 3.0;
         include "stdgates.inc";
 
@@ -112,8 +111,7 @@ def test_convert_qasm3_for_loop_enclosing():
             h q[j];
         }
         measure q->c;
-        """
-    )
+        """)
     result.unroll()
 
     assert result.num_clbits == 4
@@ -125,8 +123,7 @@ def test_convert_qasm3_for_loop_enclosing():
 
 def test_convert_qasm3_for_loop_enclosing_modifying():
     """Test for loop where variable from outer loop is modified from inside the loop."""
-    result = loads(
-        """
+    result = loads("""
         OPENQASM 3.0;
         include "stdgates.inc";
 
@@ -143,8 +140,7 @@ def test_convert_qasm3_for_loop_enclosing_modifying():
         }
         h q[j];
         measure q->c;
-        """
-    )
+        """)
     result.unroll()
 
     assert result.num_clbits == 4
@@ -156,8 +152,7 @@ def test_convert_qasm3_for_loop_enclosing_modifying():
 
 def test_convert_qasm3_for_loop_discrete_set():
     """Test converting a QASM3 program that contains a for loop initialized from a DiscreteSet."""
-    result = loads(
-        """
+    result = loads("""
         OPENQASM 3.0;
         include "stdgates.inc";
 
@@ -169,8 +164,7 @@ def test_convert_qasm3_for_loop_discrete_set():
             cx q[i], q[i+1];
         }
         measure q->c;
-        """
-    )
+        """)
     result.unroll()
 
     assert result.num_clbits == 4
@@ -299,7 +293,7 @@ def test_loop_in_nested_function_call():
     check_single_qubit_rotation_op(result.unrolled_ast, 3, [0, 0, 0], [0, 3, 6], "rx")
 
 
-def test_convert_qasm3_for_loop_unsupported_type():
+def test_convert_qasm3_for_loop_unsupported_type(caplog):
     """Test correct error when converting a QASM3 program that contains a for loop initialized from
     an unsupported type."""
     with pytest.raises(
@@ -309,18 +303,57 @@ def test_convert_qasm3_for_loop_unsupported_type():
             " of set_declaration in loop."
         ),
     ):
-        loads(
-            """
-            OPENQASM 3.0;
-            include "stdgates.inc";
+        with caplog.at_level("ERROR"):
+            loads(
+                """
+                OPENQASM 3.0;
+                include "stdgates.inc";
 
-            qubit[4] q;
-            bit[4] c;
+                qubit[4] q;
+                bit[4] c;
 
-            h q;
-            for bit b in "001" {
-                x q[b];
-            }
-            measure q->c;
-            """,
-        ).validate()
+                h q;
+                for bit b in "001" {
+                    x q[b];
+                }
+                measure q->c;
+                """,
+            ).validate()
+
+    assert "Error at line 9, column 16" in caplog.text
+    assert 'for bit b in "001"' in caplog.text
+
+
+def test_for_loop_limit_exceeded():
+    """Test that exceeding the loop limit raises LoopLimitExceededError for for loops."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[4] c;
+    
+    for int i in [0:1000] {
+        h q[0];
+    }
+    """
+    result = loads(qasm_str)
+    with pytest.raises(LoopLimitExceededError):
+        result.unroll(max_loop_iters=100)
+
+
+def test_for_loop_discrete_set_limit_exceeded():
+    """Test that exceeding the loop limit raises LoopLimitExceededError
+    for for loops with discrete sets."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[4] c;
+    
+    for int i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} {
+        h q[0];
+    }
+    """
+    result = loads(qasm_str)
+    with pytest.raises(LoopLimitExceededError):
+        result.unroll(max_loop_iters=10)

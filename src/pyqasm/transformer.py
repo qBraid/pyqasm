@@ -1,19 +1,24 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module with transformation functions for QASM3 visitor
 
 """
+
 from copy import deepcopy
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, NamedTuple, Optional, Sequence, cast
 
 import numpy as np
 from openqasm3.ast import (
@@ -30,11 +35,14 @@ from openqasm3.ast import (
 )
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
+    QASMNode,
     QuantumBarrier,
     QuantumGate,
+    QuantumMeasurementStatement,
     QuantumPhase,
     QuantumReset,
     RangeDefinition,
+    Statement,
     UintType,
     UnaryExpression,
     UnaryOperator,
@@ -53,8 +61,8 @@ BranchParams = NamedTuple(
     [
         ("reg_idx", Optional[int]),
         ("reg_name", str),
-        ("op", Optional[Union[BinaryOperator, UnaryOperator]]),
-        ("rhs_val", Optional[Union[bool, int]]),
+        ("op", Optional[BinaryOperator | UnaryOperator]),
+        ("rhs_val", Optional[bool | int]),
     ],
 )
 
@@ -94,7 +102,9 @@ class Qasm3Transformer:
         multi_dim_arr[slicing] = value
 
     @staticmethod
-    def extract_values_from_discrete_set(discrete_set: DiscreteSet) -> list[int]:
+    def extract_values_from_discrete_set(
+        discrete_set: DiscreteSet, op_node: Optional[QASMNode] = None
+    ) -> list[int]:
         """Extract the values from a discrete set.
 
         Args:
@@ -107,21 +117,27 @@ class Qasm3Transformer:
         for value in discrete_set.values:
             if not isinstance(value, IntegerLiteral):
                 raise_qasm3_error(
-                    f"Unsupported discrete set value {value} in discrete set",
-                    span=discrete_set.span,
+                    f"Unsupported value '{Qasm3ExprEvaluator.evaluate_expression(value)[0]}' "
+                    "in discrete set",
+                    error_node=op_node if op_node else discrete_set,
+                    span=op_node.span if op_node else discrete_set.span,
                 )
             values.append(value.value)
         return values
 
     @staticmethod
     def get_qubits_from_range_definition(
-        range_def: RangeDefinition, qreg_size: int, is_qubit_reg: bool
+        range_def: RangeDefinition,
+        qreg_size: int,
+        is_qubit_reg: bool,
+        op_node: Optional[QASMNode] = None,
     ) -> list[int]:
         """Get the qubits from a range definition.
         Args:
             range_def (RangeDefinition): The range definition to get qubits from.
             qreg_size (int): The size of the register.
             is_qubit_reg (bool): Whether the register is a qubit register.
+            op_node (Optional[QASMNode]): The operation node.
         Returns:
             list[int]: The list of qubit identifiers.
         """
@@ -140,19 +156,24 @@ class Qasm3Transformer:
             if range_def.step is None
             else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
         )
-        Qasm3Validator.validate_register_index(start_qid, qreg_size, qubit=is_qubit_reg)
-        Qasm3Validator.validate_register_index(end_qid - 1, qreg_size, qubit=is_qubit_reg)
+        Qasm3Validator.validate_register_index(
+            start_qid, qreg_size, qubit=is_qubit_reg, op_node=op_node
+        )
+        Qasm3Validator.validate_register_index(
+            end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=op_node
+        )
         return list(range(start_qid, end_qid, step))
 
     @staticmethod
     def transform_gate_qubits(
-        gate_op: Union[QuantumGate, QuantumPhase], qubit_map: dict[str, IndexedIdentifier]
+        gate_op: QuantumGate | QuantumPhase,
+        qubit_map: dict[str, IndexedIdentifier | Identifier],
     ) -> None:
         """Transform the qubits of a gate operation with a qubit map.
 
         Args:
             gate_op (QuantumGate): The gate operation to transform.
-            qubit_map (dict[str, IndexedIdentifier]): The qubit map to use for transformation.
+            qubit_map: Maps qubits to their transformed identifiers.
 
         Returns:
             None
@@ -163,7 +184,9 @@ class Qasm3Transformer:
         for i, qubit in enumerate(gate_op.qubits):
             if isinstance(qubit, IndexedIdentifier):
                 raise_qasm3_error(
-                    f"Indexing '{qubit.name.name}' not supported in gate definition",
+                    f"Indexing '{qubit.name.name}' not supported in gate definition "
+                    f"for gate {gate_op.name}",
+                    error_node=gate_op,
                     span=qubit.span,
                 )
             gate_qubit_name = qubit.name
@@ -171,7 +194,7 @@ class Qasm3Transformer:
             gate_op.qubits[i] = qubit_map[gate_qubit_name]
 
     @staticmethod
-    def transform_expression(expression, variable_map: dict[str, Union[int, float, bool]]):
+    def transform_expression(expression, variable_map: dict[str, int | float | bool]):
         """Transform an expression by replacing variables with their values.
 
         Args:
@@ -211,13 +234,13 @@ class Qasm3Transformer:
 
     @staticmethod
     def transform_gate_params(
-        gate_op: Union[QuantumGate, QuantumPhase], param_map: dict[str, Union[int, float, bool]]
+        gate_op: QuantumGate | QuantumPhase, param_map: dict[str, int | float | bool]
     ) -> None:
         """Transform the parameters of a gate operation with a parameter map.
 
         Args:
             gate_op (QuantumGate): The gate operation to transform.
-            param_map (dict[str, Union[int, float, bool]]): The parameter map to use
+            param_map (dict[str, int |float |bool]): The parameter map to use
                                                             for transformation.
 
         Returns:
@@ -252,12 +275,14 @@ class Qasm3Transformer:
             raise_qasm3_error(
                 message="Only simple comparison supported in branching condition with "
                 "classical register",
+                error_node=condition,
                 span=condition.span,
             )
         if isinstance(condition, UnaryExpression):
             if condition.op != UnaryOperator["!"]:
                 raise_qasm3_error(
                     message="Only '!' supported in branching condition with classical register",
+                    error_node=condition,
                     span=condition.span,
                 )
             return BranchParams(
@@ -271,6 +296,7 @@ class Qasm3Transformer:
                 raise_qasm3_error(
                     message="Only {==, >=, <=, >, <} supported in branching condition "
                     "with classical register",
+                    error_node=condition,
                     span=condition.span,
                 )
 
@@ -296,12 +322,14 @@ class Qasm3Transformer:
             if isinstance(condition.index, DiscreteSet):
                 raise_qasm3_error(
                     message="DiscreteSet not supported in branching condition",
+                    error_node=condition,
                     span=condition.span,
                 )
             if isinstance(condition.index, list):
                 if isinstance(condition.index[0], RangeDefinition):
                     raise_qasm3_error(
                         message="RangeDefinition not supported in branching condition",
+                        error_node=condition,
                         span=condition.span,
                     )
                 return BranchParams(
@@ -316,9 +344,9 @@ class Qasm3Transformer:
     @classmethod
     def transform_function_qubits(
         cls,
-        q_op: Union[QuantumGate, QuantumBarrier, QuantumReset, QuantumPhase],
-        formal_qreg_sizes: dict[str, int],
-        qubit_map: dict[tuple, tuple],
+        q_op: QuantumGate | QuantumBarrier | QuantumReset | QuantumPhase,
+        qubit_transform_map: dict[tuple, tuple],
+        qubit_sizes: dict[str, int],
     ) -> list[IndexedIdentifier]:
         """Transform the qubits of a function call to the actual qubits.
 
@@ -331,7 +359,7 @@ class Qasm3Transformer:
         Returns:
             None
         """
-        expanded_op_qubits = cls.visitor_obj._get_op_bits(q_op, formal_qreg_sizes)
+        expanded_op_qubits = cls.visitor_obj._get_op_bits(q_op, function_qubit_sizes=qubit_sizes)
 
         transformed_qubits = []
         for qubit in expanded_op_qubits:
@@ -339,7 +367,9 @@ class Qasm3Transformer:
             formal_qreg_idx = qubit.indices[0][0].value
 
             # replace the formal qubit with the actual qubit
-            actual_qreg_name, actual_qreg_idx = qubit_map[(formal_qreg_name, formal_qreg_idx)]
+            actual_qreg_name, actual_qreg_idx = qubit_transform_map[
+                (formal_qreg_name, formal_qreg_idx)
+            ]
             transformed_qubits.append(
                 IndexedIdentifier(
                     Identifier(actual_qreg_name),
@@ -352,7 +382,7 @@ class Qasm3Transformer:
     @classmethod
     def get_target_qubits(
         cls,
-        target: Union[Identifier, IndexExpression],
+        target: Identifier | IndexExpression,
         qreg_size_map: dict[str, int],
         target_name: str,
     ) -> tuple:
@@ -378,13 +408,15 @@ class Qasm3Transformer:
                 target_qids = Qasm3Transformer.extract_values_from_discrete_set(target.index)
                 for qid in target_qids:
                     Qasm3Validator.validate_register_index(
-                        qid, qreg_size_map[target_name], qubit=True
+                        qid, qreg_size_map[target_name], qubit=True, op_node=target
                     )
                 target_qubits_size = len(target_qids)
-            elif isinstance(target.index[0], (IntegerLiteral, Identifier)):  # "(q[0]); OR (q[i]);"
+            elif isinstance(
+                target.index[0], (IntegerLiteral, Identifier, BinaryExpression)
+            ):  # "(q[0]); OR (q[i]); OR (q[i+1]);"
                 target_qids = [Qasm3ExprEvaluator.evaluate_expression(target.index[0])[0]]
                 Qasm3Validator.validate_register_index(
-                    target_qids[0], qreg_size_map[target_name], qubit=True
+                    target_qids[0], qreg_size_map[target_name], qubit=True, op_node=target
                 )
                 target_qubits_size = 1
             elif isinstance(target.index[0], RangeDefinition):  # "(q[0:1:2]);"
@@ -414,3 +446,132 @@ class Qasm3Transformer:
         if is_array:
             type_str += f", {', '.join([str(dim) for dim in dims])}]"
         return type_str
+
+    @staticmethod
+    def consolidate_qubit_registers(  # pylint: disable=too-many-branches, too-many-locals, too-many-statements
+        unrolled_stmts: Sequence[Statement] | Statement,
+        qubit_register_offsets: dict[str, int],
+        global_qreg_size_map: dict[str, int],
+        device_qubits: int | None,
+    ) -> Sequence[Statement] | Statement:
+        """Transform statements by mapping qubit registers to device qubit register indices
+
+        Args:
+            unrolled_stmts : The statements or single statement to transform.
+            qubit_register_offsets (dict): Mapping from register name to its
+                                           offset in the global qubit array.
+            global_qreg_size_map (dict): original global qubit register mapping.
+            device_qubits (int): Total number of device qubits
+
+        Returns:
+            The transformed statements or statement with qubit registers mapped to device indices.
+        """
+        if device_qubits is None:
+            device_qubits = sum(global_qreg_size_map.values())
+
+        def _get_pyqasm_device_qubit_index(
+            reg: str, idx: int, qubit_reg_offsets: dict[str, int], global_qreg: dict[str, int]
+        ):
+            _offsets = qubit_reg_offsets
+            _n_qubits = global_qreg[reg]
+            if not 0 <= idx < _n_qubits:
+                raise IndexError(f"{reg}[{idx}] out of range (0..{_n_qubits-1})")
+            return _offsets[reg] + idx
+
+        if isinstance(unrolled_stmts, QuantumBarrier):
+            _qubit_id = cast(Identifier, unrolled_stmts.qubits[0])  # type: ignore[union-attr]
+            if not isinstance(_qubit_id, IndexedIdentifier):
+                _start = _get_pyqasm_device_qubit_index(
+                    _qubit_id.name, 0, qubit_register_offsets, global_qreg_size_map
+                )
+                _end = _get_pyqasm_device_qubit_index(
+                    _qubit_id.name,
+                    global_qreg_size_map[_qubit_id.name] - 1,
+                    qubit_register_offsets,
+                    global_qreg_size_map,
+                )
+                if _start == 0:
+                    _qubit_id.name = f"__PYQASM_QUBITS__[:{_end+1}]"
+                elif _end == device_qubits - 1:
+                    _qubit_id.name = f"__PYQASM_QUBITS__[{_start}:]"
+                else:
+                    _qubit_id.name = f"__PYQASM_QUBITS__[{_start}:{_end+1}]"
+            else:
+                _qubit_str = cast(str, unrolled_stmts.qubits[0].name)  # type: ignore[union-attr]
+                _qubit_ind = cast(
+                    list, unrolled_stmts.qubits[0].indices
+                )  # type: ignore[union-attr]
+                for multi_ind in _qubit_ind:
+                    for ind in multi_ind:
+                        pyqasm_ind = _get_pyqasm_device_qubit_index(
+                            _qubit_str.name, ind.value, qubit_register_offsets, global_qreg_size_map
+                        )
+                        ind.value = pyqasm_ind
+                _qubit_str.name = "__PYQASM_QUBITS__"
+
+        if isinstance(unrolled_stmts, list):  # pylint: disable=too-many-nested-blocks
+            if isinstance(unrolled_stmts[0], QuantumMeasurementStatement):
+                for stmt in unrolled_stmts:
+                    _qubit_id = cast(
+                        Identifier, stmt.measure.qubit.name
+                    )  # type: ignore[union-attr]
+                    _qubit_ind = cast(list, stmt.measure.qubit.indices)  # type: ignore[union-attr]
+                    for multiple_ind in _qubit_ind:
+                        for ind in multiple_ind:
+                            _pyqasm_val = _get_pyqasm_device_qubit_index(
+                                _qubit_id.name,
+                                ind.value,
+                                qubit_register_offsets,
+                                global_qreg_size_map,
+                            )
+                            ind.value = _pyqasm_val
+                    _qubit_id.name = "__PYQASM_QUBITS__"
+
+            if isinstance(unrolled_stmts[0], QuantumReset):
+                for stmt in unrolled_stmts:
+                    _qubit_str = cast(str, stmt.qubits.name.name)  # type: ignore[union-attr]
+                    _qubit_ind = cast(list, stmt.qubits.indices)  # type: ignore[union-attr]
+                    for multiple_ind in _qubit_ind:
+                        for ind in multiple_ind:
+                            _pyqasm_val = _get_pyqasm_device_qubit_index(
+                                _qubit_str, ind.value, qubit_register_offsets, global_qreg_size_map
+                            )
+                            ind.value = _pyqasm_val
+                    stmt.qubits.name.name = "__PYQASM_QUBITS__"  # type: ignore[union-attr]
+
+            if isinstance(unrolled_stmts[0], QuantumBarrier):
+                for stmt in unrolled_stmts:
+                    _qubit_ind_id = cast(
+                        IndexedIdentifier, stmt.qubits[0]
+                    )  # type: ignore[union-attr]
+                    _original_qubit_name = _qubit_ind_id.name.name
+                    for multiple_ind in _qubit_ind_id.indices:
+                        for ind in multiple_ind:  # type: ignore[union-attr]
+                            ind_val = cast(IntegerLiteral, ind)  # type: ignore[union-attr]
+                            pyqasm_val = _get_pyqasm_device_qubit_index(
+                                _original_qubit_name,
+                                ind_val.value,
+                                qubit_register_offsets,
+                                global_qreg_size_map,
+                            )
+                            ind_val.value = pyqasm_val
+                    _qubit_ind_id.name.name = "__PYQASM_QUBITS__"
+
+            if isinstance(unrolled_stmts[0], QuantumGate):
+                for stmt in unrolled_stmts:
+                    stmt_qubits: list[IndexedIdentifier] = []
+                    for qubit in stmt.qubits:
+                        pyqasm_val = _get_pyqasm_device_qubit_index(
+                            qubit.name.name,
+                            qubit.indices[0][0].value,
+                            qubit_register_offsets,
+                            global_qreg_size_map,
+                        )
+                        stmt_qubits.append(
+                            IndexedIdentifier(
+                                Identifier("__PYQASM_QUBITS__"), [[IntegerLiteral(pyqasm_val)]]
+                            )
+                        )
+                    stmt.qubits = stmt_qubits
+
+        return unrolled_stmts

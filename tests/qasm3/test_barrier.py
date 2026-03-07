@@ -1,17 +1,22 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for the barrier operation.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -121,7 +126,37 @@ def test_remove_barriers():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
-def test_incorrect_barrier():
+def test_unroll_barrier():
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[2] q1;
+    qubit[3] q2;
+    qubit q3;
+
+    // barriers
+    barrier q1, q2, q3;
+    barrier q2[:3];
+    barrier q3[0];
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q1;
+    qubit[3] q2;
+    qubit[1] q3;
+    barrier q1, q2, q3;
+    barrier q2[:3];
+    barrier q3[0];
+    """
+    module = loads(qasm_str)
+    assert module.has_barriers() is True
+    module.unroll(unroll_barriers=False)
+    assert module.has_barriers() is True
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_incorrect_barrier(caplog):
 
     undeclared = """
     OPENQASM 3.0;
@@ -131,8 +166,16 @@ def test_incorrect_barrier():
     barrier q2;
     """
 
-    with pytest.raises(ValidationError, match=r"Missing register declaration for q2 .*"):
-        loads(undeclared).validate()
+    with pytest.raises(
+        ValidationError, match="Missing qubit register declaration for 'q2' in QuantumBarrier"
+    ):
+        with caplog.at_level("ERROR"):
+            loads(undeclared).validate()
+
+    assert "Error at line 6, column 4" in caplog.text
+    assert "barrier q2;" in caplog.text
+
+    caplog.clear()
 
     out_of_bounds = """
     OPENQASM 3.0;
@@ -145,15 +188,8 @@ def test_incorrect_barrier():
     with pytest.raises(
         ValidationError, match="Index 3 out of range for register of size 2 in qubit"
     ):
-        loads(out_of_bounds).validate()
+        with caplog.at_level("ERROR"):
+            loads(out_of_bounds).validate()
 
-    duplicate = """
-    OPENQASM 3.0;
-
-    qubit[2] q1;
-
-    barrier q1, q1;
-    """
-
-    with pytest.raises(ValidationError, match=r"Duplicate qubit .*argument"):
-        loads(duplicate).validate()
+    assert "Error at line 6, column 4" in caplog.text
+    assert "barrier q1[:4];" in caplog.text

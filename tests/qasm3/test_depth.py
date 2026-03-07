@@ -1,17 +1,22 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Module containing unit tests for calculating program depth.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import loads
@@ -44,28 +49,66 @@ def test_gate_depth():
     result.unroll()
     assert result.num_qubits == 1
     assert result.num_clbits == 0
-    assert result.depth() == 5
+    assert result.depth(decompose_native_gates=False) == 5
 
 
-@pytest.mark.skip(reason="Not implemented computing depth of external gates")
-def test_gate_depth_external_function():
-    qasm3_string = """
-    OPENQASM 3;
-    include "stdgates.inc";
+QASM3_STRING_1 = """
+OPENQASM 3;
+include "stdgates.inc";
 
-    gate my_gate() q {
-        h q;
-        x q;
-    }
+gate my_gate() q {
+    h q;
+    x q;
+}
 
-    qubit q;
-    my_gate() q;
-    """
-    result = loads(qasm3_string)
+qubit q;
+my_gate() q;
+"""
+
+QASM3_STRING_2 = """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate my_gate q1, q2 {
+  h q1;
+  cx q1, q2;
+  h q2;
+}
+qubit[2] q;
+my_gate q[0], q[1];
+"""
+
+QASM3_STRING_3 = """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate my_gate q1, q2 { }
+qubit[2] q;
+my_gate q[0], q[1];
+"""
+
+
+@pytest.mark.parametrize(
+    ["input_qasm_str", "first_depth", "second_depth", "num_qubits"],
+    [
+        (QASM3_STRING_1, 1, 2, 1),
+        (QASM3_STRING_2, 1, 3, 2),
+        (QASM3_STRING_3, 1, 0, 2),
+    ],
+)
+def test_gate_depth_external_function(input_qasm_str, first_depth, second_depth, num_qubits):
+    result = loads(input_qasm_str)
     result.unroll(external_gates=["my_gate"])
-    assert result.num_qubits == 1
+    assert result.num_qubits == num_qubits
+
+    for i in range(num_qubits):
+        assert result._qubit_depths[("q", i)].num_gates == 1
+
     assert result.num_clbits == 0
-    assert result.depth() == 1
+    assert result.depth() == first_depth
+
+    # Check that unrolling with no external_gates flushes the internally stored
+    # external gates and influences the depth calculation
+    result.unroll()
+    assert result.depth() == second_depth
 
 
 def test_pow_gate_depth():
@@ -107,6 +150,19 @@ def test_inv_gate_depth():
     # Q2(1)-> CX  -> .....................-> CCX
 
     assert result.depth() == 5
+
+
+def test_ctrl_depth():
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[3] q;
+    ctrl @ x q[0], q[1]; 
+    ctrl @ x q[0], q[2];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.depth() == 2
 
 
 def test_qubit_depth_with_unrelated_measure_op():
@@ -254,7 +310,7 @@ def test_qasm3_depth_sparse_operations():
     result = loads(qasm_string)
     result.unroll()
 
-    assert result.depth() == 8
+    assert result.depth(decompose_native_gates=False) == 8
 
 
 def test_qasm3_depth_measurement_direct():
@@ -273,7 +329,7 @@ b[1] = measure q[1];
     result = loads(qasm_string)
     result.unroll()
 
-    assert result.depth() == 8
+    assert result.depth(decompose_native_gates=False) == 8
 
 
 def test_qasm3_depth_measurement_indirect():
@@ -362,6 +418,23 @@ h q[1];
 """,
             6,
         ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] q;
+bit[2] mid;
+bit[3] out;
+measure q[0] -> mid[0];
+measure q[1] -> mid[1]; 
+if (mid[0]) {
+reset q[0];
+reset q[1];
+} 
+out = measure q;
+""",
+            3,
+        ),
     ],
 )
 def test_qasm3_depth_no_branching(program, expected_depth):
@@ -371,7 +444,6 @@ def test_qasm3_depth_no_branching(program, expected_depth):
     assert result.depth() == expected_depth
 
 
-@pytest.mark.skip(reason="Not implemented branching conditions depth")
 @pytest.mark.parametrize(
     "program, expected_depth",
     [
@@ -405,8 +477,9 @@ cx q[0], q[1];
 measure q[0] -> c[0];
 
 if (c==1) measure q[1] -> c[1];
+if (c==3) measure q[1] -> c[1];
 """,
-            4,
+            5,
         ),
         (
             """
@@ -433,10 +506,186 @@ measure q2 -> c2;
 """,
             8,
         ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate custom a, b{
+    cx a, b;
+    h a;
+}
+qubit[4] q;
+bit[4] c;
+bit[4] c0;
+h q;
+measure q -> c0;
+if(c0[0]){
+    x q[0];
+    cx q[0], q[1];
+    if (c0[1]){
+        cx q[1], q[2];
+    }
+}
+if (c[0]){
+    custom q[2], q[3];
+}
+array[int[32], 8] arr;
+arr[0] = 1;
+if(arr[0] >= 1){
+    h q[0];
+    h q[1];
+}
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[1] q;
+bit[4] c;
+if(c == 3){
+    h q[0];
+}
+if(c >= 3){
+    h q[0];
+} else {
+    x q[0];
+}
+if(c <= 3){
+    h q[0];
+} else {
+    x q[0];
+}
+if(c[0] < 4){
+    h q[0];
+} else {
+    x q[0];
+}
+""",
+            4,
+        ),
+        (
+            """
+OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q;
+bit[2] c;
+h q[0];
+cx q[0], q[1];
+c[0] = measure q[0];
+c[1] = measure q[1];
+if (c[0] == false) {
+  if (c[1] == true) {
+    x q[0];
+  }
+  else {
+    if (c[1] == false){
+      x q[1];
+    }
+    else {
+      z q[0];
+    }
+  }
+}
+
+if (c == 0) {
+    x q[0];
+}
+else {
+    y q[1];
+}
+x q[0];
+""",
+            6,
+        ),
     ],
 )
 def test_qasm3_depth_branching(program, expected_depth):
     """Test calculating depth of qasm3 circuit with branching conditions"""
     result = loads(program)
     result.unroll()
-    assert result.depth() == expected_depth
+    result.remove_barriers()
+    assert result.depth(decompose_native_gates=False) == expected_depth
+
+
+def test_qasm3_depth_branching_for_external_gates():
+    """Test calculating depth of qasm3 circuit with external gates inside branching conditions"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    bit[2] c;
+    gate my_gate q1, q2 {
+       h q1;
+       cx q1, q2;
+       h q2;
+    }
+    gate my_gate_two q1, q2 {
+       cx q1, q2;
+    }
+
+    qubit[2] q;
+    if (c == 0){
+       measure q -> c;
+       my_gate q[0], q[1];
+    }
+    else {
+       if (c[0] == false) {
+          my_gate q[1], q[0];
+       }
+       else{
+          measure q -> c;
+       }
+    }
+    my_gate_two q[0], q[1];
+    """
+    result = loads(qasm3_string)
+    result._external_gates = ["my_gate", "my_gate_two"]
+    assert result.depth() == 2
+
+
+QASM3_DECOMPOSE_GATE_DEPTH = """
+OPENQASM 3.0;
+qubit[2] q1;
+qreg q[3];
+creg c[3];
+crx (0.1) q[0], q[2];
+rccx q[0], q[1], q1[0];
+"""
+QASM3_DECOMPOSE_CUSTOM_GATE_DEPTH = """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate custom_crx a, b, {
+    crx (0.1) a, b;
+}
+gate custom_rccx a, b, c{
+    rccx a, b, c;
+}
+qubit[2] q1;
+qreg q[3];
+custom_crx q[0], q[2];
+custom_rccx q[0], q[1], q1[0];
+"""
+
+
+@pytest.mark.parametrize(
+    ["input_qasm_str", "before_decompose", "after_decompose"],
+    [(QASM3_DECOMPOSE_GATE_DEPTH, 2, 25), (QASM3_DECOMPOSE_CUSTOM_GATE_DEPTH, 2, 25)],
+)
+def test_gate_depth_decomposable_gates(input_qasm_str, before_decompose, after_decompose):
+    result = loads(input_qasm_str)
+    assert result.depth(decompose_native_gates=False) == before_decompose
+    # by default its true
+    assert result.depth() == after_decompose
+
+
+@pytest.mark.parametrize(
+    ["input_qasm_str", "before_decompose", "after_decompose"],
+    [(QASM3_DECOMPOSE_CUSTOM_GATE_DEPTH, 2, 2)],
+)
+def test_gate_depth_decomposable_external_gates(input_qasm_str, before_decompose, after_decompose):
+    result = loads(input_qasm_str)
+    result._external_gates = ["custom_crx", "custom_rccx"]
+    assert result.depth(decompose_native_gates=False) == before_decompose
+    # by default its true
+    assert result.depth() == after_decompose

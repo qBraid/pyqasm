@@ -1,14 +1,18 @@
 #!/bin/bash
 
-# Copyright (C) 2024 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of pyqasm
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# Pyqasm is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for pyqasm, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # Check if dir argument (the directory path) is provided
 if [ $# -lt 1 ]; then
@@ -23,13 +27,17 @@ echo "Running pre_build.sh"
 # Script has an argument which is the project path 
 project=$1
 
+# Reset any uncommitted changes which may have been made
+git reset --hard HEAD 
+git clean -xdf
+
 # Upgrade pip
 python -m pip install --upgrade pip
 
 # Install required packages
-pip install setuptools wheel cython
+pip install setuptools wheel cython tomli
 
-# Test if we are running the build for pre-release version 
+# Test if we are running the build for pre-release version
 if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
     echo "Running pre-release changes"
 
@@ -66,5 +74,6 @@ if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
 
 fi
 
+python $project/bin/write_version_file.py
 
 echo "Finished running pre_build.sh"
