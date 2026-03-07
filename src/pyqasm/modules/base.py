@@ -607,6 +607,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         if not kwargs:
             kwargs = {}
 
+        # Cache: skip if already unrolled (no kwargs means default unroll)
+        if not kwargs and len(self._unrolled_ast.statements) > 0:
+            return
+
         try:
             self.num_qubits, self.num_clbits = 0, 0
             if ext_gates := kwargs.get("external_gates"):

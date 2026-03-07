@@ -1,12 +1,16 @@
-# Copyright (C) 2025 qBraid
+# Copyright 2025 qBraid
 #
-# This file is part of PyQASM
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# PyQASM is free software released under the GNU General Public License v3
-# or later. You can redistribute and/or modify it under the terms of the GPL v3.
-# See the LICENSE file in the project root or <https://www.gnu.org/licenses/gpl-3.0.html>.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# THERE IS NO WARRANTY for PyQASM, as per Section 15 of the GPL v3.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # pylint: disable=redefined-outer-name
 
@@ -120,15 +124,15 @@ def pyqasm_simulator():
             """,
             "Identity gate",
         ),
-        # (
-        #     """
-        #     OPENQASM 3;
-        #     include "stdgates.inc";
-        #     qubit[1] q;
-        #     u3(0,0,0) q[0];
-        #     """,
-        #     "U3 gate",
-        # ),
+        (
+            """
+            OPENQASM 3;
+            include "stdgates.inc";
+            qubit[1] q;
+            u3(1.0, 0.5, 0.3) q[0];
+            """,
+            "U3 gate (global phase)",
+        ),
         (
             """
             OPENQASM 3;
@@ -160,6 +164,49 @@ def pyqasm_simulator():
             OPENQASM 3;
             include "stdgates.inc";
             qubit[2] q;
+            x q[0];
+            x q[1];
+            cy q[0], q[1];
+            """,
+            "CY on |11>",
+        ),
+        (
+            """
+            OPENQASM 3;
+            include "stdgates.inc";
+            qubit[2] q;
+            x q[0];
+            x q[1];
+            cz q[0], q[1];
+            """,
+            "CZ on |11>",
+        ),
+        (
+            """
+            OPENQASM 3;
+            include "stdgates.inc";
+            qubit[2] q;
+            x q[1];
+            swap q[0], q[1];
+            """,
+            "SWAP on |01>",
+        ),
+        (
+            """
+            OPENQASM 3;
+            include "stdgates.inc";
+            qubit[3] q;
+            x q[0];
+            id q[1];
+            id q[2];
+            """,
+            "X on qubit 0 of 3-qubit system",
+        ),
+        (
+            """
+            OPENQASM 3;
+            include "stdgates.inc";
+            qubit[2] q;
             cy q[0], q[1];
             """,
             "CY gate",
@@ -181,6 +228,16 @@ def pyqasm_simulator():
             swap q[0], q[1];
             """,
             "Swap gate",
+        ),
+        (
+            """
+            OPENQASM 3;
+            include "stdgates.inc";
+            qubit[2] q;
+            h q[0];
+            crz(pi/4) q[0], q[1];
+            """,
+            "CRZ gate",
         ),
         (
             """
@@ -241,15 +298,53 @@ def test_simulator_sv_results(qasm, description, aer_simulator, pyqasm_simulator
     """Test PyQASM simulator by comparing SV results against the Qiskit Aer simulator."""
     circuit = loads(qasm)
     circuit.save_statevector()
-    compiled_circuit = transpile(circuit, aer_simulator)
+    compiled_circuit = transpile(circuit, aer_simulator, optimization_level=0)
     result = aer_simulator.run(compiled_circuit).result()
     sv_qiskit = result.get_statevector(compiled_circuit)
     sv_expected = np.asarray(sv_qiskit)
 
     result = pyqasm_simulator.run(qasm, shots=1000)
 
-    assert np.allclose(result.final_statevector, sv_expected), (
+    sv_actual = result.final_statevector
+    if "global phase" in description:
+        # Compare up to global phase: find first nonzero element and normalize
+        idx = np.argmax(np.abs(sv_expected) > 1e-10)
+        phase = sv_actual[idx] / sv_expected[idx]
+        sv_actual = sv_actual / phase
+
+    assert np.allclose(sv_actual, sv_expected), (
         f"Test failed for: {description}\n"
         f"PyQASM simulator statevector: {result.final_statevector}\n"
         f"Expected statevector: {sv_expected}"
+    )
+
+
+def test_simulator_large_circuit(aer_simulator, pyqasm_simulator):
+    """Test PyQASM simulator on an 8-qubit circuit."""
+    qasm = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[8] q;
+    h q[0];
+    cx q[0], q[1];
+    cx q[1], q[2];
+    cx q[2], q[3];
+    h q[4];
+    cx q[4], q[5];
+    cx q[5], q[6];
+    cx q[6], q[7];
+    swap q[3], q[4];
+    """
+    circuit = loads(qasm)
+    circuit.save_statevector()
+    compiled_circuit = transpile(circuit, aer_simulator, optimization_level=0)
+    result_qiskit = aer_simulator.run(compiled_circuit).result()
+    sv_expected = np.asarray(result_qiskit.get_statevector(compiled_circuit))
+
+    result = pyqasm_simulator.run(qasm, shots=0)
+
+    assert np.allclose(result.final_statevector, sv_expected), (
+        f"Test failed for 8-qubit circuit\n"
+        f"PyQASM: {result.final_statevector}\n"
+        f"Expected: {sv_expected}"
     )

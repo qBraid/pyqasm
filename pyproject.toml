@@ -52,9 +52,6 @@ pyqasm = ["py.typed", "*.pyx"]
 
 [tool.setuptools]
 packages = {find = {where = ["src"]}}
-ext-modules = [
-  {name = "pyqasm.accelerate.linalg", sources = ["src/pyqasm/accelerate/linalg.pyx"], include-dirs = ["numpy"]}
-]
 
 [project.scripts]
 pyqasm = "pyqasm.cli.main:app"
@@ -74,6 +71,9 @@ line_length = 100
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+markers = [
+    "benchmark: performance regression tests (may be slow)",
+]
 
 [tool.coverage.run]
 source = ["pyqasm"]
