@@ -1,0 +1,491 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="1466" onload="init(evt)" viewBox="0 0 1200 1466" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:fg="http://github.com/jonhoo/inferno"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:monospace; font-size:12px }
+#title { text-anchor:middle; font-size:17px; }
+#matched { text-anchor:end; }
+#search { text-anchor:end; opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[
+        var nametype = 'Function:';
+        var fontsize = 12;
+        var fontwidth = 0.59;
+        var xpad = 10;
+        var inverted = true;
+        var searchcolor = 'rgb(230,0,230)';
+        var fluiddrawing = true;
+        var truncate_text_right = false;
+    ]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames, known_font_width;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    known_font_width = get_monospace_width(frames);
+    total_samples = parseInt(frames.attributes.total_samples.value);
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[*|x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+            svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            update_text_for_elements(frames.children);
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad;
+            matchedtxt.attributes.x.value = svgWidth - xpad;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes["fg:x"]) {
+            var params = get_params()
+            params.x = el.attributes["fg:x"].value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["fg:orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("fg:orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["fg:orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["fg:orig_" + attr].value;
+    e.removeAttribute("fg:orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function get_monospace_width(frames) {
+    // Given the id="frames" element, return the width of text characters if
+    // this is a monospace font, otherwise return 0.
+    text = find_child(frames.children[0], "text");
+    originalContent = text.textContent;
+    text.textContent = "!";
+    bangWidth = text.getComputedTextLength();
+    text.textContent = "W";
+    wWidth = text.getComputedTextLength();
+    text.textContent = originalContent;
+    if (bangWidth === wWidth) {
+        return bangWidth;
+    } else {
+        return 0;
+    }
+}
+function update_text_for_elements(elements) {
+    // In order to render quickly in the browser, you want to do one pass of
+    // reading attributes, and one pass of mutating attributes. See
+    // https://web.dev/avoid-large-complex-layouts-and-layout-thrashing/ for details.
+
+    // Fall back to inefficient calculation, if we're variable-width font.
+    // TODO This should be optimized somehow too.
+    if (known_font_width === 0) {
+        for (var i = 0; i < elements.length; i++) {
+            update_text(elements[i]);
+        }
+        return;
+    }
+
+    var textElemNewAttributes = [];
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var r = find_child(e, "rect");
+        var t = find_child(e, "text");
+        var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+        var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+        var newX = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+        // Smaller than this size won't fit anything
+        if (w < 2 * known_font_width) {
+            textElemNewAttributes.push([newX, ""]);
+            continue;
+        }
+
+        // Fit in full text width
+        if (txt.length * known_font_width < w) {
+            textElemNewAttributes.push([newX, txt]);
+            continue;
+        }
+
+        var substringLength = Math.floor(w / known_font_width) - 2;
+        if (truncate_text_right) {
+            // Truncate the right side of the text.
+            textElemNewAttributes.push([newX, txt.substring(0, substringLength) + ".."]);
+            continue;
+        } else {
+            // Truncate the left side of the text.
+            textElemNewAttributes.push([newX, ".." + txt.substring(txt.length - substringLength, txt.length)]);
+            continue;
+        }
+    }
+
+    console.assert(textElemNewAttributes.length === elements.length, "Resize failed, please file a bug at https://github.com/jonhoo/inferno/");
+
+    // Now that we know new textContent, set it all in one go so we don't refresh a bazillion times.
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var values = textElemNewAttributes[i];
+        var t = find_child(e, "text");
+        t.attributes.x.value = values[0];
+        t.textContent = values[1];
+    }
+}
+
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * parseInt(e.attributes["fg:x"].value) / total_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / total_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, zoomed_width_samples) {
+    if (e.tagName == "text") {
+        var parent_x = parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value);
+        e.attributes.x.value = format_percent(parent_x + (100 * 3 / frames.attributes.width.value));
+    } else if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * (parseInt(e.attributes["fg:x"].value) - x) / zoomed_width_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / zoomed_width_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, zoomed_width_samples);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseInt(attr["fg:w"].value);
+    var xmin = parseInt(attr["fg:x"].value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    var to_update_text = [];
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseInt(a["fg:x"].value);
+        var ew = parseInt(a["fg:w"].value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                to_update_text.push(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, width);
+                to_update_text.push(e);
+            }
+        }
+    }
+    update_text_for_elements(to_update_text);
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+    }
+    update_text_for_elements(el);
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        // Skip over frames which are either not visible, or below the zoomed-to frame
+        if (e.classList.contains("hide") || e.classList.contains("parent")) {
+            continue;
+        }
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseInt(rect.attributes["fg:w"].value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseInt(rect.attributes["fg:x"].value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    for (var k in keys) {
+        var x = parseInt(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="1466" fill="url(#background)"/><text id="title" fill="rgb(0,0,0)" x="50.0000%" y="24.00">py-spy record -o tests/profiles/openpulse/openpulse.svg -- python3 /Users/vinay/Desktop/test.py</text><text id="details" fill="rgb(0,0,0)" x="10" y="40.00"> </text><text id="unzoom" class="hide" fill="rgb(0,0,0)" x="10" y="24.00">Reset Zoom</text><text id="search" fill="rgb(0,0,0)" x="1190" y="24.00">Search</text><text id="matched" fill="rgb(0,0,0)" x="1190" y="1455.00"> </text><svg id="frames" x="10" width="1180" total_samples="15"><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1022) (1 samples, 6.67%)</title><rect x="0.0000%" y="1300" width="6.6667%" height="15" fill="rgb(227,0,7)" fg:x="0" fg:w="1"/><text x="0.2500%" y="1310.50">exec_modu..</text></g><g><title>get_code (&lt;frozen importlib._bootstrap_external&gt;:1118) (1 samples, 6.67%)</title><rect x="0.0000%" y="1316" width="6.6667%" height="15" fill="rgb(217,0,24)" fg:x="0" fg:w="1"/><text x="0.2500%" y="1326.50">get_code ..</text></g><g><title>get_data (&lt;frozen importlib._bootstrap_external&gt;:1218) (1 samples, 6.67%)</title><rect x="0.0000%" y="1332" width="6.6667%" height="15" fill="rgb(221,193,54)" fg:x="0" fg:w="1"/><text x="0.2500%" y="1342.50">get_data ..</text></g><g><title>&lt;module&gt; (numpy/_core/__init__.py:22) (3 samples, 20.00%)</title><rect x="0.0000%" y="884" width="20.0000%" height="15" fill="rgb(248,212,6)" fg:x="0" fg:w="3"/><text x="0.2500%" y="894.50">&lt;module&gt; (numpy/_core/__init__...</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (3 samples, 20.00%)</title><rect x="0.0000%" y="900" width="20.0000%" height="15" fill="rgb(208,68,35)" fg:x="0" fg:w="3"/><text x="0.2500%" y="910.50">_handle_fromlist (&lt;frozen impor..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="0.0000%" y="916" width="20.0000%" height="15" fill="rgb(232,128,0)" fg:x="0" fg:w="3"/><text x="0.2500%" y="926.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="0.0000%" y="932" width="20.0000%" height="15" fill="rgb(207,160,47)" fg:x="0" fg:w="3"/><text x="0.2500%" y="942.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="0.0000%" y="948" width="20.0000%" height="15" fill="rgb(228,23,34)" fg:x="0" fg:w="3"/><text x="0.2500%" y="958.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (3 samples, 20.00%)</title><rect x="0.0000%" y="964" width="20.0000%" height="15" fill="rgb(218,30,26)" fg:x="0" fg:w="3"/><text x="0.2500%" y="974.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (3 samples, 20.00%)</title><rect x="0.0000%" y="980" width="20.0000%" height="15" fill="rgb(220,122,19)" fg:x="0" fg:w="3"/><text x="0.2500%" y="990.50">exec_module (&lt;frozen importlib...</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="0.0000%" y="996" width="20.0000%" height="15" fill="rgb(250,228,42)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1006.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>&lt;module&gt; (numpy/_core/multiarray.py:11) (3 samples, 20.00%)</title><rect x="0.0000%" y="1012" width="20.0000%" height="15" fill="rgb(240,193,28)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1022.50">&lt;module&gt; (numpy/_core/multiarra..</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (3 samples, 20.00%)</title><rect x="0.0000%" y="1028" width="20.0000%" height="15" fill="rgb(216,20,37)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1038.50">_handle_fromlist (&lt;frozen impor..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="0.0000%" y="1044" width="20.0000%" height="15" fill="rgb(206,188,39)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1054.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="0.0000%" y="1060" width="20.0000%" height="15" fill="rgb(217,207,13)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1070.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="0.0000%" y="1076" width="20.0000%" height="15" fill="rgb(231,73,38)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1086.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:921) (3 samples, 20.00%)</title><rect x="0.0000%" y="1092" width="20.0000%" height="15" fill="rgb(225,20,46)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1102.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>module_from_spec (&lt;frozen importlib._bootstrap&gt;:813) (3 samples, 20.00%)</title><rect x="0.0000%" y="1108" width="20.0000%" height="15" fill="rgb(210,31,41)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1118.50">module_from_spec (&lt;frozen impor..</text></g><g><title>create_module (&lt;frozen importlib._bootstrap_external&gt;:1321) (3 samples, 20.00%)</title><rect x="0.0000%" y="1124" width="20.0000%" height="15" fill="rgb(221,200,47)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1134.50">create_module (&lt;frozen importli..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="0.0000%" y="1140" width="20.0000%" height="15" fill="rgb(226,26,5)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1150.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="0.0000%" y="1156" width="20.0000%" height="15" fill="rgb(249,33,26)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1166.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="0.0000%" y="1172" width="20.0000%" height="15" fill="rgb(235,183,28)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1182.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (3 samples, 20.00%)</title><rect x="0.0000%" y="1188" width="20.0000%" height="15" fill="rgb(221,5,38)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1198.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (3 samples, 20.00%)</title><rect x="0.0000%" y="1204" width="20.0000%" height="15" fill="rgb(247,18,42)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1214.50">exec_module (&lt;frozen importlib...</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="0.0000%" y="1220" width="20.0000%" height="15" fill="rgb(241,131,45)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1230.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>&lt;module&gt; (numpy/_core/printoptions.py:10) (3 samples, 20.00%)</title><rect x="0.0000%" y="1236" width="20.0000%" height="15" fill="rgb(249,31,29)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1246.50">&lt;module&gt; (numpy/_core/printopti..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="0.0000%" y="1252" width="20.0000%" height="15" fill="rgb(225,111,53)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1262.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="0.0000%" y="1268" width="20.0000%" height="15" fill="rgb(238,160,17)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1278.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (3 samples, 20.00%)</title><rect x="0.0000%" y="1284" width="20.0000%" height="15" fill="rgb(214,148,48)" fg:x="0" fg:w="3"/><text x="0.2500%" y="1294.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (2 samples, 13.33%)</title><rect x="6.6667%" y="1300" width="13.3333%" height="15" fill="rgb(232,36,49)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1310.50">exec_module (&lt;frozen..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (2 samples, 13.33%)</title><rect x="6.6667%" y="1316" width="13.3333%" height="15" fill="rgb(209,103,24)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1326.50">_call_with_frames_re..</text></g><g><title>&lt;module&gt; (contextvars.py:1) (2 samples, 13.33%)</title><rect x="6.6667%" y="1332" width="13.3333%" height="15" fill="rgb(229,88,8)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1342.50">&lt;module&gt; (contextvar..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (2 samples, 13.33%)</title><rect x="6.6667%" y="1348" width="13.3333%" height="15" fill="rgb(213,181,19)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1358.50">_find_and_load (&lt;fro..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (2 samples, 13.33%)</title><rect x="6.6667%" y="1364" width="13.3333%" height="15" fill="rgb(254,191,54)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1374.50">_find_and_load_unloc..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:921) (2 samples, 13.33%)</title><rect x="6.6667%" y="1380" width="13.3333%" height="15" fill="rgb(241,83,37)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1390.50">_load_unlocked (&lt;fro..</text></g><g><title>module_from_spec (&lt;frozen importlib._bootstrap&gt;:813) (2 samples, 13.33%)</title><rect x="6.6667%" y="1396" width="13.3333%" height="15" fill="rgb(233,36,39)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1406.50">module_from_spec (&lt;f..</text></g><g><title>create_module (&lt;frozen importlib._bootstrap_external&gt;:1321) (2 samples, 13.33%)</title><rect x="6.6667%" y="1412" width="13.3333%" height="15" fill="rgb(226,3,54)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1422.50">create_module (&lt;froz..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (2 samples, 13.33%)</title><rect x="6.6667%" y="1428" width="13.3333%" height="15" fill="rgb(245,192,40)" fg:x="1" fg:w="2"/><text x="6.9167%" y="1438.50">_call_with_frames_re..</text></g><g><title>&lt;module&gt; (numpy/_core/__init__.py:74) (1 samples, 6.67%)</title><rect x="20.0000%" y="884" width="6.6667%" height="15" fill="rgb(238,167,29)" fg:x="3" fg:w="1"/><text x="20.2500%" y="894.50">&lt;module&gt; ..</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (1 samples, 6.67%)</title><rect x="20.0000%" y="900" width="6.6667%" height="15" fill="rgb(232,182,51)" fg:x="3" fg:w="1"/><text x="20.2500%" y="910.50">_handle_f..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="20.0000%" y="916" width="6.6667%" height="15" fill="rgb(231,60,39)" fg:x="3" fg:w="1"/><text x="20.2500%" y="926.50">_call_wit..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="20.0000%" y="932" width="6.6667%" height="15" fill="rgb(208,69,12)" fg:x="3" fg:w="1"/><text x="20.2500%" y="942.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="20.0000%" y="948" width="6.6667%" height="15" fill="rgb(235,93,37)" fg:x="3" fg:w="1"/><text x="20.2500%" y="958.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="20.0000%" y="964" width="6.6667%" height="15" fill="rgb(213,116,39)" fg:x="3" fg:w="1"/><text x="20.2500%" y="974.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1022) (1 samples, 6.67%)</title><rect x="20.0000%" y="980" width="6.6667%" height="15" fill="rgb(222,207,29)" fg:x="3" fg:w="1"/><text x="20.2500%" y="990.50">exec_modu..</text></g><g><title>get_code (&lt;frozen importlib._bootstrap_external&gt;:1118) (1 samples, 6.67%)</title><rect x="20.0000%" y="996" width="6.6667%" height="15" fill="rgb(206,96,30)" fg:x="3" fg:w="1"/><text x="20.2500%" y="1006.50">get_code ..</text></g><g><title>get_data (&lt;frozen importlib._bootstrap_external&gt;:1217) (1 samples, 6.67%)</title><rect x="20.0000%" y="1012" width="6.6667%" height="15" fill="rgb(218,138,4)" fg:x="3" fg:w="1"/><text x="20.2500%" y="1022.50">get_data ..</text></g><g><title>&lt;module&gt; (numpy/__init__.py:112) (5 samples, 33.33%)</title><rect x="0.0000%" y="644" width="33.3333%" height="15" fill="rgb(250,191,14)" fg:x="0" fg:w="5"/><text x="0.2500%" y="654.50">&lt;module&gt; (numpy/__init__.py:112)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (5 samples, 33.33%)</title><rect x="0.0000%" y="660" width="33.3333%" height="15" fill="rgb(239,60,40)" fg:x="0" fg:w="5"/><text x="0.2500%" y="670.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (5 samples, 33.33%)</title><rect x="0.0000%" y="676" width="33.3333%" height="15" fill="rgb(206,27,48)" fg:x="0" fg:w="5"/><text x="0.2500%" y="686.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (5 samples, 33.33%)</title><rect x="0.0000%" y="692" width="33.3333%" height="15" fill="rgb(225,35,8)" fg:x="0" fg:w="5"/><text x="0.2500%" y="702.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (5 samples, 33.33%)</title><rect x="0.0000%" y="708" width="33.3333%" height="15" fill="rgb(250,213,24)" fg:x="0" fg:w="5"/><text x="0.2500%" y="718.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:10..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (5 samples, 33.33%)</title><rect x="0.0000%" y="724" width="33.3333%" height="15" fill="rgb(247,123,22)" fg:x="0" fg:w="5"/><text x="0.2500%" y="734.50">_call_with_frames_removed (&lt;frozen importlib._bootstra..</text></g><g><title>&lt;module&gt; (numpy/__config__.py:4) (5 samples, 33.33%)</title><rect x="0.0000%" y="740" width="33.3333%" height="15" fill="rgb(231,138,38)" fg:x="0" fg:w="5"/><text x="0.2500%" y="750.50">&lt;module&gt; (numpy/__config__.py:4)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (5 samples, 33.33%)</title><rect x="0.0000%" y="756" width="33.3333%" height="15" fill="rgb(231,145,46)" fg:x="0" fg:w="5"/><text x="0.2500%" y="766.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1310) (5 samples, 33.33%)</title><rect x="0.0000%" y="772" width="33.3333%" height="15" fill="rgb(251,118,11)" fg:x="0" fg:w="5"/><text x="0.2500%" y="782.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (5 samples, 33.33%)</title><rect x="0.0000%" y="788" width="33.3333%" height="15" fill="rgb(217,147,25)" fg:x="0" fg:w="5"/><text x="0.2500%" y="798.50">_call_with_frames_removed (&lt;frozen importlib._bootstra..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (5 samples, 33.33%)</title><rect x="0.0000%" y="804" width="33.3333%" height="15" fill="rgb(247,81,37)" fg:x="0" fg:w="5"/><text x="0.2500%" y="814.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (5 samples, 33.33%)</title><rect x="0.0000%" y="820" width="33.3333%" height="15" fill="rgb(209,12,38)" fg:x="0" fg:w="5"/><text x="0.2500%" y="830.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (5 samples, 33.33%)</title><rect x="0.0000%" y="836" width="33.3333%" height="15" fill="rgb(227,1,9)" fg:x="0" fg:w="5"/><text x="0.2500%" y="846.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (5 samples, 33.33%)</title><rect x="0.0000%" y="852" width="33.3333%" height="15" fill="rgb(248,47,43)" fg:x="0" fg:w="5"/><text x="0.2500%" y="862.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:10..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (5 samples, 33.33%)</title><rect x="0.0000%" y="868" width="33.3333%" height="15" fill="rgb(221,10,30)" fg:x="0" fg:w="5"/><text x="0.2500%" y="878.50">_call_with_frames_removed (&lt;frozen importlib._bootstra..</text></g><g><title>&lt;module&gt; (numpy/_core/__init__.py:99) (1 samples, 6.67%)</title><rect x="26.6667%" y="884" width="6.6667%" height="15" fill="rgb(210,229,1)" fg:x="4" fg:w="1"/><text x="26.9167%" y="894.50">&lt;module&gt; ..</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (1 samples, 6.67%)</title><rect x="26.6667%" y="900" width="6.6667%" height="15" fill="rgb(222,148,37)" fg:x="4" fg:w="1"/><text x="26.9167%" y="910.50">_handle_f..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="26.6667%" y="916" width="6.6667%" height="15" fill="rgb(234,67,33)" fg:x="4" fg:w="1"/><text x="26.9167%" y="926.50">_call_wit..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="26.6667%" y="932" width="6.6667%" height="15" fill="rgb(247,98,35)" fg:x="4" fg:w="1"/><text x="26.9167%" y="942.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="26.6667%" y="948" width="6.6667%" height="15" fill="rgb(247,138,52)" fg:x="4" fg:w="1"/><text x="26.9167%" y="958.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="26.6667%" y="964" width="6.6667%" height="15" fill="rgb(213,79,30)" fg:x="4" fg:w="1"/><text x="26.9167%" y="974.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="26.6667%" y="980" width="6.6667%" height="15" fill="rgb(246,177,23)" fg:x="4" fg:w="1"/><text x="26.9167%" y="990.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="26.6667%" y="996" width="6.6667%" height="15" fill="rgb(230,62,27)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1006.50">_call_wit..</text></g><g><title>&lt;module&gt; (numpy/_core/_internal.py:19) (1 samples, 6.67%)</title><rect x="26.6667%" y="1012" width="6.6667%" height="15" fill="rgb(216,154,8)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1022.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="26.6667%" y="1028" width="6.6667%" height="15" fill="rgb(244,35,45)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1038.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="26.6667%" y="1044" width="6.6667%" height="15" fill="rgb(251,115,12)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1054.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="26.6667%" y="1060" width="6.6667%" height="15" fill="rgb(240,54,50)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1070.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="26.6667%" y="1076" width="6.6667%" height="15" fill="rgb(233,84,52)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1086.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="26.6667%" y="1092" width="6.6667%" height="15" fill="rgb(207,117,47)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1102.50">_call_wit..</text></g><g><title>&lt;module&gt; (ctypes/__init__.py:8) (1 samples, 6.67%)</title><rect x="26.6667%" y="1108" width="6.6667%" height="15" fill="rgb(249,43,39)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1118.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="26.6667%" y="1124" width="6.6667%" height="15" fill="rgb(209,38,44)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1134.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="26.6667%" y="1140" width="6.6667%" height="15" fill="rgb(236,212,23)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1150.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:921) (1 samples, 6.67%)</title><rect x="26.6667%" y="1156" width="6.6667%" height="15" fill="rgb(242,79,21)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1166.50">_load_unl..</text></g><g><title>module_from_spec (&lt;frozen importlib._bootstrap&gt;:813) (1 samples, 6.67%)</title><rect x="26.6667%" y="1172" width="6.6667%" height="15" fill="rgb(211,96,35)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1182.50">module_fr..</text></g><g><title>create_module (&lt;frozen importlib._bootstrap_external&gt;:1321) (1 samples, 6.67%)</title><rect x="26.6667%" y="1188" width="6.6667%" height="15" fill="rgb(253,215,40)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1198.50">create_mo..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="26.6667%" y="1204" width="6.6667%" height="15" fill="rgb(211,81,21)" fg:x="4" fg:w="1"/><text x="26.9167%" y="1214.50">_call_wit..</text></g><g><title>&lt;module&gt; (numpy/lib/_arraypad_impl.py:8) (1 samples, 6.67%)</title><rect x="33.3333%" y="900" width="6.6667%" height="15" fill="rgb(208,190,38)" fg:x="5" fg:w="1"/><text x="33.5833%" y="910.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="33.3333%" y="916" width="6.6667%" height="15" fill="rgb(235,213,38)" fg:x="5" fg:w="1"/><text x="33.5833%" y="926.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="33.3333%" y="932" width="6.6667%" height="15" fill="rgb(237,122,38)" fg:x="5" fg:w="1"/><text x="33.5833%" y="942.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="33.3333%" y="948" width="6.6667%" height="15" fill="rgb(244,218,35)" fg:x="5" fg:w="1"/><text x="33.5833%" y="958.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="33.3333%" y="964" width="6.6667%" height="15" fill="rgb(240,68,47)" fg:x="5" fg:w="1"/><text x="33.5833%" y="974.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="33.3333%" y="980" width="6.6667%" height="15" fill="rgb(210,16,53)" fg:x="5" fg:w="1"/><text x="33.5833%" y="990.50">_call_wit..</text></g><g><title>&lt;module&gt; (numpy/lib/_index_tricks_impl.py:14) (1 samples, 6.67%)</title><rect x="33.3333%" y="996" width="6.6667%" height="15" fill="rgb(235,124,12)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1006.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="33.3333%" y="1012" width="6.6667%" height="15" fill="rgb(224,169,11)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1022.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="33.3333%" y="1028" width="6.6667%" height="15" fill="rgb(250,166,2)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1038.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="33.3333%" y="1044" width="6.6667%" height="15" fill="rgb(242,216,29)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1054.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="33.3333%" y="1060" width="6.6667%" height="15" fill="rgb(230,116,27)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1070.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="33.3333%" y="1076" width="6.6667%" height="15" fill="rgb(228,99,48)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1086.50">_call_wit..</text></g><g><title>&lt;module&gt; (numpy/lib/_function_base_impl.py:1730) (1 samples, 6.67%)</title><rect x="33.3333%" y="1092" width="6.6667%" height="15" fill="rgb(253,11,6)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1102.50">&lt;module&gt; ..</text></g><g><title>decorator (numpy/_core/overrides.py:163) (1 samples, 6.67%)</title><rect x="33.3333%" y="1108" width="6.6667%" height="15" fill="rgb(247,143,39)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1118.50">decorator..</text></g><g><title>update_wrapper (functools.py:57) (1 samples, 6.67%)</title><rect x="33.3333%" y="1124" width="6.6667%" height="15" fill="rgb(236,97,10)" fg:x="5" fg:w="1"/><text x="33.5833%" y="1134.50">update_wr..</text></g><g><title>&lt;module&gt; (pyqasm/modules/base.py:30) (7 samples, 46.67%)</title><rect x="0.0000%" y="452" width="46.6667%" height="15" fill="rgb(233,208,19)" fg:x="0" fg:w="7"/><text x="0.2500%" y="462.50">&lt;module&gt; (pyqasm/modules/base.py:30)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (7 samples, 46.67%)</title><rect x="0.0000%" y="468" width="46.6667%" height="15" fill="rgb(216,164,2)" fg:x="0" fg:w="7"/><text x="0.2500%" y="478.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (7 samples, 46.67%)</title><rect x="0.0000%" y="484" width="46.6667%" height="15" fill="rgb(220,129,5)" fg:x="0" fg:w="7"/><text x="0.2500%" y="494.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331)</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (7 samples, 46.67%)</title><rect x="0.0000%" y="500" width="46.6667%" height="15" fill="rgb(242,17,10)" fg:x="0" fg:w="7"/><text x="0.2500%" y="510.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (7 samples, 46.67%)</title><rect x="0.0000%" y="516" width="46.6667%" height="15" fill="rgb(242,107,0)" fg:x="0" fg:w="7"/><text x="0.2500%" y="526.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026)</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (7 samples, 46.67%)</title><rect x="0.0000%" y="532" width="46.6667%" height="15" fill="rgb(251,28,31)" fg:x="0" fg:w="7"/><text x="0.2500%" y="542.50">_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488)</text></g><g><title>&lt;module&gt; (pyqasm/analyzer.py:24) (7 samples, 46.67%)</title><rect x="0.0000%" y="548" width="46.6667%" height="15" fill="rgb(233,223,10)" fg:x="0" fg:w="7"/><text x="0.2500%" y="558.50">&lt;module&gt; (pyqasm/analyzer.py:24)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (7 samples, 46.67%)</title><rect x="0.0000%" y="564" width="46.6667%" height="15" fill="rgb(215,21,27)" fg:x="0" fg:w="7"/><text x="0.2500%" y="574.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (7 samples, 46.67%)</title><rect x="0.0000%" y="580" width="46.6667%" height="15" fill="rgb(232,23,21)" fg:x="0" fg:w="7"/><text x="0.2500%" y="590.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331)</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (7 samples, 46.67%)</title><rect x="0.0000%" y="596" width="46.6667%" height="15" fill="rgb(244,5,23)" fg:x="0" fg:w="7"/><text x="0.2500%" y="606.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (7 samples, 46.67%)</title><rect x="0.0000%" y="612" width="46.6667%" height="15" fill="rgb(226,81,46)" fg:x="0" fg:w="7"/><text x="0.2500%" y="622.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026)</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (7 samples, 46.67%)</title><rect x="0.0000%" y="628" width="46.6667%" height="15" fill="rgb(247,70,30)" fg:x="0" fg:w="7"/><text x="0.2500%" y="638.50">_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488)</text></g><g><title>&lt;module&gt; (numpy/__init__.py:454) (2 samples, 13.33%)</title><rect x="33.3333%" y="644" width="13.3333%" height="15" fill="rgb(212,68,19)" fg:x="5" fg:w="2"/><text x="33.5833%" y="654.50">&lt;module&gt; (numpy/__in..</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (2 samples, 13.33%)</title><rect x="33.3333%" y="660" width="13.3333%" height="15" fill="rgb(240,187,13)" fg:x="5" fg:w="2"/><text x="33.5833%" y="670.50">_handle_fromlist (&lt;f..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (2 samples, 13.33%)</title><rect x="33.3333%" y="676" width="13.3333%" height="15" fill="rgb(223,113,26)" fg:x="5" fg:w="2"/><text x="33.5833%" y="686.50">_call_with_frames_re..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (2 samples, 13.33%)</title><rect x="33.3333%" y="692" width="13.3333%" height="15" fill="rgb(206,192,2)" fg:x="5" fg:w="2"/><text x="33.5833%" y="702.50">_find_and_load (&lt;fro..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (2 samples, 13.33%)</title><rect x="33.3333%" y="708" width="13.3333%" height="15" fill="rgb(241,108,4)" fg:x="5" fg:w="2"/><text x="33.5833%" y="718.50">_find_and_load_unloc..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (2 samples, 13.33%)</title><rect x="33.3333%" y="724" width="13.3333%" height="15" fill="rgb(247,173,49)" fg:x="5" fg:w="2"/><text x="33.5833%" y="734.50">_load_unlocked (&lt;fro..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (2 samples, 13.33%)</title><rect x="33.3333%" y="740" width="13.3333%" height="15" fill="rgb(224,114,35)" fg:x="5" fg:w="2"/><text x="33.5833%" y="750.50">exec_module (&lt;frozen..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (2 samples, 13.33%)</title><rect x="33.3333%" y="756" width="13.3333%" height="15" fill="rgb(245,159,27)" fg:x="5" fg:w="2"/><text x="33.5833%" y="766.50">_call_with_frames_re..</text></g><g><title>&lt;module&gt; (numpy/lib/__init__.py:18) (2 samples, 13.33%)</title><rect x="33.3333%" y="772" width="13.3333%" height="15" fill="rgb(245,172,44)" fg:x="5" fg:w="2"/><text x="33.5833%" y="782.50">&lt;module&gt; (numpy/lib/..</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (2 samples, 13.33%)</title><rect x="33.3333%" y="788" width="13.3333%" height="15" fill="rgb(236,23,11)" fg:x="5" fg:w="2"/><text x="33.5833%" y="798.50">_handle_fromlist (&lt;f..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (2 samples, 13.33%)</title><rect x="33.3333%" y="804" width="13.3333%" height="15" fill="rgb(205,117,38)" fg:x="5" fg:w="2"/><text x="33.5833%" y="814.50">_call_with_frames_re..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (2 samples, 13.33%)</title><rect x="33.3333%" y="820" width="13.3333%" height="15" fill="rgb(237,72,25)" fg:x="5" fg:w="2"/><text x="33.5833%" y="830.50">_find_and_load (&lt;fro..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (2 samples, 13.33%)</title><rect x="33.3333%" y="836" width="13.3333%" height="15" fill="rgb(244,70,9)" fg:x="5" fg:w="2"/><text x="33.5833%" y="846.50">_find_and_load_unloc..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (2 samples, 13.33%)</title><rect x="33.3333%" y="852" width="13.3333%" height="15" fill="rgb(217,125,39)" fg:x="5" fg:w="2"/><text x="33.5833%" y="862.50">_load_unlocked (&lt;fro..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (2 samples, 13.33%)</title><rect x="33.3333%" y="868" width="13.3333%" height="15" fill="rgb(235,36,10)" fg:x="5" fg:w="2"/><text x="33.5833%" y="878.50">exec_module (&lt;frozen..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (2 samples, 13.33%)</title><rect x="33.3333%" y="884" width="13.3333%" height="15" fill="rgb(251,123,47)" fg:x="5" fg:w="2"/><text x="33.5833%" y="894.50">_call_with_frames_re..</text></g><g><title>&lt;module&gt; (numpy/lib/_polynomial_impl.py:29) (1 samples, 6.67%)</title><rect x="40.0000%" y="900" width="6.6667%" height="15" fill="rgb(221,13,13)" fg:x="6" fg:w="1"/><text x="40.2500%" y="910.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="40.0000%" y="916" width="6.6667%" height="15" fill="rgb(238,131,9)" fg:x="6" fg:w="1"/><text x="40.2500%" y="926.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="40.0000%" y="932" width="6.6667%" height="15" fill="rgb(211,50,8)" fg:x="6" fg:w="1"/><text x="40.2500%" y="942.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="40.0000%" y="948" width="6.6667%" height="15" fill="rgb(245,182,24)" fg:x="6" fg:w="1"/><text x="40.2500%" y="958.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="40.0000%" y="964" width="6.6667%" height="15" fill="rgb(242,14,37)" fg:x="6" fg:w="1"/><text x="40.2500%" y="974.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="40.0000%" y="980" width="6.6667%" height="15" fill="rgb(246,228,12)" fg:x="6" fg:w="1"/><text x="40.2500%" y="990.50">_call_wit..</text></g><g><title>&lt;module&gt; (numpy/lib/_type_check_impl.py:16) (1 samples, 6.67%)</title><rect x="40.0000%" y="996" width="6.6667%" height="15" fill="rgb(213,55,15)" fg:x="6" fg:w="1"/><text x="40.2500%" y="1006.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="40.0000%" y="1012" width="6.6667%" height="15" fill="rgb(209,9,3)" fg:x="6" fg:w="1"/><text x="40.2500%" y="1022.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="40.0000%" y="1028" width="6.6667%" height="15" fill="rgb(230,59,30)" fg:x="6" fg:w="1"/><text x="40.2500%" y="1038.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="40.0000%" y="1044" width="6.6667%" height="15" fill="rgb(209,121,21)" fg:x="6" fg:w="1"/><text x="40.2500%" y="1054.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1022) (1 samples, 6.67%)</title><rect x="40.0000%" y="1060" width="6.6667%" height="15" fill="rgb(220,109,13)" fg:x="6" fg:w="1"/><text x="40.2500%" y="1070.50">exec_modu..</text></g><g><title>get_code (&lt;frozen importlib._bootstrap_external&gt;:1118) (1 samples, 6.67%)</title><rect x="40.0000%" y="1076" width="6.6667%" height="15" fill="rgb(232,18,1)" fg:x="6" fg:w="1"/><text x="40.2500%" y="1086.50">get_code ..</text></g><g><title>get_data (&lt;frozen importlib._bootstrap_external&gt;:1218) (1 samples, 6.67%)</title><rect x="40.0000%" y="1092" width="6.6667%" height="15" fill="rgb(215,41,42)" fg:x="6" fg:w="1"/><text x="40.2500%" y="1102.50">get_data ..</text></g><g><title>&lt;module&gt; (pyqasm/__init__.py:64) (8 samples, 53.33%)</title><rect x="0.0000%" y="164" width="53.3333%" height="15" fill="rgb(224,123,36)" fg:x="0" fg:w="8"/><text x="0.2500%" y="174.50">&lt;module&gt; (pyqasm/__init__.py:64)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (8 samples, 53.33%)</title><rect x="0.0000%" y="180" width="53.3333%" height="15" fill="rgb(240,125,3)" fg:x="0" fg:w="8"/><text x="0.2500%" y="190.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (8 samples, 53.33%)</title><rect x="0.0000%" y="196" width="53.3333%" height="15" fill="rgb(205,98,50)" fg:x="0" fg:w="8"/><text x="0.2500%" y="206.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331)</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (8 samples, 53.33%)</title><rect x="0.0000%" y="212" width="53.3333%" height="15" fill="rgb(205,185,37)" fg:x="0" fg:w="8"/><text x="0.2500%" y="222.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (8 samples, 53.33%)</title><rect x="0.0000%" y="228" width="53.3333%" height="15" fill="rgb(238,207,15)" fg:x="0" fg:w="8"/><text x="0.2500%" y="238.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026)</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (8 samples, 53.33%)</title><rect x="0.0000%" y="244" width="53.3333%" height="15" fill="rgb(213,199,42)" fg:x="0" fg:w="8"/><text x="0.2500%" y="254.50">_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488)</text></g><g><title>&lt;module&gt; (pyqasm/entrypoint.py:28) (8 samples, 53.33%)</title><rect x="0.0000%" y="260" width="53.3333%" height="15" fill="rgb(235,201,11)" fg:x="0" fg:w="8"/><text x="0.2500%" y="270.50">&lt;module&gt; (pyqasm/entrypoint.py:28)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (8 samples, 53.33%)</title><rect x="0.0000%" y="276" width="53.3333%" height="15" fill="rgb(207,46,11)" fg:x="0" fg:w="8"/><text x="0.2500%" y="286.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (8 samples, 53.33%)</title><rect x="0.0000%" y="292" width="53.3333%" height="15" fill="rgb(241,35,35)" fg:x="0" fg:w="8"/><text x="0.2500%" y="302.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331)</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (8 samples, 53.33%)</title><rect x="0.0000%" y="308" width="53.3333%" height="15" fill="rgb(243,32,47)" fg:x="0" fg:w="8"/><text x="0.2500%" y="318.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (8 samples, 53.33%)</title><rect x="0.0000%" y="324" width="53.3333%" height="15" fill="rgb(247,202,23)" fg:x="0" fg:w="8"/><text x="0.2500%" y="334.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026)</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (8 samples, 53.33%)</title><rect x="0.0000%" y="340" width="53.3333%" height="15" fill="rgb(219,102,11)" fg:x="0" fg:w="8"/><text x="0.2500%" y="350.50">_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488)</text></g><g><title>&lt;module&gt; (pyqasm/modules/__init__.py:32) (8 samples, 53.33%)</title><rect x="0.0000%" y="356" width="53.3333%" height="15" fill="rgb(243,110,44)" fg:x="0" fg:w="8"/><text x="0.2500%" y="366.50">&lt;module&gt; (pyqasm/modules/__init__.py:32)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (8 samples, 53.33%)</title><rect x="0.0000%" y="372" width="53.3333%" height="15" fill="rgb(222,74,54)" fg:x="0" fg:w="8"/><text x="0.2500%" y="382.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (8 samples, 53.33%)</title><rect x="0.0000%" y="388" width="53.3333%" height="15" fill="rgb(216,99,12)" fg:x="0" fg:w="8"/><text x="0.2500%" y="398.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331)</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (8 samples, 53.33%)</title><rect x="0.0000%" y="404" width="53.3333%" height="15" fill="rgb(226,22,26)" fg:x="0" fg:w="8"/><text x="0.2500%" y="414.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (8 samples, 53.33%)</title><rect x="0.0000%" y="420" width="53.3333%" height="15" fill="rgb(217,163,10)" fg:x="0" fg:w="8"/><text x="0.2500%" y="430.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026)</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (8 samples, 53.33%)</title><rect x="0.0000%" y="436" width="53.3333%" height="15" fill="rgb(213,25,53)" fg:x="0" fg:w="8"/><text x="0.2500%" y="446.50">_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488)</text></g><g><title>&lt;module&gt; (pyqasm/modules/base.py:31) (1 samples, 6.67%)</title><rect x="46.6667%" y="452" width="6.6667%" height="15" fill="rgb(252,105,26)" fg:x="7" fg:w="1"/><text x="46.9167%" y="462.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="46.6667%" y="468" width="6.6667%" height="15" fill="rgb(220,39,43)" fg:x="7" fg:w="1"/><text x="46.9167%" y="478.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="46.6667%" y="484" width="6.6667%" height="15" fill="rgb(229,68,48)" fg:x="7" fg:w="1"/><text x="46.9167%" y="494.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="46.6667%" y="500" width="6.6667%" height="15" fill="rgb(252,8,32)" fg:x="7" fg:w="1"/><text x="46.9167%" y="510.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="46.6667%" y="516" width="6.6667%" height="15" fill="rgb(223,20,43)" fg:x="7" fg:w="1"/><text x="46.9167%" y="526.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="46.6667%" y="532" width="6.6667%" height="15" fill="rgb(229,81,49)" fg:x="7" fg:w="1"/><text x="46.9167%" y="542.50">_call_wit..</text></g><g><title>&lt;module&gt; (pyqasm/decomposer.py:23) (1 samples, 6.67%)</title><rect x="46.6667%" y="548" width="6.6667%" height="15" fill="rgb(236,28,36)" fg:x="7" fg:w="1"/><text x="46.9167%" y="558.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="46.6667%" y="564" width="6.6667%" height="15" fill="rgb(249,185,26)" fg:x="7" fg:w="1"/><text x="46.9167%" y="574.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="46.6667%" y="580" width="6.6667%" height="15" fill="rgb(249,174,33)" fg:x="7" fg:w="1"/><text x="46.9167%" y="590.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="46.6667%" y="596" width="6.6667%" height="15" fill="rgb(233,201,37)" fg:x="7" fg:w="1"/><text x="46.9167%" y="606.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="46.6667%" y="612" width="6.6667%" height="15" fill="rgb(221,78,26)" fg:x="7" fg:w="1"/><text x="46.9167%" y="622.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="46.6667%" y="628" width="6.6667%" height="15" fill="rgb(250,127,30)" fg:x="7" fg:w="1"/><text x="46.9167%" y="638.50">_call_wit..</text></g><g><title>&lt;module&gt; (pyqasm/maps/decomposition_rules.py:20) (1 samples, 6.67%)</title><rect x="46.6667%" y="644" width="6.6667%" height="15" fill="rgb(230,49,44)" fg:x="7" fg:w="1"/><text x="46.9167%" y="654.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="46.6667%" y="660" width="6.6667%" height="15" fill="rgb(229,67,23)" fg:x="7" fg:w="1"/><text x="46.9167%" y="670.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="46.6667%" y="676" width="6.6667%" height="15" fill="rgb(249,83,47)" fg:x="7" fg:w="1"/><text x="46.9167%" y="686.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="46.6667%" y="692" width="6.6667%" height="15" fill="rgb(215,43,3)" fg:x="7" fg:w="1"/><text x="46.9167%" y="702.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (1 samples, 6.67%)</title><rect x="46.6667%" y="708" width="6.6667%" height="15" fill="rgb(238,154,13)" fg:x="7" fg:w="1"/><text x="46.9167%" y="718.50">exec_modu..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (1 samples, 6.67%)</title><rect x="46.6667%" y="724" width="6.6667%" height="15" fill="rgb(219,56,2)" fg:x="7" fg:w="1"/><text x="46.9167%" y="734.50">_call_wit..</text></g><g><title>&lt;module&gt; (pyqasm/elements.py:58) (1 samples, 6.67%)</title><rect x="46.6667%" y="740" width="6.6667%" height="15" fill="rgb(233,0,4)" fg:x="7" fg:w="1"/><text x="46.9167%" y="750.50">&lt;module&gt; ..</text></g><g><title>wrap (dataclasses.py:1297) (1 samples, 6.67%)</title><rect x="46.6667%" y="756" width="6.6667%" height="15" fill="rgb(235,30,7)" fg:x="7" fg:w="1"/><text x="46.9167%" y="766.50">wrap (dat..</text></g><g><title>_process_class (dataclasses.py:1157) (1 samples, 6.67%)</title><rect x="46.6667%" y="772" width="6.6667%" height="15" fill="rgb(250,79,13)" fg:x="7" fg:w="1"/><text x="46.9167%" y="782.50">_process_..</text></g><g><title>add_fns_to_class (dataclasses.py:498) (1 samples, 6.67%)</title><rect x="46.6667%" y="788" width="6.6667%" height="15" fill="rgb(211,146,34)" fg:x="7" fg:w="1"/><text x="46.9167%" y="798.50">add_fns_t..</text></g><g><title>&lt;module&gt; (test.py:7) (9 samples, 60.00%)</title><rect x="0.0000%" y="68" width="60.0000%" height="15" fill="rgb(228,22,38)" fg:x="0" fg:w="9"/><text x="0.2500%" y="78.50">&lt;module&gt; (test.py:7)</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (9 samples, 60.00%)</title><rect x="0.0000%" y="84" width="60.0000%" height="15" fill="rgb(235,168,5)" fg:x="0" fg:w="9"/><text x="0.2500%" y="94.50">_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360)</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (9 samples, 60.00%)</title><rect x="0.0000%" y="100" width="60.0000%" height="15" fill="rgb(221,155,16)" fg:x="0" fg:w="9"/><text x="0.2500%" y="110.50">_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331)</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (9 samples, 60.00%)</title><rect x="0.0000%" y="116" width="60.0000%" height="15" fill="rgb(215,215,53)" fg:x="0" fg:w="9"/><text x="0.2500%" y="126.50">_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935)</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (9 samples, 60.00%)</title><rect x="0.0000%" y="132" width="60.0000%" height="15" fill="rgb(223,4,10)" fg:x="0" fg:w="9"/><text x="0.2500%" y="142.50">exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026)</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (9 samples, 60.00%)</title><rect x="0.0000%" y="148" width="60.0000%" height="15" fill="rgb(234,103,6)" fg:x="0" fg:w="9"/><text x="0.2500%" y="158.50">_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488)</text></g><g><title>&lt;module&gt; (pyqasm/__init__.py:67) (1 samples, 6.67%)</title><rect x="53.3333%" y="164" width="6.6667%" height="15" fill="rgb(227,97,0)" fg:x="8" fg:w="1"/><text x="53.5833%" y="174.50">&lt;module&gt; ..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (1 samples, 6.67%)</title><rect x="53.3333%" y="180" width="6.6667%" height="15" fill="rgb(234,150,53)" fg:x="8" fg:w="1"/><text x="53.5833%" y="190.50">_find_and..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (1 samples, 6.67%)</title><rect x="53.3333%" y="196" width="6.6667%" height="15" fill="rgb(228,201,54)" fg:x="8" fg:w="1"/><text x="53.5833%" y="206.50">_find_and..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (1 samples, 6.67%)</title><rect x="53.3333%" y="212" width="6.6667%" height="15" fill="rgb(222,22,37)" fg:x="8" fg:w="1"/><text x="53.5833%" y="222.50">_load_unl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1022) (1 samples, 6.67%)</title><rect x="53.3333%" y="228" width="6.6667%" height="15" fill="rgb(237,53,32)" fg:x="8" fg:w="1"/><text x="53.5833%" y="238.50">exec_modu..</text></g><g><title>get_code (&lt;frozen importlib._bootstrap_external&gt;:1118) (1 samples, 6.67%)</title><rect x="53.3333%" y="244" width="6.6667%" height="15" fill="rgb(233,25,53)" fg:x="8" fg:w="1"/><text x="53.5833%" y="254.50">get_code ..</text></g><g><title>get_data (&lt;frozen importlib._bootstrap_external&gt;:1218) (1 samples, 6.67%)</title><rect x="53.3333%" y="260" width="6.6667%" height="15" fill="rgb(210,40,34)" fg:x="8" fg:w="1"/><text x="53.5833%" y="270.50">get_data ..</text></g><g><title>deserialize (antlr4/atn/ATNDeserializer.py:30) (1 samples, 6.67%)</title><rect x="60.0000%" y="740" width="6.6667%" height="15" fill="rgb(241,220,44)" fg:x="9" fg:w="1"/><text x="60.2500%" y="750.50">deseriali..</text></g><g><title>readStates (antlr4/atn/ATNDeserializer.py:77) (1 samples, 6.67%)</title><rect x="60.0000%" y="756" width="6.6667%" height="15" fill="rgb(235,28,35)" fg:x="9" fg:w="1"/><text x="60.2500%" y="766.50">readState..</text></g><g><title>addState (antlr4/atn/ATN.py:78) (1 samples, 6.67%)</title><rect x="60.0000%" y="772" width="6.6667%" height="15" fill="rgb(210,56,17)" fg:x="9" fg:w="1"/><text x="60.2500%" y="782.50">addState ..</text></g><g><title>deserialize (antlr4/atn/ATNDeserializer.py:34) (1 samples, 6.67%)</title><rect x="66.6667%" y="740" width="6.6667%" height="15" fill="rgb(224,130,29)" fg:x="10" fg:w="1"/><text x="66.9167%" y="750.50">deseriali..</text></g><g><title>readSets (antlr4/atn/ATNDeserializer.py:135) (1 samples, 6.67%)</title><rect x="66.6667%" y="756" width="6.6667%" height="15" fill="rgb(235,212,8)" fg:x="10" fg:w="1"/><text x="66.9167%" y="766.50">readSets ..</text></g><g><title>addRange (antlr4/IntervalSet.py:51) (1 samples, 6.67%)</title><rect x="66.6667%" y="772" width="6.6667%" height="15" fill="rgb(223,33,50)" fg:x="10" fg:w="1"/><text x="66.9167%" y="782.50">addRange ..</text></g><g><title>_visit_calibration_statement (pyqasm/visitor.py:2982) (3 samples, 20.00%)</title><rect x="60.0000%" y="164" width="20.0000%" height="15" fill="rgb(219,149,13)" fg:x="9" fg:w="3"/><text x="60.2500%" y="174.50">_visit_calibration_statement (p..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="60.0000%" y="180" width="20.0000%" height="15" fill="rgb(250,156,29)" fg:x="9" fg:w="3"/><text x="60.2500%" y="190.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1310) (3 samples, 20.00%)</title><rect x="60.0000%" y="196" width="20.0000%" height="15" fill="rgb(216,193,19)" fg:x="9" fg:w="3"/><text x="60.2500%" y="206.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="212" width="20.0000%" height="15" fill="rgb(216,135,14)" fg:x="9" fg:w="3"/><text x="60.2500%" y="222.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="60.0000%" y="228" width="20.0000%" height="15" fill="rgb(241,47,5)" fg:x="9" fg:w="3"/><text x="60.2500%" y="238.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="60.0000%" y="244" width="20.0000%" height="15" fill="rgb(233,42,35)" fg:x="9" fg:w="3"/><text x="60.2500%" y="254.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (3 samples, 20.00%)</title><rect x="60.0000%" y="260" width="20.0000%" height="15" fill="rgb(231,13,6)" fg:x="9" fg:w="3"/><text x="60.2500%" y="270.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (3 samples, 20.00%)</title><rect x="60.0000%" y="276" width="20.0000%" height="15" fill="rgb(207,181,40)" fg:x="9" fg:w="3"/><text x="60.2500%" y="286.50">exec_module (&lt;frozen importlib...</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="292" width="20.0000%" height="15" fill="rgb(254,173,49)" fg:x="9" fg:w="3"/><text x="60.2500%" y="302.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>&lt;module&gt; (openpulse/__init__.py:26) (3 samples, 20.00%)</title><rect x="60.0000%" y="308" width="20.0000%" height="15" fill="rgb(221,1,38)" fg:x="9" fg:w="3"/><text x="60.2500%" y="318.50">&lt;module&gt; (openpulse/__init__.py..</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (3 samples, 20.00%)</title><rect x="60.0000%" y="324" width="20.0000%" height="15" fill="rgb(206,124,46)" fg:x="9" fg:w="3"/><text x="60.2500%" y="334.50">_handle_fromlist (&lt;frozen impor..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="340" width="20.0000%" height="15" fill="rgb(249,21,11)" fg:x="9" fg:w="3"/><text x="60.2500%" y="350.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="60.0000%" y="356" width="20.0000%" height="15" fill="rgb(222,201,40)" fg:x="9" fg:w="3"/><text x="60.2500%" y="366.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="60.0000%" y="372" width="20.0000%" height="15" fill="rgb(235,61,29)" fg:x="9" fg:w="3"/><text x="60.2500%" y="382.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (3 samples, 20.00%)</title><rect x="60.0000%" y="388" width="20.0000%" height="15" fill="rgb(219,207,3)" fg:x="9" fg:w="3"/><text x="60.2500%" y="398.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (3 samples, 20.00%)</title><rect x="60.0000%" y="404" width="20.0000%" height="15" fill="rgb(222,56,46)" fg:x="9" fg:w="3"/><text x="60.2500%" y="414.50">exec_module (&lt;frozen importlib...</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="420" width="20.0000%" height="15" fill="rgb(239,76,54)" fg:x="9" fg:w="3"/><text x="60.2500%" y="430.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>&lt;module&gt; (openpulse/parser.py:50) (3 samples, 20.00%)</title><rect x="60.0000%" y="436" width="20.0000%" height="15" fill="rgb(231,124,27)" fg:x="9" fg:w="3"/><text x="60.2500%" y="446.50">&lt;module&gt; (openpulse/parser.py:5..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="60.0000%" y="452" width="20.0000%" height="15" fill="rgb(249,195,6)" fg:x="9" fg:w="3"/><text x="60.2500%" y="462.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1310) (3 samples, 20.00%)</title><rect x="60.0000%" y="468" width="20.0000%" height="15" fill="rgb(237,174,47)" fg:x="9" fg:w="3"/><text x="60.2500%" y="478.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="484" width="20.0000%" height="15" fill="rgb(206,201,31)" fg:x="9" fg:w="3"/><text x="60.2500%" y="494.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="60.0000%" y="500" width="20.0000%" height="15" fill="rgb(231,57,52)" fg:x="9" fg:w="3"/><text x="60.2500%" y="510.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="60.0000%" y="516" width="20.0000%" height="15" fill="rgb(248,177,22)" fg:x="9" fg:w="3"/><text x="60.2500%" y="526.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (3 samples, 20.00%)</title><rect x="60.0000%" y="532" width="20.0000%" height="15" fill="rgb(215,211,37)" fg:x="9" fg:w="3"/><text x="60.2500%" y="542.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (3 samples, 20.00%)</title><rect x="60.0000%" y="548" width="20.0000%" height="15" fill="rgb(241,128,51)" fg:x="9" fg:w="3"/><text x="60.2500%" y="558.50">exec_module (&lt;frozen importlib...</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="564" width="20.0000%" height="15" fill="rgb(227,165,31)" fg:x="9" fg:w="3"/><text x="60.2500%" y="574.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>&lt;module&gt; (openpulse/_antlr/__init__.py:68) (3 samples, 20.00%)</title><rect x="60.0000%" y="580" width="20.0000%" height="15" fill="rgb(228,167,24)" fg:x="9" fg:w="3"/><text x="60.2500%" y="590.50">&lt;module&gt; (openpulse/_antlr/__in..</text></g><g><title>_handle_fromlist (&lt;frozen importlib._bootstrap&gt;:1415) (3 samples, 20.00%)</title><rect x="60.0000%" y="596" width="20.0000%" height="15" fill="rgb(228,143,12)" fg:x="9" fg:w="3"/><text x="60.2500%" y="606.50">_handle_fromlist (&lt;frozen impor..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="612" width="20.0000%" height="15" fill="rgb(249,149,8)" fg:x="9" fg:w="3"/><text x="60.2500%" y="622.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:1360) (3 samples, 20.00%)</title><rect x="60.0000%" y="628" width="20.0000%" height="15" fill="rgb(243,35,44)" fg:x="9" fg:w="3"/><text x="60.2500%" y="638.50">_find_and_load (&lt;frozen importl..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:1331) (3 samples, 20.00%)</title><rect x="60.0000%" y="644" width="20.0000%" height="15" fill="rgb(246,89,9)" fg:x="9" fg:w="3"/><text x="60.2500%" y="654.50">_find_and_load_unlocked (&lt;froze..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:935) (3 samples, 20.00%)</title><rect x="60.0000%" y="660" width="20.0000%" height="15" fill="rgb(233,213,13)" fg:x="9" fg:w="3"/><text x="60.2500%" y="670.50">_load_unlocked (&lt;frozen importl..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:1026) (3 samples, 20.00%)</title><rect x="60.0000%" y="676" width="20.0000%" height="15" fill="rgb(233,141,41)" fg:x="9" fg:w="3"/><text x="60.2500%" y="686.50">exec_module (&lt;frozen importlib...</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:488) (3 samples, 20.00%)</title><rect x="60.0000%" y="692" width="20.0000%" height="15" fill="rgb(239,167,4)" fg:x="9" fg:w="3"/><text x="60.2500%" y="702.50">_call_with_frames_removed (&lt;fro..</text></g><g><title>&lt;module&gt; (openpulseLexer.py:613) (3 samples, 20.00%)</title><rect x="60.0000%" y="708" width="20.0000%" height="15" fill="rgb(209,217,16)" fg:x="9" fg:w="3"/><text x="60.2500%" y="718.50">&lt;module&gt; (openpulseLexer.py:613)</text></g><g><title>openpulseLexer (openpulseLexer.py:615) (3 samples, 20.00%)</title><rect x="60.0000%" y="724" width="20.0000%" height="15" fill="rgb(219,88,35)" fg:x="9" fg:w="3"/><text x="60.2500%" y="734.50">openpulseLexer (openpulseLexer...</text></g><g><title>deserialize (antlr4/atn/ATNDeserializer.py:35) (1 samples, 6.67%)</title><rect x="73.3333%" y="740" width="6.6667%" height="15" fill="rgb(220,193,23)" fg:x="11" fg:w="1"/><text x="73.5833%" y="750.50">deseriali..</text></g><g><title>readEdges (antlr4/atn/ATNDeserializer.py:146) (1 samples, 6.67%)</title><rect x="73.3333%" y="756" width="6.6667%" height="15" fill="rgb(230,90,52)" fg:x="11" fg:w="1"/><text x="73.5833%" y="766.50">readEdges..</text></g><g><title>edgeFactory (antlr4/atn/ATNDeserializer.py:396) (1 samples, 6.67%)</title><rect x="73.3333%" y="772" width="6.6667%" height="15" fill="rgb(252,106,19)" fg:x="11" fg:w="1"/><text x="73.5833%" y="782.50">edgeFacto..</text></g><g><title>&lt;lambda&gt; (antlr4/atn/ATNDeserializer.py:378) (1 samples, 6.67%)</title><rect x="73.3333%" y="788" width="6.6667%" height="15" fill="rgb(206,74,20)" fg:x="11" fg:w="1"/><text x="73.5833%" y="798.50">&lt;lambda&gt; ..</text></g><g><title>__init__ (antlr4/atn/Transition.py:76) (1 samples, 6.67%)</title><rect x="73.3333%" y="804" width="6.6667%" height="15" fill="rgb(230,138,44)" fg:x="11" fg:w="1"/><text x="73.5833%" y="814.50">__init__ ..</text></g><g><title>makeLabel (antlr4/atn/Transition.py:80) (1 samples, 6.67%)</title><rect x="73.3333%" y="820" width="6.6667%" height="15" fill="rgb(235,182,43)" fg:x="11" fg:w="1"/><text x="73.5833%" y="830.50">makeLabel..</text></g><g><title>__init__ (antlr4/IntervalSet.py:16) (1 samples, 6.67%)</title><rect x="73.3333%" y="836" width="6.6667%" height="15" fill="rgb(242,16,51)" fg:x="11" fg:w="1"/><text x="73.5833%" y="846.50">__init__ ..</text></g><g><title>openpulseStatement (openpulseParser.py:843) (1 samples, 6.67%)</title><rect x="80.0000%" y="212" width="6.6667%" height="15" fill="rgb(248,9,4)" fg:x="12" fg:w="1"/><text x="80.2500%" y="222.50">openpulse..</text></g><g><title>adaptivePredict (antlr4/atn/ParserATNSimulator.py:346) (1 samples, 6.67%)</title><rect x="80.0000%" y="228" width="6.6667%" height="15" fill="rgb(210,31,22)" fg:x="12" fg:w="1"/><text x="80.2500%" y="238.50">adaptiveP..</text></g><g><title>execATN (antlr4/atn/ParserATNSimulator.py:467) (1 samples, 6.67%)</title><rect x="80.0000%" y="244" width="6.6667%" height="15" fill="rgb(239,54,39)" fg:x="12" fg:w="1"/><text x="80.2500%" y="254.50">execATN (..</text></g><g><title>consume (antlr4/BufferedTokenStream.py:100) (1 samples, 6.67%)</title><rect x="80.0000%" y="260" width="6.6667%" height="15" fill="rgb(230,99,41)" fg:x="12" fg:w="1"/><text x="80.2500%" y="270.50">consume (..</text></g><g><title>sync (antlr4/BufferedTokenStream.py:112) (1 samples, 6.67%)</title><rect x="80.0000%" y="276" width="6.6667%" height="15" fill="rgb(253,106,12)" fg:x="12" fg:w="1"/><text x="80.2500%" y="286.50">sync (ant..</text></g><g><title>fetch (antlr4/BufferedTokenStream.py:124) (1 samples, 6.67%)</title><rect x="80.0000%" y="292" width="6.6667%" height="15" fill="rgb(213,46,41)" fg:x="12" fg:w="1"/><text x="80.2500%" y="302.50">fetch (an..</text></g><g><title>nextToken (antlr4/Lexer.py:137) (1 samples, 6.67%)</title><rect x="80.0000%" y="308" width="6.6667%" height="15" fill="rgb(215,133,35)" fg:x="12" fg:w="1"/><text x="80.2500%" y="318.50">nextToken..</text></g><g><title>match (antlr4/atn/LexerATNSimulator.py:104) (1 samples, 6.67%)</title><rect x="80.0000%" y="324" width="6.6667%" height="15" fill="rgb(213,28,5)" fg:x="12" fg:w="1"/><text x="80.2500%" y="334.50">match (an..</text></g><g><title>execATN (antlr4/atn/LexerATNSimulator.py:173) (1 samples, 6.67%)</title><rect x="80.0000%" y="340" width="6.6667%" height="15" fill="rgb(215,77,49)" fg:x="12" fg:w="1"/><text x="80.2500%" y="350.50">execATN (..</text></g><g><title>computeTargetState (antlr4/atn/LexerATNSimulator.py:231) (1 samples, 6.67%)</title><rect x="80.0000%" y="356" width="6.6667%" height="15" fill="rgb(248,100,22)" fg:x="12" fg:w="1"/><text x="80.2500%" y="366.50">computeTa..</text></g><g><title>getReachableConfigSet (antlr4/atn/LexerATNSimulator.py:280) (1 samples, 6.67%)</title><rect x="80.0000%" y="372" width="6.6667%" height="15" fill="rgb(208,67,9)" fg:x="12" fg:w="1"/><text x="80.2500%" y="382.50">getReacha..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="80.0000%" y="388" width="6.6667%" height="15" fill="rgb(219,133,21)" fg:x="12" fg:w="1"/><text x="80.2500%" y="398.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:347) (1 samples, 6.67%)</title><rect x="80.0000%" y="404" width="6.6667%" height="15" fill="rgb(246,46,29)" fg:x="12" fg:w="1"/><text x="80.2500%" y="414.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="80.0000%" y="420" width="6.6667%" height="15" fill="rgb(246,185,52)" fg:x="12" fg:w="1"/><text x="80.2500%" y="430.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:347) (1 samples, 6.67%)</title><rect x="80.0000%" y="436" width="6.6667%" height="15" fill="rgb(252,136,11)" fg:x="12" fg:w="1"/><text x="80.2500%" y="446.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="80.0000%" y="452" width="6.6667%" height="15" fill="rgb(219,138,53)" fg:x="12" fg:w="1"/><text x="80.2500%" y="462.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="80.0000%" y="468" width="6.6667%" height="15" fill="rgb(211,51,23)" fg:x="12" fg:w="1"/><text x="80.2500%" y="478.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="80.0000%" y="484" width="6.6667%" height="15" fill="rgb(247,221,28)" fg:x="12" fg:w="1"/><text x="80.2500%" y="494.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="80.0000%" y="500" width="6.6667%" height="15" fill="rgb(251,222,45)" fg:x="12" fg:w="1"/><text x="80.2500%" y="510.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="80.0000%" y="516" width="6.6667%" height="15" fill="rgb(217,162,53)" fg:x="12" fg:w="1"/><text x="80.2500%" y="526.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:354) (1 samples, 6.67%)</title><rect x="80.0000%" y="532" width="6.6667%" height="15" fill="rgb(229,93,14)" fg:x="12" fg:w="1"/><text x="80.2500%" y="542.50">closure (..</text></g><g><title>add (antlr4/atn/ATNConfigSet.py:84) (1 samples, 6.67%)</title><rect x="80.0000%" y="548" width="6.6667%" height="15" fill="rgb(209,67,49)" fg:x="12" fg:w="1"/><text x="80.2500%" y="558.50">add (antl..</text></g><g><title>getOrAdd (antlr4/atn/ATNConfigSet.py:106) (1 samples, 6.67%)</title><rect x="80.0000%" y="564" width="6.6667%" height="15" fill="rgb(213,87,29)" fg:x="12" fg:w="1"/><text x="80.2500%" y="574.50">getOrAdd ..</text></g><g><title>&lt;genexpr&gt; (antlr4/atn/ATNConfigSet.py:106) (1 samples, 6.67%)</title><rect x="80.0000%" y="580" width="6.6667%" height="15" fill="rgb(205,151,52)" fg:x="12" fg:w="1"/><text x="80.2500%" y="590.50">&lt;genexpr&gt;..</text></g><g><title>equalsForConfigSet (antlr4/atn/ATNConfig.py:153) (1 samples, 6.67%)</title><rect x="80.0000%" y="596" width="6.6667%" height="15" fill="rgb(253,215,39)" fg:x="12" fg:w="1"/><text x="80.2500%" y="606.50">equalsFor..</text></g><g><title>__eq__ (antlr4/atn/ATNConfig.py:143) (1 samples, 6.67%)</title><rect x="80.0000%" y="612" width="6.6667%" height="15" fill="rgb(221,220,41)" fg:x="12" fg:w="1"/><text x="80.2500%" y="622.50">__eq__ (a..</text></g><g><title>_visit_calibration_statement (pyqasm/visitor.py:3001) (2 samples, 13.33%)</title><rect x="80.0000%" y="164" width="13.3333%" height="15" fill="rgb(218,133,21)" fg:x="12" fg:w="2"/><text x="80.2500%" y="174.50">_visit_calibration_s..</text></g><g><title>parse_openpulse (openpulse/parser.py:88) (2 samples, 13.33%)</title><rect x="80.0000%" y="180" width="13.3333%" height="15" fill="rgb(221,193,43)" fg:x="12" fg:w="2"/><text x="80.2500%" y="190.50">parse_openpulse (ope..</text></g><g><title>calibrationBlock (openpulseParser.py:671) (2 samples, 13.33%)</title><rect x="80.0000%" y="196" width="13.3333%" height="15" fill="rgb(240,128,52)" fg:x="12" fg:w="2"/><text x="80.2500%" y="206.50">calibrationBlock (op..</text></g><g><title>openpulseStatement (openpulseParser.py:871) (1 samples, 6.67%)</title><rect x="86.6667%" y="212" width="6.6667%" height="15" fill="rgb(253,114,12)" fg:x="13" fg:w="1"/><text x="86.9167%" y="222.50">openpulse..</text></g><g><title>classicalDeclarationStatement (openpulseParser.py:3340) (1 samples, 6.67%)</title><rect x="86.6667%" y="228" width="6.6667%" height="15" fill="rgb(215,223,47)" fg:x="13" fg:w="1"/><text x="86.9167%" y="238.50">classical..</text></g><g><title>declarationExpression (openpulseParser.py:5292) (1 samples, 6.67%)</title><rect x="86.6667%" y="244" width="6.6667%" height="15" fill="rgb(248,225,23)" fg:x="13" fg:w="1"/><text x="86.9167%" y="254.50">declarati..</text></g><g><title>expression (openpulseParser.py:4954) (1 samples, 6.67%)</title><rect x="86.6667%" y="260" width="6.6667%" height="15" fill="rgb(250,108,0)" fg:x="13" fg:w="1"/><text x="86.9167%" y="270.50">expressio..</text></g><g><title>expressionList (openpulseParser.py:7072) (1 samples, 6.67%)</title><rect x="86.6667%" y="276" width="6.6667%" height="15" fill="rgb(228,208,7)" fg:x="13" fg:w="1"/><text x="86.9167%" y="286.50">expressio..</text></g><g><title>adaptivePredict (antlr4/atn/ParserATNSimulator.py:346) (1 samples, 6.67%)</title><rect x="86.6667%" y="292" width="6.6667%" height="15" fill="rgb(244,45,10)" fg:x="13" fg:w="1"/><text x="86.9167%" y="302.50">adaptiveP..</text></g><g><title>execATN (antlr4/atn/ParserATNSimulator.py:467) (1 samples, 6.67%)</title><rect x="86.6667%" y="308" width="6.6667%" height="15" fill="rgb(207,125,25)" fg:x="13" fg:w="1"/><text x="86.9167%" y="318.50">execATN (..</text></g><g><title>consume (antlr4/BufferedTokenStream.py:100) (1 samples, 6.67%)</title><rect x="86.6667%" y="324" width="6.6667%" height="15" fill="rgb(210,195,18)" fg:x="13" fg:w="1"/><text x="86.9167%" y="334.50">consume (..</text></g><g><title>sync (antlr4/BufferedTokenStream.py:112) (1 samples, 6.67%)</title><rect x="86.6667%" y="340" width="6.6667%" height="15" fill="rgb(249,80,12)" fg:x="13" fg:w="1"/><text x="86.9167%" y="350.50">sync (ant..</text></g><g><title>fetch (antlr4/BufferedTokenStream.py:124) (1 samples, 6.67%)</title><rect x="86.6667%" y="356" width="6.6667%" height="15" fill="rgb(221,65,9)" fg:x="13" fg:w="1"/><text x="86.9167%" y="366.50">fetch (an..</text></g><g><title>nextToken (antlr4/Lexer.py:137) (1 samples, 6.67%)</title><rect x="86.6667%" y="372" width="6.6667%" height="15" fill="rgb(235,49,36)" fg:x="13" fg:w="1"/><text x="86.9167%" y="382.50">nextToken..</text></g><g><title>match (antlr4/atn/LexerATNSimulator.py:104) (1 samples, 6.67%)</title><rect x="86.6667%" y="388" width="6.6667%" height="15" fill="rgb(225,32,20)" fg:x="13" fg:w="1"/><text x="86.9167%" y="398.50">match (an..</text></g><g><title>execATN (antlr4/atn/LexerATNSimulator.py:173) (1 samples, 6.67%)</title><rect x="86.6667%" y="404" width="6.6667%" height="15" fill="rgb(215,141,46)" fg:x="13" fg:w="1"/><text x="86.9167%" y="414.50">execATN (..</text></g><g><title>computeTargetState (antlr4/atn/LexerATNSimulator.py:231) (1 samples, 6.67%)</title><rect x="86.6667%" y="420" width="6.6667%" height="15" fill="rgb(250,160,47)" fg:x="13" fg:w="1"/><text x="86.9167%" y="430.50">computeTa..</text></g><g><title>getReachableConfigSet (antlr4/atn/LexerATNSimulator.py:280) (1 samples, 6.67%)</title><rect x="86.6667%" y="436" width="6.6667%" height="15" fill="rgb(216,222,40)" fg:x="13" fg:w="1"/><text x="86.9167%" y="446.50">getReacha..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="86.6667%" y="452" width="6.6667%" height="15" fill="rgb(234,217,39)" fg:x="13" fg:w="1"/><text x="86.9167%" y="462.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:347) (1 samples, 6.67%)</title><rect x="86.6667%" y="468" width="6.6667%" height="15" fill="rgb(207,178,40)" fg:x="13" fg:w="1"/><text x="86.9167%" y="478.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="86.6667%" y="484" width="6.6667%" height="15" fill="rgb(221,136,13)" fg:x="13" fg:w="1"/><text x="86.9167%" y="494.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="86.6667%" y="500" width="6.6667%" height="15" fill="rgb(249,199,10)" fg:x="13" fg:w="1"/><text x="86.9167%" y="510.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:359) (1 samples, 6.67%)</title><rect x="86.6667%" y="516" width="6.6667%" height="15" fill="rgb(249,222,13)" fg:x="13" fg:w="1"/><text x="86.9167%" y="526.50">closure (..</text></g><g><title>closure (antlr4/atn/LexerATNSimulator.py:357) (1 samples, 6.67%)</title><rect x="86.6667%" y="532" width="6.6667%" height="15" fill="rgb(244,185,38)" fg:x="13" fg:w="1"/><text x="86.9167%" y="542.50">closure (..</text></g><g><title>getEpsilonTarget (antlr4/atn/LexerATNSimulator.py:422) (1 samples, 6.67%)</title><rect x="86.6667%" y="548" width="6.6667%" height="15" fill="rgb(236,202,9)" fg:x="13" fg:w="1"/><text x="86.9167%" y="558.50">getEpsilo..</text></g><g><title>__init__ (antlr4/atn/ATNConfig.py:127) (1 samples, 6.67%)</title><rect x="86.6667%" y="564" width="6.6667%" height="15" fill="rgb(250,229,37)" fg:x="13" fg:w="1"/><text x="86.9167%" y="574.50">__init__ ..</text></g><g><title>all (15 samples, 100%)</title><rect x="0.0000%" y="52" width="100.0000%" height="15" fill="rgb(206,174,23)" fg:x="0" fg:w="15"/><text x="0.2500%" y="62.50"></text></g><g><title>&lt;module&gt; (test.py:78) (6 samples, 40.00%)</title><rect x="60.0000%" y="68" width="40.0000%" height="15" fill="rgb(211,33,43)" fg:x="9" fg:w="6"/><text x="60.2500%" y="78.50">&lt;module&gt; (test.py:78)</text></g><g><title>wrapper (pyqasm/modules/base.py:60) (6 samples, 40.00%)</title><rect x="60.0000%" y="84" width="40.0000%" height="15" fill="rgb(245,58,50)" fg:x="9" fg:w="6"/><text x="60.2500%" y="94.50">wrapper (pyqasm/modules/base.py:60)</text></g><g><title>unroll (pyqasm/modules/base.py:619) (6 samples, 40.00%)</title><rect x="60.0000%" y="100" width="40.0000%" height="15" fill="rgb(244,68,36)" fg:x="9" fg:w="6"/><text x="60.2500%" y="110.50">unroll (pyqasm/modules/base.py:619)</text></g><g><title>accept (pyqasm/modules/qasm3.py:51) (6 samples, 40.00%)</title><rect x="60.0000%" y="116" width="40.0000%" height="15" fill="rgb(232,229,15)" fg:x="9" fg:w="6"/><text x="60.2500%" y="126.50">accept (pyqasm/modules/qasm3.py:51)</text></g><g><title>visit_basic_block (pyqasm/visitor.py:3150) (6 samples, 40.00%)</title><rect x="60.0000%" y="132" width="40.0000%" height="15" fill="rgb(254,30,23)" fg:x="9" fg:w="6"/><text x="60.2500%" y="142.50">visit_basic_block (pyqasm/visitor.py:3150)</text></g><g><title>visit_statement (pyqasm/visitor.py:3130) (6 samples, 40.00%)</title><rect x="60.0000%" y="148" width="40.0000%" height="15" fill="rgb(235,160,14)" fg:x="9" fg:w="6"/><text x="60.2500%" y="158.50">visit_statement (pyqasm/visitor.py:3130)</text></g><g><title>_visit_forin_loop (pyqasm/visitor.py:2216) (1 samples, 6.67%)</title><rect x="93.3333%" y="164" width="6.6667%" height="15" fill="rgb(212,155,44)" fg:x="14" fg:w="1"/><text x="93.5833%" y="174.50">_visit_fo..</text></g><g><title>visit_basic_block (pyqasm/visitor.py:3150) (1 samples, 6.67%)</title><rect x="93.3333%" y="180" width="6.6667%" height="15" fill="rgb(226,2,50)" fg:x="14" fg:w="1"/><text x="93.5833%" y="190.50">visit_bas..</text></g><g><title>visit_statement (pyqasm/visitor.py:3091) (1 samples, 6.67%)</title><rect x="93.3333%" y="196" width="6.6667%" height="15" fill="rgb(234,177,6)" fg:x="14" fg:w="1"/><text x="93.5833%" y="206.50">visit_sta..</text></g><g><title>wrapper (reprlib.py:21) (1 samples, 6.67%)</title><rect x="93.3333%" y="212" width="6.6667%" height="15" fill="rgb(217,24,9)" fg:x="14" fg:w="1"/><text x="93.5833%" y="222.50">wrapper (..</text></g><g><title>__repr__ (&lt;string&gt;:11) (1 samples, 6.67%)</title><rect x="93.3333%" y="228" width="6.6667%" height="15" fill="rgb(220,13,46)" fg:x="14" fg:w="1"/><text x="93.5833%" y="238.50">__repr__ ..</text></g><g><title>wrapper (reprlib.py:21) (1 samples, 6.67%)</title><rect x="93.3333%" y="244" width="6.6667%" height="15" fill="rgb(239,221,27)" fg:x="14" fg:w="1"/><text x="93.5833%" y="254.50">wrapper (..</text></g></svg></svg>
