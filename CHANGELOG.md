@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added Python 3.14 to CI/CD workflow build and test matrices across all supported platforms (Windows, Linux, macOS x86_64, macOS arm64). ([#298](https://github.com/qBraid/pyqasm/pull/298))
 
 ### Improved / Modified
 - Moved the `visit_map` from the `visit_statement` function to a class level variable for improved efficiency. ([#279](https://github.com/qBraid/pyqasm/pull/279))
