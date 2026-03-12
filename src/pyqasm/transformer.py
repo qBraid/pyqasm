@@ -469,6 +469,10 @@ class Qasm3Transformer:
         if device_qubits is None:
             device_qubits = sum(global_qreg_size_map.values())
 
+        # Deep-copy so that in-place mutations below never corrupt the
+        # original AST nodes (which may be re-visited on a subsequent unroll).
+        unrolled_stmts = deepcopy(unrolled_stmts)
+
         def _get_pyqasm_device_qubit_index(
             reg: str, idx: int, qubit_reg_offsets: dict[str, int], global_qreg: dict[str, int]
         ):
