@@ -15,27 +15,16 @@ Types of changes:
 ## Unreleased
 
 ### Added
-- Added Python 3.14 to CI/CD workflow build and test matrices across all supported platforms (Windows, Linux, macOS x86_64, macOS arm64). ([#298](https://github.com/qBraid/pyqasm/pull/298))
 
 ### Improved / Modified
-- Moved the `visit_map` from the `visit_statement` function to a class level variable for improved efficiency. ([#279](https://github.com/qBraid/pyqasm/pull/279))
-- Added SVG light and dark mode versions of PyQASM logo, with and without text, and added dynamic logo mode to `README.md` based on color palette used on user-side. ([#288](https://github.com/qBraid/pyqasm/pull/288))
-- Updated docs with new logo, added v2 links, and applied minor Python formatting fixes for style consistency. ([#289](https://github.com/qBraid/pyqasm/pull/289))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Fixed `consolidate_qubit_registers` mutating AST nodes in-place, causing a `ValidationError` when `unroll(consolidate_qubits=True)` is called more than once on the same `QasmModule`. ([#297](https://github.com/qBraid/pyqasm/pull/297))
-- Fixed barrier unrolling to preserve multi-qubit barrier statements instead of splitting into individual per-qubit barriers. ([#295](https://github.com/qBraid/pyqasm/pull/295))
-- Added support for physical qubit identifiers (`$0`, `$1`, …) in plain QASM 3 programs, including gates, barriers, measurements, and duplicate-qubit detection. ([#291](https://github.com/qBraid/pyqasm/pull/291))
-- Updated CI to use `macos-15-intel` image due to deprecation of `macos-13` image. ([#283](https://github.com/qBraid/pyqasm/pull/283))
 
 ### Dependencies
-- Update `pillow` requirement from <11.4.0 to <12.1.0 ([#271](https://github.com/qBraid/pyqasm/pull/271))
-- Bump `actions/download-artifact` from 5 to 6 ([#272](https://github.com/qBraid/pyqasm/pull/272))
-- Bump `actions/upload-artifact` from 4 to 5 ([#273](https://github.com/qBraid/pyqasm/pull/273))
 
 ### Other
 
@@ -43,6 +32,8 @@ Types of changes:
 
 Archive of changelog entries from previous releases:
 
+- [v1.0.2](https://github.com/qBraid/pyqasm/releases/tag/v1.0.2)
+- [v1.0.1](https://github.com/qBraid/pyqasm/releases/tag/v1.0.1)
 - [v1.0.0](https://github.com/qBraid/pyqasm/releases/tag/v1.0.0)
 - [v0.5.0](https://github.com/qBraid/pyqasm/releases/tag/v0.5.0)
 - [v0.4.0](https://github.com/qBraid/pyqasm/releases/tag/v0.4.0)
