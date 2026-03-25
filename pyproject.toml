@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 keywords = ["quantum", "openqasm", "symantic-analyzer", "compiler", "qbraid"]
 license = {text = "Apache 2.0"}
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
@@ -36,6 +36,7 @@ classifiers = [
 dependencies = ["numpy", "openqasm3[parser]>=1.0.0,<2.0.0"]
 
 [project.urls]
+Homepage = "https://docs.qbraid.com/v2/pyqasm"
 "Source Code" = "https://github.com/qBraid/pyqasm"
 "Bug Tracker" = "https://github.com/qBraid/pyqasm/issues"
 
