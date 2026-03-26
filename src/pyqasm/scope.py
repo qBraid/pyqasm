@@ -193,11 +193,7 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return global_scope.get(var_name, None)
-        if (
-            self.in_function_scope()
-            or self.in_gate_scope()
-            or self.in_pulse_scope()
-        ):
+        if self.in_function_scope() or self.in_gate_scope() or self.in_pulse_scope():
             if var_name in curr_scope:
                 return curr_scope[var_name]
             if var_name in global_scope and (
