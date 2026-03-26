@@ -23,6 +23,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed classical register declarations not being visible inside `box` scope, causing "Missing clbit register declaration" errors for measurement statements inside box blocks. ([#306](https://github.com/qBraid/pyqasm/pull/306))
 
 ### Dependencies
 
