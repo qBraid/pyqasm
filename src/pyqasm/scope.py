@@ -196,7 +196,6 @@ class ScopeManager:
         if (
             self.in_function_scope()
             or self.in_gate_scope()
-            or self.in_box_scope()
             or self.in_pulse_scope()
         ):
             if var_name in curr_scope:
@@ -207,7 +206,7 @@ class ScopeManager:
                 # we also need to return the variable if it is a constant or qubit
                 # in the global scope, as it can be used in the function or gate
                 return global_scope[var_name]
-        if self.in_block_scope():
+        if self.in_block_scope() or self.in_box_scope():
             var_found = None
             for scope, context in zip(reversed(self._scope), reversed(self._context)):
                 if context != Context.BLOCK:

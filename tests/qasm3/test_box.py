@@ -232,3 +232,27 @@ def test_box_statement_error(qasm_code, error_message, error_span, caplog):
             loads(qasm_code).unroll()
     assert error_message in str(err.value)
     assert error_span in caplog.text
+
+
+def test_box_measurement_with_classical_register():
+    """Measurement inside a box should have access to classical registers
+    declared in the enclosing (global) scope.
+
+    Regression: box scope was treated like function/gate scope, restricting
+    access to only constants and qubits from global scope. Classical registers
+    were invisible, causing 'Missing clbit register declaration' errors.
+    See: https://github.com/qBraid/pyqasm/issues/302
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c;
+
+    box [100ns] {
+        h q[0];
+        c[1] = measure q[1];
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
