@@ -256,3 +256,29 @@ def test_box_measurement_with_classical_register():
     """
     result = loads(qasm_str)
     result.validate()
+
+
+def test_box_measurement_with_enclosing_block_scope():
+    """Measurement inside a box nested within a non-global scope (e.g. an
+    if-block) should still have access to classical registers declared in
+    the enclosing global scope.
+
+    Complements test_box_measurement_with_classical_register by ensuring the
+    scope walker traverses intermediate BLOCK contexts to reach the global
+    scope where the classical register is declared.
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c;
+
+    if (true) {
+        box {
+            h q[0];
+            c[1] = measure q[1];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
