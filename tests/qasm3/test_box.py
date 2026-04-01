@@ -284,6 +284,26 @@ def test_box_measurement_with_enclosing_block_scope():
     result.validate()
 
 
+def test_box_measurement_with_block_scoped_register():
+    """Measurement inside a box nested within a block scope should have access
+    to a classical register declared in the immediate parent block scope."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+
+    if (true) {
+        bit[3] c;
+        box {
+            h q[0];
+            c[1] = measure q[1];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
 def test_box_measurement_with_multiple_classical_registers():
     """Measurement inside a box should have access to multiple classical
     registers declared in the enclosing (global) scope."""

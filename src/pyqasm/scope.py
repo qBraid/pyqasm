@@ -149,19 +149,19 @@ class ScopeManager:
         curr_scope = self.get_curr_scope()
         if self.in_global_scope():
             return var_name in global_scope
-        if (
-            self.in_function_scope()
-            or self.in_gate_scope()
-            or self.in_box_scope()
-            or self.in_pulse_scope()
-        ):
+        if self.in_function_scope() or self.in_gate_scope() or self.in_pulse_scope():
             if var_name in curr_scope:
                 return True
             if var_name in global_scope:
                 return global_scope[var_name].is_constant or global_scope[var_name].is_qubit
-        if self.in_block_scope():
+        if self.in_block_scope() or self.in_box_scope():
+            in_box = self.in_box_scope()
             for scope, context in zip(reversed(self._scope), reversed(self._context)):
-                if context != Context.BLOCK:
+                if context == Context.BOX:
+                    in_box = True
+                if context not in (Context.BLOCK, Context.BOX):
+                    if in_box and var_name in scope:
+                        return scope[var_name].is_constant or scope[var_name].is_qubit
                     return var_name in scope
                 if var_name in scope:
                     return True
@@ -205,7 +205,7 @@ class ScopeManager:
         if self.in_block_scope() or self.in_box_scope():
             var_found = None
             for scope, context in zip(reversed(self._scope), reversed(self._context)):
-                if context != Context.BLOCK:
+                if context not in (Context.BLOCK, Context.BOX):
                     var_found = scope.get(var_name, None)
                     break
                 if var_name in scope:
