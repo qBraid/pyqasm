@@ -26,6 +26,10 @@ Types of changes:
 - Fixed classical register declarations not being visible inside `box` scope, causing "Missing clbit register declaration" errors for measurement statements inside box blocks. ([#306](https://github.com/qBraid/pyqasm/pull/306))
 
 ### Dependencies
+- Bumped `actions/configure-pages` from 5 to 6. ([#307](https://github.com/qBraid/pyqasm/pull/307))
+- Bumped `codecov/codecov-action` from 5.5.2 to 6.0.0. ([#308](https://github.com/qBraid/pyqasm/pull/308))
+- Bumped `actions/deploy-pages` from 4 to 5. ([#309](https://github.com/qBraid/pyqasm/pull/309))
+- Updated `pillow` requirement from `<12.2.0` to `<12.3.0`. ([#310](https://github.com/qBraid/pyqasm/pull/310))
 
 ### Other
 
