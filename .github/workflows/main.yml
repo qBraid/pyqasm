@@ -107,6 +107,10 @@ jobs:
           # Thus, the matrix.python is not required here, only for setting up builds
           python-version: "3.11"
 
+      - name: Install OpenMP runtime on macOS
+        if: startsWith(matrix.os, 'macos')
+        run: brew install libomp
+
       - name: Build and Test Wheels
         env: 
           # since cibuildwheel builds for all python versions >= current version, we need to 

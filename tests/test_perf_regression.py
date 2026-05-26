@@ -110,6 +110,7 @@ def sim():
 # Random circuit performance tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize(
     "num_qubits, depth, baseline_ms",
@@ -135,6 +136,7 @@ def test_random_circuit_perf(sim, num_qubits, depth, baseline_ms):
 # QFT circuit performance tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize(
     "num_qubits, baseline_ms",
@@ -159,6 +161,7 @@ def test_qft_circuit_perf(sim, num_qubits, baseline_ms):
 # ---------------------------------------------------------------------------
 # Scaling sanity check: ensure O(2^n) per gate, not worse
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.benchmark
 def test_scaling_not_superexponential(sim):

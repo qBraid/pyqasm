@@ -17,6 +17,10 @@ Statevector simulator for PyQASM.
 
 """
 
+# pylint: disable=no-name-in-module,too-many-return-statements
+# pylint: disable=too-many-locals,too-many-branches,too-many-statements
+# pylint: disable=arguments-out-of-order,unused-argument
+
 from collections import Counter
 from dataclasses import dataclass
 
@@ -33,12 +37,13 @@ from openqasm3.ast import (
 )
 
 from pyqasm import loads
-from pyqasm.accelerate.sv_sim import apply_circuit
+from pyqasm.accelerate.sv_sim import apply_circuit  # type: ignore[import-not-found]
 from pyqasm.modules.base import QasmModule
 
 try:
-    import numba as nb
+    import numba as nb  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - performance-only optional dependency
+
     class _NumbaCompat:
         """Fallback decorator shim when numba is not installed."""
 
@@ -171,9 +176,7 @@ NON_PARAMETERIZED_GATES: dict[str, np.ndarray] = {
 # Fast-path single-qubit gate properties.  Diagonal gates are kept as phase
 # pairs while fusing so they can flush directly to the diagonal Cython kernel
 # instead of materializing a 2x2 matrix.
-NON_PARAMETERIZED_GATE_PROPS: dict[
-    str, tuple[bool, complex, complex, np.ndarray | None]
-] = {
+NON_PARAMETERIZED_GATE_PROPS: dict[str, tuple[bool, complex, complex, np.ndarray | None]] = {
     "x": (False, _COMPLEX_ZERO, _COMPLEX_ZERO, _CONST_X),
     "y": (False, _COMPLEX_ZERO, _COMPLEX_ZERO, _CONST_Y),
     "z": (True, 1.0 + _COMPLEX_ZERO, -1.0 + _COMPLEX_ZERO, None),
@@ -220,19 +223,6 @@ _OP_DIAGONAL = 2
 _OP_CTRL_DIAGONAL = 3
 _OP_TWO_QUBIT = 4
 
-# Binary/unary operator maps for expression evaluation
-_BINARY_OPS = {
-    BinaryOperator["+"]: lambda a, b: a + b,
-    BinaryOperator["-"]: lambda a, b: a - b,
-    BinaryOperator["*"]: lambda a, b: a * b,
-    BinaryOperator["/"]: lambda a, b: a / b,
-    BinaryOperator["**"]: lambda a, b: a**b,
-}
-
-_UNARY_OPS = {
-    UnaryOperator["-"]: lambda a: -a,
-}
-
 
 def _try_eval_expression(expr) -> float | None:
     """Try to evaluate an AST expression to a float value."""
@@ -251,17 +241,23 @@ def _try_eval_expression(expr) -> float | None:
         rhs = _try_eval_expression(expr.rhs)
         if lhs is None or rhs is None:
             return None
-        op_fn = _BINARY_OPS.get(expr.op)
-        if op_fn is not None:
-            return op_fn(lhs, rhs)
+        if expr.op is BinaryOperator["+"]:
+            return lhs + rhs
+        if expr.op is BinaryOperator["-"]:
+            return lhs - rhs
+        if expr.op is BinaryOperator["*"]:
+            return lhs * rhs
+        if expr.op is BinaryOperator["/"]:
+            return lhs / rhs
+        if expr.op is BinaryOperator["**"]:
+            return lhs**rhs
         return None
     if isinstance(expr, UnaryExpression):
         operand = _try_eval_expression(expr.expression)
         if operand is None:
             return None
-        op_fn = _UNARY_OPS.get(expr.op)
-        if op_fn is not None:
-            return op_fn(operand)
+        if expr.op is UnaryOperator["-"]:
+            return -operand
         return None
     return None
 
@@ -367,11 +363,7 @@ def _preprocess(program, num_qubits):
             return
         is_diagonal, phase0, phase1, mat = pending.pop(target)
 
-        if (
-            is_diagonal
-            and (np.abs(phase0 - 1.0) < 1e-10)
-            and (np.abs(phase1 - 1.0) < 1e-10)
-        ):
+        if is_diagonal and (np.abs(phase0 - 1.0) < 1e-10) and (np.abs(phase1 - 1.0) < 1e-10):
             return
         if not is_diagonal and mat is not None and _is_diagonal_matrix(mat):
             is_diagonal = True
@@ -411,11 +403,11 @@ def _preprocess(program, num_qubits):
             return
 
         current_matrix = (
-            _diag_to_matrix(current_phase0, current_phase1)
-            if current_is_diagonal
-            else current_mat
+            _diag_to_matrix(current_phase0, current_phase1) if current_is_diagonal else current_mat
         )
         new_matrix = _diag_to_matrix(new_phase0, new_phase1) if new_is_diagonal else new_mat
+        if current_matrix is None or new_matrix is None:
+            raise ValueError("Invalid pending gate fusion state.")
         fused = new_matrix @ current_matrix
         if _is_diagonal_matrix(fused):
             phase0, phase1 = _diagonal_phases_from_matrix(fused)
@@ -443,9 +435,7 @@ def _preprocess(program, num_qubits):
                 gate_fn = PARAMETERIZED_GATES[gate_name]
                 required_params = 3 if gate_name == "u3" else 1
                 if len(params) != required_params:
-                    raise ValueError(
-                        f"Gate {gate_name} requires {required_params} parameter(s)."
-                    )
+                    raise ValueError(f"Gate {gate_name} requires {required_params} parameter(s).")
                 mat = gate_fn(*params)
                 _accumulate(target, False, _COMPLEX_ZERO, _COMPLEX_ZERO, mat)
             else:
@@ -522,7 +512,7 @@ class SimulatorResult:
     """Class to store the result of a statevector simulation."""
 
     probabilities: np.ndarray
-    measurement_counts: Counter[str, int]
+    measurement_counts: Counter[str]
     final_statevector: np.ndarray
 
 
@@ -571,8 +561,8 @@ class Simulator:
         sv = np.zeros(2**num_qubits, dtype=np.complex128)
         sv[0] = 1.0
 
-        n, opcodes, targets, controls, gate_params, diag_phases, tq_offsets, tq_gates = (
-            _preprocess(program, num_qubits)
+        n, opcodes, targets, controls, gate_params, diag_phases, tq_offsets, tq_gates = _preprocess(
+            program, num_qubits
         )
 
         if n > 0:

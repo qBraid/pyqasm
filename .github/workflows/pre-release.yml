@@ -96,6 +96,10 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install OpenMP runtime on macOS
+        if: startsWith(matrix.os, 'macos')
+        run: brew install libomp
+
       - name: Build and Test Wheels
         env: 
           PRE_RELEASE_BUILD: "true"

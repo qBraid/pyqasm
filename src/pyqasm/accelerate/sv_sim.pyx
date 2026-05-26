@@ -16,8 +16,10 @@
 # cython: infer_types=True
 
 import os
+
 import cython
 import numpy as np
+
 from cython.parallel cimport prange
 from openmp cimport omp_get_max_threads
 

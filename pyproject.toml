@@ -42,7 +42,17 @@ Homepage = "https://docs.qbraid.com/v2/pyqasm"
 
 [project.optional-dependencies]
 cli = ["typer>=0.12.1", "rich>=10.11.0", "typing-extensions"]
-test = ["pytest", "pytest-cov", "pytest-mpl", "pillow<12.3.0", "matplotlib", "tabulate"]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mpl",
+    "pillow<12.3.0",
+    "matplotlib",
+    "tabulate",
+    "qiskit",
+    "qiskit-aer",
+    "qiskit-qasm3-import",
+]
 lint = ["black", "isort>=6.0.0", "pylint", "mypy", "qbraid-cli>=0.10.2"]
 docs = ["sphinx>=7.3.7,<8.3.0", "sphinx-autodoc-typehints>=1.24,<3.2", "sphinx-rtd-theme>=2.0.0,<4.0.0", "docutils<0.23", "sphinx-copybutton"]
 simulation = ["numba>=0.59"]
