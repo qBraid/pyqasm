@@ -47,23 +47,9 @@ def test_barrier():
     qubit[2] q1;
     qubit[3] q2;
     qubit[1] q3;
-    barrier q1[0];
-    barrier q1[1];
-    barrier q2[0];
-    barrier q2[1];
-    barrier q2[2];
-    barrier q3[0];
-    barrier q1[0];
-    barrier q1[1];
-    barrier q2[0];
-    barrier q2[1];
-    barrier q2[2];
-    barrier q3[0];
-    barrier q1[0];
-    barrier q1[1];
-    barrier q2[0];
-    barrier q2[1];
-    barrier q3[0];
+    barrier q1[0], q1[1], q2[0], q2[1], q2[2], q3[0];
+    barrier q1[0], q1[1], q2[0], q2[1], q2[2], q3[0];
+    barrier q1[0], q1[1], q2[0], q2[1], q3[0];
     """
     module = loads(qasm_str)
     module.unroll()
@@ -87,10 +73,7 @@ def test_barrier_in_function():
     expected_qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     qubit[4] q;
-    barrier q[0];
-    barrier q[1];
-    barrier q[2];
-    barrier q[3];
+    barrier q[0], q[1], q[2], q[3];
     """
     module = loads(qasm_str)
     module.unroll()

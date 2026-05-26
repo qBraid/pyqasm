@@ -51,8 +51,7 @@ def test_whitelisted_ops():
     include 'qelib1.inc';
     qreg q[2];
     creg c[2];
-    barrier q[0];
-    barrier q[1];
+    barrier q[0], q[1];
     reset q[0];
     reset q[1];
     measure q[0] -> c[0];

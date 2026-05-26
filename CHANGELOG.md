@@ -17,22 +17,19 @@ Types of changes:
 ### Added
 
 ### Improved / Modified
-- Moved the `visit_map` from the `visit_statement` function to a class level variable for improved efficiency. ([#279](https://github.com/qBraid/pyqasm/pull/279))
-- Added SVG light and dark mode versions of PyQASM logo, with and without text, and added dynamic logo mode to `README.md` based on color palette used on user-side. ([#288](https://github.com/qBraid/pyqasm/pull/288))
-- Updated docs with new logo, added v2 links, and applied minor Python formatting fixes for style consistency. ([#289](https://github.com/qBraid/pyqasm/pull/289))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Added support for physical qubit identifiers (`$0`, `$1`, …) in plain QASM 3 programs, including gates, barriers, measurements, and duplicate-qubit detection. ([#291](https://github.com/qBraid/pyqasm/pull/291))
-- Updated CI to use `macos-15-intel` image due to deprecation of `macos-13` image. ([#283](https://github.com/qBraid/pyqasm/pull/283))
+- Fixed classical register declarations not being visible inside `box` scope, causing "Missing clbit register declaration" errors for measurement statements inside box blocks. ([#306](https://github.com/qBraid/pyqasm/pull/306))
 
 ### Dependencies
-- Update `pillow` requirement from <11.4.0 to <12.1.0 ([#271](https://github.com/qBraid/pyqasm/pull/271))
-- Bump `actions/download-artifact` from 5 to 6 ([#272](https://github.com/qBraid/pyqasm/pull/272))
-- Bump `actions/upload-artifact` from 4 to 5 ([#273](https://github.com/qBraid/pyqasm/pull/273))
+- Bumped `actions/configure-pages` from 5 to 6. ([#307](https://github.com/qBraid/pyqasm/pull/307))
+- Bumped `codecov/codecov-action` from 5.5.2 to 6.0.0. ([#308](https://github.com/qBraid/pyqasm/pull/308))
+- Bumped `actions/deploy-pages` from 4 to 5. ([#309](https://github.com/qBraid/pyqasm/pull/309))
+- Updated `pillow` requirement from `<12.2.0` to `<12.3.0`. ([#310](https://github.com/qBraid/pyqasm/pull/310))
 
 ### Other
 
@@ -40,6 +37,8 @@ Types of changes:
 
 Archive of changelog entries from previous releases:
 
+- [v1.0.2](https://github.com/qBraid/pyqasm/releases/tag/v1.0.2)
+- [v1.0.1](https://github.com/qBraid/pyqasm/releases/tag/v1.0.1)
 - [v1.0.0](https://github.com/qBraid/pyqasm/releases/tag/v1.0.0)
 - [v0.5.0](https://github.com/qBraid/pyqasm/releases/tag/v0.5.0)
 - [v0.4.0](https://github.com/qBraid/pyqasm/releases/tag/v0.4.0)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyqasm"
-version = "1.0.1"
+version = "1.0.3"
 description = "Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation."
 authors = [{name = "qBraid Development Team"}, {email = "contact@qbraid.com"}]
 readme = "README.md"
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 keywords = ["quantum", "openqasm", "symantic-analyzer", "compiler", "qbraid"]
 license = {text = "Apache 2.0"}
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
@@ -36,16 +36,18 @@ classifiers = [
 dependencies = ["numpy", "openqasm3[parser]>=1.0.0,<2.0.0"]
 
 [project.urls]
+Homepage = "https://docs.qbraid.com/v2/pyqasm"
 "Source Code" = "https://github.com/qBraid/pyqasm"
 "Bug Tracker" = "https://github.com/qBraid/pyqasm/issues"
 
 [project.optional-dependencies]
 cli = ["typer>=0.12.1", "rich>=10.11.0", "typing-extensions"]
-test = ["pytest", "pytest-cov", "pytest-mpl", "pillow<12.2.0", "matplotlib", "tabulate"]
+test = ["pytest", "pytest-cov", "pytest-mpl", "pillow<12.3.0", "matplotlib", "tabulate"]
 lint = ["black", "isort>=6.0.0", "pylint", "mypy", "qbraid-cli>=0.10.2"]
 docs = ["sphinx>=7.3.7,<8.3.0", "sphinx-autodoc-typehints>=1.24,<3.2", "sphinx-rtd-theme>=2.0.0,<4.0.0", "docutils<0.23", "sphinx-copybutton"]
 visualization = ["pillow<12.2.0", "matplotlib", "tabulate"]
 simulation = ["numba>=0.59"]
+visualization = ["pillow<12.3.0", "matplotlib", "tabulate"]
 pulse = ["openpulse>=1.0.1"]
 
 [tool.setuptools.package-data]

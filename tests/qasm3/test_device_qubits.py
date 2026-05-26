@@ -57,9 +57,7 @@ def test_barrier():
     expected_qasm = """OPENQASM 3.0;
     qubit[5] __PYQASM_QUBITS__;
     include "stdgates.inc";
-    barrier __PYQASM_QUBITS__[2];
-    barrier __PYQASM_QUBITS__[3];
-    barrier __PYQASM_QUBITS__[4];
+    barrier __PYQASM_QUBITS__[2], __PYQASM_QUBITS__[3], __PYQASM_QUBITS__[4];
     barrier __PYQASM_QUBITS__[1];
     """
     result = loads(qasm, device_qubits=5)
@@ -87,6 +85,25 @@ def test_unrolled_barrier():
     barrier __PYQASM_QUBITS__[5:];
     """
     result = loads(qasm, device_qubits=7)
+    result.unroll(unroll_barriers=False, consolidate_qubits=True)
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+def test_unrolled_barrier_with_range():
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    qubit[2] q2;
+    barrier q[0:2];
+    barrier q2[0:2];
+    """
+    expected_qasm = """OPENQASM 3.0;
+    qubit[6] __PYQASM_QUBITS__;
+    include "stdgates.inc";
+    barrier __PYQASM_QUBITS__[0], __PYQASM_QUBITS__[1];
+    barrier __PYQASM_QUBITS__[4], __PYQASM_QUBITS__[5];
+    """
+    result = loads(qasm, device_qubits=6)
     result.unroll(unroll_barriers=False, consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
 
@@ -204,6 +221,34 @@ def test_gates():
     result = loads(qasm, device_qubits=6)
     result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+def test_double_unroll_with_consolidate_qubits():
+    """Test that calling unroll(consolidate_qubits=True) twice on the same
+    module does not raise due to in-place AST mutation from the first call."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    qreg q2[3];
+    barrier q2;
+    barrier q, q2;
+    """
+    expected_qasm = """OPENQASM 3.0;
+    qubit[5] __PYQASM_QUBITS__;
+    include "stdgates.inc";
+    barrier __PYQASM_QUBITS__[2], __PYQASM_QUBITS__[3], __PYQASM_QUBITS__[4];
+    barrier __PYQASM_QUBITS__[0], __PYQASM_QUBITS__[1], __PYQASM_QUBITS__[2], __PYQASM_QUBITS__[3], __PYQASM_QUBITS__[4];
+    """
+    mod = loads(qasm)
+    mod.unroll(consolidate_qubits=True)
+    first_result = dumps(mod)
+
+    # Second unroll should produce identical output without raising
+    mod.unroll(consolidate_qubits=True)
+    second_result = dumps(mod)
+
+    check_unrolled_qasm(first_result, expected_qasm)
+    check_unrolled_qasm(second_result, expected_qasm)
 
 
 def test_validate(caplog):

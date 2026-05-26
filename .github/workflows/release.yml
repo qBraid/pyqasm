@@ -28,6 +28,9 @@ jobs:
           - os: windows-latest
             python: 313
             platform_id: win_amd64
+          - os: windows-latest
+            python: 314
+            platform_id: win_amd64
 
           # Linux 64 bit manylinux2014
           - os: ubuntu-latest
@@ -46,6 +49,10 @@ jobs:
             python: 313
             platform_id: manylinux_x86_64
             manylinux_image: manylinux2014
+          - os: ubuntu-latest
+            python: 314
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
 
           # MacOS x86_64
           - os: macos-15-intel
@@ -60,6 +67,9 @@ jobs:
           - os: macos-15-intel
             python: 313
             platform_id: macosx_x86_64
+          - os: macos-15-intel
+            python: 314
+            platform_id: macosx_x86_64
 
           # MacOS arm64
           - os: macos-14
@@ -73,6 +83,9 @@ jobs:
             platform_id: macosx_arm64
           - os: macos-14
             python: 313
+            platform_id: macosx_arm64
+          - os: macos-14
+            python: 314
             platform_id: macosx_arm64
           
 

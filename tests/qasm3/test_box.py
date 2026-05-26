@@ -232,3 +232,122 @@ def test_box_statement_error(qasm_code, error_message, error_span, caplog):
             loads(qasm_code).unroll()
     assert error_message in str(err.value)
     assert error_span in caplog.text
+
+
+def test_box_measurement_with_classical_register():
+    """Measurement inside a box should have access to classical registers
+    declared in the enclosing (global) scope.
+
+    Regression: box scope was treated like function/gate scope, restricting
+    access to only constants and qubits from global scope. Classical registers
+    were invisible, causing 'Missing clbit register declaration' errors.
+    See: https://github.com/qBraid/pyqasm/issues/302
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c;
+
+    box [100ns] {
+        h q[0];
+        c[1] = measure q[1];
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_box_measurement_with_enclosing_block_scope():
+    """Measurement inside a box nested within a non-global scope (e.g. an
+    if-block) should still have access to classical registers declared in
+    the enclosing global scope.
+
+    Complements test_box_measurement_with_classical_register by ensuring the
+    scope walker traverses intermediate BLOCK contexts to reach the global
+    scope where the classical register is declared.
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c;
+
+    if (true) {
+        box {
+            h q[0];
+            c[1] = measure q[1];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_box_measurement_with_block_scoped_register():
+    """Measurement inside a box nested within a block scope should have access
+    to a classical register declared in the immediate parent block scope."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+
+    if (true) {
+        bit[3] c;
+        box {
+            h q[0];
+            c[1] = measure q[1];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_box_measurement_with_multiple_classical_registers():
+    """Measurement inside a box should have access to multiple classical
+    registers declared in the enclosing (global) scope."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c0;
+    bit[2] c1;
+
+    box {
+        c0[0] = measure q[0];
+        c0[2] = measure q[2];
+        c1[1] = measure q[3];
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_multiple_box_statements():
+    """Multiple box statements in the same program should each have access
+    to classical registers from the enclosing scope."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[4] c;
+
+    box [50ns] {
+        h q[0];
+        c[0] = measure q[0];
+    }
+
+    box [100ns] {
+        cx q[1], q[2];
+        c[1] = measure q[1];
+        c[2] = measure q[2];
+    }
+
+    box {
+        h q[3];
+        c[3] = measure q[3];
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
