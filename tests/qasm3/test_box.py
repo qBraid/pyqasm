@@ -103,6 +103,9 @@ def test_delay_instruction_device_time():
 
 
 def test_box_dt_unit_preserved():
+    """A ``dt`` box duration must be preserved as ``dt`` (not relabeled ``ns``)
+    when no ``device_cycle_time`` is set, since ``dt`` is backend-dependent.
+    """
     qasm_str = """
     OPENQASM 3.0;
     include "stdgates.inc";
@@ -221,6 +224,21 @@ def test_box_dt_unit_preserved():
             }
             """,
             r"Total delay duration value '20.0ns' should be less than 'box[10.0ns]' duration.",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit[5] q;
+            qubit[2] q2;
+            box[10dt] {
+              delay[20dt];
+              x q[1];
+              measure q;
+            }
+            """,
+            r"Total delay duration value '20.0dt' should be less than 'box[10.0dt]' duration.",
             r"Error at line 6, column 12",
         ),
         (

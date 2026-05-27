@@ -2941,7 +2941,7 @@ class QasmVisitor:
             and box_duration_val
             and self._total_delay_duration_in_box > box_duration_val
         ):
-            time_unit = "dt" if self._module._device_cycle_time else "ns"
+            time_unit = self._resolve_duration_unit(_box_time_var).name
             raise_qasm3_error(
                 f"Total delay duration value '{self._total_delay_duration_in_box}{time_unit}' "
                 f"should be less than 'box[{box_duration_val}{time_unit}]' duration.",

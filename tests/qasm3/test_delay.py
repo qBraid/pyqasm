@@ -67,6 +67,10 @@ def test_delay_instruction_device_time():
 
 
 def test_delay_dt_unit_preserved():
+    """A ``dt`` delay literal must be preserved as ``dt`` (not relabeled ``ns``)
+    when no ``device_cycle_time`` is set, since ``dt`` is backend-dependent. SI
+    units are still converted to ns.
+    """
     qasm_str = """
     OPENQASM 3.0;
     include "stdgates.inc";
