@@ -102,6 +102,30 @@ def test_delay_instruction_device_time():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_box_dt_unit_preserved():
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    box[200dt] {
+        delay[100dt] q[0];
+        x q[0];
+    }
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    box[200.0dt] {
+      delay[100.0dt] q[0];
+      x q[0];
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
 @pytest.mark.parametrize(
     "qasm_code,error_message,error_span",
     [
