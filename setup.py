@@ -1,7 +1,19 @@
-"""Build configuration for Cython extensions with optional OpenMP support."""
+"""Build configuration for Cython extensions with optional OpenMP support.
+
+Optimization flags are chosen for portability of the distributed wheels:
+
+  * No ``-march`` (and certainly not ``-march=native``). Wheels are built at the
+    baseline ISA so they run on any CPU of the target architecture, matching what
+    SciPy and scikit-learn do. ``-march=native`` would tie a wheel to the exact
+    CPU of the build machine and can ``SIGILL`` on older hardware.
+  * No ``-ffast-math``. The statevector simulator relies on IEEE-754 semantics
+    (NaN/Inf handling, no float reassociation), so we keep strict FP.
+
+Flags are also selected per-compiler: ``-O3``/``-fopenmp`` are GCC/Clang
+spellings and are silently ignored by MSVC, which needs ``/O2``/``/openmp``.
+"""
 
 import os
-import platform
 import subprocess
 import sys
 import tempfile
@@ -9,24 +21,27 @@ import tempfile
 import numpy as np
 from Cython.Build import cythonize
 from setuptools import Extension, setup
+from setuptools.command.build_ext import build_ext
 
-BASE_COMPILE_ARGS = ["-O3", "-ffast-math", "-march=native"]
-BASE_LINK_ARGS = []
+# Extensions whose kernels are OpenMP-parallelized.
+_OPENMP_EXTENSIONS = {"pyqasm.accelerate.sv_sim"}
 
 
-def _check_openmp():
-    """Detect OpenMP availability and return (compile_args, link_args)."""
+def _detect_openmp_unix():
+    """Detect OpenMP availability for GCC/Clang and return (compile_args, link_args)."""
     test_code = b"#include <omp.h>\nint main() { return omp_get_max_threads(); }\n"
 
     candidates = []
     if sys.platform == "darwin":
-        # macOS: try libomp from Homebrew
-        for prefix in ["/opt/homebrew/opt/libomp", "/usr/local/opt/libomp"]:
+        # macOS: libomp from Homebrew (installed in CI via `brew install libomp`)
+        for prefix in ("/opt/homebrew/opt/libomp", "/usr/local/opt/libomp"):
             if os.path.isdir(prefix):
-                candidates.append((
-                    ["-Xpreprocessor", "-fopenmp", f"-I{prefix}/include"],
-                    [f"-L{prefix}/lib", "-lomp"],
-                ))
+                candidates.append(
+                    (
+                        ["-Xpreprocessor", "-fopenmp", f"-I{prefix}/include"],
+                        [f"-L{prefix}/lib", "-lomp"],
+                    )
+                )
         # Also try Xcode / system clang with -fopenmp
         candidates.append((["-fopenmp"], ["-fopenmp"]))
     else:
@@ -34,51 +49,64 @@ def _check_openmp():
         candidates.append((["-fopenmp"], ["-fopenmp"]))
 
     for cflags, ldflags in candidates:
+        tmp_name = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".c", delete=False) as f:
                 f.write(test_code)
                 f.flush()
-                cmd = ["cc"] + cflags + ldflags + [f.name, "-o", f.name + ".out"]
-                subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                os.unlink(f.name + ".out")
-                os.unlink(f.name)
+                tmp_name = f.name
+            cmd = ["cc"] + cflags + ldflags + [tmp_name, "-o", tmp_name + ".out"]
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            os.unlink(tmp_name + ".out")
             return cflags, ldflags
         except (subprocess.CalledProcessError, FileNotFoundError, OSError):
-            try:
-                os.unlink(f.name)
-            except OSError:
-                pass
             continue
+        finally:
+            if tmp_name and os.path.exists(tmp_name):
+                os.unlink(tmp_name)
 
     return [], []
 
 
-omp_cflags, omp_ldflags = _check_openmp()
-if omp_cflags:
-    print(f"OpenMP detected: compile={omp_cflags}, link={omp_ldflags}")
-else:
-    print("OpenMP not available — building single-threaded kernels")
+class BuildExt(build_ext):
+    """Inject portable, compiler-appropriate optimization and OpenMP flags."""
 
-sv_sim_compile_args = BASE_COMPILE_ARGS + omp_cflags
-sv_sim_link_args = BASE_LINK_ARGS + omp_ldflags
+    def build_extensions(self):
+        if self.compiler.compiler_type == "msvc":
+            base_compile = ["/O2"]
+            omp_compile, omp_link = ["/openmp"], []
+        else:
+            # GCC / Clang on Linux and macOS (and MinGW on Windows).
+            base_compile = ["-O3"]
+            omp_compile, omp_link = _detect_openmp_unix()
+            if omp_compile:
+                print(f"OpenMP detected: compile={omp_compile}, link={omp_link}")
+            else:
+                print("OpenMP not available — building single-threaded kernels")
+
+        for ext in self.extensions:
+            ext.extra_compile_args = base_compile + list(ext.extra_compile_args)
+            if ext.name in _OPENMP_EXTENSIONS:
+                ext.extra_compile_args += omp_compile
+                ext.extra_link_args = list(ext.extra_link_args) + omp_link
+
+        super().build_extensions()
+
 
 extensions = [
     Extension(
         "pyqasm.accelerate.linalg",
         sources=["src/pyqasm/accelerate/linalg.pyx"],
         include_dirs=[np.get_include()],
-        extra_compile_args=BASE_COMPILE_ARGS,
-        extra_link_args=BASE_LINK_ARGS,
     ),
     Extension(
         "pyqasm.accelerate.sv_sim",
         sources=["src/pyqasm/accelerate/sv_sim.pyx"],
         include_dirs=[np.get_include()],
-        extra_compile_args=sv_sim_compile_args,
-        extra_link_args=sv_sim_link_args,
     ),
 ]
 
 setup(
     ext_modules=cythonize(extensions, language_level=3),
+    cmdclass={"build_ext": BuildExt},
 )
