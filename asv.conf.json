@@ -1,0 +1,32 @@
+{
+    "version": 1,
+    "project": "pyqasm",
+    "project_url": "https://sdk.qbraid.com/pyqasm/",
+    "repo": ".",
+    "install_command": [
+        "in-dir={env_dir} python -m pip install {wheel_file}[visualization,pulse]"
+    ],
+    "uninstall_command": [
+        "return-code=any python -m pip uninstall -y pyqasm"
+    ],
+    "build_command": [
+        "python -m pip install -U build",
+        "python -m build --outdir {build_cache_dir} --wheel {build_dir}"
+    ],
+    "branches": [
+        "main"
+    ],
+    "dvcs": "git",
+    "environment_type": "virtualenv",
+    "show_commit_url": "https://github.com/qBraid/pyqasm/commit/",
+    "pythons": [
+        "3.10",
+        "3.11",
+        "3.12",
+        "3.13"
+    ],
+    "benchmark_dir": "tests/benchmarks",
+    "env_dir": ".asv/env",
+    "results_dir": ".asv/results",
+    "html_dir": "tests/benchmarks/.html"
+}
