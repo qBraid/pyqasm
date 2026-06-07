@@ -21,11 +21,21 @@ Module containing tests for the PyQASM statevector simulator.
 
 import numpy as np
 import pytest
-from qiskit import transpile
-from qiskit.qasm3 import loads
-from qiskit_aer import AerSimulator
 
-from pyqasm.simulator.statevector import Simulator
+# Qiskit is only required for these comparison tests and is not installable in
+# every CI environment (e.g. the manylinux wheel-build containers), so skip the
+# whole module gracefully when it is unavailable.
+pytest.importorskip("qiskit")
+pytest.importorskip("qiskit_aer")
+
+# pylint: disable=wrong-import-position
+from qiskit import transpile  # noqa: E402
+from qiskit.qasm3 import loads  # noqa: E402
+from qiskit_aer import AerSimulator  # noqa: E402
+
+from pyqasm.simulator.statevector import Simulator  # noqa: E402
+
+# pylint: enable=wrong-import-position
 
 
 @pytest.fixture
