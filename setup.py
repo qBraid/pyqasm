@@ -76,25 +76,36 @@ def _detect_openmp_unix():
     return [], []
 
 
+# Decide OpenMP once, before cythonize: the Cython compile-time flag USE_OPENMP
+# (which guards the prange/omp.h paths in sv_sim.pyx) must match the compiler
+# flags applied later in build_ext.
+if sys.platform.startswith("win"):
+    # MSVC: /openmp is always available; the cc-based probe does not apply.
+    USE_OPENMP = True
+    _OMP_COMPILE_UNIX, _OMP_LINK_UNIX = [], []
+else:
+    _OMP_COMPILE_UNIX, _OMP_LINK_UNIX = _detect_openmp_unix()
+    USE_OPENMP = bool(_OMP_COMPILE_UNIX)
+
+
 class BuildExt(build_ext):
     """Inject portable, compiler-appropriate optimization and OpenMP flags."""
 
     def build_extensions(self):
-        if self.compiler.compiler_type == "msvc":
-            base_compile = ["/O2"]
-            omp_compile, omp_link = ["/openmp"], []
+        is_msvc = self.compiler.compiler_type == "msvc"
+        base_compile = ["/O2"] if is_msvc else ["-O3"]
+        if USE_OPENMP:
+            omp_compile, omp_link = (
+                (["/openmp"], []) if is_msvc else (_OMP_COMPILE_UNIX, _OMP_LINK_UNIX)
+            )
+            print(f"OpenMP enabled: compile={omp_compile}, link={omp_link}")
         else:
-            # GCC / Clang on Linux and macOS (and MinGW on Windows).
-            base_compile = ["-O3"]
-            omp_compile, omp_link = _detect_openmp_unix()
-            if omp_compile:
-                print(f"OpenMP detected: compile={omp_compile}, link={omp_link}")
-            else:
-                print("OpenMP not available — building single-threaded kernels")
+            omp_compile, omp_link = [], []
+            print("OpenMP disabled — building single-threaded kernels")
 
         for ext in self.extensions:
             ext.extra_compile_args = base_compile + list(ext.extra_compile_args)
-            if ext.name in _OPENMP_EXTENSIONS:
+            if ext.name in _OPENMP_EXTENSIONS and USE_OPENMP:
                 ext.extra_compile_args += omp_compile
                 ext.extra_link_args = list(ext.extra_link_args) + omp_link
 
@@ -115,6 +126,10 @@ extensions = [
 ]
 
 setup(
-    ext_modules=cythonize(extensions, language_level=3),
+    ext_modules=cythonize(
+        extensions,
+        language_level=3,
+        compile_time_env={"USE_OPENMP": USE_OPENMP},
+    ),
     cmdclass={"build_ext": BuildExt},
 )

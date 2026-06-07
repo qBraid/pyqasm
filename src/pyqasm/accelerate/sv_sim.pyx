@@ -20,28 +20,33 @@ import os
 import cython
 import numpy as np
 
-from cython.parallel cimport prange
-from openmp cimport omp_get_max_threads
+# OpenMP is optional and injected at Cython compile time via
+# cythonize(compile_time_env={"USE_OPENMP": ...}) in setup.py. It is enabled on
+# Linux/Windows and disabled on macOS, where there is no portable system libomp
+# (bundling Homebrew's libomp breaks delocate). When disabled, the kernels build
+# serial-only and no unguarded <omp.h> is pulled in.
+IF USE_OPENMP:
+    from cython.parallel cimport prange
+    from openmp cimport omp_get_max_threads, omp_set_num_threads
 
 # Threshold: parallelize when statevector has >= this many pairs
 # 2^17 = 131072 pairs corresponds to ~18 qubits (4 MB statevector)
 # Below this, OpenMP thread overhead dominates over parallel gains.
 DEF PARALLEL_THRESHOLD = 131072
 
-# Module-level flag: parallelism is opt-in via PYQASM_NUM_THREADS env var.
-# Default is serial (1 thread) to avoid conflicts with other OpenMP runtimes
-# (e.g. Qiskit Aer) in the same process. Set PYQASM_NUM_THREADS>1 to enable.
-cdef int _max_threads = int(os.environ.get("PYQASM_NUM_THREADS", "1"))
-if _max_threads > 1:
-    from openmp cimport omp_set_num_threads
-    omp_set_num_threads(_max_threads)
-else:
-    from openmp cimport omp_set_num_threads
-    omp_set_num_threads(1)
+IF USE_OPENMP:
+    # Module-level flag: parallelism is opt-in via PYQASM_NUM_THREADS env var.
+    # Default is serial (1 thread) to avoid conflicts with other OpenMP runtimes
+    # (e.g. Qiskit Aer) in the same process. Set PYQASM_NUM_THREADS>1 to enable.
+    cdef int _max_threads = int(os.environ.get("PYQASM_NUM_THREADS", "1"))
+    if _max_threads > 1:
+        omp_set_num_threads(_max_threads)
+    else:
+        omp_set_num_threads(1)
 
-cdef bint _use_threads() noexcept nogil:
-    """Check if multithreading is enabled."""
-    return omp_get_max_threads() > 1
+    cdef bint _use_threads() noexcept nogil:
+        """Check if multithreading is enabled."""
+        return omp_get_max_threads() > 1
 
 
 # --- cdef kernel functions ---
@@ -65,23 +70,24 @@ cdef void _apply_single_qubit_gate(
     cdef Py_ssize_t s, i0, i1
     cdef double complex a0, a1
 
-    if half >= PARALLEL_THRESHOLD and _use_threads():
-        for s in prange(half, schedule='static', nogil=True):
-            i0 = ((s >> target) << (target + 1)) | (s & (step - 1))
-            i1 = i0 | step
-            a0 = sv[i0]
-            a1 = sv[i1]
-            sv[i0] = g00 * a0 + g01 * a1
-            sv[i1] = g10 * a0 + g11 * a1
-    else:
-        with nogil:
-            for s in range(half):
+    IF USE_OPENMP:
+        if half >= PARALLEL_THRESHOLD and _use_threads():
+            for s in prange(half, schedule='static', nogil=True):
                 i0 = ((s >> target) << (target + 1)) | (s & (step - 1))
                 i1 = i0 | step
                 a0 = sv[i0]
                 a1 = sv[i1]
                 sv[i0] = g00 * a0 + g01 * a1
                 sv[i1] = g10 * a0 + g11 * a1
+            return
+    with nogil:
+        for s in range(half):
+            i0 = ((s >> target) << (target + 1)) | (s & (step - 1))
+            i1 = i0 | step
+            a0 = sv[i0]
+            a1 = sv[i1]
+            sv[i0] = g00 * a0 + g01 * a1
+            sv[i1] = g10 * a0 + g11 * a1
 
 
 @cython.boundscheck(False)
@@ -115,19 +121,9 @@ cdef void _apply_controlled_gate(
     lo_mask = (1 << lo) - 1
     hi_limit = (1 << hi) - 1
 
-    if quarter >= PARALLEL_THRESHOLD and _use_threads():
-        for s in prange(quarter, schedule='static', nogil=True):
-            base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
-            base = base | ctrl_bit
-            i0 = base
-            i1 = base | tgt_bit
-            a0 = sv[i0]
-            a1 = sv[i1]
-            sv[i0] = g00 * a0 + g01 * a1
-            sv[i1] = g10 * a0 + g11 * a1
-    else:
-        with nogil:
-            for s in range(quarter):
+    IF USE_OPENMP:
+        if quarter >= PARALLEL_THRESHOLD and _use_threads():
+            for s in prange(quarter, schedule='static', nogil=True):
                 base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
                 base = base | ctrl_bit
                 i0 = base
@@ -136,6 +132,17 @@ cdef void _apply_controlled_gate(
                 a1 = sv[i1]
                 sv[i0] = g00 * a0 + g01 * a1
                 sv[i1] = g10 * a0 + g11 * a1
+            return
+    with nogil:
+        for s in range(quarter):
+            base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
+            base = base | ctrl_bit
+            i0 = base
+            i1 = base | tgt_bit
+            a0 = sv[i0]
+            a1 = sv[i1]
+            sv[i0] = g00 * a0 + g01 * a1
+            sv[i1] = g10 * a0 + g11 * a1
 
 
 @cython.boundscheck(False)
@@ -152,19 +159,20 @@ cdef void _apply_diagonal_gate(
     cdef Py_ssize_t step = 1 << target
     cdef Py_ssize_t s, i0, i1
 
-    if half >= PARALLEL_THRESHOLD and _use_threads():
-        for s in prange(half, schedule='static', nogil=True):
-            i0 = ((s >> target) << (target + 1)) | (s & (step - 1))
-            i1 = i0 | step
-            sv[i0] = phase0 * sv[i0]
-            sv[i1] = phase1 * sv[i1]
-    else:
-        with nogil:
-            for s in range(half):
+    IF USE_OPENMP:
+        if half >= PARALLEL_THRESHOLD and _use_threads():
+            for s in prange(half, schedule='static', nogil=True):
                 i0 = ((s >> target) << (target + 1)) | (s & (step - 1))
                 i1 = i0 | step
                 sv[i0] = phase0 * sv[i0]
                 sv[i1] = phase1 * sv[i1]
+            return
+    with nogil:
+        for s in range(half):
+            i0 = ((s >> target) << (target + 1)) | (s & (step - 1))
+            i1 = i0 | step
+            sv[i0] = phase0 * sv[i0]
+            sv[i1] = phase1 * sv[i1]
 
 
 @cython.boundscheck(False)
@@ -194,17 +202,18 @@ cdef void _apply_controlled_diagonal_gate(
     lo_mask = (1 << lo) - 1
     hi_limit = (1 << hi) - 1
 
-    if quarter >= PARALLEL_THRESHOLD and _use_threads():
-        for s in prange(quarter, schedule='static', nogil=True):
-            base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
-            idx = base | ctrl_bit | tgt_bit
-            sv[idx] = phase * sv[idx]
-    else:
-        with nogil:
-            for s in range(quarter):
+    IF USE_OPENMP:
+        if quarter >= PARALLEL_THRESHOLD and _use_threads():
+            for s in prange(quarter, schedule='static', nogil=True):
                 base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
                 idx = base | ctrl_bit | tgt_bit
                 sv[idx] = phase * sv[idx]
+            return
+    with nogil:
+        for s in range(quarter):
+            base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
+            idx = base | ctrl_bit | tgt_bit
+            sv[idx] = phase * sv[idx]
 
 
 @cython.boundscheck(False)
@@ -239,24 +248,9 @@ cdef void _apply_two_qubit_gate(
     lo_mask = (1 << lo) - 1
     hi_limit = (1 << hi) - 1
 
-    if quarter >= PARALLEL_THRESHOLD and _use_threads():
-        for s in prange(quarter, schedule='static', nogil=True):
-            base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
-            i00 = base
-            i01 = base | q0_bit
-            i10 = base | q1_bit
-            i11 = base | q0_bit | q1_bit
-            a00 = sv[i00]
-            a01 = sv[i01]
-            a10 = sv[i10]
-            a11 = sv[i11]
-            sv[i00] = g0 * a00 + g1 * a01 + g2 * a10 + g3 * a11
-            sv[i01] = g4 * a00 + g5 * a01 + g6 * a10 + g7 * a11
-            sv[i10] = g8 * a00 + g9 * a01 + g10 * a10 + g11_ * a11
-            sv[i11] = g12 * a00 + g13 * a01 + g14 * a10 + g15 * a11
-    else:
-        with nogil:
-            for s in range(quarter):
+    IF USE_OPENMP:
+        if quarter >= PARALLEL_THRESHOLD and _use_threads():
+            for s in prange(quarter, schedule='static', nogil=True):
                 base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
                 i00 = base
                 i01 = base | q0_bit
@@ -270,6 +264,22 @@ cdef void _apply_two_qubit_gate(
                 sv[i01] = g4 * a00 + g5 * a01 + g6 * a10 + g7 * a11
                 sv[i10] = g8 * a00 + g9 * a01 + g10 * a10 + g11_ * a11
                 sv[i11] = g12 * a00 + g13 * a01 + g14 * a10 + g15 * a11
+            return
+    with nogil:
+        for s in range(quarter):
+            base = (s & lo_mask) | (((s >> lo) << (lo + 1)) & hi_limit) | ((s >> (hi - 1)) << (hi + 1))
+            i00 = base
+            i01 = base | q0_bit
+            i10 = base | q1_bit
+            i11 = base | q0_bit | q1_bit
+            a00 = sv[i00]
+            a01 = sv[i01]
+            a10 = sv[i10]
+            a11 = sv[i11]
+            sv[i00] = g0 * a00 + g1 * a01 + g2 * a10 + g3 * a11
+            sv[i01] = g4 * a00 + g5 * a01 + g6 * a10 + g7 * a11
+            sv[i10] = g8 * a00 + g9 * a01 + g10 * a10 + g11_ * a11
+            sv[i11] = g12 * a00 + g13 * a01 + g14 * a10 + g15 * a11
 
 
 # --- cpdef wrappers for Python API ---
