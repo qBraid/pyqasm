@@ -29,11 +29,19 @@ _OPENMP_EXTENSIONS = {"pyqasm.accelerate.sv_sim"}
 
 def _detect_openmp_unix():
     """Detect OpenMP availability for GCC/Clang and return (compile_args, link_args)."""
+    if sys.platform == "darwin" and not os.environ.get("PYQASM_MACOS_OPENMP"):
+        # macOS OpenMP needs Homebrew's libomp, whose dylib carries a recent
+        # minimum-macOS target. Bundling it into a portable (macosx_11_0) wheel
+        # fails `delocate`, so OpenMP is disabled on macOS by default and the
+        # sv_sim kernel is built single-threaded. Set PYQASM_MACOS_OPENMP=1 for a
+        # local, non-distributed build that has libomp available.
+        return [], []
+
     test_code = b"#include <omp.h>\nint main() { return omp_get_max_threads(); }\n"
 
     candidates = []
     if sys.platform == "darwin":
-        # macOS: libomp from Homebrew (installed in CI via `brew install libomp`)
+        # Opt-in macOS OpenMP: libomp from Homebrew.
         for prefix in ("/opt/homebrew/opt/libomp", "/usr/local/opt/libomp"):
             if os.path.isdir(prefix):
                 candidates.append(
