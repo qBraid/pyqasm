@@ -1254,6 +1254,10 @@ def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
             return TWO_QUBIT_OP_MAP[ctrl_op_name], 2
         if ctrl_op_name in THREE_QUBIT_OP_MAP:
             return THREE_QUBIT_OP_MAP[ctrl_op_name], 3
+        if ctrl_op_name in FOUR_QUBIT_OP_MAP:
+            return FOUR_QUBIT_OP_MAP[ctrl_op_name], 4
+        if ctrl_op_name in FIVE_QUBIT_OP_MAP:
+            return FIVE_QUBIT_OP_MAP[ctrl_op_name], 5
 
     # TODO: decompose controls if not built in
     raise ValidationError(

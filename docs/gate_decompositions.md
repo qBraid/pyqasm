@@ -617,3 +617,92 @@ q_3: ┤ H ├─■────────┤ H ├┤ H ├─■────
 «q_3:─■────────┤ H ├┤ H ├─■─────────┤ H ├┤ H ├─■────────┤ H ├
 «              └───┘└───┘           └───┘└───┘          └───┘ 
 ```
+## [C3X Gate](../src/pyqasm/maps/gates.py#L766)
+
+The C3X (3-Controlled-X) gate is implemented using the following qiskit decomposition
+(translated from `qiskit.circuit.library.C3XGate.definition`, built from `h`, `p` and `cx`):
+
+```python
+In [1]: from qiskit.circuit.library import C3XGate
+In [2]: from qiskit import QuantumCircuit
+In [3]: qc = QuantumCircuit(4); qc.append(C3XGate(), range(4))
+In [4]: qc.draw()
+Out[4]:
+
+q_0: ──■──
+       │
+q_1: ──■──
+       │
+q_2: ──■──
+     ┌─┴─┐
+q_3: ┤ X ├
+     └───┘
+
+In [5]: qc.decompose().draw()
+Out[5]:
+                                                              ...
+     ┌────────┐                                               ...
+q_0: ┤ P(π/8) ├──■───────────────■─────────────...
+     ├────────┤┌─┴─┐┌─────────┐┌─┴─┐                          ...
+q_1: ┤ P(π/8) ├┤ X ├┤ P(-π/8) ├┤ X ├──■───────────────────...
+     ├────────┤└───┘└─────────┘└───┘┌─┴─┐┌─────────┐┌─┴─┐    ...
+q_2: ┤ P(π/8) ├─────────────────────┤ X ├┤ P(-π/8) ├┤ X ├──...
+     ├───┬────┤┌────────┐            └───┘└─────────┘└───┘    ...
+q_3: ┤ H ├────┤ P(π/8) ├ ...  (h · p(±π/8) · cx ladder) ...  ┤ H ├
+     └───┘    └────────┘                                      └───┘
+```
+
+The verified decomposition reproduces the exact `C3XGate` unitary (no global phase).
+
+## [RC3X Gate](../src/pyqasm/maps/gates.py#L809)
+
+The RC3X (relative-phase 3-Controlled-X, a.k.a. `rcccx`) gate is a phase-relaxed variant of
+`c3x` that uses fewer gates. It is implemented using the following qiskit decomposition
+(translated from `qiskit.circuit.library.RC3XGate.definition`, built from `h`, `t`, `tdg`, `cx`):
+
+```python
+In [1]: from qiskit.circuit.library import RC3XGate
+In [2]: from qiskit import QuantumCircuit
+In [3]: qc = QuantumCircuit(4); qc.append(RC3XGate(), range(4))
+In [4]: qc.decompose().draw()
+Out[4]:
+
+q_0: ──────────────────────────────■─────────────────────■────────────────────────
+                                    │                     │
+q_1: ───────────────────────────────────────■────────────────────■─────────────────
+                                    │        │           │         │
+q_2: ────────────■──────────────────┼────────┼───────────┼─────────┼───────■─────────
+     ┌───┐┌───┐┌─┴─┐┌─────┐┌───┐┌─┴─┐┌───┐┌─┴─┐┌─────┐┌─┴─┐┌───┐┌─┴─┐┌─────┐┌─┴─┐┌───┐
+q_3: ┤ H ├┤ T ├┤ X ├┤ Tdg ├┤ H ├┤ X ├┤ T ├┤ X ├┤ Tdg ├┤ X ├┤ T ├┤ X ├┤ Tdg ├┤ X ├┤ H ├
+     └───┘└───┘└───┘└─────┘└───┘└───┘└───┘└───┘└─────┘└───┘└───┘└───┘└─────┘└───┘└───┘
+```
+
+The verified decomposition reproduces the exact `RC3XGate` unitary (no global phase).
+
+## [C4X Gate](../src/pyqasm/maps/gates.py#L867)
+
+The C4X (4-Controlled-X) gate is implemented using qiskit's structured decomposition
+(translated from `qiskit.circuit.library.C4XGate.definition`) in terms of `h`,
+`cphaseshift` (`cp`), the relative-phase `rc3x` and its inverse, and `c3sx`:
+
+```python
+In [1]: from qiskit.circuit.library import C4XGate
+In [2]: from qiskit import QuantumCircuit
+In [3]: qc = QuantumCircuit(5); qc.append(C4XGate(), range(5))
+In [4]: qc.decompose().draw()
+Out[4]:
+                   ┌────────┐               ┌───────────┐
+q_0: ──────────────┤0       ├───────────────┤0          ├──■───
+                   │        │               │           │  │
+q_1: ──────────────┤1       ├───────────────┤1          ├──■───
+                   │  rcccx │               │  rcccx_dg │  │
+q_2: ──────────────┤2       ├───────────────┤2          ├──■───
+                   │        │               │           │  │
+q_3: ──────■───────┤3       ├──────■────────┤3          ├──┼───
+     ┌───┐ │P(π/2) └────────┘┌───┐ │P(-π/2) └───────────┘┌─┴──┐
+q_4: ┤ H ├─■─────────┤ H ├───┤ H ├─■───────────┤ H ├─────┤ Sx ├
+     └───┘           └───┘   └───┘             └───┘     └────┘
+```
+
+The decomposition reproduces the `C4XGate` unitary up to a global phase, inherited from
+pyqasm's `c3sx` implementation; this is physically irrelevant for the standalone gate.

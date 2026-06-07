@@ -17,6 +17,7 @@ Module containing unit tests for unrolling quantum gates.
 
 """
 
+import openqasm3.ast as qasm3_ast
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -27,6 +28,7 @@ from tests.qasm3.resources.gates import (
     SINGLE_QUBIT_GATE_INCORRECT_TESTS,
     custom_op_tests,
     double_op_tests,
+    five_op_tests,
     four_op_tests,
     rotation_tests,
     single_op_tests,
@@ -35,6 +37,7 @@ from tests.qasm3.resources.gates import (
 from tests.utils import (
     check_custom_qasm_gate_op,
     check_custom_qasm_gate_op_with_external_gates,
+    check_five_qubit_gate_op,
     check_four_qubit_gate_op,
     check_single_qubit_gate_op,
     check_single_qubit_rotation_op,
@@ -111,6 +114,20 @@ def test_four_qubit_qasm3_gates(circuit_name, request):
     assert result.num_qubits == 4
     assert result.num_clbits == 0
     check_four_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
+
+
+@pytest.mark.parametrize("circuit_name", five_op_tests)
+def test_five_qubit_qasm3_gates(circuit_name, request):
+    qubit_list = [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]
+    gate_name = circuit_name.removeprefix("Fixture_")
+
+    qasm3_string = request.getfixturevalue(circuit_name)
+    result = loads(qasm3_string)
+    # we do not want to validate every gate inside it
+    result.unroll(external_gates=[gate_name])
+    assert result.num_qubits == 5
+    assert result.num_clbits == 0
+    check_five_qubit_gate_op(result.unrolled_ast, 2, qubit_list, gate_name)
 
 
 def test_gate_body_param_expression():
@@ -418,6 +435,65 @@ def test_ctrl_gate_modifier():
     assert result.num_qubits == 4
     check_two_qubit_gate_op(result.unrolled_ast, 1, [[0, 1]], "cz")
     check_three_qubit_gate_op(result.unrolled_ast, 2, [[0, 1, 2], [1, 2, 3]], "ccx")
+
+
+@pytest.mark.parametrize(
+    "gate_name, num_qubits",
+    [("c3x", 4), ("rc3x", 4), ("rcccx", 4), ("c4x", 5)],
+)
+def test_multi_controlled_x_decomposition(gate_name, num_qubits):
+    """c3x / rc3x / c4x fully decompose into supported basis gates."""
+    qubits = ", ".join(f"q[{i}]" for i in range(num_qubits))
+    qasm3_string = f"""
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[{num_qubits}] q;
+    {gate_name} {qubits};
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    assert result.num_qubits == num_qubits
+
+    # The high-level gate is decomposed away, leaving only basis gates.
+    allowed = {"h", "p", "cx", "t", "tdg", "rx", "rz", "x", "z", "cp", "ccx"}
+    seen = set()
+    for stmt in result.unrolled_ast.statements:
+        if isinstance(stmt, qasm3_ast.QuantumGate):
+            seen.add(stmt.name.name)
+    assert gate_name not in seen
+    assert seen.issubset(allowed), f"unexpected gates produced: {seen - allowed}"
+
+
+@pytest.mark.parametrize(
+    "named, chained, num_qubits",
+    [
+        # 3-controlled X: c3x == ctrl@ctrl@ctrl@x == ctrl@ccx
+        ("c3x q[0], q[1], q[2], q[3];", "ctrl @ ctrl @ ctrl @ x q[0], q[1], q[2], q[3];", 4),
+        ("c3x q[0], q[1], q[2], q[3];", "ctrl @ ccx q[0], q[1], q[2], q[3];", 4),
+        # 4-controlled X: c4x == ctrl(4)@x == ctrl@c3x
+        (
+            "c4x q[0], q[1], q[2], q[3], q[4];",
+            "ctrl(4) @ x q[0], q[1], q[2], q[3], q[4];",
+            5,
+        ),
+        (
+            "c4x q[0], q[1], q[2], q[3], q[4];",
+            "ctrl @ c3x q[0], q[1], q[2], q[3], q[4];",
+            5,
+        ),
+    ],
+)
+def test_ctrl_chain_beyond_two_controls(named, chained, num_qubits):
+    """The ctrl modifier chain resolves beyond two controls via c3x / c4x."""
+    header = f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
+
+    named_result = loads(header + named)
+    named_result.unroll()
+
+    chained_result = loads(header + chained)
+    chained_result.unroll()
+
+    assert dumps(named_result) == dumps(chained_result)
 
 
 def test_negctrl_gate_modifier():
