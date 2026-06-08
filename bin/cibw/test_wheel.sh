@@ -28,8 +28,12 @@ echo "Running test_wheel.sh"
 project=$1
 
 # the built wheel is already installed in the test env by cibuildwheel
-# just run the tests 
-python -m pytest $project/tests
+# just run the tests.
+# Benchmark/perf-regression tests enforce hardware-dependent time budgets and are
+# excluded from CI (see tests/test_perf_regression.py). The qiskit comparison tests
+# skip automatically when qiskit is unavailable (it is not installable in the
+# manylinux wheel-build containers).
+python -m pytest $project/tests -m "not benchmark"
 pytest_exit_code=$?
 
 if [ $pytest_exit_code -ne 0 ]; then

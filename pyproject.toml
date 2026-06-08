@@ -43,8 +43,13 @@ Homepage = "https://docs.qbraid.com/v2/pyqasm"
 [project.optional-dependencies]
 cli = ["typer>=0.12.1", "rich>=10.11.0", "typing-extensions"]
 test = ["pytest", "pytest-cov", "pytest-mpl", "pillow<12.3.0", "matplotlib", "tabulate"]
+# Reference-oracle deps used only by the statevector simulator comparison tests.
+# Kept separate from `test` because qiskit/qiskit-aer have no prebuilt wheels for
+# the manylinux wheel-build containers and would require a Rust toolchain there.
+test-sim = ["qiskit", "qiskit-aer", "qiskit-qasm3-import"]
 lint = ["black", "isort>=6.0.0", "pylint", "mypy", "qbraid-cli>=0.10.2"]
 docs = ["sphinx>=7.3.7,<8.3.0", "sphinx-autodoc-typehints>=1.24,<3.2", "sphinx-rtd-theme>=2.0.0,<4.0.0", "docutils<0.23", "sphinx-copybutton"]
+simulation = ["numba>=0.59"]
 visualization = ["pillow<12.3.0", "matplotlib", "tabulate"]
 pulse = ["openpulse>=1.0.1"]
 
@@ -53,9 +58,6 @@ pyqasm = ["py.typed", "*.pyx"]
 
 [tool.setuptools]
 packages = {find = {where = ["src"]}}
-ext-modules = [
-  {name = "pyqasm.accelerate.linalg", sources = ["src/pyqasm/accelerate/linalg.pyx"], include-dirs = ["numpy"]}
-]
 
 [project.scripts]
 pyqasm = "pyqasm.cli.main:app"
@@ -75,6 +77,9 @@ line_length = 100
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+markers = [
+    "benchmark: performance regression tests (may be slow)",
+]
 
 [tool.coverage.run]
 source = ["pyqasm"]

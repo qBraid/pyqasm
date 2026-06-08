@@ -1,0 +1,183 @@
+{
+  "benchmark": "statevector preprocessing no-cache comparison",
+  "baseline": "PyQASM sv branch before evolved preprocessing commit",
+  "candidate": "PyQASM sv branch with evolved no-cache preprocessing",
+  "n_repeats": 5,
+  "pyqasm_num_threads": 1,
+  "notes": [
+    "No QASM string memoization is included in the candidate.",
+    "Both series use pre-unrolled QasmModule inputs, matching the branch benchmark convention."
+  ],
+  "series": {
+    "random": [
+      {
+        "num_qubits": 4,
+        "depth": 20,
+        "pyqasm_sv_ms": 0.06092991679906845,
+        "evolved_no_cache_ms": 0.06546999793499708,
+        "speedup": 0.9306540204807044,
+        "correct": true
+      },
+      {
+        "num_qubits": 6,
+        "depth": 40,
+        "pyqasm_sv_ms": 0.1580890966579318,
+        "evolved_no_cache_ms": 0.1151899341493845,
+        "speedup": 1.372421104546456,
+        "correct": true
+      },
+      {
+        "num_qubits": 8,
+        "depth": 60,
+        "pyqasm_sv_ms": 0.16204908024519682,
+        "evolved_no_cache_ms": 0.14194007962942123,
+        "speedup": 1.1416724625509327,
+        "correct": true
+      },
+      {
+        "num_qubits": 10,
+        "depth": 80,
+        "pyqasm_sv_ms": 0.24963996838778257,
+        "evolved_no_cache_ms": 0.21547905635088682,
+        "speedup": 1.1585347208002805,
+        "correct": true
+      },
+      {
+        "num_qubits": 12,
+        "depth": 100,
+        "pyqasm_sv_ms": 0.458328053355217,
+        "evolved_no_cache_ms": 0.41990901809185743,
+        "speedup": 1.0914937131808757,
+        "correct": true
+      },
+      {
+        "num_qubits": 14,
+        "depth": 150,
+        "pyqasm_sv_ms": 1.5235739992931485,
+        "evolved_no_cache_ms": 1.3638049131259322,
+        "speedup": 1.117149516495739,
+        "correct": true
+      },
+      {
+        "num_qubits": 16,
+        "depth": 200,
+        "pyqasm_sv_ms": 7.1852849796414375,
+        "evolved_no_cache_ms": 5.937180016189814,
+        "speedup": 1.210218480835721,
+        "correct": true
+      },
+      {
+        "num_qubits": 18,
+        "depth": 250,
+        "pyqasm_sv_ms": 35.15114798210561,
+        "evolved_no_cache_ms": 28.548280941322446,
+        "speedup": 1.231287728124666,
+        "correct": true
+      },
+      {
+        "num_qubits": 20,
+        "depth": 300,
+        "pyqasm_sv_ms": 162.53185598179698,
+        "evolved_no_cache_ms": 126.72401999589056,
+        "speedup": 1.282565499319447,
+        "correct": true
+      },
+      {
+        "num_qubits": 22,
+        "depth": 400,
+        "pyqasm_sv_ms": 1289.0826460206881,
+        "evolved_no_cache_ms": 1231.460615992546,
+        "speedup": 1.0467916141854843,
+        "correct": true
+      }
+    ],
+    "qft": [
+      {
+        "num_qubits": 4,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 0.20883907563984394,
+        "evolved_no_cache_ms": 0.16430008690804243,
+        "speedup": 1.2710831720784765,
+        "correct": true
+      },
+      {
+        "num_qubits": 6,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 0.4983479157090187,
+        "evolved_no_cache_ms": 0.315018929541111,
+        "speedup": 1.5819618091997316,
+        "correct": true
+      },
+      {
+        "num_qubits": 8,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 0.9089269442483783,
+        "evolved_no_cache_ms": 0.5902479169890285,
+        "speedup": 1.5399070764789728,
+        "correct": true
+      },
+      {
+        "num_qubits": 10,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 1.5004950109869242,
+        "evolved_no_cache_ms": 1.0477059986442327,
+        "speedup": 1.4321718238977499,
+        "correct": true
+      },
+      {
+        "num_qubits": 12,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 2.5123610394075513,
+        "evolved_no_cache_ms": 1.782613922841847,
+        "speedup": 1.409369133279482,
+        "correct": true
+      },
+      {
+        "num_qubits": 14,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 5.448751035146415,
+        "evolved_no_cache_ms": 4.14173596072942,
+        "speedup": 1.3155718005226993,
+        "correct": true
+      },
+      {
+        "num_qubits": 16,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 18.029507948085666,
+        "evolved_no_cache_ms": 15.524596092291176,
+        "speedup": 1.1613511772482323,
+        "correct": true
+      },
+      {
+        "num_qubits": 18,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 77.3717820411548,
+        "evolved_no_cache_ms": 68.92851099837571,
+        "speedup": 1.1224931587885028,
+        "correct": true
+      },
+      {
+        "num_qubits": 20,
+        "depth": "QFT",
+        "pyqasm_sv_ms": 382.6392919290811,
+        "evolved_no_cache_ms": 349.38782698009163,
+        "speedup": 1.0951706452866319,
+        "correct": true
+      }
+    ]
+  },
+  "summary": {
+    "random": {
+      "geomean_speedup": 1.1521318658620598,
+      "min_speedup": 0.9306540204807044,
+      "max_speedup": 1.372421104546456,
+      "all_correct": true
+    },
+    "qft": {
+      "geomean_speedup": 1.3147632402156637,
+      "min_speedup": 1.0951706452866319,
+      "max_speedup": 1.5819618091997316,
+      "all_correct": true
+    }
+  }
+}
