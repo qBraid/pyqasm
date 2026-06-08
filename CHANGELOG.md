@@ -25,6 +25,8 @@ Types of changes:
 
 ### Fixed
 - Fixed the `c4x` (4-controlled X) gate, which previously raised `TypeError: c4x_gate() takes 4 positional arguments but 5 were given` because it was declared with four parameters for a five-qubit gate. It is now implemented via qiskit's structured `rc3x`/`c3sx`/`cphaseshift` decomposition. ([#320](https://github.com/qBraid/pyqasm/pull/320))
+- Added `inv @` (inverse modifier) support for the multi-controlled-X family: `inv @ c3x` / `inv @ c4x` resolve to the (self-inverse) gate, and `inv @ rc3x` / `inv @ rcccx` resolve to the correct relative-phase dagger. These previously raised `Unsupported / undeclared QASM operation`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
+- Fixed the `ctrl @` modifier not resolving gate aliases: `ctrl @ toffoli` / `ctrl @ ccnot` (aliases of `ccx`) and `ctrl @ cnot` / `ctrl @ CX` (aliases of `cx`) now escalate controls identically to their canonical gate instead of raising `Unsupported controlled QASM operation`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 - Fixed classical register declarations not being visible inside `box` scope, causing "Missing clbit register declaration" errors for measurement statements inside box blocks. ([#306](https://github.com/qBraid/pyqasm/pull/306))
 - Fixed the backend-dependent `dt` duration unit being incorrectly relabeled as `ns` when unrolling `delay` and `box` statements without a `device_cycle_time`. Since `dt` cannot be converted to SI units without a sample rate, it is now preserved as `dt`. ([#317](https://github.com/qBraid/pyqasm/pull/317))
 

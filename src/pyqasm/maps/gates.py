@@ -1166,6 +1166,17 @@ U_INV_ROTATION_MAP = {
     "u2": u2_inv_gate,
 }
 
+# Inverses for the multi-controlled-X family. ``c3x`` / ``c4x`` are
+# self-inverse (the inverse of a multi-controlled X is the same gate), while
+# ``rc3x`` / ``rcccx`` are relative-phase Toffolis whose inverse is the
+# dedicated :func:`_rc3x_dg_gate` decomposition.
+MULTI_CONTROLLED_X_INV_MAP = {
+    "c3x": (c3x_gate, 4),
+    "c4x": (c4x_gate, 5),
+    "rc3x": (_rc3x_dg_gate, 4),
+    "rcccx": (_rc3x_dg_gate, 4),
+}
+
 
 def map_qasm_inv_op_to_callable(op_name: str):
     """
@@ -1178,15 +1189,18 @@ def map_qasm_inv_op_to_callable(op_name: str):
         tuple: A tuple containing the callable, the number of qubits the operation acts on,
         and what is to be done with the basic gate which we are trying to invert.
     """
-    if op_name in SELF_INVERTING_ONE_QUBIT_OP_SET:
-        return ONE_QUBIT_OP_MAP[op_name], 1, InversionOp.NO_OP
-    if op_name in ST_GATE_INV_MAP:
-        inv_gate_name = ST_GATE_INV_MAP[op_name]
+    if op_name in SELF_INVERTING_ONE_QUBIT_OP_SET or op_name in ST_GATE_INV_MAP:
+        # Self-inverting gates map to themselves; S/T map to their dagger and
+        # vice versa. Either way the result is a single-qubit gate applied as-is.
+        inv_gate_name = ST_GATE_INV_MAP.get(op_name, op_name)
         return ONE_QUBIT_OP_MAP[inv_gate_name], 1, InversionOp.NO_OP
     if op_name in TWO_QUBIT_OP_MAP:
         return TWO_QUBIT_OP_MAP[op_name], 2, InversionOp.NO_OP
     if op_name in THREE_QUBIT_OP_MAP:
         return THREE_QUBIT_OP_MAP[op_name], 3, InversionOp.NO_OP
+    if op_name in MULTI_CONTROLLED_X_INV_MAP:
+        inv_func, num_qubits = MULTI_CONTROLLED_X_INV_MAP[op_name]
+        return inv_func, num_qubits, InversionOp.NO_OP
     if op_name in U_INV_ROTATION_MAP:
         # Special handling for U gate as it is composed of multiple
         # basic gates and we need to invert each of them
@@ -1230,6 +1244,16 @@ CTRL_GATE_MAP = {
     "c3x": "c4x",
 }
 
+# Gate aliases share a callable with their canonical gate, but only the
+# canonical spelling appears in CTRL_GATE_MAP. Normalising them before
+# escalating controls lets e.g. ``ctrl @ toffoli`` behave like ``ctrl @ ccx``.
+CTRL_OP_ALIAS_MAP = {
+    "cnot": "cx",
+    "CX": "cx",
+    "toffoli": "ccx",
+    "ccnot": "ccx",
+}
+
 
 def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
     """
@@ -1243,7 +1267,7 @@ def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
         tuple: A tuple containing the callable and the number of qubits the operation acts on.
     """
 
-    ctrl_op_name, c = op_name, ctrl_count
+    ctrl_op_name, c = CTRL_OP_ALIAS_MAP.get(op_name, op_name), ctrl_count
     while c > 0 and ctrl_op_name in CTRL_GATE_MAP:
         ctrl_op_name = CTRL_GATE_MAP[ctrl_op_name]
         c -= 1

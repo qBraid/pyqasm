@@ -17,6 +17,7 @@ Module containing unit tests for unrolling quantum gates.
 
 """
 
+import numpy as np
 import openqasm3.ast as qasm3_ast
 import pytest
 
@@ -35,6 +36,7 @@ from tests.qasm3.resources.gates import (
     triple_op_tests,
 )
 from tests.utils import (
+    assert_unitary_equal,
     check_custom_qasm_gate_op,
     check_custom_qasm_gate_op_with_external_gates,
     check_five_qubit_gate_op,
@@ -44,6 +46,8 @@ from tests.utils import (
     check_three_qubit_gate_op,
     check_two_qubit_gate_op,
     check_unrolled_qasm,
+    mcx_unitary,
+    unitary_from_unrolled_ast,
 )
 
 
@@ -494,6 +498,157 @@ def test_ctrl_chain_beyond_two_controls(named, chained, num_qubits):
     chained_result.unroll()
 
     assert dumps(named_result) == dumps(chained_result)
+
+
+@pytest.mark.parametrize(
+    "alias, canonical, num_qubits",
+    [
+        # Gate aliases must escalate controls identically to their canonical gate.
+        ("ctrl @ cnot q[0], q[1], q[2];", "ctrl @ cx q[0], q[1], q[2];", 3),
+        ("ctrl @ CX q[0], q[1], q[2];", "ctrl @ cx q[0], q[1], q[2];", 3),
+        ("ctrl @ toffoli q[0], q[1], q[2], q[3];", "ctrl @ ccx q[0], q[1], q[2], q[3];", 4),
+        ("ctrl @ ccnot q[0], q[1], q[2], q[3];", "ctrl @ ccx q[0], q[1], q[2], q[3];", 4),
+        (
+            "ctrl @ ctrl @ toffoli q[0], q[1], q[2], q[3], q[4];",
+            "c4x q[0], q[1], q[2], q[3], q[4];",
+            5,
+        ),
+    ],
+)
+def test_ctrl_chain_resolves_gate_aliases(alias, canonical, num_qubits):
+    """Controlling an aliased gate (cnot/CX/toffoli/ccnot) matches the canonical gate."""
+    header = f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
+
+    alias_result = loads(header + alias)
+    alias_result.unroll()
+
+    canonical_result = loads(header + canonical)
+    canonical_result.unroll()
+
+    assert dumps(alias_result) == dumps(canonical_result)
+
+
+def _unrolled_unitary(body, num_qubits):
+    """Unroll a single-statement program and return its realised operator."""
+    header = f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
+    module = loads(header + body)
+    module.unroll()
+    return unitary_from_unrolled_ast(module.unrolled_ast, num_qubits)
+
+
+@pytest.mark.parametrize(
+    "body, num_qubits",
+    [
+        # Every spelling of the 3- and 4-controlled X must realise the same MCX
+        # operator. This is the real correctness check: a wrong angle or a
+        # swapped control/target survives a structural test but not this one.
+        ("c3x q[0], q[1], q[2], q[3];", 4),
+        ("ctrl @ ccx q[0], q[1], q[2], q[3];", 4),
+        ("ctrl @ ctrl @ ctrl @ x q[0], q[1], q[2], q[3];", 4),
+        ("ctrl @ ctrl @ cx q[0], q[1], q[2], q[3];", 4),
+        ("c4x q[0], q[1], q[2], q[3], q[4];", 5),
+        ("ctrl(4) @ x q[0], q[1], q[2], q[3], q[4];", 5),
+        ("ctrl @ c3x q[0], q[1], q[2], q[3], q[4];", 5),
+    ],
+)
+def test_multi_controlled_x_realises_mcx(body, num_qubits):
+    """c3x / c4x and their ctrl-chain equivalents implement the exact MCX unitary."""
+    assert_unitary_equal(_unrolled_unitary(body, num_qubits), mcx_unitary(num_qubits))
+
+
+@pytest.mark.parametrize(
+    "body, num_qubits, target",
+    [
+        # The target is the *last* listed qubit, not the highest index. Permuting
+        # the operands must move the target accordingly.
+        ("c3x q[3], q[0], q[1], q[2];", 4, 2),
+        ("c3x q[1], q[3], q[0], q[2];", 4, 2),
+        ("c4x q[4], q[3], q[2], q[1], q[0];", 5, 0),
+    ],
+)
+def test_multi_controlled_x_operand_order(body, num_qubits, target):
+    """Operand ordering selects the correct target qubit for the controlled-X."""
+    assert_unitary_equal(
+        _unrolled_unitary(body, num_qubits), mcx_unitary(num_qubits, target=target)
+    )
+
+
+def test_rc3x_is_relative_phase_toffoli():
+    """rc3x / rcccx is a relative-phase 3-controlled X: |U| matches the Toffoli."""
+    rc3x_u = _unrolled_unitary("rc3x q[0], q[1], q[2], q[3];", 4)
+    rcccx_u = _unrolled_unitary("rcccx q[0], q[1], q[2], q[3];", 4)
+    toffoli3 = mcx_unitary(4)
+
+    # rcccx is an alias for rc3x.
+    assert np.allclose(rc3x_u, rcccx_u, atol=1e-7)
+    # It must be unitary and share the Toffoli's permutation structure...
+    assert np.allclose(rc3x_u @ rc3x_u.conj().T, np.eye(16), atol=1e-7)
+    assert np.allclose(np.abs(rc3x_u), toffoli3, atol=1e-7)
+    # ...but it is NOT the true Toffoli: it carries relative phases (that is the
+    # whole point of the cheaper relative-phase decomposition).
+    assert not np.allclose(rc3x_u, toffoli3, atol=1e-7)
+
+
+@pytest.mark.parametrize(
+    "body, num_qubits, reference",
+    [
+        # inv @ <self-inverse gate> must round-trip back to the gate itself.
+        ("inv @ c3x q[0], q[1], q[2], q[3];", 4, lambda: mcx_unitary(4)),
+        ("inv @ c4x q[0], q[1], q[2], q[3], q[4];", 5, lambda: mcx_unitary(5)),
+    ],
+)
+def test_inverse_modifier_on_multi_controlled_x(body, num_qubits, reference):
+    """inv @ c3x / c4x is supported and equals the (self-inverse) gate."""
+    assert_unitary_equal(_unrolled_unitary(body, num_qubits), reference())
+
+
+@pytest.mark.parametrize("gate", ["rc3x", "rcccx"])
+def test_inverse_modifier_on_rc3x_round_trips(gate):
+    """rc3x is not self-inverse, but inv @ rc3x is its true dagger (round-trips to I)."""
+    body = f"{gate} q[0], q[1], q[2], q[3];\ninv @ {gate} q[0], q[1], q[2], q[3];"
+    assert_unitary_equal(_unrolled_unitary(body, 4), np.eye(16))
+
+
+def test_negctrl_chain_on_multi_controlled_x():
+    """A negctrl mixed into the control chain flips on the |0> state of that control."""
+    body = "negctrl @ ctrl @ ctrl @ x q[0], q[1], q[2], q[3];"
+    actual = _unrolled_unitary(body, 4)
+
+    expected = np.zeros((16, 16), dtype=complex)
+    for basis in range(16):
+        q0, q1, q2 = basis & 1, (basis >> 1) & 1, (basis >> 2) & 1
+        # control q0 is negative (active on 0), q1/q2 positive, target is q3
+        dest = basis ^ (1 << 3) if (q0 == 0 and q1 == 1 and q2 == 1) else basis
+        expected[dest, basis] = 1
+    assert_unitary_equal(actual, expected)
+
+
+@pytest.mark.parametrize(
+    "body, num_qubits",
+    [
+        # c4x has no controlled form (c5x is not defined), so a further control
+        # cannot be resolved and must raise rather than silently mis-decompose.
+        ("ctrl @ c4x q[0], q[1], q[2], q[3], q[4], q[5];", 6),
+        ("ctrl(5) @ x q[0], q[1], q[2], q[3], q[4], q[5];", 6),
+    ],
+)
+def test_too_many_controls_raises(body, num_qubits):
+    """Control chains requiring an undefined gate raise a clear ValidationError."""
+    header = f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
+    with pytest.raises(ValidationError, match="controlled QASM operation"):
+        loads(header + body).unroll()
+
+
+def test_inverse_of_unsupported_four_qubit_gate_raises():
+    """c3sx has no inverse decomposition; inv @ c3sx must fail loudly, not silently."""
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[4] q;
+    inv @ c3sx q[0], q[1], q[2], q[3];
+    """
+    with pytest.raises(ValidationError, match="Unsupported / undeclared QASM operation"):
+        loads(qasm3_string).unroll()
 
 
 def test_negctrl_gate_modifier():
