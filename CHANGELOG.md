@@ -23,6 +23,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed the statevector simulator's `crz` fast path, which implemented a controlled-phase gate (`diag(1, 1, 1, e^{i*theta/2})`) instead of a true controlled-Rz (`diag(1, 1, e^{-i*theta/2}, e^{i*theta/2})`); it dropped the phase on the `|control=1, target=0>` amplitude. It now applies the full `Rz` to the target via the controlled-gate kernel.
 - Fixed classical register declarations not being visible inside `box` scope, causing "Missing clbit register declaration" errors for measurement statements inside box blocks. ([#306](https://github.com/qBraid/pyqasm/pull/306))
 
 ### Dependencies

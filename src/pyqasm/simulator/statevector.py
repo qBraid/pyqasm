@@ -471,9 +471,16 @@ def _preprocess(program, num_qubits):
                 phase = CONTROLLED_DIAGONAL_PHASES[gate_name]
                 _write_controlled_diagonal(control, target, phase)
             elif gate_name == "crz" and len(params) == 1:
+                # CRZ applies Rz(theta) = diag(e^{-i*theta/2}, e^{i*theta/2}) to
+                # the target when the control is set, so BOTH target=0 and
+                # target=1 pick up a phase.  A controlled-diagonal instruction
+                # can only phase the |control=1, target=1> amplitude, which would
+                # implement a controlled-phase gate instead.  Route it through the
+                # general controlled-gate kernel with the full (diagonal) Rz.
                 theta = params[0]
-                _, phase_at_11 = _rz_phases(theta)
-                _write_controlled_diagonal(control, target, phase_at_11)
+                phase0, phase1 = _rz_phases(theta)
+                flat = np.array([phase0, _COMPLEX_ZERO, _COMPLEX_ZERO, phase1], dtype=np.complex128)
+                _write_controlled(control, target, flat)
             elif gate_name in CONTROLLED_GATE_SUB_UNITARIES:
                 flat = GATE_CACHE[gate_name]
                 _write_controlled(control, target, flat)
