@@ -763,23 +763,127 @@ def c3sx_gate(
     return result
 
 
-def c4x_gate(
+def c3x_gate(
     qubit0: IndexedIdentifier,
     qubit1: IndexedIdentifier,
     qubit2: IndexedIdentifier,
     qubit3: IndexedIdentifier,
 ) -> list[QuantumGate]:
-    """
-    Implements the c4x gate
-    """
-    return [
-        QuantumGate(
-            modifiers=[],
-            name=Identifier(name="c4x"),
-            arguments=[],
-            qubits=[qubit0, qubit1, qubit2, qubit3],
-        )
-    ]
+    """Implements the c3x (3-controlled X) gate as a decomposition of h/p/cx."""
+    pi = CONSTANTS_MAP["pi"]
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit0))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit1))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit2))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(one_qubit_rotation_op("p", -pi / 8, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit2))
+    result.extend(one_qubit_rotation_op("p", -pi / 8, qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit2))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit2))
+    result.extend(one_qubit_rotation_op("p", -pi / 8, qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit2))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_rotation_op("p", -pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit3))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_rotation_op("p", -pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit3))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_rotation_op("p", -pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit3))
+    result.extend(one_qubit_rotation_op("p", pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_rotation_op("p", -pi / 8, qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+    return result
+
+
+def rc3x_gate(
+    qubit0: IndexedIdentifier,
+    qubit1: IndexedIdentifier,
+    qubit2: IndexedIdentifier,
+    qubit3: IndexedIdentifier,
+) -> list[QuantumGate]:
+    """Implements the rc3x (relative-phase 3-controlled X) gate."""
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+    return result
+
+
+def _rc3x_dg_gate(
+    qubit0: IndexedIdentifier,
+    qubit1: IndexedIdentifier,
+    qubit2: IndexedIdentifier,
+    qubit3: IndexedIdentifier,
+) -> list[QuantumGate]:
+    """Inverse of :func:`rc3x_gate`, used in the c4x decomposition."""
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit0, qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+    result.extend(one_qubit_gate_op("t", qubit3))
+    result.extend(two_qubit_gate_op("cx", qubit2, qubit3))
+    result.extend(one_qubit_gate_op("tdg", qubit3))
+    result.extend(one_qubit_gate_op("h", qubit3))
+    return result
+
+
+def c4x_gate(
+    qubit0: IndexedIdentifier,
+    qubit1: IndexedIdentifier,
+    qubit2: IndexedIdentifier,
+    qubit3: IndexedIdentifier,
+    qubit4: IndexedIdentifier,
+) -> list[QuantumGate]:
+    """Implements the c4x (4-controlled X) gate via rc3x, c3sx and cphaseshift."""
+    pi = CONSTANTS_MAP["pi"]
+    result: list[QuantumGate] = []
+    result.extend(one_qubit_gate_op("h", qubit4))
+    result.extend(cphaseshift_gate(pi / 2, qubit3, qubit4))
+    result.extend(one_qubit_gate_op("h", qubit4))
+    result.extend(rc3x_gate(qubit0, qubit1, qubit2, qubit3))
+    result.extend(one_qubit_gate_op("h", qubit4))
+    result.extend(cphaseshift_gate(-pi / 2, qubit3, qubit4))
+    result.extend(one_qubit_gate_op("h", qubit4))
+    result.extend(_rc3x_dg_gate(qubit0, qubit1, qubit2, qubit3))
+    result.extend(c3sx_gate(qubit0, qubit1, qubit2, qubit4))
+    return result
 
 
 def prx_gate(theta, phi, qubit_id) -> list[QuantumGate]:
@@ -918,7 +1022,13 @@ THREE_QUBIT_OP_MAP = {
     "rccx": rccx_gate,
 }
 
-FOUR_QUBIT_OP_MAP = {"c3sx": c3sx_gate, "c3sqrtx": c3sx_gate}
+FOUR_QUBIT_OP_MAP = {
+    "c3sx": c3sx_gate,
+    "c3sqrtx": c3sx_gate,
+    "c3x": c3x_gate,
+    "rc3x": rc3x_gate,
+    "rcccx": rc3x_gate,
+}
 
 FIVE_QUBIT_OP_MAP = {
     "c4x": c4x_gate,
@@ -1056,6 +1166,17 @@ U_INV_ROTATION_MAP = {
     "u2": u2_inv_gate,
 }
 
+# Inverses for the multi-controlled-X family. ``c3x`` / ``c4x`` are
+# self-inverse (the inverse of a multi-controlled X is the same gate), while
+# ``rc3x`` / ``rcccx`` are relative-phase Toffolis whose inverse is the
+# dedicated :func:`_rc3x_dg_gate` decomposition.
+MULTI_CONTROLLED_X_INV_MAP = {
+    "c3x": (c3x_gate, 4),
+    "c4x": (c4x_gate, 5),
+    "rc3x": (_rc3x_dg_gate, 4),
+    "rcccx": (_rc3x_dg_gate, 4),
+}
+
 
 def map_qasm_inv_op_to_callable(op_name: str):
     """
@@ -1068,15 +1189,18 @@ def map_qasm_inv_op_to_callable(op_name: str):
         tuple: A tuple containing the callable, the number of qubits the operation acts on,
         and what is to be done with the basic gate which we are trying to invert.
     """
-    if op_name in SELF_INVERTING_ONE_QUBIT_OP_SET:
-        return ONE_QUBIT_OP_MAP[op_name], 1, InversionOp.NO_OP
-    if op_name in ST_GATE_INV_MAP:
-        inv_gate_name = ST_GATE_INV_MAP[op_name]
+    if op_name in SELF_INVERTING_ONE_QUBIT_OP_SET or op_name in ST_GATE_INV_MAP:
+        # Self-inverting gates map to themselves; S/T map to their dagger and
+        # vice versa. Either way the result is a single-qubit gate applied as-is.
+        inv_gate_name = ST_GATE_INV_MAP.get(op_name, op_name)
         return ONE_QUBIT_OP_MAP[inv_gate_name], 1, InversionOp.NO_OP
     if op_name in TWO_QUBIT_OP_MAP:
         return TWO_QUBIT_OP_MAP[op_name], 2, InversionOp.NO_OP
     if op_name in THREE_QUBIT_OP_MAP:
         return THREE_QUBIT_OP_MAP[op_name], 3, InversionOp.NO_OP
+    if op_name in MULTI_CONTROLLED_X_INV_MAP:
+        inv_func, num_qubits = MULTI_CONTROLLED_X_INV_MAP[op_name]
+        return inv_func, num_qubits, InversionOp.NO_OP
     if op_name in U_INV_ROTATION_MAP:
         # Special handling for U gate as it is composed of multiple
         # basic gates and we need to invert each of them
@@ -1116,6 +1240,18 @@ CTRL_GATE_MAP = {
     "u": "cu",
     "swap": "cswap",
     "cx": "ccx",
+    "ccx": "c3x",
+    "c3x": "c4x",
+}
+
+# Gate aliases share a callable with their canonical gate, but only the
+# canonical spelling appears in CTRL_GATE_MAP. Normalising them before
+# escalating controls lets e.g. ``ctrl @ toffoli`` behave like ``ctrl @ ccx``.
+CTRL_OP_ALIAS_MAP = {
+    "cnot": "cx",
+    "CX": "cx",
+    "toffoli": "ccx",
+    "ccnot": "ccx",
 }
 
 
@@ -1131,7 +1267,7 @@ def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
         tuple: A tuple containing the callable and the number of qubits the operation acts on.
     """
 
-    ctrl_op_name, c = op_name, ctrl_count
+    ctrl_op_name, c = CTRL_OP_ALIAS_MAP.get(op_name, op_name), ctrl_count
     while c > 0 and ctrl_op_name in CTRL_GATE_MAP:
         ctrl_op_name = CTRL_GATE_MAP[ctrl_op_name]
         c -= 1
@@ -1142,6 +1278,10 @@ def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
             return TWO_QUBIT_OP_MAP[ctrl_op_name], 2
         if ctrl_op_name in THREE_QUBIT_OP_MAP:
             return THREE_QUBIT_OP_MAP[ctrl_op_name], 3
+        if ctrl_op_name in FOUR_QUBIT_OP_MAP:
+            return FOUR_QUBIT_OP_MAP[ctrl_op_name], 4
+        if ctrl_op_name in FIVE_QUBIT_OP_MAP:
+            return FIVE_QUBIT_OP_MAP[ctrl_op_name], 5
 
     # TODO: decompose controls if not built in
     raise ValidationError(

@@ -17,11 +17,161 @@ Module containing utility functions for unit tests.
 
 """
 
+import numpy as np
 import openqasm3.ast as qasm3_ast
 
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
 CONTROLLED_ROTATION_TEST_ANGLE = 0.5
+
+
+# ---------------------------------------------------------------------------
+# Lightweight unitary simulator for verifying gate decompositions.
+#
+# Decomposing a high-level gate into a sequence of basis gates is only correct
+# if the resulting circuit implements the same unitary (up to global phase).
+# Structural ("which gates were produced") checks cannot catch a wrong angle,
+# a swapped control/target, or a sign error -- only a numerical comparison of
+# the realised operator can. The helpers below build the operator of an
+# unrolled circuit from scratch (no qiskit dependency) so the decompositions
+# added for c3x / rc3x / c4x can be pinned against their known matrices.
+# ---------------------------------------------------------------------------
+
+_I2 = np.eye(2, dtype=complex)
+_H = np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2)
+_X = np.array([[0, 1], [1, 0]], dtype=complex)
+_Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
+_Z = np.diag([1, -1]).astype(complex)
+
+
+def _phase(theta):
+    return np.array([[1, 0], [0, np.exp(1j * theta)]], dtype=complex)
+
+
+def _rz(theta):
+    return np.array([[np.exp(-1j * theta / 2), 0], [0, np.exp(1j * theta / 2)]], dtype=complex)
+
+
+def _rx(theta):
+    cos, sin = np.cos(theta / 2), np.sin(theta / 2)
+    return np.array([[cos, -1j * sin], [-1j * sin, cos]], dtype=complex)
+
+
+def _ry(theta):
+    cos, sin = np.cos(theta / 2), np.sin(theta / 2)
+    return np.array([[cos, -sin], [sin, cos]], dtype=complex)
+
+
+_FIXED_ONE_QUBIT = {
+    "id": _I2,
+    "h": _H,
+    "x": _X,
+    "y": _Y,
+    "z": _Z,
+    "s": _phase(np.pi / 2),
+    "sdg": _phase(-np.pi / 2),
+    "t": _phase(np.pi / 4),
+    "tdg": _phase(-np.pi / 4),
+}
+_PARAM_ONE_QUBIT = {"p": _phase, "phaseshift": _phase, "rz": _rz, "rx": _rx, "ry": _ry}
+_PARAM_TWO_QUBIT = {"cp": _phase, "cphaseshift": _phase, "crz": _rz, "crx": _rx, "cry": _ry}
+_FIXED_TWO_QUBIT_TARGET = {"cx": _X, "cy": _Y, "cz": _Z}
+
+
+def _eval_angle(arg):
+    """Evaluate a (possibly negated/constant) numeric gate argument."""
+    value = getattr(arg, "value", None)
+    if value is not None:
+        return float(value)
+    if isinstance(arg, qasm3_ast.UnaryExpression) and arg.op.name == "-":
+        return -_eval_angle(arg.expression)
+    raise ValueError(f"Cannot evaluate gate argument: {arg!r}")
+
+
+def _embed_single(matrix, target, num_qubits):
+    """Embed a 1-qubit matrix acting on ``target`` (little-endian) into the full space."""
+    operator = np.array([[1]], dtype=complex)
+    for qubit in range(num_qubits):
+        operator = np.kron(matrix if qubit == target else _I2, operator)
+    return operator
+
+
+def _embed_controlled(matrix, control, target, num_qubits):
+    """Embed a controlled-``matrix`` (single control, single target)."""
+    proj0 = np.array([[1, 0], [0, 0]], dtype=complex)
+    proj1 = np.array([[0, 0], [0, 1]], dtype=complex)
+    op0 = np.array([[1]], dtype=complex)
+    op1 = np.array([[1]], dtype=complex)
+    for qubit in range(num_qubits):
+        if qubit == control:
+            op0, op1 = np.kron(proj0, op0), np.kron(proj1, op1)
+        elif qubit == target:
+            op0, op1 = np.kron(_I2, op0), np.kron(matrix, op1)
+        else:
+            op0, op1 = np.kron(_I2, op0), np.kron(_I2, op1)
+    return op0 + op1
+
+
+def unitary_from_unrolled_ast(unrolled_ast, num_qubits):
+    """Build the full operator of an unrolled circuit over basis/controlled gates.
+
+    Qubit ``i`` corresponds to ``q[i]`` and is treated as the ``i``-th (little
+    endian) tensor factor. Supports the basis gates the decompositions in this
+    repository emit plus their controlled variants.
+    """
+    unitary = np.eye(2**num_qubits, dtype=complex)
+    for stmt in unrolled_ast.statements:
+        if isinstance(stmt, qasm3_ast.QuantumPhase):
+            unitary = np.exp(1j * _eval_angle(stmt.argument)) * unitary
+            continue
+        if not isinstance(stmt, qasm3_ast.QuantumGate):
+            continue
+        name = stmt.name.name
+        qubits = [int(q.indices[0][0].value) for q in stmt.qubits]
+        args = [_eval_angle(a) for a in stmt.arguments]
+        if name in _FIXED_ONE_QUBIT:
+            gate = _embed_single(_FIXED_ONE_QUBIT[name], qubits[0], num_qubits)
+        elif name in _PARAM_ONE_QUBIT:
+            gate = _embed_single(_PARAM_ONE_QUBIT[name](args[0]), qubits[0], num_qubits)
+        elif name in _FIXED_TWO_QUBIT_TARGET:
+            gate = _embed_controlled(
+                _FIXED_TWO_QUBIT_TARGET[name], qubits[0], qubits[1], num_qubits
+            )
+        elif name in _PARAM_TWO_QUBIT:
+            gate = _embed_controlled(
+                _PARAM_TWO_QUBIT[name](args[0]), qubits[0], qubits[1], num_qubits
+            )
+        else:
+            raise ValueError(f"Unitary simulator does not support basis gate {name!r}")
+        unitary = gate @ unitary
+    return unitary
+
+
+def mcx_unitary(num_qubits, target=None):
+    """Reference multi-controlled-X: controls = all qubits except ``target``."""
+    if target is None:
+        target = num_qubits - 1
+    dim = 2**num_qubits
+    target_bit = 1 << target
+    control_mask = (dim - 1) ^ target_bit
+    unitary = np.zeros((dim, dim), dtype=complex)
+    for basis in range(dim):
+        dest = basis ^ target_bit if (basis & control_mask) == control_mask else basis
+        unitary[dest, basis] = 1
+    return unitary
+
+
+def assert_unitary_equal(actual, expected, atol=1e-7):
+    """Assert two operators are equal up to an irrelevant global phase."""
+    assert actual.shape == expected.shape
+    idx = np.unravel_index(np.argmax(np.abs(expected)), expected.shape)
+    ref = expected[idx]
+    if abs(ref) < 1e-9:
+        assert np.allclose(actual, expected, atol=atol)
+        return
+    phase = actual[idx] / ref
+    assert abs(abs(phase) - 1) < atol, "operators differ by more than a global phase"
+    assert np.allclose(actual, phase * expected, atol=atol), "operators are not equal up to phase"
 
 
 def check_unrolled_qasm(unrolled_qasm, expected_qasm):
@@ -283,6 +433,20 @@ def check_four_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
         if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == gate_name.lower():
             assert len(stmt.qubits) == 4
             for i in range(4):
+                assert stmt.qubits[i].indices[0][0].value == qubit_list[qubit_id][i]
+            qubit_id += 1
+            gate_count += 1
+
+    assert gate_count == num_gates
+
+
+def check_five_qubit_gate_op(unrolled_ast, num_gates, qubit_list, gate_name):
+    qubit_id, gate_count = 0, 0
+
+    for stmt in unrolled_ast.statements:
+        if isinstance(stmt, qasm3_ast.QuantumGate) and stmt.name.name == gate_name.lower():
+            assert len(stmt.qubits) == 5
+            for i in range(5):
                 assert stmt.qubits[i].indices[0][0].value == qubit_list[qubit_id][i]
             qubit_id += 1
             gate_count += 1

@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added support for the `c3x` (3-controlled X) and `rc3x`/`rcccx` (relative-phase 3-controlled X) gates, decomposed into basis gates following qiskit's `C3XGate`/`RC3XGate` definitions. Also extended the `ctrl @` modifier chain so that 3- and 4-control stacks on `x` (e.g. `ctrl @ ctrl @ ctrl @ x`, `ctrl(4) @ x`) resolve to `c3x`/`c4x`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 
 ### Improved / Modified
 
@@ -23,6 +24,9 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed the `c4x` (4-controlled X) gate, which previously raised `TypeError: c4x_gate() takes 4 positional arguments but 5 were given` because it was declared with four parameters for a five-qubit gate. It is now implemented via qiskit's structured `rc3x`/`c3sx`/`cphaseshift` decomposition. ([#320](https://github.com/qBraid/pyqasm/pull/320))
+- Added `inv @` (inverse modifier) support for the multi-controlled-X family: `inv @ c3x` / `inv @ c4x` resolve to the (self-inverse) gate, and `inv @ rc3x` / `inv @ rcccx` resolve to the correct relative-phase dagger. These previously raised `Unsupported / undeclared QASM operation`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
+- Fixed the `ctrl @` modifier not resolving gate aliases: `ctrl @ toffoli` / `ctrl @ ccnot` (aliases of `ccx`) and `ctrl @ cnot` / `ctrl @ CX` (aliases of `cx`) now escalate controls identically to their canonical gate instead of raising `Unsupported controlled QASM operation`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 - Fixed classical register declarations not being visible inside `box` scope, causing "Missing clbit register declaration" errors for measurement statements inside box blocks. ([#306](https://github.com/qBraid/pyqasm/pull/306))
 - Fixed the backend-dependent `dt` duration unit being incorrectly relabeled as `ns` when unrolling `delay` and `box` statements without a `device_cycle_time`. Since `dt` cannot be converted to SI units without a sample rate, it is now preserved as `dt`. ([#317](https://github.com/qBraid/pyqasm/pull/317))
 
