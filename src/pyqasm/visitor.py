@@ -2800,6 +2800,23 @@ class QasmVisitor:
             default_stmts = statement.default.statements
             return _evaluate_case(default_stmts)
 
+    def _resolve_duration_unit(self, time_var) -> qasm3_ast.TimeUnit:
+        """Determine the output unit for a duration literal.
+
+        `dt` is backend-dependent and not convertible to SI units without a known
+        sample rate. Preserve it when the source unit was `dt` (or a device cycle
+        time is set). SI units are already converted to ns by the evaluator.
+        """
+        source_is_dt = (
+            isinstance(time_var, qasm3_ast.DurationLiteral)
+            and time_var.unit == qasm3_ast.TimeUnit.dt
+        )
+        return (
+            qasm3_ast.TimeUnit.dt
+            if self._module._device_cycle_time or source_is_dt
+            else qasm3_ast.TimeUnit.ns
+        )
+
     def _visit_delay_statement(
         self, statement: qasm3_ast.DelayInstruction
     ) -> list[qasm3_ast.Statement]:
@@ -2828,12 +2845,7 @@ class QasmVisitor:
         if duration_val:
             PulseValidator.validate_duration_literal_value(duration_val, statement)
             statement.duration = qasm3_ast.DurationLiteral(
-                duration_val,
-                unit=(
-                    qasm3_ast.TimeUnit.dt
-                    if self._module._device_cycle_time
-                    else qasm3_ast.TimeUnit.ns
-                ),
+                duration_val, unit=self._resolve_duration_unit(_delay_time_var)
             )
 
         if self._scope_manager.in_box_scope():
@@ -2903,11 +2915,7 @@ class QasmVisitor:
                 PulseValidator.validate_duration_literal_value(box_duration_val, statement)
                 statement.duration = qasm3_ast.DurationLiteral(
                     box_duration_val,
-                    unit=(
-                        qasm3_ast.TimeUnit.dt
-                        if self._module._device_cycle_time
-                        else qasm3_ast.TimeUnit.ns
-                    ),
+                    unit=self._resolve_duration_unit(_box_time_var),
                 )
         self._scope_manager.push_scope({})
         self._scope_manager.increment_scope_level()
@@ -2933,7 +2941,7 @@ class QasmVisitor:
             and box_duration_val
             and self._total_delay_duration_in_box > box_duration_val
         ):
-            time_unit = "dt" if self._module._device_cycle_time else "ns"
+            time_unit = self._resolve_duration_unit(_box_time_var).name
             raise_qasm3_error(
                 f"Total delay duration value '{self._total_delay_duration_in_box}{time_unit}' "
                 f"should be less than 'box[{box_duration_val}{time_unit}]' duration.",

@@ -66,6 +66,30 @@ def test_delay_instruction_device_time():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_delay_dt_unit_preserved():
+    """A ``dt`` delay literal must be preserved as ``dt`` (not relabeled ``ns``)
+    when no ``device_cycle_time`` is set, since ``dt`` is backend-dependent. SI
+    units are still converted to ns.
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    delay[100dt] q[0];
+    delay[2us] q[1];
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    delay[100.0dt] q[0];
+    delay[2000.0ns] q[1];
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
 @pytest.mark.parametrize(
     "qasm_code,error_message,error_span",
     [
