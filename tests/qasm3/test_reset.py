@@ -169,3 +169,30 @@ def test_reset_physical_qubit_unrolled_output_is_reloadable():
 
     reloaded = loads(dumps(module))
     reloaded.validate()
+
+
+def test_reset_on_register_named_like_the_internal_one_is_unrolled():
+    """A user register whose name merely starts with the reserved internal register
+    name is a normal register and must be unrolled.
+
+    The internal register is matched on its exact name, or on the name followed by an
+    index or slice. Matching the bare prefix instead also swallowed registers like
+    "__PYQASM_QUBITS__foo", short-circuiting them out of unrolling so that
+    "reset __PYQASM_QUBITS__foo;" silently reset nothing.
+    """
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] __PYQASM_QUBITS__foo;
+    reset __PYQASM_QUBITS__foo;
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    expected = """OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] __PYQASM_QUBITS__foo;
+reset __PYQASM_QUBITS__foo[0];
+reset __PYQASM_QUBITS__foo[1];
+"""
+    check_unrolled_qasm(dumps(module), expected)

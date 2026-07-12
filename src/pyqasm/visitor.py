@@ -79,6 +79,9 @@ from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
 
 logger = logging.getLogger(__name__)
+
+# Reserved register that physical qubits are consolidated onto for OpenPulse programs.
+_INTERNAL_QUBIT_REGISTER = "__PYQASM_QUBITS__"
 logger.propagate = False
 
 
@@ -699,6 +702,10 @@ class QasmVisitor:
         """Resolve a reset whose operand is a bare ``Identifier`` rather than a
         register slot: a physical qubit ("$n") or the internal pulse register.
 
+        Args:
+            statement (qasm3_ast.QuantumReset): The reset statement whose operand
+                is being resolved. Renamed in place for OpenPulse programs.
+
         Returns:
             bool: True if the operand was resolved and the statement needs no
                 further unrolling.
@@ -719,7 +726,14 @@ class QasmVisitor:
                 self._register_physical_qubit(qubit_name)
             return True
 
-        return qubit_name.startswith("__PYQASM_QUBITS__")
+        # The internal register is the bare name, or the name followed by an index or a
+        # slice ("__PYQASM_QUBITS__[2]", "__PYQASM_QUBITS__[0:2]"). Matching on the prefix
+        # alone would also swallow a user register that merely starts with it, e.g.
+        # "__PYQASM_QUBITS__foo", short-circuiting it out of the unrolling below so its
+        # qubits would never actually be reset.
+        return qubit_name == _INTERNAL_QUBIT_REGISTER or qubit_name.startswith(
+            f"{_INTERNAL_QUBIT_REGISTER}["
+        )
 
     def _visit_reset(self, statement: qasm3_ast.QuantumReset) -> list[qasm3_ast.QuantumReset]:
         """Visit a reset statement element.
