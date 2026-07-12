@@ -32,6 +32,7 @@ Types of changes:
 - Fixed the backend-dependent `dt` duration unit being incorrectly relabeled as `ns` when unrolling `delay` and `box` statements without a `device_cycle_time`. Since `dt` cannot be converted to SI units without a sample rate, it is now preserved as `dt`. ([#317](https://github.com/qBraid/pyqasm/pull/317))
 
 ### Dependencies
+- Migrated the Linux wheel *build container* from `manylinux2014` to `manylinux_2_28`. NumPy stopped publishing `manylinux2014` (glibc 2.17) wheels for CPython 3.12+, so `pip` fell back to building NumPy from source inside the build container, whose GCC is older than NumPy requires — failing every Linux wheel job for cp312/cp313/cp314. The published wheels are unaffected: auditwheel tags them from the extension's actual symbol requirements, so they remain `manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64` and still install on glibc 2.17 systems.
 - Bumped `actions/configure-pages` from 5 to 6. ([#307](https://github.com/qBraid/pyqasm/pull/307))
 - Bumped `codecov/codecov-action` from 5.5.2 to 6.0.0. ([#308](https://github.com/qBraid/pyqasm/pull/308))
 - Bumped `actions/deploy-pages` from 4 to 5. ([#309](https://github.com/qBraid/pyqasm/pull/309))
