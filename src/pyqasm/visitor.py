@@ -695,6 +695,32 @@ class QasmVisitor:
 
         return unrolled_measurements
 
+    def _resolve_unindexed_reset_qubit(self, statement: qasm3_ast.QuantumReset) -> bool:
+        """Resolve a reset whose operand is a bare ``Identifier`` rather than a
+        register slot: a physical qubit ("$n") or the internal pulse register.
+
+        Returns:
+            bool: True if the operand was resolved and the statement needs no
+                further unrolling.
+        """
+        if not isinstance(statement.qubits, qasm3_ast.Identifier):
+            return False
+
+        qubit_name = statement.qubits.name
+        if qubit_name.startswith("$") and qubit_name[1:].isdigit():
+            if self._openpulse_grammar_declared:
+                # OpenPulse program: rename to the internal virtual register used by the
+                # pulse visitor.
+                statement.qubits.name = f"__PYQASM_QUBITS__[{qubit_name[1:]}]"
+            else:
+                # Plain QASM program: keep the physical qubit identifier as-is, the same
+                # as gate and measurement operands do, so the statement still serialises
+                # as "reset $2;" and the qubit is counted.
+                self._register_physical_qubit(qubit_name)
+            return True
+
+        return qubit_name.startswith("__PYQASM_QUBITS__")
+
     def _visit_reset(self, statement: qasm3_ast.QuantumReset) -> list[qasm3_ast.QuantumReset]:
         """Visit a reset statement element.
 
@@ -705,16 +731,8 @@ class QasmVisitor:
             None
         """
         logger.debug("Visiting reset statement '%s'", str(statement))
-        if isinstance(statement.qubits, qasm3_ast.Identifier):
-            is_pulse_gate = False
-            if statement.qubits.name.startswith("$") and statement.qubits.name[1:].isdigit():
-                is_pulse_gate = True
-                statement.qubits.name = f"__PYQASM_QUBITS__[{statement.qubits.name[1:]}]"
-            elif statement.qubits.name.startswith("__PYQASM_QUBITS__"):
-                is_pulse_gate = True
-                statement.qubits.name = statement.qubits.name
-            if is_pulse_gate:
-                return [statement]
+        if self._resolve_unindexed_reset_qubit(statement):
+            return [statement]
 
         if len(self._function_qreg_size_map) > 0:  # atleast in SOME function scope
             # since we may have multiple function scopes, we need to transform the qubits

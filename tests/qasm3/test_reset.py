@@ -118,3 +118,54 @@ def test_incorrect_resets(caplog):
 
     assert "Error at line 8, column 4" in caplog.text
     assert "reset q1[4]" in caplog.text
+
+
+def test_reset_physical_qubit_preserves_identifier():
+    """Reset on a physical qubit keeps the "$n" spelling.
+
+    Gate and measurement operands already keep physical qubits as-is; reset used to
+    rewrite them to the internal pulse register ("__PYQASM_QUBITS__[2]"), which names
+    a register the program never declares and does not round-trip through dumps().
+    """
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    bit[1] c;
+    h $2;
+    reset $2;
+    c[0] = measure $2;
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    expected = """OPENQASM 3.0;
+include "stdgates.inc";
+bit[1] c;
+h $2;
+reset $2;
+c[0] = measure $2;
+"""
+    check_unrolled_qasm(dumps(module), expected)
+
+
+def test_reset_physical_qubit_is_counted():
+    """A physical qubit touched only by reset is still registered, so num_qubits
+    reflects it (the early return used to skip registration entirely)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    reset $3;
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+
+    assert module.num_qubits == 4  # "$3" is hardware qubit 3, so 4 qubits are addressed
+
+
+def test_reset_physical_qubit_unrolled_output_is_reloadable():
+    """The unrolled program must itself be valid OpenQASM 3 that pyqasm can reload."""
+    module = loads('OPENQASM 3.0;\ninclude "stdgates.inc";\nreset $0;\n')
+    module.unroll()
+
+    reloaded = loads(dumps(module))
+    reloaded.validate()
