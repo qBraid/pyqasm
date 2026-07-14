@@ -190,6 +190,37 @@ def test_standalone_measurement():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_measure_on_register_named_like_the_internal_one_is_unrolled():
+    """A user register whose name merely starts with the reserved internal register
+    name is a normal register and must be unrolled.
+
+    The internal register is matched on its exact name, or on the name followed by an
+    index or slice. Matching the bare prefix instead also swallowed registers like
+    "__PYQASM_QUBITS__foo", short-circuiting them out of unrolling so the measurement
+    was emitted verbatim rather than expanded per qubit.
+    """
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] __PYQASM_QUBITS__foo;
+    bit[2] c;
+    c = measure __PYQASM_QUBITS__foo;
+    """
+
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] __PYQASM_QUBITS__foo;
+    bit[2] c;
+    c[0] = measure __PYQASM_QUBITS__foo[0];
+    c[1] = measure __PYQASM_QUBITS__foo[1];
+    """
+
+    module = loads(qasm3_string)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
 @pytest.mark.parametrize(
     "qasm3_code,error_message,line_num,col_num,err_line",
     [

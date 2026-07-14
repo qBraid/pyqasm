@@ -34,6 +34,7 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import (
+    INTERNAL_QUBIT_REGISTER,
     Capture,
     ClbitDepthNode,
     Context,
@@ -42,6 +43,7 @@ from pyqasm.elements import (
     QubitDepthNode,
     Variable,
     Waveform,
+    is_internal_qubit_register,
 )
 from pyqasm.exceptions import (
     BreakSignal,
@@ -79,9 +81,6 @@ from pyqasm.transformer import Qasm3Transformer
 from pyqasm.validator import Qasm3Validator
 
 logger = logging.getLogger(__name__)
-
-# Reserved register that physical qubits are consolidated onto for OpenPulse programs.
-_INTERNAL_QUBIT_REGISTER = "__PYQASM_QUBITS__"
 logger.propagate = False
 
 
@@ -498,13 +497,13 @@ class QasmVisitor:
 
         global_scope = self._scope_manager.get_global_scope()
         for var, val in global_scope.items():
-            if var == "__PYQASM_QUBITS__":
+            if var == INTERNAL_QUBIT_REGISTER:
                 raise_qasm3_error(
-                    "Variable '__PYQASM_QUBITS__' is already defined",
+                    f"Variable '{INTERNAL_QUBIT_REGISTER}' is already defined",
                     span=val.span,
                 )
 
-        pyqasm_reg_id = qasm3_ast.Identifier("__PYQASM_QUBITS__")
+        pyqasm_reg_id = qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER)
         pyqasm_reg_size = qasm3_ast.IntegerLiteral(self._module._device_qubits)  # type: ignore
         pyqasm_reg_stmt = qasm3_ast.QubitDeclaration(pyqasm_reg_id, pyqasm_reg_size)
 
@@ -577,7 +576,7 @@ class QasmVisitor:
                     # OpenPulse program: rename to the internal virtual register used by the
                     # pulse visitor, and validate the index is in range.
                     is_pulse_gate = True
-                    statement.measure.qubit.name = f"__PYQASM_QUBITS__[{source.name[1:]}]"
+                    statement.measure.qubit.name = f"{INTERNAL_QUBIT_REGISTER}[{source.name[1:]}]"
                     if (
                         self._total_pulse_qubits <= 0
                         and sum(self._global_qreg_size_map.values()) == 0
@@ -591,7 +590,7 @@ class QasmVisitor:
                     # Plain QASM program: keep the physical qubit identifier as-is.
                     is_pulse_gate = True
                     self._register_physical_qubit(source.name)
-            elif source.name.startswith("__PYQASM_QUBITS__"):
+            elif is_internal_qubit_register(source.name):
                 is_pulse_gate = True
                 statement.measure.qubit.name = source.name
                 if self._total_pulse_qubits <= 0 and sum(self._global_qreg_size_map.values()) == 0:
@@ -718,7 +717,7 @@ class QasmVisitor:
             if self._openpulse_grammar_declared:
                 # OpenPulse program: rename to the internal virtual register used by the
                 # pulse visitor.
-                statement.qubits.name = f"__PYQASM_QUBITS__[{qubit_name[1:]}]"
+                statement.qubits.name = f"{INTERNAL_QUBIT_REGISTER}[{qubit_name[1:]}]"
             else:
                 # Plain QASM program: keep the physical qubit identifier as-is, the same
                 # as gate and measurement operands do, so the statement still serialises
@@ -726,14 +725,7 @@ class QasmVisitor:
                 self._register_physical_qubit(qubit_name)
             return True
 
-        # The internal register is the bare name, or the name followed by an index or a
-        # slice ("__PYQASM_QUBITS__[2]", "__PYQASM_QUBITS__[0:2]"). Matching on the prefix
-        # alone would also swallow a user register that merely starts with it, e.g.
-        # "__PYQASM_QUBITS__foo", short-circuiting it out of the unrolling below so its
-        # qubits would never actually be reset.
-        return qubit_name == _INTERNAL_QUBIT_REGISTER or qubit_name.startswith(
-            f"{_INTERNAL_QUBIT_REGISTER}["
-        )
+        return is_internal_qubit_register(qubit_name)
 
     def _visit_reset(self, statement: qasm3_ast.QuantumReset) -> list[qasm3_ast.QuantumReset]:
         """Visit a reset statement element.
