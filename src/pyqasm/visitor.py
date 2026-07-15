@@ -34,6 +34,7 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import (
+    INTERNAL_QUBIT_REGISTER,
     Capture,
     ClbitDepthNode,
     Context,
@@ -42,6 +43,7 @@ from pyqasm.elements import (
     QubitDepthNode,
     Variable,
     Waveform,
+    is_internal_qubit_register,
 )
 from pyqasm.exceptions import (
     BreakSignal,
@@ -495,13 +497,13 @@ class QasmVisitor:
 
         global_scope = self._scope_manager.get_global_scope()
         for var, val in global_scope.items():
-            if var == "__PYQASM_QUBITS__":
+            if var == INTERNAL_QUBIT_REGISTER:
                 raise_qasm3_error(
-                    "Variable '__PYQASM_QUBITS__' is already defined",
+                    f"Variable '{INTERNAL_QUBIT_REGISTER}' is already defined",
                     span=val.span,
                 )
 
-        pyqasm_reg_id = qasm3_ast.Identifier("__PYQASM_QUBITS__")
+        pyqasm_reg_id = qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER)
         pyqasm_reg_size = qasm3_ast.IntegerLiteral(self._module._device_qubits)  # type: ignore
         pyqasm_reg_stmt = qasm3_ast.QubitDeclaration(pyqasm_reg_id, pyqasm_reg_size)
 
@@ -574,7 +576,7 @@ class QasmVisitor:
                     # OpenPulse program: rename to the internal virtual register used by the
                     # pulse visitor, and validate the index is in range.
                     is_pulse_gate = True
-                    statement.measure.qubit.name = f"__PYQASM_QUBITS__[{source.name[1:]}]"
+                    statement.measure.qubit.name = f"{INTERNAL_QUBIT_REGISTER}[{source.name[1:]}]"
                     if (
                         self._total_pulse_qubits <= 0
                         and sum(self._global_qreg_size_map.values()) == 0
@@ -588,7 +590,7 @@ class QasmVisitor:
                     # Plain QASM program: keep the physical qubit identifier as-is.
                     is_pulse_gate = True
                     self._register_physical_qubit(source.name)
-            elif source.name.startswith("__PYQASM_QUBITS__"):
+            elif is_internal_qubit_register(source.name):
                 is_pulse_gate = True
                 statement.measure.qubit.name = source.name
                 if self._total_pulse_qubits <= 0 and sum(self._global_qreg_size_map.values()) == 0:
@@ -695,6 +697,36 @@ class QasmVisitor:
 
         return unrolled_measurements
 
+    def _resolve_unindexed_reset_qubit(self, statement: qasm3_ast.QuantumReset) -> bool:
+        """Resolve a reset whose operand is a bare ``Identifier`` rather than a
+        register slot: a physical qubit ("$n") or the internal pulse register.
+
+        Args:
+            statement (qasm3_ast.QuantumReset): The reset statement whose operand
+                is being resolved. Renamed in place for OpenPulse programs.
+
+        Returns:
+            bool: True if the operand was resolved and the statement needs no
+                further unrolling.
+        """
+        if not isinstance(statement.qubits, qasm3_ast.Identifier):
+            return False
+
+        qubit_name = statement.qubits.name
+        if qubit_name.startswith("$") and qubit_name[1:].isdigit():
+            if self._openpulse_grammar_declared:
+                # OpenPulse program: rename to the internal virtual register used by the
+                # pulse visitor.
+                statement.qubits.name = f"{INTERNAL_QUBIT_REGISTER}[{qubit_name[1:]}]"
+            else:
+                # Plain QASM program: keep the physical qubit identifier as-is, the same
+                # as gate and measurement operands do, so the statement still serialises
+                # as "reset $2;" and the qubit is counted.
+                self._register_physical_qubit(qubit_name)
+            return True
+
+        return is_internal_qubit_register(qubit_name)
+
     def _visit_reset(self, statement: qasm3_ast.QuantumReset) -> list[qasm3_ast.QuantumReset]:
         """Visit a reset statement element.
 
@@ -705,16 +737,8 @@ class QasmVisitor:
             None
         """
         logger.debug("Visiting reset statement '%s'", str(statement))
-        if isinstance(statement.qubits, qasm3_ast.Identifier):
-            is_pulse_gate = False
-            if statement.qubits.name.startswith("$") and statement.qubits.name[1:].isdigit():
-                is_pulse_gate = True
-                statement.qubits.name = f"__PYQASM_QUBITS__[{statement.qubits.name[1:]}]"
-            elif statement.qubits.name.startswith("__PYQASM_QUBITS__"):
-                is_pulse_gate = True
-                statement.qubits.name = statement.qubits.name
-            if is_pulse_gate:
-                return [statement]
+        if self._resolve_unindexed_reset_qubit(statement):
+            return [statement]
 
         if len(self._function_qreg_size_map) > 0:  # atleast in SOME function scope
             # since we may have multiple function scopes, we need to transform the qubits

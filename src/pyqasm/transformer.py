@@ -48,7 +48,7 @@ from openqasm3.ast import (
     UnaryOperator,
 )
 
-from pyqasm.elements import Variable
+from pyqasm.elements import INTERNAL_QUBIT_REGISTER, Variable
 from pyqasm.exceptions import raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps.expressions import VARIABLE_TYPE_MAP
@@ -496,11 +496,11 @@ class Qasm3Transformer:
                         global_qreg_size_map,
                     )
                     if _start == 0:
-                        _qubit_id.name = f"__PYQASM_QUBITS__[:{_end+1}]"
+                        _qubit_id.name = f"{INTERNAL_QUBIT_REGISTER}[:{_end+1}]"
                     elif _end == device_qubits - 1:
-                        _qubit_id.name = f"__PYQASM_QUBITS__[{_start}:]"
+                        _qubit_id.name = f"{INTERNAL_QUBIT_REGISTER}[{_start}:]"
                     else:
-                        _qubit_id.name = f"__PYQASM_QUBITS__[{_start}:{_end+1}]"
+                        _qubit_id.name = f"{INTERNAL_QUBIT_REGISTER}[{_start}:{_end+1}]"
                 else:
                     _qubit_str = cast(str, _qubit_id.name)  # type: ignore[union-attr]
                     _qubit_ind = cast(list, _qubit_id.indices)  # type: ignore[union-attr]
@@ -513,7 +513,7 @@ class Qasm3Transformer:
                                 global_qreg_size_map,
                             )
                             ind.value = pyqasm_ind
-                    _qubit_str.name = "__PYQASM_QUBITS__"
+                    _qubit_str.name = INTERNAL_QUBIT_REGISTER
 
         if isinstance(unrolled_stmts, list):  # pylint: disable=too-many-nested-blocks
             if isinstance(unrolled_stmts[0], QuantumMeasurementStatement):
@@ -531,7 +531,7 @@ class Qasm3Transformer:
                                 global_qreg_size_map,
                             )
                             ind.value = _pyqasm_val
-                    _qubit_id.name = "__PYQASM_QUBITS__"
+                    _qubit_id.name = INTERNAL_QUBIT_REGISTER
 
             if isinstance(unrolled_stmts[0], QuantumReset):
                 for stmt in unrolled_stmts:
@@ -543,7 +543,7 @@ class Qasm3Transformer:
                                 _qubit_str, ind.value, qubit_register_offsets, global_qreg_size_map
                             )
                             ind.value = _pyqasm_val
-                    stmt.qubits.name.name = "__PYQASM_QUBITS__"  # type: ignore[union-attr]
+                    stmt.qubits.name.name = INTERNAL_QUBIT_REGISTER  # type: ignore[union-attr]
 
             if isinstance(unrolled_stmts[0], QuantumBarrier):
                 for stmt in unrolled_stmts:
@@ -561,7 +561,7 @@ class Qasm3Transformer:
                                 global_qreg_size_map,
                             )
                             ind_val.value = pyqasm_val
-                    _qubit_ind_id.name.name = "__PYQASM_QUBITS__"
+                    _qubit_ind_id.name.name = INTERNAL_QUBIT_REGISTER
 
             if isinstance(unrolled_stmts[0], QuantumGate):
                 for stmt in unrolled_stmts:
@@ -575,7 +575,7 @@ class Qasm3Transformer:
                         )
                         stmt_qubits.append(
                             IndexedIdentifier(
-                                Identifier("__PYQASM_QUBITS__"), [[IntegerLiteral(pyqasm_val)]]
+                                Identifier(INTERNAL_QUBIT_REGISTER), [[IntegerLiteral(pyqasm_val)]]
                             )
                         )
                     stmt.qubits = stmt_qubits
