@@ -95,7 +95,7 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -136,7 +136,7 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -164,7 +164,7 @@ jobs:
             python: 311
             platform_id: macosx_arm64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
