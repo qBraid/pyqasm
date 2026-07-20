@@ -263,18 +263,28 @@ class Qasm3Analyzer:
         """
         qubit_set = set()
         for qubit in qubit_list:
-            if isinstance(qubit, Identifier):
-                # Physical qubit: name is "$n", identity is the name itself.
-                qubit_name = qubit.name
-                qubit_id = int(qubit.name[1:])
-            else:
-                assert isinstance(qubit, IndexedIdentifier)
-                qubit_name = qubit.name.name
-                qubit_id = qubit.indices[0][0].value  # type: ignore
-            if (qubit_name, qubit_id) in qubit_set:
-                return (qubit_name, qubit_id)
-            qubit_set.add((qubit_name, qubit_id))
+            qubit_key = Qasm3Analyzer.extract_qubit_key(qubit)
+            if qubit_key in qubit_set:
+                return qubit_key
+            qubit_set.add(qubit_key)
         return None
+
+    @staticmethod
+    def extract_qubit_key(qubit: IndexedIdentifier | Identifier) -> tuple[str, int]:
+        """
+        Extract the (register name, index) identity key for a qubit operand.
+
+        Args:
+            qubit (IndexedIdentifier | Identifier): The qubit operand.
+
+        Returns:
+            tuple(string, int): The qubit register name and index.
+        """
+        if isinstance(qubit, Identifier):
+            # Physical qubit: name is "$n", identity is the name itself.
+            return (qubit.name, int(qubit.name[1:]))
+        assert isinstance(qubit, IndexedIdentifier)
+        return (qubit.name.name, qubit.indices[0][0].value)  # type: ignore
 
     @staticmethod
     def verify_gate_qubits(gate: QuantumGate, span: Optional[Span] = None):
