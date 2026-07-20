@@ -2913,9 +2913,9 @@ class QasmVisitor:
                     for reg_name, reg_size in self._global_qreg_size_map.items()
                     for reg_id in range(reg_size)
                 ]
-            frame = self._box_delay_frames[-1]
+            box_delay_frame = self._box_delay_frames[-1]
             for key in delay_keys:
-                frame[key] = frame.get(key, 0) + duration_val
+                box_delay_frame[key] = box_delay_frame.get(key, 0) + duration_val
 
         if self._check_only:
             return []
