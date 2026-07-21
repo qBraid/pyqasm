@@ -251,7 +251,9 @@ class Qasm3Analyzer:
         raise_qasm3_error("Could not determine the OpenQASM version.", err_type=QasmParsingError)
 
     @staticmethod
-    def extract_duplicate_qubit(qubit_list: list[IndexedIdentifier | Identifier]):
+    def extract_duplicate_qubit(
+        qubit_list: list[IndexedIdentifier | Identifier],
+    ) -> tuple[str, int] | None:
         """
         Extracts the duplicate qubit from a list of qubits.
 
@@ -261,7 +263,7 @@ class Qasm3Analyzer:
         Returns:
             tuple(string, int): The duplicate qubit name and id.
         """
-        qubit_set = set()
+        qubit_set: set[tuple[str, int]] = set()
         for qubit in qubit_list:
             qubit_key = Qasm3Analyzer.extract_qubit_key(qubit)
             if qubit_key in qubit_set:
