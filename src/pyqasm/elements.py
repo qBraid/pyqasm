@@ -23,6 +23,29 @@ from typing import Any, Optional
 
 import numpy as np
 
+INTERNAL_QUBIT_REGISTER = "__PYQASM_QUBITS__"
+"""Reserved register that qubits are consolidated onto, and that physical qubits ("$n")
+are rewritten to for OpenPulse programs."""
+
+
+def is_internal_qubit_register(qubit_name: str) -> bool:
+    """Check whether an identifier refers to the internal qubit register.
+
+    The register appears either as the bare name, or followed by an index or a slice
+    ("__PYQASM_QUBITS__[2]", "__PYQASM_QUBITS__[0:2]"). Matching on the prefix alone
+    would also match a user register that merely starts with the reserved name, e.g.
+    "__PYQASM_QUBITS__foo".
+
+    Args:
+        qubit_name (str): The identifier name to check.
+
+    Returns:
+        bool: True if the identifier refers to the internal qubit register.
+    """
+    return qubit_name == INTERNAL_QUBIT_REGISTER or qubit_name.startswith(
+        f"{INTERNAL_QUBIT_REGISTER}["
+    )
+
 
 class InversionOp(Enum):
     """

@@ -22,6 +22,7 @@ from typing import Any, Sequence
 
 import openqasm3.ast as qasm3_ast
 
+from pyqasm.elements import INTERNAL_QUBIT_REGISTER
 from pyqasm.exceptions import raise_qasm3_error
 
 
@@ -91,7 +92,7 @@ class PulseUtils:
                     )
                 _qubit_set.add(int(qubit_id[1:]))
                 operation.qubits[i] = qasm3_ast.IndexedIdentifier(
-                    name=qasm3_ast.Identifier("__PYQASM_QUBITS__"),
+                    name=qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER),
                     indices=[[qasm3_ast.IntegerLiteral(int(qubit_id[1:]))]],
                 )
                 stmts = [operation]
@@ -101,7 +102,7 @@ class PulseUtils:
                         name=qasm3_ast.Identifier(gate_op),
                         qubits=[
                             qasm3_ast.IndexedIdentifier(
-                                name=qasm3_ast.Identifier("__PYQASM_QUBITS__"),
+                                name=qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER),
                                 indices=[[qasm3_ast.IntegerLiteral(j)]],
                             )
                         ],

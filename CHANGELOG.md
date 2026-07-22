@@ -15,16 +15,20 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added a statevector simulator as a new `pyqasm.simulator` subpackage, backed by a Cython/OpenMP-capable kernel (`pyqasm.accelerate.sv_sim`). `Simulator.run()` accepts an OpenQASM 3 string or an unrolled `QasmModule` and returns a `SimulatorResult` with the final statevector, probabilities, and sampled measurement counts. Ships with cross-validation tests against qiskit (`test-sim` extra), an optional `simulation` extra (numba-accelerated preprocessing helpers), and a `benchmarks/` suite. ([#316](https://github.com/qBraid/pyqasm/pull/316))
 - Added support for the `c3x` (3-controlled X) and `rc3x`/`rcccx` (relative-phase 3-controlled X) gates, decomposed into basis gates following qiskit's `C3XGate`/`RC3XGate` definitions. Also extended the `ctrl @` modifier chain so that 3- and 4-control stacks on `x` (e.g. `ctrl @ ctrl @ ctrl @ x`, `ctrl(4) @ x`) resolve to `c3x`/`c4x`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 
 ### Improved / Modified
+- Consolidated the hardcoded `"__PYQASM_QUBITS__"` string literals scattered across `visitor.py`, `transformer.py` and `pulse/utils.py` into a single `INTERNAL_QUBIT_REGISTER` constant in `elements.py`, alongside an `is_internal_qubit_register()` helper that is now the one place the internal register is recognised. ([#325](https://github.com/qBraid/pyqasm/pull/325))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Fixed the statevector simulator's `crz` fast path, which implemented a controlled-phase gate (`diag(1, 1, 1, e^{i*theta/2})`) instead of a true controlled-Rz (`diag(1, 1, e^{-i*theta/2}, e^{i*theta/2})`); it dropped the phase on the `|control=1, target=0>` amplitude. It now applies the full `Rz` to the target via the controlled-gate kernel.
+- Fixed `reset` on a physical qubit rewriting the operand to the internal pulse register, e.g. `reset $2;` unrolled to `reset __PYQASM_QUBITS__[2];`. That names a register the program never declares, so the unrolled output did not round-trip through `dumps()`/`loads()`, and the qubit was never registered (a program whose only operation was `reset $3;` reported `num_qubits == 0`). Physical qubits are now kept as-is in plain QASM programs, matching how gate and measurement operands already treat them; the rename is still applied for OpenPulse programs, where the pulse visitor expects it. ([#325](https://github.com/qBraid/pyqasm/pull/325))
+- Fixed `measure` and `reset` on a user register whose name merely starts with the reserved internal register name (e.g. `__PYQASM_QUBITS__foo`) being mistaken for the internal register itself. Such statements were short-circuited out of unrolling and emitted verbatim, so `c = measure __PYQASM_QUBITS__foo;` was never expanded per qubit and `reset __PYQASM_QUBITS__foo;` silently reset nothing. The register is now matched on its exact name, or on the name followed by an index or slice. ([#325](https://github.com/qBraid/pyqasm/pull/325))
+- Fixed the statevector simulator's `crz` fast path, which implemented a controlled-phase gate (`diag(1, 1, 1, e^{i*theta/2})`) instead of a true controlled-Rz (`diag(1, 1, e^{-i*theta/2}, e^{i*theta/2})`); it dropped the phase on the `|control=1, target=0>` amplitude. It now applies the full `Rz` to the target via the controlled-gate kernel. ([#316](https://github.com/qBraid/pyqasm/pull/316))
 - Fixed the `c4x` (4-controlled X) gate, which previously raised `TypeError: c4x_gate() takes 4 positional arguments but 5 were given` because it was declared with four parameters for a five-qubit gate. It is now implemented via qiskit's structured `rc3x`/`c3sx`/`cphaseshift` decomposition. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 - Added `inv @` (inverse modifier) support for the multi-controlled-X family: `inv @ c3x` / `inv @ c4x` resolve to the (self-inverse) gate, and `inv @ rc3x` / `inv @ rcccx` resolve to the correct relative-phase dagger. These previously raised `Unsupported / undeclared QASM operation`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 - Fixed the `ctrl @` modifier not resolving gate aliases: `ctrl @ toffoli` / `ctrl @ ccnot` (aliases of `ccx`) and `ctrl @ cnot` / `ctrl @ CX` (aliases of `cx`) now escalate controls identically to their canonical gate instead of raising `Unsupported controlled QASM operation`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
@@ -32,6 +36,7 @@ Types of changes:
 - Fixed the backend-dependent `dt` duration unit being incorrectly relabeled as `ns` when unrolling `delay` and `box` statements without a `device_cycle_time`. Since `dt` cannot be converted to SI units without a sample rate, it is now preserved as `dt`. ([#317](https://github.com/qBraid/pyqasm/pull/317))
 
 ### Dependencies
+- Migrated the Linux wheel *build container* from `manylinux2014` to `manylinux_2_28`. NumPy stopped publishing `manylinux2014` (glibc 2.17) wheels for CPython 3.12+, so `pip` fell back to building NumPy from source inside the build container, whose GCC is older than NumPy requires — failing every Linux wheel job for cp312/cp313/cp314. The published wheels are unaffected: auditwheel tags them from the extension's actual symbol requirements, so they remain `manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64` and still install on glibc 2.17 systems.
 - Bumped `actions/configure-pages` from 5 to 6. ([#307](https://github.com/qBraid/pyqasm/pull/307))
 - Bumped `codecov/codecov-action` from 5.5.2 to 6.0.0. ([#308](https://github.com/qBraid/pyqasm/pull/308))
 - Bumped `actions/deploy-pages` from 4 to 5. ([#309](https://github.com/qBraid/pyqasm/pull/309))
