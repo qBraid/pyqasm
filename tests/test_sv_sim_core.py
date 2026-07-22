@@ -394,7 +394,7 @@ def test_multi_register_bell_state():
 def test_multi_register_distinct_qubits():
     """x a[0]; h b[0] must act on two different qubits, not fuse onto one."""
     result = Simulator(seed=0).run(
-        'OPENQASM 3;\ninclude "stdgates.inc";\n' "qubit[1] a;\nqubit[1] b;\nx a[0];\nh b[0];\n",
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] a;\nqubit[1] b;\nx a[0];\nh b[0];\n',
         shots=0,
     )
     assert np.allclose(result.probabilities, [0, 0.5, 0, 0.5], atol=1e-12)
@@ -632,7 +632,8 @@ def test_shots_validated_before_simulation():
 
 
 def test_kernel_validation_rejects_malformed_calls():
-    from pyqasm.accelerate import sv_sim  # pylint: disable=import-outside-toplevel
+    # pylint: disable-next=import-outside-toplevel,no-name-in-module
+    from pyqasm.accelerate import sv_sim
 
     identity = np.array([1, 0, 0, 1], dtype=np.complex128)
     sv = np.zeros(8, dtype=np.complex128)
@@ -651,7 +652,8 @@ def test_kernel_validation_rejects_malformed_calls():
 
 
 def test_apply_circuit_validation():
-    from pyqasm.accelerate import sv_sim  # pylint: disable=import-outside-toplevel
+    # pylint: disable-next=import-outside-toplevel,no-name-in-module
+    from pyqasm.accelerate import sv_sim
 
     sv = np.zeros(8, dtype=np.complex128)
     sv[0] = 1
