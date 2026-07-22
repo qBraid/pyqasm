@@ -237,15 +237,33 @@ def test_diagonal_gates_commute_through_cz():
 # --------------------------------------------------------------------------
 
 
-def test_unsupported_single_qubit_gate_raises():
+def test_module_not_unrolled_raises():
+    """A QasmModule that was never unrolled must raise instead of silently
+    simulating the raw AST (which would drop control flow)."""
     module = loads('OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] q;\nsx q[0];\n')
-    with pytest.raises(ValueError, match="not supported by simulator"):
+    with pytest.raises(ValueError, match="has not been unrolled"):
+        Simulator().run(module, shots=0)
+
+
+def test_unsupported_single_qubit_gate_raises():
+    """The unsupported-gate branch is defense in depth: every stdgates gate
+    unrolls to the supported basis, so force an unknown name into the AST."""
+    module = loads('OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] q;\nh q[0];\n')
+    module.unroll()
+    for statement in module._unrolled_ast.statements:
+        if type(statement).__name__ == "QuantumGate":
+            statement.name.name = "bogus"
+    with pytest.raises(ValueError, match="not supported by the statevector simulator"):
         Simulator().run(module, shots=0)
 
 
 def test_unsupported_two_qubit_gate_raises():
-    module = loads('OPENQASM 3;\ninclude "stdgates.inc";\nqubit[2] q;\ncp(0.5) q[0], q[1];\n')
-    with pytest.raises(ValueError, match="not supported by simulator"):
+    module = loads('OPENQASM 3;\ninclude "stdgates.inc";\nqubit[2] q;\ncx q[0], q[1];\n')
+    module.unroll()
+    for statement in module._unrolled_ast.statements:
+        if type(statement).__name__ == "QuantumGate":
+            statement.name.name = "bogus2q"
+    with pytest.raises(ValueError, match="not supported by the statevector simulator"):
         Simulator().run(module, shots=0)
 
 
@@ -350,3 +368,334 @@ def loads_unrolled(qasm):
     module = loads(qasm)
     module.unroll()
     return module
+
+
+# --------------------------------------------------------------------------
+# Multi-register programs: operands must resolve through (register, index),
+# not the register-local index alone. Regression for the silent wrong-answer
+# bug where `a[0]` and `b[0]` both mapped to global qubit 0.
+# --------------------------------------------------------------------------
+
+
+def test_multi_register_bell_state():
+    """Entangling across two registers must correlate the right qubits."""
+    module = loads_unrolled(
+        'OPENQASM 3;\ninclude "stdgates.inc";\n'
+        "qubit[2] a;\nqubit[2] b;\nh a[0];\ncx a[0], b[0];\n"
+    )
+    result = Simulator(seed=0).run(module, shots=0)
+    # a[0] is global qubit 0, b[0] is global qubit 2 -> |0000> + |0101>
+    expected = np.zeros(16)
+    expected[0b0000] = 0.5
+    expected[0b0101] = 0.5
+    assert np.allclose(result.probabilities, expected, atol=1e-12)
+
+
+def test_multi_register_distinct_qubits():
+    """x a[0]; h b[0] must act on two different qubits, not fuse onto one."""
+    result = Simulator(seed=0).run(
+        'OPENQASM 3;\ninclude "stdgates.inc";\n' "qubit[1] a;\nqubit[1] b;\nx a[0];\nh b[0];\n",
+        shots=0,
+    )
+    assert np.allclose(result.probabilities, [0, 0.5, 0, 0.5], atol=1e-12)
+
+
+def test_register_index_out_of_range_raises():
+    module = loads_unrolled('OPENQASM 3;\ninclude "stdgates.inc";\nqubit[2] q;\nh q[0];\n')
+    for statement in module._unrolled_ast.statements:
+        if type(statement).__name__ == "QuantumGate":
+            statement.qubits[0].indices[0][0].value = 5
+    with pytest.raises(ValueError, match="out of range"):
+        Simulator().run(module, shots=0)
+
+
+# --------------------------------------------------------------------------
+# ccx / toffoli: previously silently dropped (no else branch for 3-qubit
+# gates), corrupting every circuit containing one.
+# --------------------------------------------------------------------------
+
+
+def _reference_ccx(num_qubits, controls, target):
+    dim = 2**num_qubits
+    mat = np.eye(dim, dtype=complex)
+    i0 = (1 << controls[0]) | (1 << controls[1])
+    i1 = i0 | (1 << target)
+    mat[i0, i0] = 0
+    mat[i1, i1] = 0
+    mat[i0, i1] = 1
+    mat[i1, i0] = 1
+    return mat
+
+
+def test_ccx_truth_table():
+    """ccx flips the target iff both controls are set."""
+    for prep, expected_index in [
+        ("", 0b000),
+        ("x q[0];", 0b001),
+        ("x q[1];", 0b010),
+        ("x q[0];\nx q[1];", 0b111),  # both controls -> target flipped
+        ("x q[0];\nx q[1];\nx q[2];", 0b011),  # target un-flipped
+    ]:
+        result = Simulator(seed=0).run(
+            'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[3] q;\n'
+            f"{prep}\nccx q[0], q[1], q[2];\n",
+            shots=0,
+        )
+        expected = np.zeros(8)
+        expected[expected_index] = 1
+        assert np.allclose(result.probabilities, expected, atol=1e-12), prep
+
+
+def test_ccx_statevector_exact():
+    """ccx on a non-trivial superposition matches the exact unitary, phases included."""
+    sv = run_sv(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[3] q;\n'
+        "ry(0.7) q[0];\nry(1.1) q[1];\nry(0.4) q[2];\nccx q[0], q[1], q[2];\n"
+    )
+
+    def _ry(theta):
+        c, s = np.cos(theta / 2), np.sin(theta / 2)
+        return np.array([[c, -s], [s, c]], dtype=complex)
+
+    prep = np.zeros(8, dtype=complex)
+    prep[0] = 1.0
+    for qubit, theta in [(0, 0.7), (1, 1.1), (2, 0.4)]:
+        prep = _embed(_ry(theta), qubit, 3) @ prep
+    expected = _reference_ccx(3, (0, 1), 2) @ prep
+    assert np.allclose(sv, expected, atol=1e-12)
+
+
+def test_ccx_nonadjacent_qubits():
+    """ccx with non-adjacent and permuted operand order."""
+    sv = run_sv(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[4] q;\n'
+        "x q[3];\nx q[1];\nccx q[3], q[1], q[0];\n"
+    )
+    expected = np.zeros(16, dtype=complex)
+    expected[0b1011] = 1  # q3, q1 set -> q0 flipped
+    assert np.allclose(sv, expected, atol=1e-12)
+
+
+def test_ccx_identical_qubits_raises():
+    module = loads_unrolled(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[3] q;\nccx q[0], q[1], q[2];\n'
+    )
+    for statement in module._unrolled_ast.statements:
+        if type(statement).__name__ == "QuantumGate":
+            statement.qubits[1].indices[0][0].value = 0  # duplicate control
+    with pytest.raises(ValueError, match="distinct"):
+        Simulator().run(module, shots=0)
+
+
+# --------------------------------------------------------------------------
+# Statements with real semantics must raise instead of being silently
+# dropped; harmless statements must still be accepted.
+# --------------------------------------------------------------------------
+
+
+def test_reset_raises():
+    with pytest.raises(NotImplementedError, match="reset"):
+        Simulator().run(
+            'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] q;\nx q[0];\nreset q[0];\n',
+            shots=0,
+        )
+
+
+def test_mid_circuit_measurement_raises():
+    with pytest.raises(NotImplementedError, match="[Mm]id-circuit"):
+        Simulator().run(
+            'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[2] q;\nbit[2] c;\n'
+            "h q[0];\nc[0] = measure q[0];\nx q[1];\n",
+            shots=0,
+        )
+
+
+def test_branching_raises():
+    module = loads(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[2] q;\nbit[2] c;\n'
+        "h q[0];\nc[0] = measure q[0];\nif (c[0] == 1) { x q[1]; }\n"
+    )
+    module.unroll()
+    with pytest.raises(NotImplementedError):
+        Simulator().run(module, shots=0)
+
+
+def test_terminal_measurement_accepted():
+    """Terminal measurement is honored by the sampling step and must not raise."""
+    result = Simulator(seed=0).run(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] q;\nbit[1] c;\n'
+        "h q[0];\nc[0] = measure q[0];\n",
+        shots=100,
+    )
+    assert sum(result.measurement_counts.values()) == 100
+
+
+def test_barrier_is_noop():
+    result = Simulator(seed=0).run(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[2] q;\nh q[0];\nbarrier q;\ncx q[0], q[1];\n',
+        shots=0,
+    )
+    assert np.allclose(result.probabilities, [0.5, 0, 0, 0.5], atol=1e-12)
+
+
+# --------------------------------------------------------------------------
+# p / sx support: main's c3x/c4x decompositions emit literal `p` gates, which
+# previously failed with a misleading "call unroll() first" error.
+# --------------------------------------------------------------------------
+
+
+def test_p_gate_exact():
+    """h; p(theta); h on |0>: amplitudes ((1+e^it)/2, (1-e^it)/2).
+
+    ``external_gates=["p"]`` keeps the literal `p` in the AST so this exercises
+    the simulator's own diagonal fast path (the unroller's rz-chain
+    decomposition would only agree up to global phase).
+    """
+    theta = 0.37
+    sv = run_sv(
+        f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] q;\nh q[0];\np({theta}) q[0];\nh q[0];\n',
+        external_gates=["p"],
+    )
+    expected = np.array([(1 + np.exp(1j * theta)) / 2, (1 - np.exp(1j * theta)) / 2])
+    assert np.allclose(sv, expected, atol=1e-12)
+    # And the decomposed path agrees up to global phase.
+    decomposed = run_sv(
+        f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] q;\nh q[0];\np({theta}) q[0];\nh q[0];\n'
+    )
+    assert_sv_close(decomposed, expected)
+
+
+def test_sx_squared_is_x():
+    sv = run_sv('OPENQASM 3;\ninclude "stdgates.inc";\nqubit[1] q;\nsx q[0];\nsx q[0];\n')
+    assert np.allclose(np.abs(sv) ** 2, [0, 1], atol=1e-12)
+
+
+def test_c3x_runs():
+    """c3x decomposes through `p` gates on main; the simulator must accept it."""
+    result = Simulator(seed=0).run(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[4] q;\n'
+        "x q[0];\nx q[1];\nx q[2];\nc3x q[0], q[1], q[2], q[3];\n",
+        shots=0,
+    )
+    expected = np.zeros(16)
+    expected[0b1111] = 1
+    assert np.allclose(result.probabilities, expected, atol=1e-9)
+
+
+def test_c4x_runs():
+    result = Simulator(seed=0).run(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[5] q;\n'
+        "x q[0];\nx q[1];\nx q[2];\nx q[3];\nc4x q[0], q[1], q[2], q[3], q[4];\n",
+        shots=0,
+    )
+    expected = np.zeros(32)
+    expected[0b11111] = 1
+    assert np.allclose(result.probabilities, expected, atol=1e-9)
+
+
+# --------------------------------------------------------------------------
+# Result conventions and resource guards.
+# --------------------------------------------------------------------------
+
+
+def test_counts_keys_match_probabilities_indexing():
+    """Counts keys are the binary rendering of the probabilities index (qubit 0
+    rightmost, matching qiskit), so probabilities[int(key, 2)] is the outcome's
+    probability. Regression for the reversed-keys bug."""
+    result = Simulator(seed=0).run(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[3] q;\nid q[0];\nid q[1];\nx q[2];\n',
+        shots=10,
+    )
+    assert dict(result.measurement_counts) == {"100": 10}
+    assert result.probabilities[int("100", 2)] == pytest.approx(1.0)
+
+
+def test_max_qubits_guard(monkeypatch):
+    """Over-ceiling programs raise instead of dying on the 2**n allocation."""
+    monkeypatch.setenv("PYQASM_SIM_MAX_QUBITS", "8")
+    qasm = 'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[9] q;\n' + "".join(
+        f"h q[{i}];\n" for i in range(9)
+    )
+    with pytest.raises(ValueError, match="ceiling"):
+        Simulator().run(qasm, shots=0)
+
+
+def test_shots_validated_before_simulation():
+    with pytest.raises(ValueError, match="Shots must be"):
+        Simulator().run("OPENQASM 3;\nqubit[1] q;\n", shots=-1)
+
+
+# --------------------------------------------------------------------------
+# Kernel argument validation: malformed calls raise ValueError instead of
+# corrupting memory / crashing the interpreter.
+# --------------------------------------------------------------------------
+
+
+def test_kernel_validation_rejects_malformed_calls():
+    from pyqasm.accelerate import sv_sim  # pylint: disable=import-outside-toplevel
+
+    identity = np.array([1, 0, 0, 1], dtype=np.complex128)
+    sv = np.zeros(8, dtype=np.complex128)
+    sv[0] = 1
+
+    with pytest.raises(ValueError, match="out of range"):
+        sv_sim.apply_single_qubit_gate(sv, 3, 40, identity)
+    with pytest.raises(ValueError, match="does not match"):
+        sv_sim.apply_single_qubit_gate(sv, 30, 0, identity)
+    with pytest.raises(ValueError, match="4 elements"):
+        sv_sim.apply_single_qubit_gate(sv, 3, 0, np.array([1], dtype=np.complex128))
+    with pytest.raises(ValueError, match="both"):
+        sv_sim.apply_controlled_gate(sv, 3, 1, 1, identity)
+    with pytest.raises(ValueError, match="does not match"):
+        sv_sim.apply_single_qubit_gate(np.zeros(0, dtype=np.complex128), 1, 0, identity)
+
+
+def test_apply_circuit_validation():
+    from pyqasm.accelerate import sv_sim  # pylint: disable=import-outside-toplevel
+
+    sv = np.zeros(8, dtype=np.complex128)
+    sv[0] = 1
+    zeros_i32 = np.zeros(1, dtype=np.int32)
+    gate_params = np.zeros(4, dtype=np.complex128)
+    diag_phases = np.zeros(2, dtype=np.complex128)
+    tq_gates = np.zeros(16, dtype=np.complex128)
+
+    with pytest.raises(ValueError, match="shorter than"):
+        sv_sim.apply_circuit(
+            sv,
+            3,
+            zeros_i32,
+            zeros_i32,
+            zeros_i32,
+            gate_params,
+            diag_phases,
+            zeros_i32,
+            tq_gates,
+            10_000_000,
+        )
+    with pytest.raises(ValueError, match="out of range"):
+        sv_sim.apply_circuit(
+            sv,
+            3,
+            np.array([0], dtype=np.int32),
+            np.array([40], dtype=np.int32),
+            zeros_i32,
+            gate_params,
+            diag_phases,
+            zeros_i32,
+            tq_gates,
+            1,
+        )
+    with pytest.raises(ValueError, match="offset"):
+        sv_sim.apply_circuit(
+            sv,
+            3,
+            np.array([4], dtype=np.int32),
+            np.array([1], dtype=np.int32),
+            zeros_i32,
+            gate_params,
+            diag_phases,
+            np.array([1 << 28], dtype=np.int32),
+            tq_gates,
+            1,
+        )

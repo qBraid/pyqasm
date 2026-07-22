@@ -33,6 +33,7 @@ from qiskit import transpile  # noqa: E402
 from qiskit.qasm3 import loads  # noqa: E402
 from qiskit_aer import AerSimulator  # noqa: E402
 
+from pyqasm import loads as pyqasm_loads  # noqa: E402
 from pyqasm.simulator.statevector import Simulator  # noqa: E402
 
 # pylint: enable=wrong-import-position
@@ -358,3 +359,73 @@ def test_simulator_large_circuit(aer_simulator, pyqasm_simulator):
         f"PyQASM: {result.final_statevector}\n"
         f"Expected: {sv_expected}"
     )
+
+
+def test_simulator_ccx_matches_qiskit(aer_simulator, pyqasm_simulator):
+    """ccx (previously silently dropped) must match qiskit exactly."""
+    qasm = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[3] q;
+    ry(0.7) q[0];
+    ry(1.1) q[1];
+    ry(0.4) q[2];
+    ccx q[0], q[1], q[2];
+    ccx q[2], q[0], q[1];
+    """
+    circuit = loads(qasm)
+    circuit.save_statevector()
+    compiled = transpile(circuit, aer_simulator, optimization_level=0)
+    sv_expected = np.asarray(aer_simulator.run(compiled).result().get_statevector(compiled))
+
+    result = pyqasm_simulator.run(qasm, shots=0)
+    assert np.allclose(result.final_statevector, sv_expected)
+
+
+def test_simulator_multi_register_matches_qiskit(aer_simulator, pyqasm_simulator):
+    """Multi-register programs (previously mapped to the wrong qubits) must
+    match qiskit's declaration-order qubit layout."""
+    qasm = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[2] a;
+    qubit[2] b;
+    h a[0];
+    cx a[0], b[1];
+    x b[0];
+    cz a[1], b[0];
+    """
+    circuit = loads(qasm)
+    circuit.save_statevector()
+    compiled = transpile(circuit, aer_simulator, optimization_level=0)
+    sv_expected = np.asarray(aer_simulator.run(compiled).result().get_statevector(compiled))
+
+    module = pyqasm_loads(qasm)
+    module.unroll()  # no remove_idle_qubits: keep the full 4-qubit layout
+    result = pyqasm_simulator.run(module, shots=0)
+    assert np.allclose(result.final_statevector, sv_expected)
+
+
+def test_simulator_counts_convention_matches_qiskit(aer_simulator, pyqasm_simulator):
+    """Counts keys use qiskit's convention: qubit 0 is the rightmost character."""
+    qasm_measured = """
+    OPENQASM 3;
+    include "stdgates.inc";
+    qubit[3] q;
+    bit[3] c;
+    x q[2];
+    c = measure q;
+    """
+    circuit = loads(qasm_measured)
+    compiled = transpile(circuit, aer_simulator, optimization_level=0)
+    qiskit_counts = aer_simulator.run(compiled, shots=10).result().get_counts()
+
+    module = pyqasm_loads(
+        'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[3] q;\nid q[0];\nid q[1];\nx q[2];\n'
+    )
+    module.unroll()
+    result = pyqasm_simulator.run(module, shots=10)
+
+    assert list(qiskit_counts) == ["100"]
+    assert dict(result.measurement_counts) == {"100": 10}
+    assert result.probabilities[int("100", 2)] == pytest.approx(1.0)
