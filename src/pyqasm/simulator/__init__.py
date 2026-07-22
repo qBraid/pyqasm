@@ -1,6 +1,4 @@
-#!/bin/bash
-
-# Copyright 2025 qBraid
+# Copyright 2026 qBraid
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,19 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e 
+"""
+Module containing the PyQASM statevector simulator.
 
-echo "Running build_wheels.sh"
+.. currentmodule:: pyqasm.simulator
 
-# Pin the major version: cibuildwheel sits in the release critical path and
-# its defaults (images, repair commands) change across majors.
-python -m pip install "cibuildwheel>=3.0,<4"
-python -m cibuildwheel --output-dir dist
-build_exit_code=$?
+Classes
+---------
 
-if [ $build_exit_code -ne 0 ]; then
-    echo "Failed to build wheel"
-    exit 1
-fi
+.. autosummary::
+   :toctree: ../stubs/
 
-echo "Finished running build_wheels.sh"
+   Simulator
+   SimulatorResult
+
+"""
+
+from .statevector import Simulator, SimulatorResult
+
+__all__ = ["Simulator", "SimulatorResult"]
