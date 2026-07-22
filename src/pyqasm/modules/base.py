@@ -377,14 +377,21 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             del self._qubit_depths[(reg_name, idx)]
 
         # update the operations that use the qubits
+        # gate decompositions can reuse the same operand node across multiple statements,
+        # so track visited nodes to avoid remapping a shared node more than once
+        visited_node_ids = set()
         for operation in self._unrolled_ast.statements:
             if isinstance(operation, QUANTUM_STATEMENTS):
                 bit_list = Qasm3Analyzer.get_op_bit_list(operation)
                 for bit in bit_list:
                     assert isinstance(bit, qasm3_ast.IndexedIdentifier)
                     if bit.name.name == reg_name:
-                        old_idx = bit.indices[0][0].value  # type: ignore[union-attr,index]
-                        bit.indices[0][0].value = idx_map[old_idx]  # type: ignore[union-attr,index]
+                        index_node = bit.indices[0][0]  # type: ignore[index]
+                        if id(index_node) in visited_node_ids:
+                            continue
+                        visited_node_ids.add(id(index_node))
+                        old_idx = index_node.value  # type: ignore[union-attr]
+                        index_node.value = idx_map[old_idx]  # type: ignore[union-attr]
 
     def _get_idle_qubit_indices(self) -> dict[str, list[int]]:
         """Get the indices of the idle qubits in the module
