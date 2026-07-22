@@ -317,11 +317,18 @@ def test_simulator_sv_results(qasm, description, aer_simulator, pyqasm_simulator
     result = pyqasm_simulator.run(qasm, shots=1000)
 
     sv_actual = result.final_statevector
-    if "global phase" in description:
-        # Compare up to global phase: find first nonzero element and normalize
-        idx = np.argmax(np.abs(sv_expected) > 1e-10)
-        phase = sv_actual[idx] / sv_expected[idx]
-        sv_actual = sv_actual / phase
+    # Compare up to global phase unconditionally: equivalent states may differ
+    # by an overall e^{i*phi}, which is physically irrelevant. The unit-modulus
+    # assertion still catches any non-phase deviation in magnitude.
+    idx = int(np.argmax(np.abs(sv_expected)))
+    phase = sv_actual[idx] / sv_expected[idx]
+    assert np.isclose(abs(phase), 1.0), (
+        f"Test failed for: {description}\n"
+        f"Statevectors differ by more than a global phase\n"
+        f"PyQASM simulator statevector: {result.final_statevector}\n"
+        f"Expected statevector: {sv_expected}"
+    )
+    sv_actual = sv_actual / phase
 
     assert np.allclose(sv_actual, sv_expected), (
         f"Test failed for: {description}\n"

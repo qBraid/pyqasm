@@ -150,6 +150,15 @@ def _median_time(fn, n_repeats=None):
     return float(np.median(times)), result
 
 
+def _align_global_phase(reference, candidate):
+    """Phase-align candidate statevector to reference (global phase is unphysical)."""
+    idx = int(np.argmax(np.abs(reference)))
+    if np.abs(reference[idx]) < 1e-12 or np.abs(candidate[idx]) < 1e-12:
+        return candidate
+    phase = candidate[idx] / reference[idx]
+    return candidate / (phase / np.abs(phase))
+
+
 # -- PyQASM ------------------------------------------------------------------
 
 
@@ -386,9 +395,11 @@ def run_benchmarks(circuit_name, configs, generator_fn, simulators):
             statevectors[name] = _reverse_endian(sv, nq) if big_endian else sv
 
         # --- Correctness: compare everything against PyQASM (little-endian) ---
+        # Compare up to global phase: simulators may legitimately differ by an
+        # overall e^{i*phi}, which is physically irrelevant.
         sv_pyqasm = statevectors["PyQASM"]
         checks = {
-            name: np.allclose(sv_pyqasm, sv, atol=1e-10)
+            name: np.allclose(sv_pyqasm, _align_global_phase(sv_pyqasm, sv), atol=1e-10)
             for name, sv in statevectors.items()
             if name != "PyQASM"
         }
