@@ -1,3 +1,17 @@
+# Copyright 2025 qBraid
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Build configuration for Cython extensions with optional OpenMP support.
 
 Optimization flags are chosen for portability of the distributed wheels:
@@ -11,15 +25,31 @@ Optimization flags are chosen for portability of the distributed wheels:
 
 Flags are also selected per-compiler: ``-O3``/``-fopenmp`` are GCC/Clang
 spellings and are silently ignored by MSVC, which needs ``/O2``/``/openmp``.
+
+OpenMP policy per platform:
+
+  * Linux: enabled when the probe succeeds (the norm on manylinux).
+  * macOS: disabled by default. There is no portable system libomp, and
+    bundling Homebrew's breaks ``delocate``. Set ``PYQASM_MACOS_OPENMP=1`` for
+    a local, non-distributed build.
+  * Windows: disabled by default. MSVC's ``/openmp`` makes the extension
+    depend on ``vcomp140.dll``, which is not part of a stock Windows install;
+    ``delvewheel`` then vendors whichever copy it finds first on PATH (on
+    GitHub runners that has been ImageMagick's), making releases
+    nondeterministic. Set ``PYQASM_WINDOWS_OPENMP=1`` to opt in locally.
+
+OpenMP only affects compiler flags: the generated C guards all OpenMP pragmas
+behind ``#ifdef _OPENMP``, so the same sources build serial or parallel and no
+flavor is baked into sdists.
 """
 
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
 
 import numpy as np
-from Cython.Build import cythonize
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
@@ -30,14 +60,13 @@ _OPENMP_EXTENSIONS = {"pyqasm.accelerate.sv_sim"}
 def _detect_openmp_unix():
     """Detect OpenMP availability for GCC/Clang and return (compile_args, link_args)."""
     if sys.platform == "darwin" and not os.environ.get("PYQASM_MACOS_OPENMP"):
-        # macOS OpenMP needs Homebrew's libomp, whose dylib carries a recent
-        # minimum-macOS target. Bundling it into a portable (macosx_11_0) wheel
-        # fails `delocate`, so OpenMP is disabled on macOS by default and the
-        # sv_sim kernel is built single-threaded. Set PYQASM_MACOS_OPENMP=1 for a
-        # local, non-distributed build that has libomp available.
         return [], []
 
     test_code = b"#include <omp.h>\nint main() { return omp_get_max_threads(); }\n"
+
+    # Probe with the compiler the build will actually use: honor $CC (which may
+    # include flags, e.g. "gcc -pthread") before falling back to plain `cc`.
+    compiler_cmd = shlex.split(os.environ.get("CC") or "cc")
 
     candidates = []
     if sys.platform == "darwin":
@@ -63,7 +92,7 @@ def _detect_openmp_unix():
                 f.write(test_code)
                 f.flush()
                 tmp_name = f.name
-            cmd = ["cc"] + cflags + ldflags + [tmp_name, "-o", tmp_name + ".out"]
+            cmd = compiler_cmd + cflags + ldflags + [tmp_name, "-o", tmp_name + ".out"]
             subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             os.unlink(tmp_name + ".out")
             return cflags, ldflags
@@ -76,12 +105,9 @@ def _detect_openmp_unix():
     return [], []
 
 
-# Decide OpenMP once, before cythonize: the Cython compile-time flag USE_OPENMP
-# (which guards the prange/omp.h paths in sv_sim.pyx) must match the compiler
-# flags applied later in build_ext.
 if sys.platform.startswith("win"):
-    # MSVC: /openmp is always available; the cc-based probe does not apply.
-    USE_OPENMP = True
+    # MSVC: /openmp is always available but opt-in (see module docstring).
+    USE_OPENMP = bool(os.environ.get("PYQASM_WINDOWS_OPENMP"))
     _OMP_COMPILE_UNIX, _OMP_LINK_UNIX = [], []
 else:
     _OMP_COMPILE_UNIX, _OMP_LINK_UNIX = _detect_openmp_unix()
@@ -89,7 +115,23 @@ else:
 
 
 class BuildExt(build_ext):
-    """Inject portable, compiler-appropriate optimization and OpenMP flags."""
+    """Cythonize lazily and inject portable, compiler-appropriate flags.
+
+    Running ``cythonize`` here rather than at module scope keeps the ``.pyx``
+    files in ``Extension.sources`` while sdists and wheels are being assembled,
+    so generated ``.c`` never ships in release artifacts, and metadata-only
+    PEP 517 hooks skip Cython codegen entirely.
+    """
+
+    def finalize_options(self):
+        # pylint: disable-next=import-outside-toplevel
+        from Cython.Build import cythonize
+
+        self.distribution.ext_modules[:] = cythonize(
+            self.distribution.ext_modules,
+            language_level=3,
+        )
+        super().finalize_options()
 
     def build_extensions(self):
         is_msvc = self.compiler.compiler_type == "msvc"
@@ -101,7 +143,7 @@ class BuildExt(build_ext):
             print(f"OpenMP enabled: compile={omp_compile}, link={omp_link}")
         else:
             omp_compile, omp_link = [], []
-            print("OpenMP disabled — building single-threaded kernels")
+            print("OpenMP disabled - building single-threaded kernels")
 
         for ext in self.extensions:
             ext.extra_compile_args = base_compile + list(ext.extra_compile_args)
@@ -126,10 +168,6 @@ extensions = [
 ]
 
 setup(
-    ext_modules=cythonize(
-        extensions,
-        language_level=3,
-        compile_time_env={"USE_OPENMP": USE_OPENMP},
-    ),
+    ext_modules=extensions,
     cmdclass={"build_ext": BuildExt},
 )

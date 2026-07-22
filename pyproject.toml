@@ -55,6 +55,7 @@ pulse = ["openpulse>=1.0.1"]
 
 [tool.setuptools.package-data]
 pyqasm = ["py.typed", "*.pyx"]
+"pyqasm.accelerate" = ["*.pyx"]
 
 [tool.setuptools]
 packages = {find = {where = ["src"]}}
