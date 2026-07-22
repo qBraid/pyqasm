@@ -57,8 +57,14 @@ from setuptools.command.build_ext import build_ext
 _OPENMP_EXTENSIONS = {"pyqasm.accelerate.sv_sim"}
 
 
-def _detect_openmp_unix():
-    """Detect OpenMP availability for GCC/Clang and return (compile_args, link_args)."""
+def _detect_openmp_unix() -> tuple[list[str], list[str]]:
+    """Detect OpenMP availability for GCC/Clang.
+
+    Takes no parameters; probes the compiler named by ``$CC`` (or ``cc``) with
+    candidate flag sets. Returns ``(compile_args, link_args)`` for the first
+    candidate that compiles a test program, or ``([], [])`` when OpenMP is
+    unavailable or disabled by platform policy.
+    """
     if sys.platform == "darwin" and not os.environ.get("PYQASM_MACOS_OPENMP"):
         return [], []
 
@@ -123,7 +129,8 @@ class BuildExt(build_ext):
     PEP 517 hooks skip Cython codegen entirely.
     """
 
-    def finalize_options(self):
+    def finalize_options(self) -> None:
+        """Cythonize the .pyx extensions in place, then finalize as usual."""
         # pylint: disable-next=import-outside-toplevel
         from Cython.Build import cythonize
 
@@ -133,7 +140,8 @@ class BuildExt(build_ext):
         )
         super().finalize_options()
 
-    def build_extensions(self):
+    def build_extensions(self) -> None:
+        """Apply per-compiler optimization and OpenMP flags, then build."""
         is_msvc = self.compiler.compiler_type == "msvc"
         base_compile = ["/O2"] if is_msvc else ["-O3"]
         if USE_OPENMP:

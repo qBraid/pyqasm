@@ -425,6 +425,14 @@ def run_benchmarks(circuit_name, configs, generator_fn, simulators):
     return rows
 
 
+def _positive_int(value: str) -> int:
+    """argparse type: accept only strictly positive integers."""
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {value!r}")
+    return parsed
+
+
 def main():
     global N_REPEATS
 
@@ -436,7 +444,7 @@ def main():
     )
     parser.add_argument(
         "--repeats",
-        type=int,
+        type=_positive_int,
         default=None,
         help=f"Number of timed repeats per config (default {N_REPEATS}, or 2 with --quick).",
     )
