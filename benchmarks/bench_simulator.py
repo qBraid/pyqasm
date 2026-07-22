@@ -20,16 +20,37 @@ Each simulator builds circuits programmatically from a shared gate list so the
 comparison is apples-to-apples. Timing covers only simulation (circuit
 construction is excluded).
 
+Third-party simulators (qiskit + qiskit-aer, cirq, pennylane) are optional:
+any that are not installed are skipped with a message, so the script runs
+with only pyqasm installed.
+
 Usage:
-    python benchmarks/bench_simulator.py
+    python benchmarks/bench_simulator.py [--quick] [--repeats N]
 """
 
+import argparse
+import importlib.util
 import math
 import random
 import time
 
 import numpy as np
-from tabulate import tabulate
+
+try:
+    from tabulate import tabulate
+
+    HAS_TABULATE = True
+except ImportError:
+    HAS_TABULATE = False
+
+
+def _has_module(name: str) -> bool:
+    return importlib.util.find_spec(name) is not None
+
+
+HAS_QISKIT = _has_module("qiskit") and _has_module("qiskit_aer")
+HAS_CIRQ = _has_module("cirq")
+HAS_PENNYLANE = _has_module("pennylane")
 
 # ---------------------------------------------------------------------------
 # Shared circuit representation
@@ -86,6 +107,7 @@ def generate_qft_gates(num_qubits: int):
 # Gate-list → QASM 3 string (for PyQASM / Qiskit)
 # ---------------------------------------------------------------------------
 
+
 def gates_to_qasm(num_qubits, gates):
     lines = [
         "OPENQASM 3;",
@@ -115,8 +137,10 @@ def gates_to_qasm(num_qubits, gates):
 N_REPEATS = 5
 
 
-def _median_time(fn, n_repeats=N_REPEATS):
+def _median_time(fn, n_repeats=None):
     """Run fn() n_repeats times, return (median_seconds, last_result)."""
+    if n_repeats is None:
+        n_repeats = N_REPEATS
     times = []
     result = None
     for _ in range(n_repeats):
@@ -128,9 +152,10 @@ def _median_time(fn, n_repeats=N_REPEATS):
 
 # -- PyQASM ------------------------------------------------------------------
 
+
 def prepare_pyqasm(num_qubits, gates):
     from pyqasm import loads as pyqasm_loads
-    from pyqasm.simulator.statevector import Simulator
+    from pyqasm.simulator import Simulator
 
     qasm = gates_to_qasm(num_qubits, gates)
     module = pyqasm_loads(qasm)
@@ -143,10 +168,12 @@ def prepare_pyqasm(num_qubits, gates):
 def bench_pyqasm(module, sim):
     def run():
         return sim.run(module, shots=0).final_statevector
+
     return _median_time(run)
 
 
 # -- Qiskit Aer ---------------------------------------------------------------
+
 
 def prepare_qiskit(num_qubits, gates):
     from qiskit import transpile
@@ -166,10 +193,12 @@ def bench_qiskit(compiled, backend):
         job = backend.run(compiled)
         result = job.result()
         return np.asarray(result.get_statevector(compiled))
+
     return _median_time(run)
 
 
 # -- Cirq ----------------------------------------------------------------------
+
 
 def _build_cirq_circuit(num_qubits, gates):
     import cirq
@@ -199,9 +228,7 @@ def _build_cirq_circuit(num_qubits, gates):
             ops.append(cirq.CNOT(qubits[qubit_indices[0]], qubits[qubit_indices[1]]))
         elif name == "cy":
             ops.append(
-                cirq.ControlledGate(cirq.Y).on(
-                    qubits[qubit_indices[0]], qubits[qubit_indices[1]]
-                )
+                cirq.ControlledGate(cirq.Y).on(qubits[qubit_indices[0]], qubits[qubit_indices[1]])
             )
         elif name == "cz":
             ops.append(cirq.CZ(qubits[qubit_indices[0]], qubits[qubit_indices[1]]))
@@ -217,8 +244,9 @@ def _build_cirq_circuit(num_qubits, gates):
 
 
 def prepare_cirq(num_qubits, gates):
-    circuit, qubits = _build_cirq_circuit(num_qubits, gates)
     import cirq
+
+    circuit, qubits = _build_cirq_circuit(num_qubits, gates)
     sim = cirq.Simulator(dtype=np.complex128)
     return circuit, sim, qubits
 
@@ -227,10 +255,12 @@ def bench_cirq(circuit, sim, qubits):
     def run():
         result = sim.simulate(circuit, qubit_order=qubits)
         return result.final_state_vector
+
     return _median_time(run)
 
 
 # -- PennyLane Lightning -------------------------------------------------------
+
 
 def _build_pennylane_fn(num_qubits, gates):
     import pennylane as qml
@@ -283,12 +313,38 @@ def prepare_pennylane(num_qubits, gates):
 def bench_pennylane(circuit_fn):
     def run():
         return np.asarray(circuit_fn())
+
     return _median_time(run)
+
+
+# ---------------------------------------------------------------------------
+# Simulator registry (only installed backends)
+# ---------------------------------------------------------------------------
+
+# name -> (prepare_fn, bench_fn, statevector_is_big_endian)
+_ALL_SIMULATORS = [
+    ("PyQASM", True, (prepare_pyqasm, bench_pyqasm, False)),
+    ("Qiskit Aer", HAS_QISKIT, (prepare_qiskit, bench_qiskit, False)),
+    ("Cirq", HAS_CIRQ, (prepare_cirq, bench_cirq, True)),
+    ("PennyLane Lightning", HAS_PENNYLANE, (prepare_pennylane, bench_pennylane, True)),
+]
+
+
+def available_simulators(verbose: bool = False):
+    """Return {name: (prepare_fn, bench_fn, big_endian)} for installed backends."""
+    sims = {}
+    for name, installed, entry in _ALL_SIMULATORS:
+        if installed:
+            sims[name] = entry
+        elif verbose:
+            print(f"skipped: {name} not installed")
+    return sims
 
 
 # ---------------------------------------------------------------------------
 # Qubit ordering helpers
 # ---------------------------------------------------------------------------
+
 
 def _reverse_endian(sv, num_qubits):
     """Convert big-endian statevector to little-endian (or vice versa)."""
@@ -299,13 +355,10 @@ def _reverse_endian(sv, num_qubits):
 # Main
 # ---------------------------------------------------------------------------
 
-def run_benchmarks(circuit_name, configs, generator_fn):
-    """Run all simulators on a set of circuit configs."""
-    headers = [
-        "Qubits", "Depth",
-        "PyQASM (ms)", "Qiskit (ms)", "Cirq (ms)", "Lightning (ms)",
-        "Correct",
-    ]
+
+def run_benchmarks(circuit_name, configs, generator_fn, simulators):
+    """Run the given simulators on a set of circuit configs."""
+    headers = ["Qubits", "Depth"] + [f"{name} (ms)" for name in simulators] + ["Correct"]
     rows = []
 
     print(f"\n{'='*90}")
@@ -323,83 +376,88 @@ def run_benchmarks(circuit_name, configs, generator_fn):
 
         depth_str = str(depth) if depth is not None else "QFT"
 
-        # --- Prepare all simulators ---
-        pyqasm_args = prepare_pyqasm(nq, gates)
-        qiskit_args = prepare_qiskit(nq, gates)
-        cirq_args = prepare_cirq(nq, gates)
-        pl_args = prepare_pennylane(nq, gates)
+        # --- Prepare and benchmark each available simulator ---
+        times = {}
+        statevectors = {}
+        for name, (prepare_fn, bench_fn, big_endian) in simulators.items():
+            args = prepare_fn(nq, gates)
+            t, sv = bench_fn(*args)
+            times[name] = t
+            statevectors[name] = _reverse_endian(sv, nq) if big_endian else sv
 
-        # --- Benchmark ---
-        t_pyqasm, sv_pyqasm = bench_pyqasm(*pyqasm_args)
-        t_qiskit, sv_qiskit = bench_qiskit(*qiskit_args)
-        t_cirq, sv_cirq = bench_cirq(*cirq_args)
-        t_pl, sv_pl = bench_pennylane(*pl_args)
-
-        # --- Correctness: compare all against PyQASM (little-endian) ---
-        # Qiskit Aer is little-endian like PyQASM
-        # Cirq, PennyLane are big-endian → convert
-        sv_cirq_le = _reverse_endian(sv_cirq, nq)
-        sv_pl_le = _reverse_endian(sv_pl, nq)
-
+        # --- Correctness: compare everything against PyQASM (little-endian) ---
+        sv_pyqasm = statevectors["PyQASM"]
         checks = {
-            "qiskit": np.allclose(sv_pyqasm, sv_qiskit, atol=1e-10),
-            "cirq": np.allclose(sv_pyqasm, sv_cirq_le, atol=1e-10),
-            "lightning": np.allclose(sv_pyqasm, sv_pl_le, atol=1e-10),
+            name: np.allclose(sv_pyqasm, sv, atol=1e-10)
+            for name, sv in statevectors.items()
+            if name != "PyQASM"
         }
-        all_pass = all(checks.values())
-        status = "PASS" if all_pass else "FAIL " + ",".join(
-            k for k, v in checks.items() if not v
-        )
+        if not checks:
+            status = "n/a (PyQASM only)"
+        elif all(checks.values()):
+            status = "PASS"
+        else:
+            status = "FAIL " + ",".join(k for k, v in checks.items() if not v)
 
-        rows.append([
-            nq, depth_str,
-            f"{t_pyqasm*1000:.2f}",
-            f"{t_qiskit*1000:.2f}",
-            f"{t_cirq*1000:.2f}",
-            f"{t_pl*1000:.2f}",
-            status,
-        ])
+        rows.append([nq, depth_str] + [f"{times[name]*1000:.2f}" for name in simulators] + [status])
 
-        print(
-            f"  n={nq:2d}  depth={depth_str:>4s}  "
-            f"pyqasm={t_pyqasm*1000:8.2f}  "
-            f"qiskit={t_qiskit*1000:8.2f}  "
-            f"cirq={t_cirq*1000:8.2f}  "
-            f"lightning={t_pl*1000:8.2f} ms  "
-            f"{status}"
-        )
+        timings = "  ".join(f"{name}={times[name]*1000:8.2f}" for name in simulators)
+        print(f"  n={nq:2d}  depth={depth_str:>4s}  {timings} ms  {status}")
 
     print()
-    print(tabulate(rows, headers=headers, tablefmt="github"))
+    if HAS_TABULATE:
+        print(tabulate(rows, headers=headers, tablefmt="github"))
+    else:
+        print("  ".join(headers))
+        for row in rows:
+            print("  ".join(str(cell) for cell in row))
     return rows
 
 
 def main():
-    random_configs = [
-        (4, 20),
-        (6, 40),
-        (8, 60),
-        (10, 80),
-        (12, 100),
-        (14, 150),
-        (16, 200),
-        (18, 250),
-        (20, 300),
-        (22, 400),
-    ]
+    global N_REPEATS
 
-    qft_configs = [
-        (4,),
-        (6,),
-        (8,),
-        (10,),
-        (12,),
-        (14,),
-        (16,),
-    ]
+    parser = argparse.ArgumentParser(description="Benchmark PyQASM against other simulators")
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Small qubit counts and fewer repeats (smoke test).",
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=None,
+        help=f"Number of timed repeats per config (default {N_REPEATS}, or 2 with --quick).",
+    )
+    args = parser.parse_args()
 
-    run_benchmarks("Random", random_configs, generate_random_gates)
-    run_benchmarks("QFT", qft_configs, generate_qft_gates)
+    if args.repeats is not None:
+        N_REPEATS = args.repeats
+    elif args.quick:
+        N_REPEATS = 2
+
+    if args.quick:
+        random_configs = [(2, 10), (4, 20), (6, 30)]
+        qft_configs = [(2,), (4,), (6,)]
+    else:
+        random_configs = [
+            (4, 20),
+            (6, 40),
+            (8, 60),
+            (10, 80),
+            (12, 100),
+            (14, 150),
+            (16, 200),
+            (18, 250),
+            (20, 300),
+            (22, 400),
+        ]
+        qft_configs = [(4,), (6,), (8,), (10,), (12,), (14,), (16,)]
+
+    simulators = available_simulators(verbose=True)
+
+    run_benchmarks("Random", random_configs, generate_random_gates, simulators)
+    run_benchmarks("QFT", qft_configs, generate_qft_gates, simulators)
 
 
 if __name__ == "__main__":

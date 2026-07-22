@@ -18,7 +18,9 @@ set -e
 
 echo "Running build_wheels.sh"
 
-python -m pip install cibuildwheel
+# Pin the major version: cibuildwheel sits in the release critical path and
+# its defaults (images, repair commands) change across majors.
+python -m pip install "cibuildwheel>=3.0,<4"
 python -m cibuildwheel --output-dir dist
 build_exit_code=$?
 
