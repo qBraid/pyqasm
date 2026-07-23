@@ -138,7 +138,11 @@ class QasmVisitor:
         self._in_generic_gate_op_scope: int = 0
         self._qubit_register_offsets: OrderedDict = OrderedDict()
         self._qubit_register_max_offset = 0
-        self._total_delay_duration_in_box = 0
+        # Stack of per-box delay accounting frames. Each frame maps a qubit
+        # key (name, index) to the summed delay durations on that qubit's
+        # timeline within the box. Delays on disjoint qubits run in parallel,
+        # so box durations are validated against the per-qubit maximum.
+        self._box_delay_frames: list[dict[tuple[str, int], float]] = []
         self._in_extern_function: bool = False
         self._openpulse_qubit_map: dict[str, set[str]] = {}
         self._total_pulse_qubits: int = 0
@@ -2872,9 +2876,6 @@ class QasmVisitor:
                 duration_val, unit=self._resolve_duration_unit(_delay_time_var)
             )
 
-        if self._scope_manager.in_box_scope():
-            self._total_delay_duration_in_box += duration_val
-
         if statement.qubits is not None:
             _is_delay_frame = False
             for qubit in statement.qubits:
@@ -2900,6 +2901,21 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
+
+        if self._box_delay_frames and duration_val:
+            # Record this delay on each targeted qubit's timeline. A delay
+            # with no qubit args applies to every qubit in scope.
+            if delay_qubit_bits:
+                delay_keys = [Qasm3Analyzer.extract_qubit_key(bit) for bit in delay_qubit_bits]
+            else:
+                delay_keys = [
+                    (reg_name, reg_id)
+                    for reg_name, reg_size in self._global_qreg_size_map.items()
+                    for reg_id in range(reg_size)
+                ]
+            box_delay_frame = self._box_delay_frames[-1]
+            for key in delay_keys:
+                box_delay_frame[key] = box_delay_frame.get(key, 0) + duration_val
 
         if self._check_only:
             return []
@@ -2944,6 +2960,7 @@ class QasmVisitor:
         self._scope_manager.push_scope({})
         self._scope_manager.increment_scope_level()
         self._scope_manager.push_context(Context.BOX)
+        self._box_delay_frames.append({})
 
         if statement.body:
             statements.extend(
@@ -2960,19 +2977,30 @@ class QasmVisitor:
         self._scope_manager.decrement_scope_level()
         self._scope_manager.pop_scope()
 
-        if (
-            _box_time_var
-            and box_duration_val
-            and self._total_delay_duration_in_box > box_duration_val
-        ):
-            time_unit = self._resolve_duration_unit(_box_time_var).name
-            raise_qasm3_error(
-                f"Total delay duration value '{self._total_delay_duration_in_box}{time_unit}' "
-                f"should be less than 'box[{box_duration_val}{time_unit}]' duration.",
-                error_node=statement,
-                span=statement.span,
-            )
-        self._total_delay_duration_in_box = 0
+        delay_frame = self._box_delay_frames.pop()
+        if _box_time_var and box_duration_val and delay_frame:
+            # Delays on different qubits run in parallel, so the box only
+            # needs to fit the busiest single qubit timeline.
+            max_qubit_key = max(delay_frame, key=lambda k: delay_frame[k])
+            max_delay_duration = delay_frame[max_qubit_key]
+            if max_delay_duration > box_duration_val:
+                time_unit = self._resolve_duration_unit(_box_time_var).name
+                qubit_name, qubit_id = max_qubit_key
+                raise_qasm3_error(
+                    f"Total delay duration value '{max_delay_duration}{time_unit}' "
+                    f"on qubit '{qubit_name}[{qubit_id}]' should be less than "
+                    f"'box[{box_duration_val}{time_unit}]' duration.",
+                    error_node=statement,
+                    span=statement.span,
+                )
+        if self._box_delay_frames and delay_frame:
+            # Nested box: contribute this box's time to the enclosing box's
+            # per-qubit timelines. If the box declares a duration, that is
+            # the time it occupies; otherwise use each qubit's delay total.
+            parent_frame = self._box_delay_frames[-1]
+            for key, qubit_total in delay_frame.items():
+                contribution = box_duration_val if box_duration_val else qubit_total
+                parent_frame[key] = parent_frame.get(key, 0) + contribution
 
         if self._check_only:
             return []

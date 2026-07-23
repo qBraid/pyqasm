@@ -223,7 +223,8 @@ def test_box_dt_unit_preserved():
               measure q;
             }
             """,
-            r"Total delay duration value '20.0ns' should be less than 'box[10.0ns]' duration.",
+            r"Total delay duration value '20.0ns' on qubit 'q[0]' "
+            r"should be less than 'box[10.0ns]' duration.",
             r"Error at line 6, column 12",
         ),
         (
@@ -238,7 +239,8 @@ def test_box_dt_unit_preserved():
               measure q;
             }
             """,
-            r"Total delay duration value '20.0dt' should be less than 'box[10.0dt]' duration.",
+            r"Total delay duration value '20.0dt' on qubit 'q[0]' "
+            r"should be less than 'box[10.0dt]' duration.",
             r"Error at line 6, column 12",
         ),
         (
@@ -393,3 +395,120 @@ def test_multiple_box_statements():
     """
     result = loads(qasm_str)
     result.validate()
+
+
+def test_box_parallel_delays_on_disjoint_qubits():
+    """Delays on different qubits run in parallel, so a box only needs to
+    fit the busiest single qubit timeline — not the sum of all delays.
+
+    Regression: box duration validation summed delay durations across all
+    qubits, rejecting valid programs whose per-qubit timelines fit within
+    the box duration. See: https://github.com/qBraid/pyqasm/issues/329
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q[0];
+        delay[200ns] q[1];
+    }
+    """
+    module = loads(qasm_str)
+    module.validate()
+    module.unroll()
+
+
+def test_box_delay_broadcast_matches_per_qubit_statements():
+    """A broadcast delay and the equivalent per-qubit delay statements
+    describe the same schedule, so both must validate identically.
+
+    Regression: the cross-qubit sum counted a broadcast delay once but
+    per-qubit statements once each, so only the broadcast form validated.
+    See: https://github.com/qBraid/pyqasm/issues/329
+    """
+    broadcast = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q;
+    }
+    """
+    per_qubit = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q[0];
+        delay[200ns] q[1];
+    }
+    """
+    loads(broadcast).unroll()
+    loads(per_qubit).unroll()
+
+
+def test_box_sequential_delays_on_same_qubit_exceed_duration():
+    """Sequential delays on the same qubit accumulate on that qubit's
+    timeline and must still be rejected when they exceed the box duration."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q[0];
+        delay[200ns] q[1];
+        delay[150ns] q[0];
+    }
+    """
+    with pytest.raises(ValidationError) as err:
+        loads(qasm_str).unroll()
+    assert (
+        "Total delay duration value '350.0ns' on qubit 'q[0]' "
+        "should be less than 'box[300.0ns]' duration." in str(err.value)
+    )
+
+
+def test_nested_box_delays_propagate_to_outer_box():
+    """A nested box contributes its declared duration to the enclosing
+    box's per-qubit timelines, and delays after it keep accumulating.
+
+    Regression: the previous global accumulator was reset to zero when the
+    inner box closed, so the outer box lost all inner delay accounting.
+    """
+    valid = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [500ns] {
+        box [400ns] {
+            delay[100ns] q[0];
+        }
+        delay[50ns] q[0];
+    }
+    """
+    loads(valid).unroll()
+
+    invalid = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [500ns] {
+        box [400ns] {
+            delay[100ns] q[0];
+        }
+        delay[150ns] q[0];
+    }
+    """
+    with pytest.raises(ValidationError) as err:
+        loads(invalid).unroll()
+    assert (
+        "Total delay duration value '550.0ns' on qubit 'q[0]' "
+        "should be less than 'box[500.0ns]' duration." in str(err.value)
+    )
