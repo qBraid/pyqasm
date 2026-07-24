@@ -390,8 +390,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                         if id(index_node) in visited_node_ids:
                             continue
                         visited_node_ids.add(id(index_node))
-                        old_idx = index_node.value  # type: ignore[union-attr]
-                        index_node.value = idx_map[old_idx]  # type: ignore[union-attr]
+                        index_node.value = idx_map[index_node.value]  # type: ignore[union-attr]
 
     def _get_idle_qubit_indices(self) -> dict[str, list[int]]:
         """Get the indices of the idle qubits in the module
