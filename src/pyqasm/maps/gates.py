@@ -19,6 +19,7 @@ Module mapping supported QASM gates to lower level gate operations.
 
 """
 
+from copy import deepcopy
 from typing import Callable
 
 import numpy as np
@@ -28,6 +29,17 @@ from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
+
+
+def _fresh_qubits(*qubits: IndexedIdentifier) -> list[IndexedIdentifier]:
+    """Deep-copy qubit operands so every emitted statement owns its nodes.
+
+    Decomposition functions pass the same operand nodes to each statement they
+    emit; without copies, transforms that later rewrite qubit indices in place
+    (e.g. ``remove_idle_qubits``, ``reverse_qubit_order``) would mutate a
+    shared node once per referencing statement.
+    """
+    return [deepcopy(qubit) for qubit in qubits]
 
 
 def u3_gate(
@@ -113,7 +125,9 @@ def global_phase_gate(theta: float, qubit_list: list[IndexedIdentifier]) -> list
     """
     return [
         QuantumPhase(
-            argument=FloatLiteral(value=theta), qubits=qubit_list, modifiers=[]  # type: ignore
+            argument=FloatLiteral(value=theta),
+            qubits=_fresh_qubits(*qubit_list),  # type: ignore
+            modifiers=[],
         )
     ]
 
@@ -702,7 +716,7 @@ def ccx_gate_op(
             modifiers=[],
             name=Identifier(name="ccx"),
             arguments=[],
-            qubits=[qubit0, qubit1, qubit2],
+            qubits=_fresh_qubits(qubit0, qubit1, qubit2),
         )
     ]
 
@@ -905,7 +919,7 @@ def one_qubit_gate_op(gate_name: str, qubit_id: IndexedIdentifier) -> list[Quant
             modifiers=[],
             name=Identifier(name=gate_name),
             arguments=[],
-            qubits=[qubit_id],
+            qubits=_fresh_qubits(qubit_id),
         )
     ]
 
@@ -918,7 +932,7 @@ def one_qubit_rotation_op(
             modifiers=[],
             name=Identifier(name=gate_name),
             arguments=[FloatLiteral(value=rotation)],
-            qubits=[qubit_id],
+            qubits=_fresh_qubits(qubit_id),
         )
     ]
 
@@ -931,7 +945,7 @@ def two_qubit_gate_op(
             modifiers=[],
             name=Identifier(name=gate_name.lower()),
             arguments=[],
-            qubits=[qubit_id1, qubit_id2],
+            qubits=_fresh_qubits(qubit_id1, qubit_id2),
         )
     ]
 

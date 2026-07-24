@@ -16,6 +16,8 @@
 Definition of the Decomposer class
 """
 
+from copy import deepcopy
+
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
@@ -133,7 +135,9 @@ class Decomposer:
                 modifiers=[],
                 name=qasm3_ast.Identifier(name=rule["gate"]),
                 arguments=arguments,
-                qubits=qubits,
+                # copy so the emitted gates do not share operand nodes with each
+                # other or with the source statement (see #333)
+                qubits=[deepcopy(qubit) for qubit in qubits],
             )
 
             decomposed_gates.append(new_gate)
