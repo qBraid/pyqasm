@@ -31,7 +31,7 @@ from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
 
-def _fresh_qubits(*qubits: IndexedIdentifier) -> list[IndexedIdentifier]:
+def _fresh_qubits(*qubits: IndexedIdentifier) -> list[IndexedIdentifier | Identifier]:
     """Deep-copy qubit operands so every emitted statement owns its nodes.
 
     Decomposition functions pass the same operand nodes to each statement they
