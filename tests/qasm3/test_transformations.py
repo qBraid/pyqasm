@@ -45,6 +45,25 @@ def test_remove_idle_qubits_qasm3_small():
     check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
+def test_remove_idle_qubits_qasm3_shared_operand_nodes():
+    """Test remove_idle_qubits when a gate decomposition reuses operand nodes"""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    crz(0.5) q[1], q[2];
+    """
+    module = loads(qasm3_str)
+    module.unroll()
+    assert module.num_qubits == 3
+    module.remove_idle_qubits()
+    assert module.num_qubits == 2
+
+    unrolled_qasm = dumps(module)
+    assert "q[2]" not in unrolled_qasm
+    assert "cx q[0], q[1];" in unrolled_qasm
+
+
 def test_remove_idle_qubits_qasm3():
     """Test conversion of qasm3 to compressed contiguous qasm3"""
     qasm3_str = """
