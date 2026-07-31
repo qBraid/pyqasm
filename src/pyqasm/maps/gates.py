@@ -23,23 +23,61 @@ from copy import deepcopy
 from typing import Callable
 
 import numpy as np
-from openqasm3.ast import FloatLiteral, Identifier, IndexedIdentifier, QuantumGate, QuantumPhase
+from openqasm3.ast import (
+    FloatLiteral,
+    Identifier,
+    IndexedIdentifier,
+    IntegerLiteral,
+    QuantumGate,
+    QuantumPhase,
+)
 
 from pyqasm.elements import BasisSet, InversionOp
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
+QubitOperand = IndexedIdentifier | Identifier
 
-def _fresh_qubits(*qubits: IndexedIdentifier) -> list[IndexedIdentifier | Identifier]:
-    """Deep-copy qubit operands so every emitted statement owns its nodes.
+
+def _copy_qubit(qubit: QubitOperand) -> QubitOperand:
+    """Return a copy of a single qubit operand that shares no nodes with it.
+
+    A shallow ``copy`` is not enough: transforms rewrite the index in place as
+    ``bit.indices[0][0].value = ...``, so the nested ``IntegerLiteral`` has to
+    be a distinct object. Rebuilding the (small, fully known) node tree is an
+    order of magnitude cheaper than ``deepcopy``, so the general case is only
+    used as a fallback for operands that are not a plain ``reg[int]``.
+    """
+    fresh: QubitOperand
+    if isinstance(qubit, Identifier):
+        fresh = Identifier(name=qubit.name)
+    else:
+        indices = qubit.indices
+        if not (
+            len(indices) == 1
+            and isinstance(indices[0], list)
+            and len(indices[0]) == 1
+            and isinstance(indices[0][0], IntegerLiteral)
+        ):
+            return deepcopy(qubit)
+        fresh = IndexedIdentifier(
+            name=Identifier(name=qubit.name.name),
+            indices=[[IntegerLiteral(value=indices[0][0].value)]],
+        )
+    fresh.span = qubit.span
+    return fresh
+
+
+def fresh_qubits(*qubits: QubitOperand) -> list[QubitOperand]:
+    """Copy qubit operands so every emitted statement owns its nodes.
 
     Decomposition functions pass the same operand nodes to each statement they
     emit; without copies, transforms that later rewrite qubit indices in place
     (e.g. ``remove_idle_qubits``, ``reverse_qubit_order``) would mutate a
     shared node once per referencing statement.
     """
-    return [deepcopy(qubit) for qubit in qubits]
+    return [_copy_qubit(qubit) for qubit in qubits]
 
 
 def u3_gate(
@@ -126,7 +164,7 @@ def global_phase_gate(theta: float, qubit_list: list[IndexedIdentifier]) -> list
     return [
         QuantumPhase(
             argument=FloatLiteral(value=theta),
-            qubits=_fresh_qubits(*qubit_list),  # type: ignore
+            qubits=fresh_qubits(*qubit_list),  # type: ignore
             modifiers=[],
         )
     ]
@@ -716,7 +754,7 @@ def ccx_gate_op(
             modifiers=[],
             name=Identifier(name="ccx"),
             arguments=[],
-            qubits=_fresh_qubits(qubit0, qubit1, qubit2),
+            qubits=fresh_qubits(qubit0, qubit1, qubit2),
         )
     ]
 
@@ -919,7 +957,7 @@ def one_qubit_gate_op(gate_name: str, qubit_id: IndexedIdentifier) -> list[Quant
             modifiers=[],
             name=Identifier(name=gate_name),
             arguments=[],
-            qubits=_fresh_qubits(qubit_id),
+            qubits=fresh_qubits(qubit_id),
         )
     ]
 
@@ -932,7 +970,7 @@ def one_qubit_rotation_op(
             modifiers=[],
             name=Identifier(name=gate_name),
             arguments=[FloatLiteral(value=rotation)],
-            qubits=_fresh_qubits(qubit_id),
+            qubits=fresh_qubits(qubit_id),
         )
     ]
 
@@ -945,7 +983,7 @@ def two_qubit_gate_op(
             modifiers=[],
             name=Identifier(name=gate_name.lower()),
             arguments=[],
-            qubits=_fresh_qubits(qubit_id1, qubit_id2),
+            qubits=fresh_qubits(qubit_id1, qubit_id2),
         )
     ]
 

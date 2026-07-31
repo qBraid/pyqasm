@@ -16,14 +16,12 @@
 Definition of the Decomposer class
 """
 
-from copy import deepcopy
-
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
 from pyqasm.exceptions import RebaseError
 from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES, AppliedQubit
-from pyqasm.maps.gates import BASIS_GATE_MAP
+from pyqasm.maps.gates import BASIS_GATE_MAP, fresh_qubits
 
 
 class Decomposer:
@@ -137,7 +135,7 @@ class Decomposer:
                 arguments=arguments,
                 # copy so the emitted gates do not share operand nodes with each
                 # other or with the source statement (see #333)
-                qubits=[deepcopy(qubit) for qubit in qubits],
+                qubits=fresh_qubits(*qubits),
             )
 
             decomposed_gates.append(new_gate)
