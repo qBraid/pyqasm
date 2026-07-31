@@ -53,6 +53,13 @@ class Qasm2Module(QasmModule):
             qasm3_ast.QuantumReset,
             qasm3_ast.QuantumBarrier,
         }
+        # the QASM 2.0 <qop> production: a gate application, a measurement or a reset.
+        # only these may be the body of an 'if'.
+        self._qop_statements = (
+            qasm3_ast.QuantumGate,
+            qasm3_ast.QuantumMeasurementStatement,
+            qasm3_ast.QuantumReset,
+        )
 
     def _filter_statements(self):
         """Filter statements according to the whitelist"""
@@ -68,19 +75,25 @@ class Qasm2Module(QasmModule):
         """Filter the body of a conditional against what QASM 2.0 allows there.
 
         The QASM 2.0 grammar admits only a ``<qop>`` as the body of an ``if`` --
-        a gate application, a measurement or a reset. ``barrier`` is a separate
-        production, so it cannot be conditioned.
+        a gate application, a measurement or a reset. Everything else, ``barrier``
+        included, belongs to a different production and cannot be conditioned. The
+        parser does not enforce that, so it is enforced here as a whitelist: a
+        blacklist would let through whatever statement kinds it had not enumerated.
         """
         for inner_stmt in [*statement.if_block, *statement.else_block]:
-            if isinstance(inner_stmt, qasm3_ast.QuantumBarrier):
-                raise_qasm3_error(
-                    "'barrier' is not supported as the body of an 'if' in QASM 2.0, which "
-                    "allows only a gate, measurement or reset there",
-                    error_node=inner_stmt,
-                    span=inner_stmt.span,
-                )
+            if isinstance(inner_stmt, self._qop_statements):
+                continue
             if isinstance(inner_stmt, qasm3_ast.BranchingStatement):
                 self._filter_branch_body(inner_stmt)
+                continue
+            name = "barrier" if isinstance(inner_stmt, qasm3_ast.QuantumBarrier) else None
+            described = f"'{name}'" if name else f"statement of type {type(inner_stmt).__name__}"
+            raise_qasm3_error(
+                f"{described} is not supported as the body of an 'if' in QASM 2.0, which "
+                "allows only a gate, measurement or reset there",
+                error_node=inner_stmt,
+                span=inner_stmt.span,
+            )
 
     def _format_declarations(self, qasm_str):
         """Format the unrolled qasm for declarations in openqasm 2.0 format"""
