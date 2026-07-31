@@ -92,6 +92,41 @@ def _parse_branch_condition(condition: qasm3_ast.Expression) -> tuple[str, int |
     )
 
 
+def _add_chain_constraint(
+    reg_name: str,
+    bit_index: int | None,
+    value: int,
+    reg_value: int | None,
+    bit_values: dict[int, bool],
+) -> int | None:
+    """Fold one link of a branch chain into the constraints collected so far.
+
+    Every link's constraint has to survive into the single comparison QASM 2 allows,
+    so a link that contradicts or duplicates an earlier one has nowhere to go and must
+    not be quietly dropped by the collapse in :func:`_flatten_branch`.
+    """
+    if bit_index is None:
+        if reg_value is not None:
+            raise ValidationError(
+                f"Branch on '{reg_name}' nests another whole-register comparison, "
+                "which is not supported in QASM 2.0"
+            )
+        return value
+
+    if bit_index in bit_values:
+        raise ValidationError(
+            f"Branch on '{reg_name}' tests bit {bit_index} more than once, "
+            "which is not supported in QASM 2.0"
+        )
+    if value not in (0, 1):
+        raise ValidationError(
+            f"Branch on '{reg_name}' compares bit {bit_index} against {value}; "
+            "a single bit can only be compared against 0 or 1"
+        )
+    bit_values[bit_index] = bool(value)
+    return reg_value
+
+
 def _flatten_branch(
     statement: qasm3_ast.BranchingStatement, creg_sizes: dict[str, int]
 ) -> tuple[str, int, list[qasm3_ast.Statement]]:
@@ -120,11 +155,7 @@ def _flatten_branch(
                 "supported in QASM 2.0, which has no nested 'if' statements"
             )
         reg_name = name
-
-        if bit_index is None:
-            reg_value = value
-        else:
-            bit_values[bit_index] = bool(value)
+        reg_value = _add_chain_constraint(reg_name, bit_index, value, reg_value, bit_values)
 
         body = current.if_block
         # unrolling nests one branch per bit, so keep walking while the body is
