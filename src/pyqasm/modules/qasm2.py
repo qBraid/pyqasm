@@ -23,7 +23,7 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
 from openqasm3.printer import dumps
 
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
 
@@ -60,7 +60,27 @@ class Qasm2Module(QasmModule):
             stmt_type = type(stmt)
             if stmt_type not in self._whitelist_statements:
                 raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
+            if isinstance(stmt, qasm3_ast.BranchingStatement):
+                self._filter_branch_body(stmt)
             # TODO: add more filtering here if needed
+
+    def _filter_branch_body(self, statement: qasm3_ast.BranchingStatement):
+        """Filter the body of a conditional against what QASM 2.0 allows there.
+
+        The QASM 2.0 grammar admits only a ``<qop>`` as the body of an ``if`` --
+        a gate application, a measurement or a reset. ``barrier`` is a separate
+        production, so it cannot be conditioned.
+        """
+        for inner_stmt in [*statement.if_block, *statement.else_block]:
+            if isinstance(inner_stmt, qasm3_ast.QuantumBarrier):
+                raise_qasm3_error(
+                    "'barrier' is not supported as the body of an 'if' in QASM 2.0, which "
+                    "allows only a gate, measurement or reset there",
+                    error_node=inner_stmt,
+                    span=inner_stmt.span,
+                )
+            if isinstance(inner_stmt, qasm3_ast.BranchingStatement):
+                self._filter_branch_body(inner_stmt)
 
     def _format_declarations(self, qasm_str):
         """Format the unrolled qasm for declarations in openqasm 2.0 format"""
