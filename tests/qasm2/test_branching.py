@@ -138,3 +138,53 @@ def test_branch_body_writing_tested_register_raises():
     module.unroll()
     with pytest.raises(ValidationError, match="writes to 'm' itself"):
         dumps(module)
+
+
+@pytest.mark.parametrize(
+    "operation, match",
+    [
+        # two whole-register comparisons in a chain: the outer constraint has nowhere
+        # to go in the single comparison QASM 2 allows
+        ("if(m==1) if(m==0) x q[0];", "nests another whole-register comparison"),
+        # the same bit constrained twice, ditto
+        ("if(m[0]==1) if(m[0]==0) x q[0];", "tests bit 0 more than once"),
+        # a bit compared against something that is not a bit value
+        ("if(m[0]==2) x q[0];", "against 2"),
+    ],
+)
+def test_conflicting_chain_constraints_raise(operation, match):
+    """Test that a chain carrying constraints the collapse cannot represent is rejected
+    rather than silently reduced to whichever constraint happens to be walked last"""
+    qasm2_string = f"""OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[2];
+    creg m[1];
+    measure q[0] -> m[0];
+    {operation}
+    """
+    with pytest.raises(ValidationError, match=match):
+        dumps(loads(qasm2_string))
+
+
+@pytest.mark.parametrize(
+    "operation, match",
+    [
+        ("if(m==1) x q[0]; else x q[1];", "'else' blocks are not supported"),
+        ("if(m==1) if(c==1) x q[0];", "different registers"),
+        ("if(m[0]==1) x q[0];", "unconstrained"),
+        ("if(m>=1) x q[0];", "only allows 'if \\(creg == int\\)'"),
+    ],
+)
+def test_inexpressible_branches_raise(operation, match):
+    """Test that each branch shape QASM 2 has no syntax for is rejected. Emitting these
+    would drop a branch or silently change which values trigger the body."""
+    qasm2_string = f"""OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[2];
+    creg m[2];
+    creg c[1];
+    measure q[0] -> m[0];
+    {operation}
+    """
+    with pytest.raises(ValidationError, match=match):
+        dumps(loads(qasm2_string))
