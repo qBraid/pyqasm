@@ -41,16 +41,25 @@ def test_conditional_barrier_rejected(operation):
 
 
 def test_conditional_barrier_rejected_when_nested():
-    """Test that a barrier nested deeper inside a conditional body is also rejected"""
-    qasm2_string = """OPENQASM 2.0;
-    include "qelib1.inc";
-    qreg q[2];
-    creg m[2];
-    measure q[0] -> m[0];
-    if(m==1) barrier q;
-    """
-    module = loads(qasm2_string)
+    """Test that a barrier reached only through a nested conditional is also rejected,
+    exercising the recursive descent rather than just the outer body"""
+    module = loads(QASM2_PREAMBLE + "if(m==1) if(m==0) barrier q;\n")
     with pytest.raises(ValidationError, match="barrier"):
+        module.validate()
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "delay[10ns] q;",
+        "box {x q[0];}",
+    ],
+)
+def test_conditional_non_qop_rejected(operation):
+    """Test that any statement which is not a <qop> is rejected as a conditional body,
+    not just barrier. These parse but have no QASM 2 syntax at all."""
+    module = loads(QASM2_PREAMBLE + f"if(m==1) {operation}\n")
+    with pytest.raises(ValidationError, match="body of an 'if'"):
         module.validate()
 
 
