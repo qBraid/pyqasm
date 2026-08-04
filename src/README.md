@@ -30,7 +30,7 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | QuantumGateModifier (ctrl)     | ✅          | Completed              |
 | WhileLoop                      | ✅          | Completed              |
 | IODeclaration                  | 📋          | Planned                |
-| Pragma                         | 📋          | Planned                |
+| Pragma                         | ✅          | Preserved as-is        |
 | Annotation                     | 📋          | Planned                |
 | DurationType                   | ✅          | Completed              |
 | StretchType                    | ✅          | Completed              |
