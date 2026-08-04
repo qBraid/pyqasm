@@ -219,3 +219,36 @@ def test_verbatim_custom_gate_counts_once_towards_depth():
     module = loads(qasm_str)
     module.unroll()
     assert module.depth() == 1
+
+
+def test_verbatim_marker_does_not_escape_a_box():
+    """A pragma at the end of a box body must not mark the next box verbatim.
+
+    The parser keeps pragmas global, so this reaches the visitor through a hand-built
+    program - which `loads` accepts just the same.
+    """
+
+    def prx_gate():
+        return qasm3_ast.QuantumGate(
+            [],
+            qasm3_ast.Identifier("prx"),
+            [qasm3_ast.FloatLiteral(0.1), qasm3_ast.FloatLiteral(0.2)],
+            [
+                qasm3_ast.IndexedIdentifier(
+                    qasm3_ast.Identifier("q"), [[qasm3_ast.IntegerLiteral(0)]]
+                )
+            ],
+        )
+
+    program = qasm3_ast.Program(
+        statements=[
+            qasm3_ast.QubitDeclaration(qasm3_ast.Identifier("q"), qasm3_ast.IntegerLiteral(1)),
+            qasm3_ast.Box(duration=None, body=[prx_gate(), qasm3_ast.Pragma("braket verbatim")]),
+            qasm3_ast.Box(duration=None, body=[prx_gate()]),
+        ],
+        version="3.0",
+    )
+    module = loads(program)
+    module.unroll()
+    trailing_box = module.unrolled_ast.statements[-1]
+    assert [gate.name.name for gate in trailing_box.body] == ["rz", "rx", "rz", "rx", "rz"]

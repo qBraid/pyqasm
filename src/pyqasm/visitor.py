@@ -3021,6 +3021,8 @@ class QasmVisitor:
         self._scope_manager.decrement_scope_level()
         self._scope_manager.pop_scope()
         self._in_verbatim_box = outer_verbatim
+        # a marker left behind by the body must not reach the next box
+        self._verbatim_pragma_pending = False
 
         delay_frame = self._box_delay_frames.pop()
         if _box_time_var and box_duration_val and delay_frame:
