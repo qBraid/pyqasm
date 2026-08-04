@@ -253,16 +253,15 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         Returns:
             QasmModule: The module with the measurements removed if in_place is False
         """
+        # copy first: the filtering rewrites nested box and if bodies in place, so it
+        # has to run on the module that is being returned
+        curr_module = self if in_place else self.copy()
         stmt_list = (
-            self._statements
-            if len(self._unrolled_ast.statements) == 0
-            else self._unrolled_ast.statements
+            curr_module._statements
+            if len(curr_module._unrolled_ast.statements) == 0
+            else curr_module._unrolled_ast.statements
         )
         stmts_without_meas = drop_statements(stmt_list, qasm3_ast.QuantumMeasurementStatement)
-        curr_module = self
-
-        if not in_place:
-            curr_module = self.copy()
 
         for qubit in curr_module._qubit_depths.values():
             qubit.num_measurements = 0
@@ -309,15 +308,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         Returns:
             QasmModule: The module with the barriers removed if in_place is False
         """
+        # copy first, as in remove_measurements: nested bodies are filtered in place
+        curr_module = self if in_place else self.copy()
         stmt_list = (
-            self._statements
-            if len(self._unrolled_ast.statements) == 0
-            else self._unrolled_ast.statements
+            curr_module._statements
+            if len(curr_module._unrolled_ast.statements) == 0
+            else curr_module._unrolled_ast.statements
         )
         stmts_without_barriers = drop_statements(stmt_list, qasm3_ast.QuantumBarrier)
-        curr_module = self
-        if not in_place:
-            curr_module = self.copy()
 
         for qubit in curr_module._qubit_depths.values():
             qubit.num_barriers = 0

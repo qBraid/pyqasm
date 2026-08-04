@@ -86,9 +86,11 @@ class QubitDepthNode(DepthNode):
     num_measurements: int = 0
     num_gates: int = 0
     num_barriers: int = 0
-    # Operations applied inside an if/else block. Counted apart from the others because
-    # their depth is only settled once the branch closes, but they still make the qubit used.
-    num_branch_ops: int = 0
+    # Set when the qubit is operated on inside an if/else block. Those operations are
+    # flagged rather than counted: their depth is only settled once the branch closes,
+    # and a branch body may be visited more than once, so only the fact that the qubit
+    # is used can be relied on.
+    used_in_branch: bool = False
 
     def _total_ops(self) -> int:
         return (
@@ -96,7 +98,7 @@ class QubitDepthNode(DepthNode):
             + self.num_measurements
             + self.num_gates
             + self.num_barriers
-            + self.num_branch_ops
+            + int(self.used_in_branch)
         )
 
     def is_idle(self) -> bool:

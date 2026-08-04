@@ -143,6 +143,25 @@ def test_remove_barriers_inside_box_and_branch():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_remove_barriers_not_in_place_leaves_the_original_alone():
+    """Filtering rewrites nested bodies in place, so it must run on the returned copy."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q[0];
+    box {
+        barrier q;
+        x q[1];
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    new_module = module.remove_barriers(in_place=False)
+
+    assert "barrier" not in dumps(new_module)
+    assert "barrier" in dumps(module)
+
+
 def test_unroll_barrier():
     qasm_str = """
     OPENQASM 3.0;

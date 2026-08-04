@@ -1057,7 +1057,7 @@ class QasmVisitor:
             qubit_idx: The index of the qubit within the register.
         """
         self._is_branch_qubits.add((qubit_name, qubit_idx))
-        self._module._qubit_depths[(qubit_name, qubit_idx)].num_branch_ops += 1
+        self._module._qubit_depths[(qubit_name, qubit_idx)].used_in_branch = True
 
     @staticmethod
     def _get_qubit_name_and_id(

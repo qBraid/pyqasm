@@ -337,7 +337,7 @@ def test_reverse_qubit_order_inside_box_and_branch():
     }
     c = measure q[0];
     if (c == 1) {
-        x q[1];
+        x q[0];
     }
     """
     expected_qasm3_str = """
@@ -351,9 +351,28 @@ def test_reverse_qubit_order_inside_box_and_branch():
     }
     c[0] = measure q[2];
     if (c[0] == true) {
-        x q[1];
+        x q[2];
     }
     """
     module = loads(qasm3_str)
     module.reverse_qubit_order()
     check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def test_remove_idle_qubits_keeps_qubits_used_by_a_custom_gate_in_a_branch():
+    """The expansion of a custom gate in a branch marks its qubits as used."""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit c;
+    gate my_gate p, r { x p; cx p, r; }
+    h q[0];
+    c = measure q[0];
+    if (c == 1) {
+        my_gate q[0], q[1];
+    }
+    """
+    module = loads(qasm3_str)
+    module.remove_idle_qubits()
+    assert module.num_qubits == 2
