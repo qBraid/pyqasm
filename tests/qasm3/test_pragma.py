@@ -183,3 +183,39 @@ def test_verbatim_box_after_verbatim_box():
     verbatim_box, plain_box = module.unrolled_ast.statements[-2:]
     assert [gate.name.name for gate in verbatim_box.body] == ["prx"]
     assert [gate.name.name for gate in plain_box.body] == ["rz", "rx", "rz", "rx", "rz"]
+
+
+def test_verbatim_marker_dropped_by_an_intervening_pragma():
+    """Only the pragma immediately preceding a box marks that box verbatim."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    #pragma braket verbatim
+    #pragma braket result probability
+    box {
+      prx(0.1, 0.2) q[0];
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    box = module.unrolled_ast.statements[-1]
+    assert isinstance(box, qasm3_ast.Box)
+    assert [gate.name.name for gate in box.body] == ["rz", "rx", "rz", "rx", "rz"]
+
+
+def test_verbatim_custom_gate_counts_once_towards_depth():
+    """A verbatim gate is emitted as written, so its depth is that of one gate."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    gate my_gate(a) p, r { rx(a) p; cx p, r; rx(a) r; }
+    #pragma braket verbatim
+    box {
+      my_gate(0.3) q[0], q[1];
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    assert module.depth() == 1

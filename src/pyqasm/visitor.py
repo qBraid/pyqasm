@@ -1263,8 +1263,9 @@ class QasmVisitor:
         self._scope_manager.push_context(Context.GATE)
 
         # Pause recording the depth of new gates because we are processing the
-        # definition of a custom gate here - handle the depth separately afterwards
-        self._recording_ext_gate_depth = gate_name in self._external_gates
+        # definition of a custom gate here - handle the depth separately afterwards.
+        # A verbatim gate is emitted as written, so it counts once, like an external gate.
+        self._recording_ext_gate_depth = self._in_verbatim_box or gate_name in self._external_gates
 
         result = []
         for gate_op in gate_definition_ops:
@@ -2942,7 +2943,14 @@ class QasmVisitor:
 
     @staticmethod
     def _is_verbatim_pragma(statement: qasm3_ast.Pragma) -> bool:
-        """Check whether a pragma marks the following box as verbatim."""
+        """Check whether a pragma marks the following box as verbatim.
+
+        Args:
+            statement (qasm3_ast.Pragma): The pragma to inspect.
+
+        Returns:
+            bool: True for a 'braket verbatim' pragma, False for any other.
+        """
         return statement.command.split() == ["braket", "verbatim"]
 
     def _visit_pragma(self, statement: qasm3_ast.Pragma) -> list[qasm3_ast.Pragma]:
@@ -3316,8 +3324,10 @@ class QasmVisitor:
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
 
-        if not isinstance(statement, (qasm3_ast.Pragma, qasm3_ast.Box)):
-            # a pending verbatim pragma only carries over to a box directly following it
+        if not isinstance(statement, qasm3_ast.Box):
+            # a pending verbatim pragma only carries over to a box directly following it.
+            # Clearing before dispatch lets a verbatim pragma re-arm the flag for itself,
+            # while any other statement - another pragma included - drops it.
             self._verbatim_pragma_pending = False
 
         visitor_function = self._visit_map.get(type(statement))
