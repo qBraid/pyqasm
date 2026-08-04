@@ -628,11 +628,13 @@ class QasmVisitor:
                     )
                 )
                 # if measurement gate is not in branching statement
+                src_name, src_idx = QasmVisitor._get_qubit_name_and_id(src_id)
                 if not self._in_branching_statement:
-                    src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
-                    qubit_node = self._module._qubit_depths[(src_name, src_id)]
+                    qubit_node = self._module._qubit_depths[(src_name, src_idx)]
                     qubit_node.depth += 1
                     qubit_node.num_measurements += 1
+                else:
+                    self._mark_branch_qubit(src_name, src_idx)
         else:
             target_name: str = (
                 target.name if isinstance(target, qasm3_ast.Identifier) else target.name.name
@@ -661,12 +663,12 @@ class QasmVisitor:
                     target=tgt_id if target else None,
                 )
                 # if measurement gate is not in branching statement
+                src_name, src_idx = QasmVisitor._get_qubit_name_and_id(src_id)
                 if not self._in_branching_statement:
-                    src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
                     tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
 
                     qubit_node, clbit_node = (
-                        self._module._qubit_depths[(src_name, src_id)],
+                        self._module._qubit_depths[(src_name, src_idx)],
                         self._module._clbit_depths[(tgt_name, tgt_id)],
                     )
                     qubit_node.depth += 1
@@ -682,6 +684,8 @@ class QasmVisitor:
                         self._measurement_set.add(target.name)
                     elif isinstance(target, qasm3_ast.IndexedIdentifier):
                         self._measurement_set.add(target.name.name)
+                else:
+                    self._mark_branch_qubit(src_name, src_idx)
 
                 unrolled_measurements.append(unrolled_measure)
 
@@ -769,7 +773,7 @@ class QasmVisitor:
                 qubit_node.depth += 1
                 qubit_node.num_resets += 1
             else:
-                self._is_branch_qubits.add((qubit_name, qubit_id))
+                self._mark_branch_qubit(qubit_name, qubit_id)
 
             unrolled_resets.append(unrolled_reset)
 
@@ -1042,6 +1046,19 @@ class QasmVisitor:
             self._module.num_qubits = max(self._module.num_qubits, phys_idx + 1)
         return phys_idx
 
+    def _mark_branch_qubit(self, qubit_name: str, qubit_idx: int) -> None:
+        """Record a qubit operated on inside an if/else block.
+
+        The depth of such a qubit is settled once the branch closes, but it counts as
+        used right away so that it is not mistaken for an idle qubit.
+
+        Args:
+            qubit_name: The register name (or physical qubit identifier).
+            qubit_idx: The index of the qubit within the register.
+        """
+        self._is_branch_qubits.add((qubit_name, qubit_idx))
+        self._module._qubit_depths[(qubit_name, qubit_idx)].num_branch_ops += 1
+
     @staticmethod
     def _get_qubit_name_and_id(
         qubit: qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier,
@@ -1182,7 +1199,7 @@ class QasmVisitor:
                     for qubit_subset in unrolled_targets + [ctrls]:
                         for qubit in qubit_subset:
                             qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
-                            self._is_branch_qubits.add((qubit_name, qubit_idx))
+                            self._mark_branch_qubit(qubit_name, qubit_idx)
 
         # check for duplicate bits
         for final_gate in result:
@@ -1299,7 +1316,7 @@ class QasmVisitor:
                 for qubit_subset in [op_qubits] + [ctrls]:
                     for qubit in qubit_subset:
                         qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
-                        self._is_branch_qubits.add((qubit_name, qubit_idx))
+                        self._mark_branch_qubit(qubit_name, qubit_idx)
 
         self._scope_manager.pop_scope()
         self._scope_manager.restore_context()
