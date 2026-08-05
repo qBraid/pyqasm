@@ -93,16 +93,10 @@ class QubitDepthNode(DepthNode):
     used_in_branch: bool = False
 
     def _total_ops(self) -> int:
-        return (
-            self.num_resets
-            + self.num_measurements
-            + self.num_gates
-            + self.num_barriers
-            + int(self.used_in_branch)
-        )
+        return self.num_resets + self.num_measurements + self.num_gates + self.num_barriers
 
     def is_idle(self) -> bool:
-        return self._total_ops() == 0
+        return self._total_ops() == 0 and not self.used_in_branch
 
 
 @dataclass(slots=True)
