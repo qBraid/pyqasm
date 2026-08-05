@@ -63,7 +63,7 @@ def _qreg_sizes(program: Program) -> dict[str, int]:
     return sizes
 
 
-def _single_index(operand: qasm3_ast.QASMNode) -> tuple[str, int] | None:
+def _single_index(operand: qasm3_ast.QASMNode | None) -> tuple[str, int] | None:
     """Decompose ``reg[i]`` into ``(reg, i)``, or ``None`` for any other operand shape."""
     if (
         isinstance(operand, qasm3_ast.IndexedIdentifier)
@@ -212,6 +212,7 @@ def _flatten_branch(
     chain is walked back into the whole-register comparison it came from.
     """
     bit_values: dict[int, bool] = {}
+    body: list[qasm3_ast.Statement] = []
     reg_name = None
     reg_value = None
     current = statement
