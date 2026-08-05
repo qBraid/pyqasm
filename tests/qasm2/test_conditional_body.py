@@ -49,18 +49,30 @@ def test_conditional_barrier_rejected_when_nested():
 
 
 @pytest.mark.parametrize(
-    "operation",
+    "operation, keyword",
     [
-        "delay[10ns] q;",
-        "box {x q[0];}",
+        ("delay[10ns] q;", "'delay'"),
+        ("box {x q[0];}", "'box'"),
     ],
 )
-def test_conditional_non_qop_rejected(operation):
+def test_conditional_non_qop_rejected(operation, keyword):
     """Test that any statement which is not a <qop> is rejected as a conditional body,
-    not just barrier. These parse but have no QASM 2 syntax at all."""
+    not just barrier. These parse but have no QASM 2 syntax at all, and the error names
+    the keyword the user wrote rather than the AST class it parsed into."""
     module = loads(QASM2_PREAMBLE + f"if(m==1) {operation}\n")
-    with pytest.raises(ValidationError, match="body of an 'if'"):
+    with pytest.raises(ValidationError, match=f"{keyword} is not supported as the body of an 'if'"):
         module.validate()
+
+
+def test_conditional_global_phase_reports_global_phase():
+    """Test that the QuantumPhase unrolling introduces for rzz/rxx is reported as global
+    phase rather than as an AST class name. Reachable only by re-filtering an already
+    unrolled body, which remove_idle_qubits/reverse_qubit_order do (issue #351)."""
+    module = loads(QASM2_PREAMBLE + "if(m==1) rzz(0.3) q[0], q[1];\n")
+    module.unroll()
+    module.reverse_qubit_order()
+    with pytest.raises(ValidationError, match="Global phase is not representable in QASM 2.0"):
+        module.remove_idle_qubits()
 
 
 @pytest.mark.parametrize(
