@@ -477,7 +477,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             for idle_idx in idle_indices:
                 del qasm_module._qubit_depths[(reg_name, idle_idx)]
 
-            size = self._qubit_registers[reg_name]
+            size = qasm_module._qubit_registers[reg_name]
 
             if len(idle_indices) == size:  # all qubits are idle
 
@@ -497,7 +497,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 qasm_module._remap_qubits(reg_name, size, idle_indices)
 
             # update the number of qubits
-            self._num_qubits -= len(idle_indices)
+            qasm_module._num_qubits -= len(idle_indices)
 
         # the original ast will need to be updated to the unrolled ast as if we call the
         # unroll operation again, it will incorrectly choose the original ast WITH THE IDLE QUBITS
