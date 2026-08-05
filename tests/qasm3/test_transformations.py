@@ -206,7 +206,16 @@ def _assert_no_shared_operand_nodes(module):
             for bit in Qasm3Analyzer.get_op_bit_list(statement):
                 assert id(bit) not in seen_bits, f"operand node shared: {bit}"
                 seen_bits.add(id(bit))
-                index_node = bit.indices[0][0]
+                # physical qubits are bare Identifiers, and an index may be a DiscreteSet
+                # or multi-dimensional; only plain reg[int] operands have an index node
+                if not isinstance(bit, IndexedIdentifier):
+                    continue
+                indices = bit.indices
+                if not (
+                    len(indices) == 1 and isinstance(indices[0], list) and len(indices[0]) == 1
+                ):
+                    continue
+                index_node = indices[0][0]
                 assert id(index_node) not in seen_indices, f"index node shared: {bit}"
                 seen_indices.add(id(index_node))
 
@@ -235,13 +244,20 @@ def test_unroll_emits_fresh_operand_nodes(operation):
     _assert_no_shared_operand_nodes(module)
 
 
-def test_rebase_emits_fresh_operand_nodes():
-    """Test that rebase() never emits statements sharing operand nodes (issue #333)"""
-    qasm3_str = """
+@pytest.mark.parametrize(
+    "operation", ["crz(0.5) q[1], q[2];", "swap q[0], q[2];", "cz q[1], q[2];"]
+)
+def test_rebase_emits_fresh_operand_nodes(operation):
+    """Test that rebase() never emits statements sharing operand nodes (issue #333)
+
+    ``swap`` and ``cz`` are in DECOMPOSITION_RULES so they exercise
+    Decomposer._get_decomposed_gates; ``crz`` is handled by maps/gates.py instead.
+    """
+    qasm3_str = f"""
     OPENQASM 3.0;
     include "stdgates.inc";
     qubit[3] q;
-    crz(0.5) q[1], q[2];
+    {operation}
     """
     module = loads(qasm3_str).rebase(BasisSet.ROTATIONAL_CX)
     _assert_no_shared_operand_nodes(module)
