@@ -534,22 +534,6 @@ class QasmVisitor:
 
         return _valid_statements
 
-    def _handle_function_init_expression(
-        self, expression: Any, init_value: Any
-    ) -> None | qasm3_ast.Expression:
-        """Handle function initialization expression.
-
-        Args:
-            statement (Any): The statement to handle function initialization expression.
-            init_value (Any): The value to handle function initialization expression.
-        """
-        if isinstance(expression, qasm3_ast.FunctionCall):
-            func_name = expression.name.name
-            if func_name in FUNCTION_MAP:
-                if isinstance(init_value, (float, int)):
-                    return qasm3_ast.FloatLiteral(init_value)
-        return None
-
     def _handle_extern_function_cleanup(
         self, statements: list, statement: qasm3_ast.Statement
     ) -> None:
@@ -1719,10 +1703,10 @@ class QasmVisitor:
             statement.init_expression = PulseValidator.make_complex_binary_expression(init_value)
 
         if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
-            statement.init_expression = (
-                self._handle_function_init_expression(statement.init_expression, init_value)
-                or statement.init_expression
-            )
+            function_name = statement.init_expression.name.name
+            if function_name in FUNCTION_MAP and isinstance(init_value, (float, int)):
+                statement.init_expression = qasm3_ast.FloatLiteral(init_value)
+
         self._handle_extern_function_cleanup(statements, statement)
 
         return statements
@@ -1956,10 +1940,9 @@ class QasmVisitor:
             statement.init_expression = PulseValidator.make_complex_binary_expression(init_value)
 
         if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
-            statement.init_expression = (
-                self._handle_function_init_expression(statement.init_expression, init_value)
-                or statement.init_expression
-            )
+            function_name = statement.init_expression.name.name
+            if function_name in FUNCTION_MAP and isinstance(init_value, (float, int)):
+                statement.init_expression = qasm3_ast.FloatLiteral(init_value)
 
         return statements
 
@@ -2127,10 +2110,9 @@ class QasmVisitor:
             )
 
         if isinstance(statement.rvalue, qasm3_ast.FunctionCall):
-            statement.rvalue = (
-                self._handle_function_init_expression(statement.rvalue, rvalue_eval)
-                or statement.rvalue
-            )
+            function_name = statement.rvalue.name.name
+            if function_name in FUNCTION_MAP and isinstance(rvalue_eval, (float, int)):
+                statement.rvalue = qasm3_ast.FloatLiteral(rvalue_eval)
 
         self._handle_extern_function_cleanup(statements, statement)
 
