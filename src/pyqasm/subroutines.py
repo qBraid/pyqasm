@@ -521,6 +521,11 @@ class Qasm3SubroutineProcessor:
         """
         actual_arg_name = Qasm3SubroutineProcessor.get_fn_actual_arg_name(actual_arg)
         formal_reg_name = formal_arg.name.name
+        # If our actual variable is the same as the function argument,
+        # give the function argument a temporary name for internal use
+        if actual_arg_name == formal_reg_name:
+            formal_reg_name += "_arg"
+
         formal_qubit_size = Qasm3ExprEvaluator.evaluate_expression(
             formal_arg.size, reqd_type=IntType, const_expr=True
         )[0]

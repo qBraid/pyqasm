@@ -1499,11 +1499,21 @@ class QasmVisitor:
             for transform_map, size_map in zip(
                 reversed(self._function_qreg_transform_map), reversed(self._function_qreg_size_map)
             ):
-                operation.qubits = (
-                    Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
-                        operation, transform_map, size_map
+                try:
+                    operation.qubits = (
+                        Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
+                            operation, transform_map, size_map
+                        )
                     )
-                )
+                except KeyError:
+                    for qubit in operation.qubits:
+                        assert isinstance(qubit.name, str)
+                        qubit.name += "_arg"  # type: ignore [assignment]
+                    operation.qubits = (
+                        Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
+                            operation, transform_map, size_map
+                        )
+                    )
 
         operation.qubits = self._get_op_bits(operation, qubits=True)  # type: ignore
 
