@@ -58,6 +58,12 @@ each backend's `prepare_*` step and excluded from the measured time. Reported
 numbers are the median of `N_REPEATS` runs (default 5; `--quick` uses 2,
 `--repeats N` overrides).
 
+The two committed plots were measured on different machines, so compare
+backends within a plot, never timings across the two: `bench_qft.png` is from
+an Apple M1 Pro (serial build — macOS disables OpenMP by default) and
+`bench_random.png` predates it. Each plot is internally consistent: every
+backend in it was measured in one run on one host.
+
 ## Provenance of the `*_evolved` files
 
 `bench_evolved.json`, `bench_qft_evolved.png`, and `bench_random_evolved.png`
