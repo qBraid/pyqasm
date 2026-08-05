@@ -19,6 +19,7 @@ Types of changes:
 
 ### Improved / Modified
 - Consolidated the hardcoded `"__PYQASM_QUBITS__"` string literals scattered across `visitor.py`, `transformer.py` and `pulse/utils.py` into a single `INTERNAL_QUBIT_REGISTER` constant in `elements.py`, alongside an `is_internal_qubit_register()` helper that is now the one place the internal register is recognised. ([#325](https://github.com/qBraid/pyqasm/pull/325))
+- Added type hinting for `base.py`, `qasm2.py`, `qasm3.py`, and `visitor.py` docstrings. ([#346](https://github.com/qBraid/pyqasm/pull/346))
 
 ### Deprecated
 
@@ -35,6 +36,7 @@ Types of changes:
 - Fixed the `ctrl @` modifier not resolving gate aliases: `ctrl @ toffoli` / `ctrl @ ccnot` (aliases of `ccx`) and `ctrl @ cnot` / `ctrl @ CX` (aliases of `cx`) now escalate controls identically to their canonical gate instead of raising `Unsupported controlled QASM operation`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 - Fixed classical register declarations not being visible inside `box` scope, causing "Missing clbit register declaration" errors for measurement statements inside box blocks. ([#306](https://github.com/qBraid/pyqasm/pull/306))
 - Fixed the backend-dependent `dt` duration unit being incorrectly relabeled as `ns` when unrolling `delay` and `box` statements without a `device_cycle_time`. Since `dt` cannot be converted to SI units without a sample rate, it is now preserved as `dt`. ([#317](https://github.com/qBraid/pyqasm/pull/317))
+- Fixed grammatical typos in `base.py`, `qasm2.py`, `qasm3.py`, and `visitor.py` docstrings. ([#346](https://github.com/qBraid/pyqasm/pull/346))
 
 ### Dependencies
 - Migrated the Linux wheel *build container* from `manylinux2014` to `manylinux_2_28`. NumPy stopped publishing `manylinux2014` (glibc 2.17) wheels for CPython 3.12+, so `pip` fell back to building NumPy from source inside the build container, whose GCC is older than NumPy requires — failing every Linux wheel job for cp312/cp313/cp314. The published wheels are unaffected: auditwheel tags them from the extension's actual symbol requirements, so they remain `manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64` and still install on glibc 2.17 systems.

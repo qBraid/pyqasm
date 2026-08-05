@@ -202,7 +202,7 @@ class QasmVisitor:
             register (QubitDeclaration): The register name and size.
 
         Returns:
-            None
+            The list containing the register
         """
         logger.debug("Visiting register '%s'", str(register))
 
@@ -408,7 +408,7 @@ class QasmVisitor:
             base_type (Any): Base type of the variable.
             is_const (bool): whether the statement is constant declaration or not.
         Returns:
-            Int: size of the variable base type.
+            int: size of the variable base type.
         """
         base_size = 1
         if not isinstance(base_type, qasm3_ast.BoolType):
@@ -486,7 +486,12 @@ class QasmVisitor:
         Consolidate all quantum registers into a single register '__PYQASM_QUBITS__'.
 
         Args:
-            unrolled_stmts (list): The list of statements to process and modify in-place.
+            unrolled_stmts (list): The list of non-QubitDeclaration statements to append
+                                   after consolidating the quantum registers.
+            total_qubits (int): The total number of allocated qubits in quantum registers.
+
+        Returns:
+            A new list of statements with the quantum register statements consolidated.
 
         Raises:
             ValidationError: If the total number of qubits exceeds the available device qubits,
@@ -520,13 +525,16 @@ class QasmVisitor:
         return _valid_statements
 
     def _handle_function_init_expression(
-        self, expression: Any, init_value: Any
+        self, expression: qasm3_ast.FunctionCall, init_value: Any
     ) -> None | qasm3_ast.Expression:
         """Handle function initialization expression.
 
         Args:
-            statement (Any): The statement to handle function initialization expression.
+            expression (Any): The statement to handle function initialization expression.
             init_value (Any): The value to handle function initialization expression.
+
+        Returns:
+            The resultant expression if
         """
         if isinstance(expression, qasm3_ast.FunctionCall):
             func_name = expression.name.name
@@ -567,7 +575,7 @@ class QasmVisitor:
             statement (qasm3_ast.QuantumMeasurementStatement): The measurement statement to visit.
 
         Returns:
-            None
+            The list of unrolled measurements.
         """
         logger.debug("Visiting measurement statement '%s'", str(statement))
 
@@ -605,7 +613,7 @@ class QasmVisitor:
                     )
             if is_pulse_gate:
                 return [statement]
-        # # TODO: handle in-function measurements
+        # TODO: handle in-function measurements
         source_name: str = (
             source.name if isinstance(source, qasm3_ast.Identifier) else source.name.name
         )
@@ -738,7 +746,7 @@ class QasmVisitor:
             statement (qasm3_ast.QuantumReset): The reset statement to visit.
 
         Returns:
-            None
+            The list of unrolled resets.
         """
         logger.debug("Visiting reset statement '%s'", str(statement))
         if self._resolve_unindexed_reset_qubit(statement):
@@ -796,7 +804,8 @@ class QasmVisitor:
     ) -> list:
         """Replace RangeDefinition-containing qubits in a barrier with their
         expanded IndexedIdentifier equivalents so that consolidate_qubit_registers
-        only sees IntegerLiteral indices."""
+        only sees IntegerLiteral indices.
+        """
         consolidated_qubits: list = []
         expanded_idx = 0
         for op_qubit in barrier.qubits:
@@ -834,7 +843,7 @@ class QasmVisitor:
             statement (qasm3_ast.QuantumBarrier): The barrier statement to visit.
 
         Returns:
-            None
+            The list containing a single multi-qubit barrier statement.
         """
         valid_open_pulse_qubits = False
         for op_qubit in barrier.qubits:
@@ -962,7 +971,7 @@ class QasmVisitor:
             definition (qasm3_ast.QuantumGateDefinition): The gate definition to visit.
 
         Returns:
-            None
+            An empty list.
         """
         gate_name = definition.name.name
         if gate_name in self._custom_gates:
@@ -1016,8 +1025,9 @@ class QasmVisitor:
             all_targets (list[list[qasm3_ast.IndexedIdentifier]]):
                 The list of target qubits.
                 The length of this list indicates the number of time the gate is invoked.
+
         Returns:
-            List of all executed gates.
+            The list of all executed gates.
         """
         result = []
         if ctrls is None:
@@ -1030,7 +1040,7 @@ class QasmVisitor:
         """Register a physical qubit ``$n`` for depth / count tracking if not already known.
 
         Args:
-            name: The physical qubit identifier string (e.g. ``"$0"``).
+            name (str): The physical qubit identifier string (e.g. ``"$0"``).
 
         Returns:
             The physical qubit index.
@@ -1063,11 +1073,12 @@ class QasmVisitor:
         self,
         all_targets: list[list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]],
         ctrls: list[qasm3_ast.IndexedIdentifier],
-    ):
+    ) -> None:
         """Updates the depth of the circuit after applying a broadcasted gate.
 
         Args:
-            all_targes: The list of qubits on which a gate was just added.
+            all_targets: The list of qubits on which a gate was just added.
+            ctrls: THe list of control qubits for the gate.
 
         Returns:
             None
@@ -1109,7 +1120,7 @@ class QasmVisitor:
                             angles.
 
         Returns:
-            None
+            The list of gates after unrolling.
 
         Raises:
             ValidationError: If the number of qubits is invalid.
@@ -1223,7 +1234,7 @@ class QasmVisitor:
                             for more clarity.
 
         Returns:
-            None
+            The list of gates and phase operations after unrolling.
         """
         logger.debug("Visiting custom gate operation '%s'", str(operation))
         if ctrls is None:
@@ -1398,7 +1409,7 @@ class QasmVisitor:
             inverse (bool): Whether the operation is an inverse operation. Defaults to False.
 
         Returns:
-            list[qasm3_ast.Statement]: The unrolled quantum phase operation.
+            list[qasm3_ast.QuantumPhase]: The unrolled quantum phase operation.
         """
         logger.debug("Visiting phase operation '%s'", str(operation))
         if ctrls is None:
@@ -1452,10 +1463,11 @@ class QasmVisitor:
         """Visit a gate operation element.
 
         Args:
-            operation (qasm3_ast.QuantumGate): The gate operation to visit.
+            operation: The gate operation to visit.
+            ctrls: An optional list of control qubits on the gate operation.
 
         Returns:
-            None
+            The list of gates and phase operations after unrolling.
         """
         operation, ctrls = copy.copy(operation), copy.copy(ctrls)
         negctrls = []
@@ -1617,7 +1629,7 @@ class QasmVisitor:
             statement (qasm3_ast.ConstantDeclaration): The constant declaration to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list containing the unrolled statement.
         """
         statements = []
         var_name = statement.identifier.name
@@ -1733,10 +1745,10 @@ class QasmVisitor:
         """Visit a classical operation element.
 
         Args:
-            statement (ClassicalType): The classical operation to visit.
+            statement (qasm3_ast.ClassicalDeclaration): The classical operation to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list containing the unrolled statement.
         """
         statements = []
         var_name = statement.identifier.name
@@ -1974,7 +1986,7 @@ class QasmVisitor:
             statement (qasm3_ast.ClassicalAssignment): The classical assignment to visit.
 
         Returns:
-            list[qasm3_ast.Statement]: The list of statements generated by the assignment.
+            list[qasm3_ast.Statement]: The list containing the unrolled statement.
         """
         statements = []
         lvalue = statement.lvalue
@@ -2191,7 +2203,7 @@ class QasmVisitor:
             statement (qasm3_ast.BranchingStatement): The branching statement to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list of unrolled branch statements.
         """
         self._scope_manager.push_context(Context.BLOCK)
         self._scope_manager.push_scope({})
@@ -2316,7 +2328,14 @@ class QasmVisitor:
         return result  # type: ignore[return-value]
 
     def _visit_forin_loop(self, statement: qasm3_ast.ForInLoop) -> list[qasm3_ast.Statement]:
-        # Compute loop variable values
+        """Visit a for-in loop statement element.
+
+        Args:
+            statement (qasm3_ast.ForInLoop): The for-in loop statement to visit.
+
+        Returns:
+            list[qasm3_ast.Statement]: The list of unrolled branch statements.
+        """
         irange = []
         if isinstance(statement.set_declaration, qasm3_ast.RangeDefinition):
             init_exp = statement.set_declaration.start
@@ -2398,10 +2417,10 @@ class QasmVisitor:
            Reference: https://openqasm.com/language/subroutines.html#subroutines
 
         Args:
-            statement (qasm3_ast.SubroutineDefinition): The subroutine definition to visit.
+            statement (SubroutineDefinition | ExternDeclaration): The subroutine definition to visit.
 
         Returns:
-            None
+            The list containing the statement if it is an ExternDeclaration, otherwise None.
         """
         fn_name = statement.name.name
         statements = []
@@ -2571,12 +2590,13 @@ class QasmVisitor:
         """Visit a while-loop element.
 
         Args:
-            statement (qasm3_ast.WhileLoop) - the while-loop AST node
+            statement (qasm3_ast.WhileLoop): The while-loop AST node.
         Returns:
-            list[qasm3_ast.Statement] - flattened/unrolled statements
+            list[qasm3_ast.Statement]: The list of unrolled statements from the while-loop.
         Raises:
-            ValidationError - if loop condition is non-classical or dynamic
-            LoopLimitExceededError - if the loop exceeds the maximum limit"""
+            ValidationError: If loop condition is non-classical or dynamic.
+            LoopLimitExceededError: if the loop exceeds the maximum limit.
+        """
 
         result = []
 
@@ -2631,7 +2651,7 @@ class QasmVisitor:
             statement (qasm3_ast.AliasStatement): The alias statement to visit.
 
         Returns:
-            None
+            An empty list.
         """
         # pylint: disable=too-many-branches
         target = statement.target
@@ -2828,12 +2848,18 @@ class QasmVisitor:
             default_stmts = statement.default.statements
             return _evaluate_case(default_stmts)
 
-    def _resolve_duration_unit(self, time_var) -> qasm3_ast.TimeUnit:
+    def _resolve_duration_unit(self, time_var: qasm3_ast.Expression) -> qasm3_ast.TimeUnit:
         """Determine the output unit for a duration literal.
 
         `dt` is backend-dependent and not convertible to SI units without a known
         sample rate. Preserve it when the source unit was `dt` (or a device cycle
         time is set). SI units are already converted to ns by the evaluator.
+
+        Args:
+            time_var (qasm3_ast.Expression): A DurationLiteral to check.
+
+        Returns:
+            qasm3_ast.TimeUnit: The unit of the DurationLiteral.
         """
         source_is_dt = (
             isinstance(time_var, qasm3_ast.DurationLiteral)
@@ -2850,8 +2876,10 @@ class QasmVisitor:
     ) -> list[qasm3_ast.Statement]:
         """
         Visit a DelayInstruction statement.
+
         Args:
             statement (qasm3_ast.DelayInstruction): The DelayInstruction statement to visit.
+
         Returns:
             list[qasm3_ast.Statement]: The list of statements generated by the DelayInstruction.
         """
@@ -2937,10 +2965,12 @@ class QasmVisitor:
     def _visit_box_statement(self, statement: qasm3_ast.Box) -> list[qasm3_ast.Statement]:
         """
         Visit a Box statement.
+
         Args:
             statement (qasm3_ast.Box): The Box statement node to visit.
+
         Returns:
-            list[qasm3_ast.Statement]: The list of statements generated by the Box statement.
+            list[qasm3_ast.Statement]: The list of unrolled statements from the Box statement.
         """
         statements = []
         _box_time_var = statement.duration
@@ -3009,14 +3039,14 @@ class QasmVisitor:
 
     def _visit_calibration_definition(
         self, statement: qasm3_ast.CalibrationDefinition
-    ) -> list[Any]:
+    ) -> list[qasm3_ast.Statement]:
         """Visit a calibration definition element.
 
         Args:
             statement (qasm3_ast.CalibrationDefinition): The calibration definition to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list of unrolled statements.
         """
         from openpulse.parser import (  # pylint: disable=import-outside-toplevel
             OpenPulseParsingError,
@@ -3156,14 +3186,16 @@ class QasmVisitor:
 
         return [statement]
 
-    def _visit_calibration_statement(self, statement: qasm3_ast.CalibrationStatement) -> list[Any]:
+    def _visit_calibration_statement(
+            self, statement: qasm3_ast.CalibrationStatement
+        ) -> list[qasm3_ast.Statement]:
         """Visit a calibration statement element.
 
         Args:
             statement (qasm3_ast.CalibrationStatement): The calibration statement to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list of unrolled statements.
         """
         from openpulse.parser import (  # pylint: disable=import-outside-toplevel
             OpenPulseParsingError,
@@ -3232,7 +3264,7 @@ class QasmVisitor:
             statement (qasm3_ast.CalibrationGrammarDeclaration): The calibration grammar declaration
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list of unrolled statements.
         """
         if statement.name != "openpulse":
             raise_qasm3_error(
@@ -3272,7 +3304,7 @@ class QasmVisitor:
             statement (qasm3_ast.Statement): The statement to visit.
 
         Returns:
-            None
+            list[qasm3_ast.Statement]: The list of unrolled statements.
         """
         logger.debug("Visiting statement '%s'", str(statement))
         result = []

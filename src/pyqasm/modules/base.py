@@ -145,7 +145,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """Setter for the number of classical bits."""
         self._num_clbits = value
 
-    def _add_classical_register(self, reg_name: str, num_clbits: int):
+    def _add_classical_register(self, reg_name: str, num_clbits: int) -> None:
         """Add classical bits to the module.
 
         Args:
@@ -173,7 +173,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._unrolled_ast = value
 
     def has_measurements(self) -> bool:
-        """Check if the module has any measurement operations."""
+        """Check if the module has any measurement operations.
+
+        Args:
+            None
+
+        Returns:
+            bool: True if the module has measurement operations, False otherwise.
+        """
         if self._has_measurements is None:
             self._has_measurements = False
             # try to check in the unrolled version as that will a better indicator of
@@ -312,7 +319,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """Calculate the depth of the unrolled openqasm program.
 
         Args:
-        decompose_native_gates (bool): If True, calculate depth after decomposing gates.
+            decompose_native_gates (bool): If True, calculate depth after decomposing gates.
                                 If False, treat all decompsable gates as a single gate operation.
                                 Defaults to True.
 
@@ -348,14 +355,22 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     def _remap_qubits(self, reg_name: str, size: int, idle_indices: list[int]) -> None:
         """Remap the qubits in a register after removing idle qubits and update the operations
-        using this register accordingly."""
+        using this register accordingly.
+        Args:
+            reg_name (str): The name of the register to be remapped.
+            size (int): The size of the register.
+            idle_indices (list[int]): Indices of idle qubits to be remapped away.
+
+            Returns:
+                None
+        """
 
         used_indices = [idx for idx in range(size) if idx not in idle_indices]
         new_size = size - len(idle_indices)
         idx_map = {used_indices[i]: i for i in range(new_size)}  # old_idx : new_idx
 
         # Example -
-        # reg_name = "q", original_size = 5, idle_indices = [1, 3]
+        # reg_name = "q", size = 5, idle_indices = [1, 3]
         # used_indices = [0, 2, 4], new_size = 3
         # idx_map = {0: 0, 2: 1, 4: 2}
 
@@ -633,7 +648,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
     def rebase(self, target_basis_set: BasisSet, in_place: bool = True) -> QasmModule:
         """Rebase the AST to use a specified target basis set.
 
-        Will unroll the module if not already done.
+        Note: Will unroll the module if not already done.
 
         Args:
             target_basis_set: The target basis set to rebase the module to.
@@ -682,6 +697,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
     def _get_gate_counts(self) -> dict[str, int]:
         """Return a dictionary of gate counts in the unrolled program.
 
+        Args:
+            None
+
         Returns:
             dict[str, int]: A dictionary of gate counts.
         """
@@ -698,6 +716,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Args:
             other_module (QasmModule): The module to compare with.
+
+        Returns:
+            None
         """
         try:  # pylint: disable-next=import-outside-toplevel
             from tabulate import tabulate
@@ -766,4 +787,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Args:
             visitor (QasmVisitor): The visitor to accept.
+
+        Returns:
+            None
         """

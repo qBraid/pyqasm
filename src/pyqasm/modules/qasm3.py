@@ -48,6 +48,9 @@ class Qasm3Module(QasmModule):
 
         Args:
             visitor (QasmVisitor): The visitor to accept.
+
+        Returns:
+            None
         """
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
