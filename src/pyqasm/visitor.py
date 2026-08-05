@@ -1606,6 +1606,24 @@ class QasmVisitor:
 
         return result
 
+    def _validate_duration_or_stretch_statements(
+        self, statement: qasm3_ast.Statement, base_type: Any, rvalue: Any
+    ) -> None:
+        """Validate statements that declare or assign duration or stretch values.
+
+        Args:
+            statement: The statement to validate.
+            base_type: The declared type.
+            rvalue: The initializer or assigned value.
+        """
+        global_scope = self._scope_manager.get_global_scope()
+        PulseValidator.validate_duration_or_stretch_statements(
+            statement,
+            base_type,
+            rvalue,
+            global_scope
+        )
+
     def _visit_constant_declaration(
         self, statement: qasm3_ast.ConstantDeclaration
     ) -> list[qasm3_ast.Statement]:
@@ -1639,12 +1657,10 @@ class QasmVisitor:
             )
 
         if statement.init_expression:
-            global_scope = self._scope_manager.get_global_scope()
-            PulseValidator.validate_duration_or_stretch_statements(
+            self._validate_duration_or_stretch_statements(
                 statement=statement,
                 base_type=statement.type,
-                rvalue=statement.init_expression,
-                global_scope=global_scope,
+                rvalue=statement.init_expression
             )
 
         try:
@@ -1825,13 +1841,10 @@ class QasmVisitor:
 
         # populate the variable
         if statement.init_expression:
-
-            global_scope = self._scope_manager.get_global_scope()
-            PulseValidator.validate_duration_or_stretch_statements(
+            self._validate_duration_or_stretch_statements(
                 statement=statement,
                 base_type=base_type,
                 rvalue=statement.init_expression,
-                global_scope=global_scope,
             )
 
             if isinstance(statement.init_expression, qasm3_ast.ArrayLiteral):
@@ -1895,7 +1908,7 @@ class QasmVisitor:
             angle_bit_string=angle_val_bit_string,
         )
 
-        if isinstance(base_type, qasm3_ast.DurationType):
+        if isinstance(base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
             PulseValidator.validate_duration_literal_value(init_value, statement, base_type)
             if self._module._device_cycle_time:
                 variable.time_unit = "dt"
@@ -2017,12 +2030,10 @@ class QasmVisitor:
         rvalue = statement.rvalue
         lvar_base_type = lvar.base_type  # type: ignore[union-attr]
         if rvalue:
-            global_scope = self._scope_manager.get_global_scope()
-            PulseValidator.validate_duration_or_stretch_statements(
+            self._validate_duration_or_stretch_statements(
                 statement=statement,
                 base_type=lvar_base_type,
-                rvalue=rvalue,
-                global_scope=global_scope,
+                rvalue=rvalue
             )
         if binary_op is not None:
             rvalue = qasm3_ast.BinaryExpression(
@@ -2083,7 +2094,7 @@ class QasmVisitor:
             )
             rvalue_eval = rvalue_raw
 
-        if isinstance(lvar_base_type, qasm3_ast.DurationType):
+        if isinstance(lvar_base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
             PulseValidator.validate_duration_literal_value(rvalue_eval, statement, lvar_base_type)
 
         if lvar.readonly:  # type: ignore[union-attr]

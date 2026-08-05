@@ -114,10 +114,10 @@ class PulseValidator:
         Generic validation function for DurationType and StretchType declarations or assignments.
 
         Args:
-            statement: The AST statement node
-            statement_type: The expected AST node type
-            base_type: The declared type (DurationType or StretchType)
-            rvalue: The initializer or assigned value
+            statement: The AST statement node.
+            statement_type: The expected AST node type.
+            base_type: The declared type, function does nothing if not DurationType or StretchType
+            rvalue: The initializer or assigned value.
             global_scope: Global symbol table.
 
         Raises:
