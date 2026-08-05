@@ -43,7 +43,7 @@ class Qasm3Module(QasmModule):
         qasm_ast.version = "3.0"
         return dumps(qasm_ast)
 
-    def accept(self, visitor: QasmVisitor) -> None:
+    def accept(self, visitor) -> None:
         """Accept a visitor for the module.
 
         Args:

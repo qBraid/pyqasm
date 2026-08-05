@@ -98,7 +98,7 @@ class Qasm2Module(QasmModule):
         qasm_program.version = "3.0"
         return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
-    def accept(self, visitor: QasmVisitor) -> None:
+    def accept(self, visitor) -> None:
         """Accept a visitor for the module.
 
         Args:
