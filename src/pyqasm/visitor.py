@@ -3187,8 +3187,8 @@ class QasmVisitor:
         return [statement]
 
     def _visit_calibration_statement(
-            self, statement: qasm3_ast.CalibrationStatement
-        ) -> list[qasm3_ast.Statement]:
+        self, statement: qasm3_ast.CalibrationStatement
+    ) -> list[qasm3_ast.Statement]:
         """Visit a calibration statement element.
 
         Args:
