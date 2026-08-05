@@ -24,7 +24,7 @@ import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
 from openqasm3.printer import Printer, PrinterState, dumps
 
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
 
@@ -51,6 +51,82 @@ def _creg_sizes(program: Program) -> dict[str, int]:
     return sizes
 
 
+def _qreg_sizes(program: Program) -> dict[str, int]:
+    """Map each quantum register in the program to its declared size."""
+    sizes = {}
+    for statement in program.statements:
+        if isinstance(statement, qasm3_ast.QubitDeclaration):
+            size = statement.size
+            sizes[statement.qubit.name] = (
+                size.value if isinstance(size, qasm3_ast.IntegerLiteral) else 1
+            )
+    return sizes
+
+
+def _single_index(operand: qasm3_ast.QASMNode) -> tuple[str, int] | None:
+    """Decompose ``reg[i]`` into ``(reg, i)``, or ``None`` for any other operand shape."""
+    if (
+        isinstance(operand, qasm3_ast.IndexedIdentifier)
+        and len(operand.indices) == 1
+        and isinstance(operand.indices[0], list)
+        and len(operand.indices[0]) == 1
+        and isinstance(operand.indices[0][0], qasm3_ast.IntegerLiteral)
+    ):
+        return operand.name.name, operand.indices[0][0].value
+    return None
+
+
+def _collapse_broadcast_measurement(
+    body: list[qasm3_ast.Statement], creg_sizes: dict[str, int], qreg_sizes: dict[str, int]
+) -> qasm3_ast.QuantumMeasurementStatement | None:
+    """Rebuild ``measure qreg -> creg`` from the per-bit statements unrolling expanded it into.
+
+    A register-level measurement is one QASM 2.0 statement, so a branch guarding it is
+    expressible as written. Emitting the expansion instead would need one ``if`` per bit,
+    re-testing the register the body writes; see the hazard check in :func:`_flatten_branch`.
+    Returns ``None`` unless the body is exactly a full, in-order broadcast.
+    """
+    pairs = []
+    for statement in body:
+        if not isinstance(statement, qasm3_ast.QuantumMeasurementStatement):
+            return None
+        qubit = _single_index(statement.measure.qubit)
+        target = _single_index(statement.target)
+        if qubit is None or target is None:
+            return None
+        pairs.append((qubit, target))
+
+    (qreg, _), (creg, _) = pairs[0]
+    size = len(pairs)
+    if qreg_sizes.get(qreg) != size or creg_sizes.get(creg) != size:
+        return None
+    if pairs != [((qreg, index), (creg, index)) for index in range(size)]:
+        return None
+
+    return qasm3_ast.QuantumMeasurementStatement(
+        measure=qasm3_ast.QuantumMeasurement(qubit=qasm3_ast.Identifier(name=qreg)),
+        target=qasm3_ast.Identifier(name=creg),
+    )
+
+
+def _unsupported_condition_message(condition: qasm3_ast.Expression) -> str:
+    """Describe why ``condition`` has no QASM 2.0 form, naming the operator when there is one.
+
+    Only reachable before unrolling: the unroller ravels ``m >= 1`` into a chain of
+    equality tests, so by then the operator the user wrote is gone.
+    """
+    operator = (
+        f", which uses '{condition.op.name}',"
+        if isinstance(condition, qasm3_ast.BinaryExpression)
+        and condition.op != qasm3_ast.BinaryOperator["=="]
+        else ""
+    )
+    return (
+        f"Branch condition '{_qasm3_repr(condition)}'{operator} is not supported in QASM 2.0, "
+        "which only allows 'if (creg == int)'"
+    )
+
+
 def _parse_branch_condition(condition: qasm3_ast.Expression) -> tuple[str, int | None, int]:
     """Decompose a branch condition into ``(register name, bit index, value)``.
 
@@ -61,10 +137,7 @@ def _parse_branch_condition(condition: qasm3_ast.Expression) -> tuple[str, int |
         not isinstance(condition, qasm3_ast.BinaryExpression)
         or condition.op != qasm3_ast.BinaryOperator["=="]
     ):
-        raise ValidationError(
-            f"Branch condition '{_qasm3_repr(condition)}' is not supported in QASM 2.0, "
-            "which only allows 'if (creg == int)'"
-        )
+        raise ValidationError(_unsupported_condition_message(condition))
 
     lhs, rhs = condition.lhs, condition.rhs
     if not isinstance(rhs, (qasm3_ast.IntegerLiteral, qasm3_ast.BooleanLiteral)):
@@ -128,7 +201,9 @@ def _add_chain_constraint(
 
 
 def _flatten_branch(
-    statement: qasm3_ast.BranchingStatement, creg_sizes: dict[str, int]
+    statement: qasm3_ast.BranchingStatement,
+    creg_sizes: dict[str, int],
+    qreg_sizes: dict[str, int],
 ) -> tuple[str, int, list[qasm3_ast.Statement]]:
     """Reduce a branching statement to the ``if (creg == int) <statement>`` form of QASM 2.
 
@@ -195,13 +270,21 @@ def _flatten_branch(
 
     assert reg_value is not None
 
+    if len(body) > 1:
+        # a register-level measurement survives unrolling as one statement per bit; put it
+        # back together so the branch is emitted as the single statement it was written as
+        collapsed = _collapse_broadcast_measurement(body, creg_sizes, qreg_sizes)
+        if collapsed is not None:
+            body = [collapsed]
+
     # a multi-statement body is emitted as one guarded statement each, which re-tests the
     # register before every statement; that is only faithful while the body leaves it alone
     if len(body) > 1 and any(_writes_to_register(stmt, reg_name) for stmt in body):
         raise ValidationError(
-            f"Branch on '{reg_name}' has a body that writes to '{reg_name}' itself. QASM 2.0 "
-            "guards a single statement per 'if', so the multi-statement body cannot be emitted "
-            "without re-evaluating the condition mid-body and changing the program's meaning"
+            f"Branch on '{reg_name}' has a body of {len(body)} statements, at least one of "
+            f"which writes to '{reg_name}' -- the register the branch tests. QASM 2.0 guards a "
+            "single statement per 'if', so emitting one guard per statement would re-evaluate "
+            "the condition mid-body and change the program's meaning"
         )
 
     return reg_name, reg_value, body
@@ -226,18 +309,28 @@ class Qasm2Printer(Printer):
     braced form, which downstream QASM 2 parsers reject.
     """
 
-    def __init__(self, *args, creg_sizes: dict[str, int] | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        creg_sizes: dict[str, int] | None = None,
+        qreg_sizes: dict[str, int] | None = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._creg_sizes = creg_sizes or {}
+        self._qreg_sizes = qreg_sizes or {}
 
     def visit_BranchingStatement(  # pylint: disable=invalid-name
         self, node: qasm3_ast.BranchingStatement, context: PrinterState
     ) -> None:
-        reg_name, reg_value, body = _flatten_branch(node, self._creg_sizes)
+        reg_name, reg_value, body = _flatten_branch(node, self._creg_sizes, self._qreg_sizes)
 
         # a single QASM 2 conditional guards a single statement, so a body that
         # unrolled into several statements becomes one guarded statement each
         for statement in body:
+            # `_start_line` and `skip_next_indent` are openqasm3 printer internals, so an
+            # upstream change could alter emission silently; the brace assertions in
+            # tests/qasm2/test_branching.py are what turn that into a test failure
             self._start_line(context)
             self.stream.write(f"if ({reg_name} == {reg_value}) ")
             context.skip_next_indent = True
@@ -276,7 +369,46 @@ class Qasm2Module(QasmModule):
             stmt_type = type(stmt)
             if stmt_type not in self._whitelist_statements:
                 raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
+            if isinstance(stmt, qasm3_ast.BranchingStatement):
+                self._filter_branch(stmt)
             # TODO: add more filtering here if needed
+
+    def _filter_branch(self, statement: qasm3_ast.BranchingStatement) -> None:
+        """Reject the conditional shapes QASM 2.0 has no syntax for, before unrolling.
+
+        These are properties of the source program, so they are caught here rather than
+        at serialization: unrolling rewrites a register comparison into a chain of
+        per-bit tests, and by then the operator and nesting the user wrote are gone.
+        :class:`Qasm2Printer` re-checks what survives into the unrolled AST, since
+        callers may serialize a module they never validated.
+        """
+        if statement.else_block:
+            raise_qasm3_error(
+                "'else' blocks are not supported in QASM 2.0, which only allows "
+                "'if (creg == int) <statement>'",
+                error_node=statement,
+                span=statement.span,
+            )
+        for inner_stmt in statement.if_block:
+            if isinstance(inner_stmt, qasm3_ast.BranchingStatement):
+                raise_qasm3_error(
+                    "Nested 'if' statements are not supported in QASM 2.0, which guards a "
+                    "single statement per conditional",
+                    error_node=inner_stmt,
+                    span=inner_stmt.span,
+                )
+        condition = statement.condition
+        if (
+            not isinstance(condition, qasm3_ast.BinaryExpression)
+            or condition.op != qasm3_ast.BinaryOperator["=="]
+            or not isinstance(condition.lhs, qasm3_ast.Identifier)
+            or not isinstance(condition.rhs, qasm3_ast.IntegerLiteral)
+        ):
+            raise_qasm3_error(
+                _unsupported_condition_message(condition),
+                error_node=statement,
+                span=condition.span,
+            )
 
     def _format_declarations(self, qasm_str):
         """Format the unrolled qasm for declarations in openqasm 2.0 format"""
@@ -287,11 +419,22 @@ class Qasm2Module(QasmModule):
         return qasm_str
 
     def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
+        """Convert the qasm AST to a string
+
+        Raises:
+            ValidationError: If the program contains a conditional QASM 2.0 has no syntax
+                for. :meth:`validate` rejects these shapes as written, but a caller may
+                serialize a module it never validated, or one whose AST it built directly.
+        """
         # set the version to 2.0
         qasm_ast.version = "2.0"
         stream = io.StringIO()
-        Qasm2Printer(stream, old_measurement=True, creg_sizes=_creg_sizes(qasm_ast)).visit(qasm_ast)
+        Qasm2Printer(
+            stream,
+            old_measurement=True,
+            creg_sizes=_creg_sizes(qasm_ast),
+            qreg_sizes=_qreg_sizes(qasm_ast),
+        ).visit(qasm_ast)
         return self._format_declarations(stream.getvalue())
 
     def to_qasm3(self, as_str: bool = False) -> str | Qasm3Module:

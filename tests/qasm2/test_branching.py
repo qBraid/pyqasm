@@ -47,7 +47,9 @@ def test_branch_emits_qasm2_syntax():
     if (m == 1) x q[1];
     measure q -> c;
     """
-    check_unrolled_qasm(dumps(loads(qasm2_string)), expected_qasm2_string)
+    unrolled = dumps(loads(qasm2_string))
+    assert "{" not in unrolled and "}" not in unrolled
+    check_unrolled_qasm(unrolled, expected_qasm2_string)
 
 
 def test_branch_body_expands_to_one_conditional_per_statement():
@@ -70,7 +72,9 @@ def test_branch_body_expands_to_one_conditional_per_statement():
     """
     module = loads(qasm2_string)
     module.unroll()
-    check_unrolled_qasm(dumps(module), expected_qasm2_string)
+    unrolled = dumps(module)
+    assert "{" not in unrolled and "}" not in unrolled
+    check_unrolled_qasm(unrolled, expected_qasm2_string)
 
 
 @pytest.mark.parametrize("value", [0, 1, 2, 3])
@@ -95,7 +99,9 @@ def test_multibit_branch_survives_unrolling(value):
     """
     module = loads(qasm2_string)
     module.unroll()
-    check_unrolled_qasm(dumps(module), expected_qasm2_string)
+    unrolled = dumps(module)
+    assert "{" not in unrolled and "}" not in unrolled
+    check_unrolled_qasm(unrolled, expected_qasm2_string)
 
 
 @pytest.mark.parametrize(
@@ -124,9 +130,9 @@ def test_branch_body_statement_types(operation, expected):
     assert expected in unrolled
 
 
-def test_branch_body_writing_tested_register_raises():
-    """Test that a multi-statement body assigning to the register under test is rejected
-    rather than emitted with the condition re-evaluated mid-body"""
+def test_branch_on_register_level_measurement_round_trips():
+    """Test that a branch guarding a whole-register measurement is emitted as written,
+    whether or not unrolling expanded it into one statement per bit"""
     qasm2_string = """OPENQASM 2.0;
     include "qelib1.inc";
     qreg q[2];
@@ -134,9 +140,33 @@ def test_branch_body_writing_tested_register_raises():
     measure q[0] -> m[0];
     if(m==1) measure q -> m;
     """
+    expected_qasm2_string = """OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[2];
+    creg m[2];
+    measure q[0] -> m[0];
+    if (m == 1) measure q -> m;
+    """
     module = loads(qasm2_string)
     module.unroll()
-    with pytest.raises(ValidationError, match="writes to 'm' itself"):
+    check_unrolled_qasm(dumps(module), expected_qasm2_string)
+    # the non-unrolled path never expanded the measurement, so the two must agree
+    check_unrolled_qasm(dumps(loads(qasm2_string)), expected_qasm2_string)
+
+
+def test_branch_body_writing_tested_register_raises():
+    """Test that a genuinely multi-statement body assigning to the register under test is
+    rejected rather than emitted with the condition re-evaluated mid-body"""
+    qasm2_string = """OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[2];
+    creg m[2];
+    measure q[0] -> m[0];
+    if(m==1) { x q[0]; measure q[0] -> m[0]; }
+    """
+    module = loads(qasm2_string)
+    module.unroll()
+    with pytest.raises(ValidationError, match="writes to 'm' -- the register the branch tests"):
         dumps(module)
 
 
@@ -188,3 +218,32 @@ def test_inexpressible_branches_raise(operation, match):
     """
     with pytest.raises(ValidationError, match=match):
         dumps(loads(qasm2_string))
+
+
+@pytest.mark.parametrize(
+    "operation, match",
+    [
+        ("if(m==1) x q[0]; else x q[1];", "'else' blocks are not supported"),
+        ("if(m==1) if(c==1) x q[0];", "Nested 'if' statements are not supported"),
+        ("if(m==1) if(m==0) x q[0];", "Nested 'if' statements are not supported"),
+        ("if(m[0]==1) x q[0];", "only allows 'if \\(creg == int\\)'"),
+        # the operator has to be named here: unrolling ravels '>=' into a chain of
+        # equality tests, so by serialization time there is nothing left to name
+        ("if(m>=1) x q[0];", "which uses '>='"),
+        ("if(m<2) x q[0];", "which uses '<'"),
+    ],
+)
+def test_inexpressible_branches_rejected_by_validate(operation, match):
+    """Test that branch shapes with no QASM 2 form are reported by validate(), not left
+    for serialization to raise on a program already reported as valid"""
+    qasm2_string = f"""OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[2];
+    creg m[2];
+    creg c[1];
+    measure q[0] -> m[0];
+    {operation}
+    """
+    module = loads(qasm2_string)
+    with pytest.raises(ValidationError, match=match):
+        module.validate()
