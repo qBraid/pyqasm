@@ -353,6 +353,9 @@ def test_physical_qubits_are_not_consolidated():
     result = loads(qasm, device_qubits=5)
     result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
+    # two consolidated slots plus physical $2, which sizes the count to its own index + 1.
+    # neither number is the declared qubit[5], which comes from device_qubits (see #353)
+    assert result.num_qubits == 3
 
 
 def test_physical_qubits_only():
@@ -370,3 +373,6 @@ def test_physical_qubits_only():
     result = loads(qasm, device_qubits=5)
     result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
+    # nothing was consolidated, so the count comes entirely from the physical indices
+    # while the emitted declaration is sized by device_qubits (see #353)
+    assert result.num_qubits == 3
