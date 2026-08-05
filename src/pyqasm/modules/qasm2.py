@@ -26,6 +26,7 @@ from openqasm3.printer import dumps
 from pyqasm.exceptions import ValidationError
 from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
+from pyqasm.visitor import QasmVisitor
 
 
 class Qasm2Module(QasmModule):
@@ -38,7 +39,7 @@ class Qasm2Module(QasmModule):
         statements (list[Statement]): list of openqasm2 Statements.
     """
 
-    def __init__(self, name: str, program: Program):
+    def __init__(self, name: str, program: Program) -> None:
         super().__init__(name, program)
         self._unrolled_ast = Program(statements=[], version="2.0")
         self._whitelist_statements = {
@@ -54,31 +55,31 @@ class Qasm2Module(QasmModule):
             qasm3_ast.QuantumBarrier,
         }
 
-    def _filter_statements(self):
-        """Filter statements according to the whitelist"""
+    def _filter_statements(self) -> None:
+        """Filter statements according to the whitelist."""
         for stmt in self._statements:
             stmt_type = type(stmt)
             if stmt_type not in self._whitelist_statements:
                 raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
             # TODO: add more filtering here if needed
 
-    def _format_declarations(self, qasm_str):
-        """Format the unrolled qasm for declarations in openqasm 2.0 format"""
+    def _format_declarations(self, qasm_str: str) -> str:
+        """Format the unrolled qasm for declarations in openqasm 2.0 format."""
         for declaration_type, replacement_type in [("qubit", "qreg"), ("bit", "creg")]:
             pattern = rf"{declaration_type}\[(\d+)\]\s+(\w+);"
             replacement = rf"{replacement_type} \2[\1];"
             qasm_str = re.sub(pattern, replacement, qasm_str)
         return qasm_str
 
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
+    def _qasm_ast_to_str(self, qasm_ast: Program) -> str:
+        """Convert the qasm AST to a string."""
         # set the version to 2.0
         qasm_ast.version = "2.0"
         raw_qasm = dumps(qasm_ast, old_measurement=True)
         return self._format_declarations(raw_qasm)
 
     def to_qasm3(self, as_str: bool = False) -> str | Qasm3Module:
-        """Convert the module to openqasm3 format
+        """Convert the module to openqasm3 format.
 
         Args:
             as_str (bool): Flag to indicate if the conversion should be to a string
@@ -97,11 +98,11 @@ class Qasm2Module(QasmModule):
         qasm_program.version = "3.0"
         return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
-    def accept(self, visitor):
-        """Accept a visitor for the module
+    def accept(self, visitor: QasmVisitor) -> None:
+        """Accept a visitor for the module.
 
         Args:
-            visitor (QasmVisitor): The visitor to accept
+            visitor (QasmVisitor): The visitor to accept.
         """
         self._filter_statements()
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)

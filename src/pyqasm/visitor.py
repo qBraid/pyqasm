@@ -3307,7 +3307,7 @@ class QasmVisitor:
             result.extend(self.visit_statement(stmt))
         return result
 
-    def finalize(self, unrolled_stmts):
+    def finalize(self, unrolled_stmts: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
         """Finalize the unrolled statements.
         Rules:
         - Remove qubit args from phase operations if ALL qubits are used
