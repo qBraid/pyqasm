@@ -13,6 +13,7 @@ Types of changes:
 - `Dependencies`: for updates to external libraries or packages.
 
 ## Unreleased
+- Fixed inaccurate `device_qubits` entry in `QasmModule.unroll()` docstring ([#349](https://github.com/qBraid/pyqasm/pull/349))
 
 ### Added
 - Added support for the `c3x` (3-controlled X) and `rc3x`/`rcccx` (relative-phase 3-controlled X) gates, decomposed into basis gates following qiskit's `C3XGate`/`RC3XGate` definitions. Also extended the `ctrl @` modifier chain so that 3- and 4-control stacks on `x` (e.g. `ctrl @ ctrl @ ctrl @ x`, `ctrl(4) @ x`) resolve to `c3x`/`c4x`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
