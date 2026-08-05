@@ -2960,6 +2960,8 @@ class QasmVisitor:
         Pragmas carry vendor specific directives which pyqasm does not interpret, so they
         are passed through unchanged. A 'braket verbatim' pragma additionally marks the box
         that follows it, whose gates are then left as written instead of being decomposed.
+        A verbatim pragma not followed by a box is honoured by nothing in pyqasm but is
+        still copied to the output, where the consumer applies it to whatever comes next.
 
         Args:
             statement (qasm3_ast.Pragma): The Pragma node to visit.
