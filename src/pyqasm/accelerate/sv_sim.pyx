@@ -401,6 +401,41 @@ cdef enum OpCode:
     OP_TWO_QUBIT = 4
 
 
+cdef inline void _check_instruction(
+    Py_ssize_t i,
+    Py_ssize_t num_qubits,
+    int op,
+    int tgt,
+    int ctrl,
+    Py_ssize_t tq_offset,
+    Py_ssize_t tq_buffer_len,
+) except *:
+    """Validate one decoded instruction against the statevector and gate buffer."""
+    if op < OP_SINGLE or op > OP_TWO_QUBIT:
+        raise ValueError(f"Instruction {i}: invalid opcode {op}.")
+    if tgt < 0 or tgt >= num_qubits:
+        raise ValueError(
+            f"Instruction {i}: target qubit {tgt} out of range for "
+            f"{num_qubits} qubit(s)."
+        )
+    if op == OP_CONTROLLED or op == OP_CTRL_DIAGONAL or op == OP_TWO_QUBIT:
+        if ctrl < 0 or ctrl >= num_qubits:
+            raise ValueError(
+                f"Instruction {i}: control qubit {ctrl} out of range for "
+                f"{num_qubits} qubit(s)."
+            )
+        if ctrl == tgt:
+            raise ValueError(
+                f"Instruction {i}: control and target qubit are both {tgt}."
+            )
+    if op == OP_TWO_QUBIT:
+        if tq_offset < 0 or tq_offset + 16 > tq_buffer_len:
+            raise ValueError(
+                f"Instruction {i}: two-qubit gate offset {tq_offset} out of "
+                f"range for buffer of length {tq_buffer_len}."
+            )
+
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
@@ -420,7 +455,10 @@ cpdef void apply_circuit(
 
     All instructions are validated up front (bounds, opcode range, buffer
     sizes) before any kernel touches the statevector, so invalid input raises
-    ValueError instead of corrupting memory.
+    ValueError instead of corrupting memory. Each instruction is re-checked in
+    the dispatch loop against the values actually passed to the kernel: the
+    kernels drop the GIL, so another thread could otherwise mutate these arrays
+    after the up-front pass and steer a raw-pointer write out of bounds.
     """
     cdef Py_ssize_t i, gp_offset, dp_offset, tq_offset
     cdef int op, tgt, ctrl
@@ -444,33 +482,10 @@ cpdef void apply_circuit(
             f"n_instructions = {n_instructions}."
         )
     for i in range(n_instructions):
-        op = opcodes[i]
-        tgt = targets[i]
-        ctrl = controls[i]
-        if op < OP_SINGLE or op > OP_TWO_QUBIT:
-            raise ValueError(f"Instruction {i}: invalid opcode {op}.")
-        if tgt < 0 or tgt >= num_qubits:
-            raise ValueError(
-                f"Instruction {i}: target qubit {tgt} out of range for "
-                f"{num_qubits} qubit(s)."
-            )
-        if op == OP_CONTROLLED or op == OP_CTRL_DIAGONAL or op == OP_TWO_QUBIT:
-            if ctrl < 0 or ctrl >= num_qubits:
-                raise ValueError(
-                    f"Instruction {i}: control qubit {ctrl} out of range for "
-                    f"{num_qubits} qubit(s)."
-                )
-            if ctrl == tgt:
-                raise ValueError(
-                    f"Instruction {i}: control and target qubit are both {tgt}."
-                )
-        if op == OP_TWO_QUBIT:
-            tq_offset = two_qubit_offsets[i]
-            if tq_offset < 0 or tq_offset + 16 > two_qubit_gates.shape[0]:
-                raise ValueError(
-                    f"Instruction {i}: two-qubit gate offset {tq_offset} out of "
-                    f"range for buffer of length {two_qubit_gates.shape[0]}."
-                )
+        _check_instruction(
+            i, num_qubits, opcodes[i], targets[i], controls[i],
+            two_qubit_offsets[i], two_qubit_gates.shape[0],
+        )
 
     # --- dispatch pass ---
     cdef double complex* sv_ptr = &sv[0]
@@ -482,6 +497,10 @@ cpdef void apply_circuit(
         op = opcodes[i]
         tgt = targets[i]
         ctrl = controls[i]
+        tq_offset = two_qubit_offsets[i]
+        _check_instruction(
+            i, num_qubits, op, tgt, ctrl, tq_offset, two_qubit_gates.shape[0]
+        )
         gp_offset = i * 4
         dp_offset = i * 2
 
@@ -508,7 +527,6 @@ cpdef void apply_circuit(
                 dp_ptr[dp_offset],
             )
         elif op == OP_TWO_QUBIT:
-            tq_offset = two_qubit_offsets[i]
             _apply_two_qubit_gate(
                 sv_ptr, num_qubits, ctrl, tgt,
                 &tq_ptr[tq_offset],

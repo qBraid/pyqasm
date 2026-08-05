@@ -51,9 +51,11 @@ def _has_module(name: str) -> bool:
     return importlib.util.find_spec(name) is not None
 
 
-HAS_QISKIT = _has_module("qiskit") and _has_module("qiskit_aer")
+HAS_QISKIT = (
+    _has_module("qiskit") and _has_module("qiskit_aer") and _has_module("qiskit_qasm3_import")
+)
 HAS_CIRQ = _has_module("cirq")
-HAS_PENNYLANE = _has_module("pennylane")
+HAS_PENNYLANE = _has_module("pennylane") and _has_module("pennylane_lightning")
 
 # ---------------------------------------------------------------------------
 # Shared circuit representation
@@ -98,14 +100,22 @@ def generate_random_gates(
 
 
 def generate_qft_gates(num_qubits: int) -> tuple[int, list[GateSpec]]:
-    """Return ``(num_qubits, gate_list)`` for a QFT circuit on ``num_qubits`` qubits."""
-    gates: list[GateSpec] = []
+    """Return ``(num_qubits, gate_list)`` for a QFT circuit on ``num_qubits`` qubits.
+
+    The circuit starts with an X layer on the odd qubits: from |0...0> every
+    controlled rotation would have a control in |0> at the time it is applied,
+    so the whole QFT ladder would be a no-op and the correctness check would
+    not exercise it. The controlled-phase gate is built as ``crz(t) + rz(t/2)``
+    on the control, which equals ``cphase(t)`` up to global phase.
+    """
+    gates: list[GateSpec] = [("x", (i,), ()) for i in range(1, num_qubits, 2)]
     for i in range(num_qubits):
         gates.append(("h", (i,), ()))
         for j in range(i + 1, num_qubits):
             k = j - i
             angle = math.pi / (2**k)
             gates.append(("crz", (j, i), (angle,)))
+            gates.append(("rz", (j,), (angle / 2,)))
     for i in range(num_qubits // 2):
         gates.append(("swap", (i, num_qubits - 1 - i), ()))
     return num_qubits, gates
@@ -180,7 +190,8 @@ def prepare_pyqasm(num_qubits: int, gates: list[GateSpec]) -> tuple[Any, Any]:
     qasm = gates_to_qasm(num_qubits, gates)
     module = pyqasm_loads(qasm)
     module.unroll()
-    module.remove_idle_qubits()
+    # No remove_idle_qubits(): the other backends simulate all num_qubits, so
+    # dropping idle qubits here would compare statevectors of different sizes.
     sim = Simulator(seed=0)
     return module, sim
 
@@ -431,7 +442,7 @@ def run_benchmarks(
         # overall e^{i*phi}, which is physically irrelevant.
         sv_pyqasm = statevectors["PyQASM"]
         checks = {
-            name: np.allclose(sv_pyqasm, _align_global_phase(sv_pyqasm, sv), atol=1e-10)
+            name: np.allclose(sv_pyqasm, _align_global_phase(sv_pyqasm, sv), atol=1e-10, rtol=0.0)
             for name, sv in statevectors.items()
             if name != "PyQASM"
         }

@@ -87,11 +87,14 @@ def generate_random_qasm(num_qubits: int, depth: int, seed: int = 42) -> str:
 
 
 def _prepared_module(num_qubits: int, depth: int):
-    """Load, unroll, and strip idle qubits from a random circuit."""
+    """Load and unroll a random circuit.
+
+    Idle qubits are deliberately kept: stripping them would silently profile a
+    smaller statevector than the ``--qubits`` value printed in every header.
+    """
     qasm = generate_random_qasm(num_qubits, depth)
     module = pyqasm_loads(qasm)
     module.unroll()
-    module.remove_idle_qubits()
     return module
 
 
@@ -175,20 +178,26 @@ def mode_kernel(num_qubits, depth):
         gp_off = i * 4
         dp_off = i * 2
 
+        # Slice and copy the gate matrix outside the timed region: only the
+        # diagonal kernels take scalars, so leaving it in would charge the
+        # matrix kernels for an allocation the diagonal ones never pay.
+        flat = None
+        if op in (_OP_SINGLE, _OP_CONTROLLED):
+            flat = gate_params[gp_off : gp_off + 4].copy()
+        elif op == _OP_TWO_QUBIT:
+            tq_off = int(tq_offsets[i])
+            flat = tq_gates[tq_off : tq_off + 16].copy()
+
         t0 = time.perf_counter_ns()
         if op == _OP_SINGLE:
-            flat = gate_params[gp_off : gp_off + 4].copy()
             apply_single_qubit_gate(sv, nq, tgt, flat)
         elif op == _OP_CONTROLLED:
-            flat = gate_params[gp_off : gp_off + 4].copy()
             apply_controlled_gate(sv, nq, ctrl, tgt, flat)
         elif op == _OP_DIAGONAL:
             apply_diagonal_gate(sv, nq, tgt, diag_phases[dp_off], diag_phases[dp_off + 1])
         elif op == _OP_CTRL_DIAGONAL:
             apply_controlled_diagonal_gate(sv, nq, ctrl, tgt, diag_phases[dp_off])
         elif op == _OP_TWO_QUBIT:
-            tq_off = int(tq_offsets[i])
-            flat = tq_gates[tq_off : tq_off + 16].copy()
             apply_two_qubit_gate(sv, nq, ctrl, tgt, flat)
         t1 = time.perf_counter_ns()
 
