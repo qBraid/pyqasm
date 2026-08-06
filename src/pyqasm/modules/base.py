@@ -61,7 +61,7 @@ def track_user_operation(func: F) -> F:
         self._user_operations.append(log_message)
         return func(self, *args, **kwargs)
 
-    return wrapper
+    return wrapper  # type: ignore
 
 
 class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many-public-methods
@@ -127,9 +127,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Args:
             num_qubits (int): The number of qubits to add to the module.
-
-        Returns:
-            None
         """
         self._qubit_registers[reg_name] = num_qubits
         self._num_qubits += num_qubits
@@ -152,9 +149,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Args:
             num_clbits (int): The number of classical bits to add to the module.
-
-        Returns:
-            None
         """
         self._classical_registers[reg_name] = num_clbits
         self._num_clbits += num_clbits
@@ -176,9 +170,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     def has_measurements(self) -> bool:
         """Check if the module has any measurement operations.
-
-        Args:
-            None
 
         Returns:
             bool: True if the module has measurement operations, False otherwise.
@@ -236,9 +227,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     def has_barriers(self) -> bool:
         """Check if the module has any barrier operations.
-
-        Args:
-            None
 
         Returns:
             bool: True if the module has barrier operations, False otherwise.
@@ -363,9 +351,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             reg_name (str): The name of the register to be remapped.
             size (int): The size of the register.
             idle_indices (list[int]): Indices of idle qubits to be remapped away.
-
-        Returns:
-            None
         """
 
         used_indices = [idx for idx in range(size) if idx not in idle_indices]
@@ -414,8 +399,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """Get the indices of the idle qubits in the module.
 
         Returns:
-            dict[str, list[int]]: A dictionary mapping the register name to the list of idle qubit
-                                  indices in that register.
+            dict[str, list[int]]: A dictionary mapping the register name
+                to the list of idle qubit indices in that register.
         """
         idle_qubits = [qubit for qubit in self._qubit_depths.values() if qubit.is_idle()]
 
@@ -615,10 +600,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
                 max_loop_iters (int): Max number of iterations for unrolling loops. Defaults to 1e9.
                 check_only (bool): If True, only check the program without executing it.
-                                   Defaults to False.
-                device_qubits (int): Number of physical qubits available on the target device.
-                consolidate_qubits (bool): If True, consolidate all quantum registers into
-                                           single register.
+                Defaults to False.
+            device_qubits (int): Number of physical qubits available on the target device.
+                consolidate_qubits (bool): If True, consolidate all
+                quantum registers into a single register.
 
         Raises:
             ValidationError: If the module fails validation during unrolling.
@@ -654,7 +639,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         Note: Will unroll the module if not already done.
 
         Args:
-            target_basis_set(BasisSet): The target basis set to rebase the module to.
+            target_basis_set (BasisSet): The target basis set to rebase the module to.
             in_place (bool): Flag to indicate if the rebase operation should be done in place.
 
         Returns:
@@ -700,9 +685,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
     def _get_gate_counts(self) -> dict[str, int]:
         """Return a dictionary of gate counts in the unrolled program.
 
-        Args:
-            None
-
         Returns:
             dict[str, int]: A dictionary of gate counts.
         """
@@ -719,9 +701,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Args:
             other_module (QasmModule): The module to compare with.
-
-        Returns:
-            None
         """
         try:  # pylint: disable-next=import-outside-toplevel
             from tabulate import tabulate
@@ -790,7 +769,4 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Args:
             visitor (QasmVisitor): The visitor to accept.
-
-        Returns:
-            None
         """

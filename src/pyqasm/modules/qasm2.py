@@ -82,8 +82,7 @@ class Qasm2Module(QasmModule):
 
         Args:
             as_str (bool): Flag to indicate if the conversion should be to a string
-                           or to a Qasm3Module object.
-                           Default is False.
+                or to a Qasm3Module object. Default is False.
 
         Returns:
             str | Qasm3Module: The module in openqasm3 format.
@@ -102,9 +101,6 @@ class Qasm2Module(QasmModule):
 
         Args:
             visitor (QasmVisitor): The visitor to accept.
-
-        Returns:
-            None
         """
         self._filter_statements()
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
