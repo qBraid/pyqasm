@@ -36,6 +36,8 @@ from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
 from pyqasm.visitor import QasmVisitor, ScopeManager
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+
 def track_user_operation(func: F) -> F:
     """Decorator to track user operations on a QasmModule."""
 

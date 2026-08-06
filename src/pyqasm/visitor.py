@@ -551,7 +551,7 @@ class QasmVisitor:
         Args:
             statements: List of statements to potentially modify
             statement: The statement to append if in extern function
-        
+
         Returns:
             None
         """
