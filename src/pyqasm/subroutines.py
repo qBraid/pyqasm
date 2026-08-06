@@ -45,7 +45,7 @@ from openqasm3.ast import (
 from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
-from pyqasm.elements import Variable
+from pyqasm.elements import INTERNAL_QUANTUM_ARGUMENT, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.transformer import Qasm3Transformer
@@ -521,10 +521,11 @@ class Qasm3SubroutineProcessor:
         """
         actual_arg_name = Qasm3SubroutineProcessor.get_fn_actual_arg_name(actual_arg)
         formal_reg_name = formal_arg.name.name
+        internal_reg_name = formal_reg_name
         # If our actual variable is the same as the function argument,
         # give the function argument a temporary name for internal use
         if actual_arg_name == formal_reg_name:
-            formal_reg_name += "_arg"
+            internal_reg_name += INTERNAL_QUANTUM_ARGUMENT
 
         formal_qubit_size = Qasm3ExprEvaluator.evaluate_expression(
             formal_arg.size, reqd_type=IntType, const_expr=True
@@ -541,7 +542,7 @@ class Qasm3SubroutineProcessor:
                 error_node=fn_defn.arguments,
                 span=formal_arg.span,
             )
-        formal_qreg_size_map[formal_reg_name] = formal_qubit_size
+        formal_qreg_size_map[internal_reg_name] = formal_qubit_size
 
         # we expect that actual arg is qubit type only
         # note that we ONLY check in global scope as
@@ -608,10 +609,10 @@ class Qasm3SubroutineProcessor:
             )
 
         for idx, qid in enumerate(resolved_qids):
-            qubit_transform_map[(formal_reg_name, idx)] = (resolved_reg_name, qid)
+            qubit_transform_map[(internal_reg_name, idx)] = (resolved_reg_name, qid)
 
         return Variable(
-            name=formal_reg_name,
+            name=internal_reg_name,
             base_type=QubitDeclaration,
             base_size=formal_qubit_size,
             dims=None,

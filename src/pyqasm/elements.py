@@ -47,6 +47,13 @@ def is_internal_qubit_register(qubit_name: str) -> bool:
     )
 
 
+INTERNAL_QUANTUM_ARGUMENT = "__(QUANTUM_ARGUMENT)__"
+"""Reserved string used to prevent shadowing for parameters in function definitions.
+The register appears as a suffix to a variable name ("variable__(QUANTUM_ARGUMENT)").
+A user is not able to define a function parameter with this suffix due to the parentheses.
+"""
+
+
 class InversionOp(Enum):
     """
     Enum for specifying the inversion action of a gate.
