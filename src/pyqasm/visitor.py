@@ -27,7 +27,7 @@ import sys
 from collections import OrderedDict, deque
 from functools import partial
 from io import StringIO
-from typing import Any, Callable, Optional, Sequence, Union, cast
+from typing import Any, Callable, Optional, Sequence, TypeVar, Union, cast
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
@@ -84,20 +84,21 @@ from pyqasm.validator import Qasm3Validator
 logger = logging.getLogger(__name__)
 logger.propagate = False
 
+F = TypeVar("F", bound=Callable[..., Any])
 
-def semantic_check_gate(func):
+
+def check_only_return_empty(func: F) -> F:
     """Decorator for functions which use check_only to return an empty list."""
 
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         """Wrapper that intercepts the return value and replaces it with an empty list."""
         result = func(self, *args, **kwargs)
-        if self.check_only:
+        if self._check_only:
             return []
-        else:
-            return result
+        return result
 
-    return wrapper
+    return wrapper  # type: ignore
 
 
 # pylint: disable-next=too-many-instance-attributes
@@ -209,7 +210,7 @@ class QasmVisitor:
             qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
         }
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_quantum_register(
         self, register: qasm3_ast.QubitDeclaration
     ) -> list[qasm3_ast.QubitDeclaration]:
@@ -557,7 +558,6 @@ class QasmVisitor:
                 span=statement.span,
             )
 
-    @semantic_check_gate
     def _visit_measurement(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         self, statement: qasm3_ast.QuantumMeasurementStatement
     ) -> list[qasm3_ast.QuantumMeasurementStatement]:
@@ -696,6 +696,8 @@ class QasmVisitor:
                 ),
             )
 
+        if self._check_only:
+            return []
         return unrolled_measurements
 
     def _resolve_unindexed_reset_qubit(self, statement: qasm3_ast.QuantumReset) -> bool:
@@ -728,7 +730,6 @@ class QasmVisitor:
 
         return is_internal_qubit_register(qubit_name)
 
-    @semantic_check_gate
     def _visit_reset(self, statement: qasm3_ast.QuantumReset) -> list[qasm3_ast.QuantumReset]:
         """Visit a reset statement element.
 
@@ -736,7 +737,7 @@ class QasmVisitor:
             statement (qasm3_ast.QuantumReset): The reset statement to visit.
 
         Returns:
-            list[qasm3_ast.QuantumReset] - A list of unrolled resets.
+            list[qasm3_ast.QuantumReset]: A list of unrolled resets.
         """
         logger.debug("Visiting reset statement '%s'", str(statement))
 
@@ -783,6 +784,8 @@ class QasmVisitor:
                 ),
             )
 
+        if self._check_only:
+            return []
         return unrolled_resets
 
     def _expand_barrier_ranges(
@@ -1082,8 +1085,8 @@ class QasmVisitor:
                     qubit_node = self._module._qubit_depths[(qubit_name, qubit_id)]
                     qubit_node.depth = max_involved_depth
 
-    @semantic_check_gate
     # pylint: disable=too-many-branches, too-many-locals
+    @check_only_return_empty
     def _visit_basic_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
@@ -1199,7 +1202,7 @@ class QasmVisitor:
             error_node=statement,
         )
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_custom_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
@@ -1301,7 +1304,7 @@ class QasmVisitor:
 
         return result
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_external_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
@@ -1376,7 +1379,7 @@ class QasmVisitor:
 
         return result
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_phase_operation(
         self,
         operation: qasm3_ast.QuantumPhase,
@@ -1433,7 +1436,6 @@ class QasmVisitor:
         # qubit list
         return [operation]
 
-    @semantic_check_gate
     def _visit_generic_gate_operation(  # pylint: disable=too-many-branches, too-many-statements
         self,
         operation: qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase,
@@ -1591,9 +1593,11 @@ class QasmVisitor:
                 ),
             )
 
+        if self._check_only:
+            return []
         return result
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_constant_declaration(
         self, statement: qasm3_ast.ConstantDeclaration
     ) -> list[qasm3_ast.Statement]:
@@ -1711,8 +1715,8 @@ class QasmVisitor:
 
         return statements
 
-    @semantic_check_gate
     # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+    @check_only_return_empty
     def _visit_classical_declaration(
         self, statement: qasm3_ast.ClassicalDeclaration
     ) -> list[qasm3_ast.Statement]:
@@ -1880,7 +1884,7 @@ class QasmVisitor:
             angle_bit_string=angle_val_bit_string,
         )
 
-        if isinstance(base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
+        if isinstance(base_type, qasm3_ast.DurationType):
             PulseValidator.validate_duration_literal_value(init_value, statement, base_type)
             if self._module._device_cycle_time:
                 variable.time_unit = "dt"
@@ -1946,7 +1950,7 @@ class QasmVisitor:
 
         return statements
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_classical_assignment(
         self, statement: qasm3_ast.ClassicalAssignment
     ) -> list[qasm3_ast.Statement]:
@@ -2065,7 +2069,7 @@ class QasmVisitor:
             )
             rvalue_eval = rvalue_raw
 
-        if isinstance(lvar_base_type, (qasm3_ast.DurationType, qasm3_ast.StretchType)):
+        if isinstance(lvar_base_type, qasm3_ast.DurationType):
             PulseValidator.validate_duration_literal_value(rvalue_eval, statement, lvar_base_type)
 
         if lvar.readonly:  # type: ignore[union-attr]
@@ -2160,7 +2164,7 @@ class QasmVisitor:
         self._is_branch_clbits.clear()
         self._is_branch_qubits.clear()
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_branching_statement(
         self, statement: qasm3_ast.BranchingStatement
     ) -> list[qasm3_ast.Statement]:
@@ -2367,7 +2371,7 @@ class QasmVisitor:
                 return []
         return result
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_subroutine_definition(
         self, statement: qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
     ) -> Sequence[None | qasm3_ast.ExternDeclaration]:
@@ -2755,7 +2759,6 @@ class QasmVisitor:
         #    each element in the list of the values
         #    should be of const int type and no duplicates should be present
 
-        @semantic_check_gate
         def _evaluate_case(statements):
             # can not put 'context' outside
             # BECAUSE the case expression CAN CONTAIN VARS from global scope
@@ -3219,7 +3222,7 @@ class QasmVisitor:
 
         return [statement]
 
-    @semantic_check_gate
+    @check_only_return_empty
     def _visit_include(self, include: qasm3_ast.Include) -> list[qasm3_ast.Statement]:
         """Visit an include statement element.
 
