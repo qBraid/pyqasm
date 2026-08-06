@@ -202,7 +202,7 @@ class QasmVisitor:
             register (QubitDeclaration): The register name and size.
 
         Returns:
-            The list containing the register
+            The list containing the register, or an empty list if self._check_only is True.
         """
         logger.debug("Visiting register '%s'", str(register))
 
@@ -289,7 +289,7 @@ class QasmVisitor:
             operation (Any): The operation to get qubits for.
             qubits (bool): Whether the bits are quantum bits or classical bits. Defaults to True.
         Returns:
-            The quantum or classical bits for the operation.
+            The quantum or classical bits for the operation, or an empty list if check_only is true.
         """
         openqasm_bits: list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] = []
         bit_list = []
@@ -530,11 +530,11 @@ class QasmVisitor:
         """Handle function initialization expression.
 
         Args:
-            expression (Any): The statement to handle function initialization expression.
+            expression (FunctionCall): The statement to handle function initialization expression.
             init_value (Any): The value to handle function initialization expression.
 
         Returns:
-            The resultant expression if
+            The resultant expression if the expression is applied, otherwise None.
         """
         if isinstance(expression, qasm3_ast.FunctionCall):
             func_name = expression.name.name
@@ -551,6 +551,9 @@ class QasmVisitor:
         Args:
             statements: List of statements to potentially modify
             statement: The statement to append if in extern function
+        
+        Returns:
+            None
         """
         if self._in_extern_function:
             self._in_extern_function = False
@@ -575,7 +578,7 @@ class QasmVisitor:
             statement (qasm3_ast.QuantumMeasurementStatement): The measurement statement to visit.
 
         Returns:
-            The list of unrolled measurements.
+            The list of unrolled measurements, or an empty list if self._check_only is True.
         """
         logger.debug("Visiting measurement statement '%s'", str(statement))
 
@@ -746,7 +749,7 @@ class QasmVisitor:
             statement (qasm3_ast.QuantumReset): The reset statement to visit.
 
         Returns:
-            The list of unrolled resets.
+            The list of unrolled resets, or an empty list if self._check_only is True.
         """
         logger.debug("Visiting reset statement '%s'", str(statement))
         if self._resolve_unindexed_reset_qubit(statement):
@@ -1078,7 +1081,7 @@ class QasmVisitor:
 
         Args:
             all_targets: The list of qubits on which a gate was just added.
-            ctrls: THe list of control qubits for the gate.
+            ctrls: The list of control qubits for the gate.
 
         Returns:
             None
@@ -2334,7 +2337,7 @@ class QasmVisitor:
             statement (qasm3_ast.ForInLoop): The for-in loop statement to visit.
 
         Returns:
-            list[qasm3_ast.Statement]: The list of unrolled branch statements.
+            list[qasm3_ast.Statement]: The list containing the loop statements.
         """
         irange = []
         if isinstance(statement.set_declaration, qasm3_ast.RangeDefinition):
@@ -2417,10 +2420,12 @@ class QasmVisitor:
            Reference: https://openqasm.com/language/subroutines.html#subroutines
 
         Args:
-            statement (SubroutineDefinition | ExternDeclaration): The subroutine definition to visit.
+            statement (SubroutineDefinition | ExternDeclaration):
+                The subroutine definition to visit.
 
         Returns:
-            The list containing the statement if it is an ExternDeclaration, otherwise None.
+            The list containing the statement if it is an ExternDeclaration,
+                otherwise an empty list. Returns an empty list if self._check_only is True.
         """
         fn_name = statement.name.name
         statements = []

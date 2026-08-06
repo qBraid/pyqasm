@@ -22,7 +22,7 @@ import functools
 from abc import ABC, abstractmethod
 from collections import Counter
 from copy import deepcopy
-from typing import Any, Callable, Optional, Self
+from typing import Any, Callable, Optional, TypeVar
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, Program, QuantumGate
@@ -35,8 +35,8 @@ from pyqasm.maps import QUANTUM_STATEMENTS
 from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
 from pyqasm.visitor import QasmVisitor, ScopeManager
 
-
-def track_user_operation(func: Callable[..., Any]) -> Callable[..., Any]:
+F = TypeVar("F", bound=Callable[..., Any])
+def track_user_operation(func: F) -> F:
     """Decorator to track user operations on a QasmModule."""
 
     @functools.wraps(func)
@@ -120,7 +120,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """Setter for the number of qubits."""
         self._num_qubits = value
 
-    def _add_qubit_register(self, reg_name: str, num_qubits: int):
+    def _add_qubit_register(self, reg_name: str, num_qubits: int) -> None:
         """Add qubits to the module.
 
         Args:
@@ -320,8 +320,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Args:
             decompose_native_gates (bool): If True, calculate depth after decomposing gates.
-                                If False, treat all decompsable gates as a single gate operation.
-                                Defaults to True.
+                If False, treat all decomposable gates as a single gate operation.
+                Defaults to True.
 
         Returns:
             int: The depth of the current "unrolled" openqasm program.
@@ -356,13 +356,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
     def _remap_qubits(self, reg_name: str, size: int, idle_indices: list[int]) -> None:
         """Remap the qubits in a register after removing idle qubits and update the operations
         using this register accordingly.
+
         Args:
             reg_name (str): The name of the register to be remapped.
             size (int): The size of the register.
             idle_indices (list[int]): Indices of idle qubits to be remapped away.
 
-            Returns:
-                None
+        Returns:
+            None
         """
 
         used_indices = [idx for idx in range(size) if idx not in idle_indices]
@@ -583,7 +584,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     @track_user_operation
     def validate(self) -> None:
-        """Validate the module"""
+        """Validate the module."""
         if self._validated_program is True:
             return
         try:
@@ -651,7 +652,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         Note: Will unroll the module if not already done.
 
         Args:
-            target_basis_set: The target basis set to rebase the module to.
+            target_basis_set(BasisSet): The target basis set to rebase the module to.
             in_place (bool): Flag to indicate if the rebase operation should be done in place.
 
         Returns:
@@ -773,7 +774,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             return self._qasm_ast_to_str(self.unrolled_ast)
         return self._qasm_ast_to_str(self.original_program)
 
-    def copy(self) -> Self:
+    def copy(self) -> QasmModule:
         """Return a deep copy of the module."""
         return deepcopy(self)
 

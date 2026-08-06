@@ -20,7 +20,6 @@ from openqasm3.ast import Program
 from openqasm3.printer import dumps
 
 from pyqasm.modules.base import QasmModule
-from pyqasm.visitor import QasmVisitor
 
 
 class Qasm3Module(QasmModule):

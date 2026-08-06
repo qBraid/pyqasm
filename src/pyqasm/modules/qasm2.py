@@ -26,7 +26,6 @@ from openqasm3.printer import dumps
 from pyqasm.exceptions import ValidationError
 from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
-from pyqasm.visitor import QasmVisitor
 
 
 class Qasm2Module(QasmModule):
