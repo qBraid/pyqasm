@@ -607,10 +607,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Notes:
             This method resets the module's qubit and classical bit counts before unrolling,
-            and sets them to -1 if an error occurs during unrolling. The device qubit count
-            used for validation is inferred automatically during unrolling and is not a
-            user-configurable ``unroll()`` keyword argument.
-
+            and sets them to -1 if an error occurs during unrolling. ``device_qubits`` is set
+            on the module at load time -- ``loads(program, device_qubits=N)`` -- not through
+            ``unroll()``. When unset and ``consolidate_qubits=True``, it defaults to the
+            program's total qubit count.
         """
         if not kwargs:
             kwargs = {}
