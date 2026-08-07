@@ -720,7 +720,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self_ext_gates_str = "\n".join(self._external_gates)
         other_ext_gates_str = "\n".join(other_module._external_gates)
 
-        table_data = [
+        table_data: list[list[Any]] = [
             ["Qubits", self.num_qubits, other_module.num_qubits],
             ["Classical Bits", self.num_clbits, other_module.num_clbits],
             ["Measurements", self.has_measurements(), other_module.has_measurements()],
