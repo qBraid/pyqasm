@@ -32,6 +32,37 @@ from pyqasm.preprocess import process_include_statements
 if TYPE_CHECKING:
     import openqasm3.ast
 
+# maps each documented loads() kwarg to the module attribute that stores it
+_LOADS_KWARG_ATTRS = {
+    "device_qubits": "_device_qubits",
+    "device_cycle_time": "_device_cycle_time",
+    "compiler_angle_type_size": "_compiler_angle_type_size",
+    "extern_functions": "_extern_functions",
+    "frame_in_def_cal": "_frame_in_def_cal",
+    "frame_limit_per_port": "_frame_limit_per_port",
+    "play_in_cal_block": "_play_in_cal",
+}
+
+# kwargs that must be positive when given; an explicit None counts as not given
+_POSITIVE_KWARGS = (
+    "device_qubits",
+    "device_cycle_time",
+    "compiler_angle_type_size",
+    "frame_limit_per_port",
+)
+
+
+def _validate_kwargs(kwargs: dict) -> None:
+    """Reject unknown kwarg names and non-positive values at the call site,
+    instead of silently dropping them (issue #356)."""
+    unknown = sorted(set(kwargs) - set(_LOADS_KWARG_ATTRS))
+    if unknown:
+        raise TypeError(f"loads() got unexpected keyword argument(s): {', '.join(unknown)}")
+    for name in _POSITIVE_KWARGS:
+        value = kwargs.get(name)
+        if value is not None and name in kwargs and value <= 0:
+            raise ValueError(f"loads() kwarg '{name}' must be positive, got {value!r}")
+
 
 def load(filename: str, **kwargs) -> QasmModule:
     """Loads an OpenQASM program into a `QasmModule` object.
@@ -74,13 +105,16 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
             - **play_in_cal_block** (bool): Whether to allow play in defcal.
 
     Raises:
-        TypeError: If the input is not a string or an `openqasm3.ast.Program` instance.
+        TypeError: If the input is not a string or an `openqasm3.ast.Program` instance,
+            or if an unrecognized keyword argument is passed.
+        ValueError: If a numeric keyword argument is zero or negative.
         ValidationError: If the program fails parsing or semantic validation.
 
     Returns:
         QasmModule: An object containing the parsed qasm representation along with
             some useful metadata and methods
     """
+    _validate_kwargs(kwargs)
     if isinstance(program, str):
         try:
             program = openqasm3.parse(program)
@@ -99,21 +133,10 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
     module = qasm_module("main", program)
-    # Store device_qubits on the module for later use
-    if dev_qbts := kwargs.get("device_qubits"):
-        module._device_qubits = dev_qbts
-    if dev_cycle_time := kwargs.get("device_cycle_time"):
-        module._device_cycle_time = dev_cycle_time
-    if compiler_angle_type_size := kwargs.get("compiler_angle_type_size"):
-        module._compiler_angle_type_size = compiler_angle_type_size
-    if extern_functions := kwargs.get("extern_functions"):
-        module._extern_functions = extern_functions
-    if "frame_in_def_cal" in kwargs:
-        module._frame_in_def_cal = kwargs["frame_in_def_cal"]
-    if frame_limit_per_port := kwargs.get("frame_limit_per_port"):
-        module._frame_limit_per_port = frame_limit_per_port
-    if "play_in_cal_block" in kwargs:
-        module._play_in_cal = kwargs["play_in_cal_block"]
+    # presence tests, not truthiness: a falsy value is a caller value, not an omission
+    for name, attr in _LOADS_KWARG_ATTRS.items():
+        if name in kwargs:
+            setattr(module, attr, kwargs[name])
     return module
 
 
