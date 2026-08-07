@@ -20,7 +20,7 @@ Types of changes:
 
 ### Improved / Modified
 - Consolidated the hardcoded `"__PYQASM_QUBITS__"` string literals scattered across `visitor.py`, `transformer.py` and `pulse/utils.py` into a single `INTERNAL_QUBIT_REGISTER` constant in `elements.py`, alongside an `is_internal_qubit_register()` helper that is now the one place the internal register is recognised. ([#325](https://github.com/qBraid/pyqasm/pull/325))
-- Added / updated type hinting for `base.py`, `qasm2.py`, `qasm3.py`, `visitor.py`, and `pulse/visitor.py` signatures. Fixed grammatical typos in `base.py`, `qasm2.py`, `qasm3.py`, and `visitor.py` docstrings. Fixes incorrect return types in the docstrings of `visitor.py`. ([#346](https://github.com/qBraid/pyqasm/pull/346))
+- Added / updated type hinting for `base.py`, `qasm2.py`, `qasm3.py`, and `visitor.py` signatures, plus the `visit_statement` / `visit_basic_block` signatures in `pulse/visitor.py`. Fixed grammatical typos in `base.py`, `qasm2.py`, `qasm3.py`, and `visitor.py` docstrings. Fixes incorrect return types in the docstrings of `visitor.py`. ([#346](https://github.com/qBraid/pyqasm/pull/346))
 
 ### Deprecated
 
