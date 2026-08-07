@@ -157,7 +157,10 @@ def test_has_and_remove_barriers_inside_loop_before_unroll():
     module.remove_barriers()
     assert module.has_barriers() is False
     module.unroll()
-    assert "barrier" not in dumps(module)
+    unrolled_qasm = dumps(module)
+    assert "barrier" not in unrolled_qasm
+    # the loop's gates must survive the removal pass
+    assert unrolled_qasm.count("h q[") == 2
 
 
 def test_remove_barriers_not_in_place_leaves_the_original_alone():

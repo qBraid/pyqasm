@@ -196,6 +196,12 @@ def test_has_and_remove_measurements_inside_loop_before_unroll():
     module = loads(while_string)
     assert module.has_measurements() is True
 
+    module = loads(while_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    assert "measure" not in dumps(module)
+
 
 def test_has_and_remove_measurements_inside_switch_before_unroll():
     """Measurements inside a switch case must be visible before unroll() (issue #354)."""
