@@ -239,3 +239,140 @@ def test_populate_idle_qubits_increases_depth_by_one():
     original_depth = module.depth()
     module.populate_idle_qubits()
     assert module.depth() == original_depth + 1
+
+
+def test_remove_idle_qubits_inside_box():
+    """Operands nested in a box must be remapped along with the top-level ones (see #342)."""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    bit c;
+    h q[2];
+    box {
+        cx q[2], q[1];
+    }
+    c = measure q[1];
+    """
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[1] c;
+    h q[1];
+    box {
+        cx q[1], q[0];
+    }
+    c[0] = measure q[0];
+    """
+    module = loads(qasm3_str)
+    module.remove_idle_qubits()
+    assert module.num_qubits == 2
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def test_remove_idle_qubits_keeps_qubits_used_in_a_branch():
+    """A qubit touched only inside an if block is in use, so it must not be removed."""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    bit c;
+    h q[2];
+    c = measure q[2];
+    if (c == 1) {
+        x q[1];
+    }
+    """
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[1] c;
+    h q[1];
+    c[0] = measure q[1];
+    if (c[0] == true) {
+        x q[0];
+    }
+    """
+    module = loads(qasm3_str)
+    module.remove_idle_qubits()
+    assert module.num_qubits == 2
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
+    # the result must still be a valid program
+    loads(dumps(module)).validate()
+
+
+def test_remove_idle_qubits_with_physical_qubits():
+    """Physical qubits belong to no register, so the remap must skip over them."""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h $1;
+    h q[0];
+    """
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    h $1;
+    h q[0];
+    """
+    module = loads(qasm3_str)
+    module.unroll()
+    module.remove_idle_qubits()
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def test_reverse_qubit_order_inside_box_and_branch():
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    bit c;
+    h q[2];
+    box {
+        cx q[2], q[1];
+    }
+    c = measure q[0];
+    if (c == 1) {
+        x q[0];
+    }
+    """
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    bit[1] c;
+    h q[0];
+    box {
+        cx q[0], q[1];
+    }
+    c[0] = measure q[2];
+    if (c[0] == true) {
+        x q[2];
+    }
+    """
+    module = loads(qasm3_str)
+    module.reverse_qubit_order()
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def test_remove_idle_qubits_keeps_qubits_used_by_a_custom_gate_in_a_branch():
+    """The expansion of a custom gate in a branch marks its qubits as used."""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit c;
+    gate my_gate p, r { x p; cx p, r; }
+    h q[0];
+    c = measure q[0];
+    if (c == 1) {
+        my_gate q[0], q[1];
+    }
+    """
+    module = loads(qasm3_str)
+    module.remove_idle_qubits()
+    assert module.num_qubits == 2
