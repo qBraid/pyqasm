@@ -15,6 +15,7 @@
 """
 Module containing unit tests for Box Statement.
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -97,6 +98,33 @@ def test_delay_instruction_device_time():
     delay[6.000000000000001e-07dt] q[0], q[1];
     """
     module = loads(qasm_str, device_cycle_time=1e-9)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_box_dt_unit_preserved():
+    """A ``dt`` box duration must be preserved as ``dt`` (not relabeled ``ns``)
+    when no ``device_cycle_time`` is set, since ``dt`` is backend-dependent.
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    box[200dt] {
+        delay[100dt] q[0];
+        x q[0];
+    }
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    box[200.0dt] {
+      delay[100.0dt] q[0];
+      x q[0];
+    }
+    """
+    module = loads(qasm_str)
     module.unroll()
     check_unrolled_qasm(dumps(module), expected_qasm)
 
@@ -195,7 +223,24 @@ def test_delay_instruction_device_time():
               measure q;
             }
             """,
-            r"Total delay duration value '20.0ns' should be less than 'box[10.0ns]' duration.",
+            r"Total delay duration value '20.0ns' on qubit 'q[0]' "
+            r"should be less than 'box[10.0ns]' duration.",
+            r"Error at line 6, column 12",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            qubit[5] q;
+            qubit[2] q2;
+            box[10dt] {
+              delay[20dt];
+              x q[1];
+              measure q;
+            }
+            """,
+            r"Total delay duration value '20.0dt' on qubit 'q[0]' "
+            r"should be less than 'box[10.0dt]' duration.",
             r"Error at line 6, column 12",
         ),
         (
@@ -231,3 +276,239 @@ def test_box_statement_error(qasm_code, error_message, error_span, caplog):
             loads(qasm_code).unroll()
     assert error_message in str(err.value)
     assert error_span in caplog.text
+
+
+def test_box_measurement_with_classical_register():
+    """Measurement inside a box should have access to classical registers
+    declared in the enclosing (global) scope.
+
+    Regression: box scope was treated like function/gate scope, restricting
+    access to only constants and qubits from global scope. Classical registers
+    were invisible, causing 'Missing clbit register declaration' errors.
+    See: https://github.com/qBraid/pyqasm/issues/302
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c;
+
+    box [100ns] {
+        h q[0];
+        c[1] = measure q[1];
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_box_measurement_with_enclosing_block_scope():
+    """Measurement inside a box nested within a non-global scope (e.g. an
+    if-block) should still have access to classical registers declared in
+    the enclosing global scope.
+
+    Complements test_box_measurement_with_classical_register by ensuring the
+    scope walker traverses intermediate BLOCK contexts to reach the global
+    scope where the classical register is declared.
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c;
+
+    if (true) {
+        box {
+            h q[0];
+            c[1] = measure q[1];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_box_measurement_with_block_scoped_register():
+    """Measurement inside a box nested within a block scope should have access
+    to a classical register declared in the immediate parent block scope."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+
+    if (true) {
+        bit[3] c;
+        box {
+            h q[0];
+            c[1] = measure q[1];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_box_measurement_with_multiple_classical_registers():
+    """Measurement inside a box should have access to multiple classical
+    registers declared in the enclosing (global) scope."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[3] c0;
+    bit[2] c1;
+
+    box {
+        c0[0] = measure q[0];
+        c0[2] = measure q[2];
+        c1[1] = measure q[3];
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_multiple_box_statements():
+    """Multiple box statements in the same program should each have access
+    to classical registers from the enclosing scope."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[4] c;
+
+    box [50ns] {
+        h q[0];
+        c[0] = measure q[0];
+    }
+
+    box [100ns] {
+        cx q[1], q[2];
+        c[1] = measure q[1];
+        c[2] = measure q[2];
+    }
+
+    box {
+        h q[3];
+        c[3] = measure q[3];
+    }
+    """
+    result = loads(qasm_str)
+    result.validate()
+
+
+def test_box_parallel_delays_on_disjoint_qubits():
+    """Delays on different qubits run in parallel, so a box only needs to
+    fit the busiest single qubit timeline — not the sum of all delays.
+
+    Regression: box duration validation summed delay durations across all
+    qubits, rejecting valid programs whose per-qubit timelines fit within
+    the box duration. See: https://github.com/qBraid/pyqasm/issues/329
+    """
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q[0];
+        delay[200ns] q[1];
+    }
+    """
+    module = loads(qasm_str)
+    module.validate()
+    module.unroll()
+
+
+def test_box_delay_broadcast_matches_per_qubit_statements():
+    """A broadcast delay and the equivalent per-qubit delay statements
+    describe the same schedule, so both must validate identically.
+
+    Regression: the cross-qubit sum counted a broadcast delay once but
+    per-qubit statements once each, so only the broadcast form validated.
+    See: https://github.com/qBraid/pyqasm/issues/329
+    """
+    broadcast = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q;
+    }
+    """
+    per_qubit = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q[0];
+        delay[200ns] q[1];
+    }
+    """
+    loads(broadcast).unroll()
+    loads(per_qubit).unroll()
+
+
+def test_box_sequential_delays_on_same_qubit_exceed_duration():
+    """Sequential delays on the same qubit accumulate on that qubit's
+    timeline and must still be rejected when they exceed the box duration."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [300ns] {
+        delay[200ns] q[0];
+        delay[200ns] q[1];
+        delay[150ns] q[0];
+    }
+    """
+    with pytest.raises(ValidationError) as err:
+        loads(qasm_str).unroll()
+    assert (
+        "Total delay duration value '350.0ns' on qubit 'q[0]' "
+        "should be less than 'box[300.0ns]' duration." in str(err.value)
+    )
+
+
+def test_nested_box_delays_propagate_to_outer_box():
+    """A nested box contributes its declared duration to the enclosing
+    box's per-qubit timelines, and delays after it keep accumulating.
+
+    Regression: the previous global accumulator was reset to zero when the
+    inner box closed, so the outer box lost all inner delay accounting.
+    """
+    valid = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [500ns] {
+        box [400ns] {
+            delay[100ns] q[0];
+        }
+        delay[50ns] q[0];
+    }
+    """
+    loads(valid).unroll()
+
+    invalid = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+
+    box [500ns] {
+        box [400ns] {
+            delay[100ns] q[0];
+        }
+        delay[150ns] q[0];
+    }
+    """
+    with pytest.raises(ValidationError) as err:
+        loads(invalid).unroll()
+    assert (
+        "Total delay duration value '550.0ns' on qubit 'q[0]' "
+        "should be less than 'box[500.0ns]' duration." in str(err.value)
+    )

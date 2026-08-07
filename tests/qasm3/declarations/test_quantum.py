@@ -17,6 +17,7 @@ Module containing unit tests for parsing and unrolling programs that contain qua
 declarations.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import dumps, loads

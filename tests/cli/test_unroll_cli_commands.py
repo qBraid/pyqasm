@@ -43,16 +43,14 @@ def test_unroll_command_single_file(runner: CliRunner, tmp_path):
     """Test the `unroll` CLI command with a single file."""
     # Create a test file
     test_file = tmp_path / "test.qasm"
-    test_file.write_text(
-        """
+    test_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         gate hgate q { h q; }
         qubit[2] q;
         hgate q[0];
         hgate q[1];
-        """
-    )
+        """)
 
     result = runner.invoke(app, ["unroll", str(test_file)])
 
@@ -69,16 +67,14 @@ def test_unroll_command_single_file_with_output(runner: CliRunner, tmp_path):
     """Test the `unroll` CLI command with explicit output path."""
     # Create a test file
     test_file = tmp_path / "test.qasm"
-    test_file.write_text(
-        """
+    test_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         gate hgate q { h q; }
         qubit[2] q;
         hgate q[0];
         hgate q[1];
-        """
-    )
+        """)
 
     output_file = tmp_path / "custom_output.qasm"
     result = runner.invoke(app, ["unroll", str(test_file), "--output", str(output_file)])
@@ -130,16 +126,14 @@ def test_unroll_command_directory(runner: CliRunner, tmp_path):
     # Create multiple test files
     for i in range(3):
         test_file = test_dir / f"test{i}.qasm"
-        test_file.write_text(
-            f"""
+        test_file.write_text(f"""
             OPENQASM 3.0;
             include "stdgates.inc";
             gate hgate{i} q {{ h q; }}
             qubit[2] q;
             hgate{i} q[0];
             hgate{i} q[1];
-            """
-        )
+            """)
 
     result = runner.invoke(app, ["unroll", str(test_dir)])
 
@@ -194,14 +188,12 @@ def test_unroll_command_with_skip(runner: CliRunner, tmp_path):
     # Create test files
     for i in range(3):
         test_file = test_dir / f"test{i}.qasm"
-        test_file.write_text(
-            """
+        test_file.write_text("""
             OPENQASM 3.0;
             include "stdgates.inc";
             qubit[2] q;
             h q;
-            """
-        )
+            """)
 
     # Skip one file
     skip_file = str(test_dir / "test1.qasm")
@@ -224,27 +216,23 @@ def test_unroll_command_with_skip_tag(runner: CliRunner, tmp_path):
 
     # Create a file with skip tag
     skip_file = test_dir / "skip_me.qasm"
-    skip_file.write_text(
-        """
+    skip_file.write_text("""
         // pyqasm disable: unroll
         OPENQASM 3.0;
         include "stdgates.inc";
         qubit[2] q;
         h q[0];
-        """
-    )
+        """)
 
     # Create a normal file
     normal_file = test_dir / "normal.qasm"
-    normal_file.write_text(
-        """
+    normal_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         gate hgate q { h q; }
         qubit[2] q;
         hgate q[0];
-        """
-    )
+        """)
 
     result = runner.invoke(app, ["unroll", str(test_dir)])
 
@@ -260,14 +248,12 @@ def test_unroll_command_with_invalid_file(runner: CliRunner, tmp_path):
     """Test the `unroll` CLI command with an invalid file."""
     # Create an invalid test file
     test_file = tmp_path / "invalid.qasm"
-    test_file.write_text(
-        """
+    test_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         qubit[1] q;
         h q[2];  // Invalid: index 2 out of range
-        """
-    )
+        """)
 
     result = runner.invoke(app, ["unroll", str(test_file)])
 
@@ -285,25 +271,21 @@ def test_unroll_command_mixed_success_and_failure(runner: CliRunner, tmp_path):
 
     # Create a valid file
     valid_file = test_dir / "valid.qasm"
-    valid_file.write_text(
-        """
+    valid_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         qubit[1] q;
         h q[0];
-        """
-    )
+        """)
 
     # Create an invalid file
     invalid_file = test_dir / "invalid.qasm"
-    invalid_file.write_text(
-        """
+    invalid_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         qubit[1] q;
         h q[2];  // Invalid: index 2 out of range
-        """
-    )
+        """)
 
     result = runner.invoke(app, ["unroll", str(test_dir)])
 
@@ -450,16 +432,14 @@ def test_unroll_qasm_function_single_file(capsys, tmp_path):
     """Test unroll_qasm function directly with a single file."""
     # Create a test file
     test_file = tmp_path / "test.qasm"
-    test_file.write_text(
-        """
+    test_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         gate hgate q { h q; }
         qubit[2] q;
         hgate q[0];
         hgate q[1];
-        """
-    )
+        """)
 
     with pytest.raises(typer.Exit) as exc_info:
         unroll_qasm([str(test_file)])
@@ -485,14 +465,12 @@ def test_unroll_qasm_function_with_invalid_file(capsys, tmp_path):
     """Test unroll_qasm function directly with an invalid file."""
     # Create an invalid test file
     test_file = tmp_path / "invalid.qasm"
-    test_file.write_text(
-        """
+    test_file.write_text("""
         OPENQASM 3.0;
         include "stdgates.inc";
         qubit[1] q;
         h q[2];  // Invalid: index 2 out of range
-        """
-    )
+        """)
 
     with pytest.raises(typer.Exit) as exc_info:
         unroll_qasm([str(test_file)])
@@ -510,13 +488,11 @@ def test_unroll_command_reports_logger_error_output(runner: CliRunner, tmp_path)
     """Test that logger error output is shown in CLI output when unroll fails."""
     # Create an invalid QASM file (e.g., missing semicolon)
     invalid_file = tmp_path / "invalid.qasm"
-    invalid_file.write_text(
-        """
+    invalid_file.write_text("""
         OPENQASM 3.0
         qubit[2] q
         h q[0]
-        """
-    )
+        """)
 
     result = runner.invoke(app, ["unroll", str(invalid_file)])
 

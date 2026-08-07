@@ -16,6 +16,7 @@
 Module containing unit tests for QASM3 to QIR conversion functions.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import loads

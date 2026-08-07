@@ -16,6 +16,7 @@
 Top-level entrypoint functions for pyqasm.
 
 """
+
 from __future__ import annotations
 
 import os

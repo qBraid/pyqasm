@@ -1,6 +1,7 @@
-# pyqasm
-
-<img align="right" width="100" src="https://qbraid-static.s3.amazonaws.com/pyqasm.svg"/>
+<p align="left">
+  <img src="docs/_static/pyqasm-light.svg#gh-light-mode-only" width="500" alt="PyQASM Logo (Light Mode)">
+  <img src="docs/_static/pyqasm-dark.svg#gh-dark-mode-only" width="500" alt="PyQASM Logo (Dark Mode)">
+</p>
 
 [![CI](https://github.com/qBraid/pyqasm/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/qBraid/pyqasm/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/qBraid/pyqasm/graph/badge.svg?token=92YURMR8T8)](https://codecov.io/gh/qBraid/pyqasm)
@@ -12,7 +13,9 @@
 
 Python toolkit providing an OpenQASM 3 semantic analyzer and utilities for program analysis and compilation.
 
-[![Env Badge](https://img.shields.io/endpoint?url=https://api.qbraid.com/api/environments/valid?envSlug=pyqasm_l9qauu&label=Launch+on+qBraid&labelColor=lightgrey&logo=rocket&logoSize=auto&style=for-the-badge)](http://account.qbraid.com?gitHubUrl=https://github.com/qBraid/pyqasm.git&envId=pyqasm_l9qauu)
+<!--
+[![Env Badge](https://img.shields.io/endpoint?url=https://api.qbraid.com/api/environments/valid?envSlug=pyqasm_l9qauu&label=Launch+on+qBraid&labelColor=lightgrey&logo=rocket&logoSize=auto&style=for-the-badge)](https://account.qbraid.com/explore/projects/pyqasm)
+-->
 
 ## Motivation
 [OpenQASM](https://openqasm.com/) is a powerful language for expressing hybrid quantum-classical programs, but it lacks a comprehensive tool supporting the _full capabilities of the language_. PyQASM aims to fill this gap by building upon the [`openqasm3.parser`](https://github.com/openqasm/openqasm/blob/ast-py/v1.0.1/source/openqasm/openqasm3/parser.py), and providing support for semantic analysis and utilities for program compilation.
@@ -82,10 +85,10 @@ PyQASM offers robust support for the **extensive grammar of OpenQASM 3**, includ
   - Quantum-classical interaction (`measurement`, `reset`, etc.)
   - Inclusion of standard libraries (`stdgates.inc`, etc.)
 
-- **[Unrolling](https://docs.qbraid.com/pyqasm/user-guide/examples#inlining-%26-unrolling):**  
+- **[Unrolling](https://docs.qbraid.com/v2/pyqasm/user-guide/examples#inlining-%26-unrolling):**  
   Expands all custom gates, loops, subroutines, branches, etc. into a flat, hardware-ready sequence of instructions.
 
-- **[Validation](https://docs.qbraid.com/pyqasm/user-guide/overview#the-qasmmodule-object):**  
+- **[Validation](https://docs.qbraid.com/v2/pyqasm/user-guide/overview#the-qasmmodule-object):**  
   Performs semantic analysis to ensure programs are correct and conform to the OpenQASM 3 specification.
 
 ---

@@ -17,6 +17,7 @@ Module containing unit tests for parsing and unrolling programs that contain qua
 rotations in qasm2 format.
 
 """
+
 from pyqasm.entrypoint import dumps, loads
 from tests.utils import check_unrolled_qasm
 

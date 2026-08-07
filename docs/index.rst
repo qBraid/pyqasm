@@ -45,12 +45,11 @@
    </style>
    </head>
    <body>
-   <h1 style="text-align: center">
-      <img src="_static/pyqasm.svg" alt="pyqasm logo" style="width:60px;height:60px;">
-      <span style="color:#808080"> PyQASM</span>
+   <h1 style="text-align: center; margin-top: 0; margin-bottom: 0.25em; padding-top: 0.5em; padding-bottom: 0.5em">
+     <img src="_static/pyqasm-light.svg" alt="pyqasm logo" style="width:280px;height:auto;max-width:min(280px, 50vw);">
    </h1>
-   <p style="text-align:center;font-style:italic;color:#808080">
-      Python toolkit for OpenQASM program analysis and compilation.
+   <p style="text-align:center;font-style:italic;color:#808080; margin-top: 0; margin-bottom: 0.5em">
+     Python toolkit for OpenQASM program analysis and compilation.
    </p>
    </body>
    </html>
@@ -154,7 +153,7 @@ Example
 Resources
 ----------
 
-- `User Guide <https://docs.qbraid.com/pyqasm/user-guide>`_
+- `User Guide <https://docs.qbraid.com/v2/pyqasm/user-guide>`_
 - `Example Usage <https://github.com/qBraid/pyqasm/tree/main/examples>`_
 - `Source Code <https://github.com/qBraid/pyqasm>`_
 
@@ -193,3 +192,9 @@ Resources
    :hidden:
 
    api/pyqasm
+
+.. toctree::
+   :caption: ALGOS API Reference
+   :hidden:
+
+   qbraid_algorithms <https://qbraid.github.io/qbraid-algorithms/api/qbraid_algorithms.html>

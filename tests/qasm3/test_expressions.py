@@ -16,6 +16,7 @@
 Module containing unit tests for expressions.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import loads

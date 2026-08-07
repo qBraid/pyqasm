@@ -16,6 +16,7 @@
 Module defining QASM3 incorrect variable tests.
 
 """
+
 DECLARATION_TESTS = {
     "keyword_redeclaration": (
         """

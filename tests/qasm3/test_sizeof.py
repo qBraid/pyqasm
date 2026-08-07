@@ -16,6 +16,7 @@
 Module containing unit tests for sizeof operation.
 
 """
+
 import pytest
 
 from pyqasm.entrypoint import loads

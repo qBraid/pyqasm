@@ -16,6 +16,7 @@
 Script for getting/bumping the next pre-release version.
 
 """
+
 import pathlib
 import sys
 

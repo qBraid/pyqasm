@@ -28,37 +28,47 @@ jobs:
           - os: windows-latest
             python: 313
             platform_id: win_amd64
+          - os: windows-latest
+            python: 314
+            platform_id: win_amd64
 
-          # Linux 64 bit manylinux2014
+          # Linux 64 bit manylinux_2_28
           - os: ubuntu-latest
             python: 310
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
           - os: ubuntu-latest
             python: 311
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
           - os: ubuntu-latest
             python: 312
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
           - os: ubuntu-latest
             python: 313
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
+          - os: ubuntu-latest
+            python: 314
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux_2_28
 
           # MacOS x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 310
             platform_id: macosx_x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 311
             platform_id: macosx_x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 312
             platform_id: macosx_x86_64
-          - os: macos-13
+          - os: macos-15-intel
             python: 313
+            platform_id: macosx_x86_64
+          - os: macos-15-intel
+            python: 314
             platform_id: macosx_x86_64
 
           # MacOS arm64
@@ -74,11 +84,14 @@ jobs:
           - os: macos-14
             python: 313
             platform_id: macosx_arm64
+          - os: macos-14
+            python: 314
+            platform_id: macosx_arm64
           
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -98,7 +111,7 @@ jobs:
         run: bash bin/cibw/build_wheels.sh
 
       - name: Upload built wheels
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
@@ -109,7 +122,7 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -125,7 +138,7 @@ jobs:
         run: bash bin/test_sdist.sh
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with: 
           name: package-sdist
           path: dist/*.tar.gz
@@ -138,10 +151,10 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
     
       - name: Download artifacts 
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           # pattern should match the upload artifact naming convention 
           # of the previous jobs

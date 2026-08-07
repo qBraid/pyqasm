@@ -45,6 +45,27 @@ def test_remove_idle_qubits_qasm3_small():
     check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
+def test_remove_idle_qubits_not_in_place():
+    """Test remove_idle_qubits(in_place=False) updates the copy and leaves the
+    original module untouched"""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    h q[1];
+    cx q[1], q[3];
+    """
+    module = loads(qasm3_str)
+    module.unroll()
+    new_module = module.remove_idle_qubits(in_place=False)
+
+    assert new_module.num_qubits == 2
+    assert "qubit[2] q;" in dumps(new_module)
+
+    assert module.num_qubits == 4
+    assert "qubit[4] q;" in dumps(module)
+
+
 def test_remove_idle_qubits_qasm3():
     """Test conversion of qasm3 to compressed contiguous qasm3"""
     qasm3_str = """

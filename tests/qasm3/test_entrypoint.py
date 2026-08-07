@@ -16,6 +16,7 @@
 Module containing unit tests for entrypoint functions.
 
 """
+
 import os
 
 import pytest

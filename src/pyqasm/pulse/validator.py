@@ -16,6 +16,7 @@
 Module with validation functions for Pulse visitor
 
 """
+
 from typing import Any, Optional
 
 import numpy as np

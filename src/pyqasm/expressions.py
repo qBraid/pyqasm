@@ -16,6 +16,7 @@
 Module containing the class for evaluating QASM expressions.
 
 """
+
 from openqasm3.ast import (
     AngleType,
     BinaryExpression,

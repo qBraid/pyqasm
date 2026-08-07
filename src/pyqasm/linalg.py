@@ -16,6 +16,7 @@
 Module for linear algebra functions necessary for gate decomposition.
 
 """
+
 from __future__ import annotations
 
 import cmath

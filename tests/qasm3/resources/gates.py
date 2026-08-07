@@ -18,11 +18,13 @@
 Module defining QASM3 gate tests.
 
 """
+
 import os
 
 import pytest
 
 from pyqasm.maps.gates import (
+    FIVE_QUBIT_OP_MAP,
     FOUR_QUBIT_OP_MAP,
     ONE_QUBIT_OP_MAP,
     ONE_QUBIT_ROTATION_MAP,
@@ -41,6 +43,7 @@ VALID_GATE_NAMES = set(
     | ONE_QUBIT_ROTATION_MAP.keys()
     | THREE_QUBIT_OP_MAP.keys()
     | FOUR_QUBIT_OP_MAP.keys()
+    | FIVE_QUBIT_OP_MAP.keys()
 )
 
 
@@ -181,6 +184,30 @@ for gate in FOUR_QUBIT_OP_MAP:
     locals()[name] = _generate_four_qubit_fixture(gate)
 
 
+def _generate_five_qubit_fixture(gate_name: str):
+    @pytest.fixture()
+    def test_fixture():
+        if gate_name not in VALID_GATE_NAMES:
+            raise ValueError(f"Unknown qasm3 gate {gate_name}")
+        qasm3_string = f"""
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        qubit[5] q;
+        {gate_name} q[0], q[1], q[2], q[3], q[4];
+        {gate_name} q;
+        """
+        return qasm3_string
+
+    return test_fixture
+
+
+# Generate five-qubit gate fixtures
+for gate in FIVE_QUBIT_OP_MAP:
+    name = _fixture_name(gate)
+    locals()[name] = _generate_five_qubit_fixture(gate)
+
+
 def _generate_custom_op_fixture(op_name: str):
     print(os.getcwd())
 
@@ -242,6 +269,8 @@ for gate in already_tested_triple_op:
     triple_op_tests.remove(_fixture_name(gate))
 
 four_op_tests = [_fixture_name(s) for s in FOUR_QUBIT_OP_MAP]
+
+five_op_tests = [_fixture_name(s) for s in FIVE_QUBIT_OP_MAP]
 
 custom_op_tests = [_fixture_name(s) for s in CUSTOM_OPS]
 
@@ -477,5 +506,72 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         10,
         8,
         "gate custom_gate(a, b) p, q {",
+    ),
+}
+
+
+# ── Physical-qubit tests ────────────────────────────────────────────────────
+
+PHYSICAL_QUBIT_VALID_TESTS = {
+    "basic_gates": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        x $0;
+        h $1;
+        cx $0, $1;
+        """,
+        2,
+        0,
+    ),
+    "custom_gate": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        gate prx(_gate_p_0, _gate_p_1) _gate_q_0 {
+            rz(0) _gate_q_0;
+            rx(pi/2) _gate_q_0;
+            rz(0) _gate_q_0;
+        }
+        bit[2] meas;
+        prx(pi/2, 0) $0;
+        prx(pi/2, 0) $0;
+        prx(pi/2, 0) $0;
+        barrier $0, $1;
+        meas[0] = measure $0;
+        meas[1] = measure $1;
+        """,
+        2,
+        2,
+    ),
+    "barrier_only": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        barrier $0, $1, $2;
+        """,
+        3,
+        0,
+    ),
+    "measure_physical": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        bit[1] c;
+        h $0;
+        c[0] = measure $0;
+        """,
+        1,
+        1,
+    ),
+    "non_contiguous_indices": (
+        """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        x $0;
+        x $3;
+        """,
+        4,
+        0,
     ),
 }

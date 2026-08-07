@@ -16,6 +16,7 @@
 Module defining subroutine tests.
 
 """
+
 SUBROUTINE_INCORRECT_TESTS = {
     "undeclared_call": (
         """

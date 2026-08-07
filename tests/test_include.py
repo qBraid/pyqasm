@@ -16,6 +16,7 @@
 Module containing unit tests for linalg.py functions.
 
 """
+
 import pytest
 
 from pyqasm import ValidationError, dumps, loads

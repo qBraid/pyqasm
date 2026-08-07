@@ -16,6 +16,7 @@
 Module with analysis functions for QASM visitor
 
 """
+
 from __future__ import annotations
 
 import re
@@ -250,25 +251,42 @@ class Qasm3Analyzer:
         raise_qasm3_error("Could not determine the OpenQASM version.", err_type=QasmParsingError)
 
     @staticmethod
-    def extract_duplicate_qubit(qubit_list: list[IndexedIdentifier]):
+    def extract_duplicate_qubit(
+        qubit_list: list[IndexedIdentifier | Identifier],
+    ) -> tuple[str, int] | None:
         """
         Extracts the duplicate qubit from a list of qubits.
 
         Args:
-            qubit_list (list[IndexedIdentifier]): The list of qubits.
+            qubit_list (list[IndexedIdentifier | Identifier]): The list of qubits.
 
         Returns:
             tuple(string, int): The duplicate qubit name and id.
         """
-        qubit_set = set()
+        qubit_set: set[tuple[str, int]] = set()
         for qubit in qubit_list:
-            assert isinstance(qubit, IndexedIdentifier)
-            qubit_name = qubit.name.name
-            qubit_id = qubit.indices[0][0].value  # type: ignore
-            if (qubit_name, qubit_id) in qubit_set:
-                return (qubit_name, qubit_id)
-            qubit_set.add((qubit_name, qubit_id))
+            qubit_key = Qasm3Analyzer.extract_qubit_key(qubit)
+            if qubit_key in qubit_set:
+                return qubit_key
+            qubit_set.add(qubit_key)
         return None
+
+    @staticmethod
+    def extract_qubit_key(qubit: IndexedIdentifier | Identifier) -> tuple[str, int]:
+        """
+        Extract the (register name, index) identity key for a qubit operand.
+
+        Args:
+            qubit (IndexedIdentifier | Identifier): The qubit operand.
+
+        Returns:
+            tuple(string, int): The qubit register name and index.
+        """
+        if isinstance(qubit, Identifier):
+            # Physical qubit: name is "$n", identity is the name itself.
+            return (qubit.name, int(qubit.name[1:]))
+        assert isinstance(qubit, IndexedIdentifier)
+        return (qubit.name.name, qubit.indices[0][0].value)  # type: ignore
 
     @staticmethod
     def verify_gate_qubits(gate: QuantumGate, span: Optional[Span] = None):

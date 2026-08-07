@@ -16,6 +16,7 @@
 Module with utility functions for QASM visitor
 
 """
+
 from typing import Any, Optional
 
 import numpy as np
