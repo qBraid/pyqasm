@@ -133,9 +133,11 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
     module = qasm_module("main", program)
-    # presence tests, not truthiness: a falsy value is a caller value, not an omission
+    # presence tests, not truthiness: a falsy value is a caller value, not an omission.
+    # An explicit None still means "not passed", so defaults like extern_functions={}
+    # are never clobbered.
     for name, attr in _LOADS_KWARG_ATTRS.items():
-        if name in kwargs:
+        if kwargs.get(name) is not None:
             setattr(module, attr, kwargs[name])
     return module
 
