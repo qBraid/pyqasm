@@ -2794,9 +2794,9 @@ class QasmVisitor:
 
         return []
 
-    def _visit_switch_statement(  # type: ignore[return]
+    def _visit_switch_statement(
         self, statement: qasm3_ast.SwitchStatement
-    ) -> list[qasm3_ast.Statement]:
+    ) -> list[qasm3_ast.Statement]:  # type: ignore[return]
         """Visit a switch statement element.
 
         Args:
