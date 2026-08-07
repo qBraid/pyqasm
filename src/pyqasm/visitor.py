@@ -820,8 +820,8 @@ class QasmVisitor:
         only sees IntegerLiteral indices.
 
         Args:
-            barrier (QuantumBarrier): The barrier with qubits to consolidate.
-            barrier_qubits (QuantumBarrier): The qubits to replace.
+            barrier (QuantumBarrier): The barrier whose qubits are being expanded.
+            barrier_qubits (list[IndexedIdentifier | Identifier]): The expanded qubit operands.
 
         Returns:
             list: The resultant list of consolidated qubits.
@@ -2250,7 +2250,7 @@ class QasmVisitor:
             statement (BranchingStatement): The branching statement to visit.
 
         Returns:
-            list[Statement]: The list of unrolled branch statements, , or an empty list
+            list[Statement]: The list of unrolled branch statements, or an empty list
                 if self._check_only is True.
         """
         self._scope_manager.push_context(Context.BLOCK)
