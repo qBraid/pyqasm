@@ -755,8 +755,8 @@ class OpenPulseVisitor:
         return _return_value, [statement]
 
     def visit_statement(
-            self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
-        ) -> list[qasm3_ast.Statement]:
+        self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
+    ) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
         Args:

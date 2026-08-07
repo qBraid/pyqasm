@@ -3411,7 +3411,7 @@ class QasmVisitor:
         """Visit a statement element.
 
         Args:
-            statement (qasm3_ast.Statement): The statement to visit.
+            statement (Statement | Pragma): The statement to visit.
 
         Returns:
             list[Statement]: The list of unrolled statements.
@@ -3447,7 +3447,7 @@ class QasmVisitor:
         """Visit a basic block of statements.
 
         Args:
-            stmt_list (list[qasm3_ast.Statement]): The list of statements to visit.
+            stmt_list (Sequence[Statement | Pragma]): The list of statements to visit.
 
         Returns:
             list[Statement]: The list of unrolled statements.
