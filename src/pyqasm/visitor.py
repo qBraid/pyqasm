@@ -512,7 +512,9 @@ class QasmVisitor:
             name for name, _ in self._module._qubit_depths if name.startswith("$")
         )
         if physical_qubits:
-            if sum(self._global_qreg_size_map.values()) > 0:
+            # presence, not capacity: a zero-sized declared register still declares
+            # a second address space
+            if self._global_qreg_size_map:
                 raise_qasm3_error(
                     "Cannot consolidate qubit registers: the program mixes declared "
                     f"registers with physical qubits ({', '.join(physical_qubits)})",

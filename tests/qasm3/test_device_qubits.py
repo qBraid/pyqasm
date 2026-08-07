@@ -351,6 +351,20 @@ def test_mixed_declared_and_physical_rejected_when_consolidating(operation):
     {operation}
     """
     result = loads(qasm, device_qubits=5)
+    with pytest.raises(
+        ValidationError, match=r"mixes declared registers with physical qubits \(\$2\)"
+    ):
+        result.unroll(consolidate_qubits=True)
+
+
+def test_zero_sized_register_still_counts_as_declared():
+    """A zero-sized declared register is still a second address space (Argus P1)."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[0] q;
+    h $1;
+    """
+    result = loads(qasm)
     with pytest.raises(ValidationError, match=r"mixes declared registers with physical qubits"):
         result.unroll(consolidate_qubits=True)
 
