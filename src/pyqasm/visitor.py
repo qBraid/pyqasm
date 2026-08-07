@@ -62,6 +62,7 @@ from pyqasm.maps.expressions import (
     MAX_ARRAY_DIMENSIONS,
 )
 from pyqasm.maps.gates import (
+    fresh_qubits,
     map_qasm_ctrl_op_to_callable,
     map_qasm_inv_op_to_callable,
     map_qasm_op_num_params,
@@ -1608,11 +1609,15 @@ class QasmVisitor:
             else:
                 result.extend(self._visit_basic_gate_operation(operation, inverse_value, ctrls))
 
-        # negctrl -> ctrl conversion
-        negs = [
-            qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls
-        ]
-        result = negs + result + negs  # type: ignore
+        # negctrl -> ctrl conversion; build each x gate with fresh operand nodes so
+        # the leading and trailing statements share nothing (issue #350)
+        def _neg_x_gates() -> list[qasm3_ast.QuantumGate]:
+            return [
+                qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], fresh_qubits(ctrl))
+                for ctrl in negctrls
+            ]
+
+        result = _neg_x_gates() + result + _neg_x_gates()  # type: ignore
         self._in_generic_gate_op_scope -= 1
         if self._consolidate_qubits and not self._in_generic_gate_op_scope:
             result = cast(

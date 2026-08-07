@@ -228,6 +228,8 @@ def _assert_no_shared_operand_nodes(module):
         "c4x q[0], q[1], q[2], q[3], q[4];",
         "ecr q[0], q[1];",
         "inv @ crz(0.5) q[1], q[2];",
+        "negctrl @ x q[0], q[1];",
+        "negctrl(2) @ x q[0], q[1], q[2];",
     ],
 )
 def test_unroll_emits_fresh_operand_nodes(operation):
@@ -242,6 +244,31 @@ def test_unroll_emits_fresh_operand_nodes(operation):
     module = loads(qasm3_str)
     module.unroll()
     _assert_no_shared_operand_nodes(module)
+
+
+def test_reverse_qubit_order_negctrl():
+    """Test reverse_qubit_order on a negctrl gate whose leading and trailing x
+    statements previously were the same object (issue #350)"""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    negctrl @ x q[0], q[1];
+    """
+
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    x q[2];
+    cx q[2], q[1];
+    x q[2];
+    """
+
+    module = loads(qasm3_str)
+    module.unroll()
+    module.reverse_qubit_order()
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
 @pytest.mark.parametrize(
