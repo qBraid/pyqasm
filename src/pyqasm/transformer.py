@@ -565,11 +565,17 @@ class Qasm3Transformer:
 
             if isinstance(unrolled_stmts[0], QuantumGate):
                 for stmt in unrolled_stmts:
-                    stmt_qubits: list[IndexedIdentifier] = []
+                    stmt_qubits: list[IndexedIdentifier | Identifier] = []
                     for qubit in stmt.qubits:
+                        if not isinstance(qubit, IndexedIdentifier):
+                            # physical qubit ("$n"): an absolute hardware index that
+                            # belongs to no declared register, so nothing to consolidate
+                            stmt_qubits.append(qubit)
+                            continue
+                        qubit_indices = cast(list, qubit.indices[0])
                         pyqasm_val = _get_pyqasm_device_qubit_index(
                             qubit.name.name,
-                            qubit.indices[0][0].value,
+                            qubit_indices[0].value,
                             qubit_register_offsets,
                             global_qreg_size_map,
                         )
