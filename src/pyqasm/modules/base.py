@@ -44,7 +44,9 @@ def iter_quantum_statements(
     """Yield the quantum statements in a statement list, nested ones included.
 
     ``box`` and ``if`` blocks survive unrolling with their bodies intact, so a pass that
-    rewrites qubit operands has to reach the statements inside them too.
+    rewrites qubit operands has to reach the statements inside them too. Loop and switch
+    bodies only exist before unrolling, but walking them lets the same pass work on a
+    module that has not been unrolled (issue #354).
 
     Args:
         statements (Sequence[qasm3_ast.QASMNode]): The statements to walk.
@@ -58,6 +60,13 @@ def iter_quantum_statements(
         elif isinstance(stmt, BranchingStatement):
             yield from iter_quantum_statements(stmt.if_block)
             yield from iter_quantum_statements(stmt.else_block)
+        elif isinstance(stmt, (qasm3_ast.ForInLoop, qasm3_ast.WhileLoop)):
+            yield from iter_quantum_statements(stmt.block)
+        elif isinstance(stmt, qasm3_ast.SwitchStatement):
+            for _, case_block in stmt.cases:
+                yield from iter_quantum_statements(case_block.statements)
+            if stmt.default is not None:
+                yield from iter_quantum_statements(stmt.default.statements)
         elif isinstance(stmt, QUANTUM_STATEMENTS):
             yield stmt
 
@@ -84,6 +93,13 @@ def drop_statements(statements: list[StatementT], unwanted: type) -> list[Statem
         elif isinstance(stmt, BranchingStatement):
             stmt.if_block = drop_statements(stmt.if_block, unwanted)
             stmt.else_block = drop_statements(stmt.else_block, unwanted)
+        elif isinstance(stmt, (qasm3_ast.ForInLoop, qasm3_ast.WhileLoop)):
+            stmt.block = drop_statements(stmt.block, unwanted)
+        elif isinstance(stmt, qasm3_ast.SwitchStatement):
+            for _, case_block in stmt.cases:
+                case_block.statements = drop_statements(case_block.statements, unwanted)
+            if stmt.default is not None:
+                stmt.default.statements = drop_statements(stmt.default.statements, unwanted)
         elif isinstance(stmt, unwanted):
             continue
         kept.append(stmt)
