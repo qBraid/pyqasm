@@ -763,7 +763,7 @@ class OpenPulseVisitor:
             statement (Statement | Pragma): The statement to visit.
 
         Returns:
-            None
+            list[Statement]: The list of resulting statements.
         """
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
