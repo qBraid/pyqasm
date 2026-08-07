@@ -22,7 +22,7 @@ from typing import Any
 from openqasm3.ast import Pragma, Program, QASMNode
 from openqasm3.printer import Printer, PrinterState
 
-from pyqasm.modules.base import QasmModule
+from pyqasm.modules.base import QasmModule, QasmVisitor
 
 
 class Qasm3Printer(Printer):
@@ -80,7 +80,7 @@ class Qasm3Module(QasmModule):
         qasm_ast.version = "3.0"
         return dumps(qasm_ast)
 
-    def accept(self, visitor) -> None:
+    def accept(self, visitor: QasmVisitor) -> None:
         """Accept a visitor for the module.
 
         Args:
