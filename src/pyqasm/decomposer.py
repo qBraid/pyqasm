@@ -21,7 +21,7 @@ from openqasm3.ast import BranchingStatement, QuantumGate
 
 from pyqasm.exceptions import RebaseError
 from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES, AppliedQubit
-from pyqasm.maps.gates import BASIS_GATE_MAP
+from pyqasm.maps.gates import BASIS_GATE_MAP, fresh_qubits
 
 
 class Decomposer:
@@ -133,7 +133,9 @@ class Decomposer:
                 modifiers=[],
                 name=qasm3_ast.Identifier(name=rule["gate"]),
                 arguments=arguments,
-                qubits=qubits,
+                # copy so the emitted gates do not share operand nodes with each
+                # other or with the source statement (see #333)
+                qubits=fresh_qubits(*qubits),
             )
 
             decomposed_gates.append(new_gate)

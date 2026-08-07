@@ -329,3 +329,50 @@ def test_incorrect_qubit_reg(qasm_code, error_message, error_span, caplog):
             loads(qasm_code, device_qubits=6).unroll(consolidate_qubits=True)
     assert error_message in str(err.value)
     assert error_span in caplog.text
+
+
+def test_physical_qubits_are_not_consolidated():
+    """Physical qubits are absolute hardware indices and belong to no declared register,
+    so consolidation must leave them alone instead of raising (see #343)."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit c;
+    h q[0];
+    cz $2, q[1];
+    c = measure $2;
+    """
+    expected_qasm = """OPENQASM 3.0;
+    qubit[5] __PYQASM_QUBITS__;
+    include "stdgates.inc";
+    bit[1] c;
+    h __PYQASM_QUBITS__[0];
+    cz $2, __PYQASM_QUBITS__[1];
+    c = measure $2;
+    """
+    result = loads(qasm, device_qubits=5)
+    result.unroll(consolidate_qubits=True)
+    check_unrolled_qasm(dumps(result), expected_qasm)
+    # two consolidated slots plus physical $2, which sizes the count to its own index + 1.
+    # neither number is the declared qubit[5], which comes from device_qubits (see #353)
+    assert result.num_qubits == 3
+
+
+def test_physical_qubits_only():
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    h $1;
+    cz $2, $1;
+    """
+    expected_qasm = """OPENQASM 3.0;
+    qubit[5] __PYQASM_QUBITS__;
+    include "stdgates.inc";
+    h $1;
+    cz $2, $1;
+    """
+    result = loads(qasm, device_qubits=5)
+    result.unroll(consolidate_qubits=True)
+    check_unrolled_qasm(dumps(result), expected_qasm)
+    # nothing was consolidated, so the count comes entirely from the physical indices
+    # while the emitted declaration is sized by device_qubits (see #353)
+    assert result.num_qubits == 3
