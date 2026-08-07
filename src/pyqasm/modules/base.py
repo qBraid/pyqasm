@@ -647,7 +647,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 max_loop_iters (int): Max number of iterations for unrolling loops. Defaults to 1e9.
                 check_only (bool): If True, only check the program without executing it.
                                    Defaults to False.
-                device_qubits (int): Number of physical qubits available on the target device.
                 consolidate_qubits (bool): If True, consolidate all quantum registers into
                                            single register.
 
@@ -657,7 +656,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Notes:
             This method resets the module's qubit and classical bit counts before unrolling,
-            and sets them to -1 if an error occurs during unrolling.
+            and sets them to -1 if an error occurs during unrolling. ``device_qubits`` is set
+            on the module at load time -- ``loads(program, device_qubits=N)`` -- not through
+            ``unroll()``. When unset and ``consolidate_qubits=True``, it defaults to the
+            program's total qubit count.
         """
         if not kwargs:
             kwargs = {}
