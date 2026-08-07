@@ -59,6 +59,25 @@ def test_draw_qasm3_simple():
     _check_fig(circ, fig)
 
 
+def test_draw_qasm3_pragma():
+    """Test drawing a circuit carrying a pragma. Pragma is neither a Statement nor a
+    QuantumStatement, so nothing downstream filters it out of the moment builder."""
+    qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    qubit[2] q;
+
+    #pragma braket noise bit_flip(0.1) q[0]
+    h q[0];
+    cx q[0], q[1];
+    """
+    circ = loads(qasm)
+    circ.unroll()
+    fig = mpl_draw(circ)
+    _check_fig(circ, fig)
+
+
 def test_draw_qasm3_custom_gate():
     qasm = """
     OPENQASM 3.0;
