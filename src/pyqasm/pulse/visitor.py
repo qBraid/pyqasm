@@ -21,7 +21,7 @@ Module defining OpenPulse Visitor.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import openqasm3.ast as qasm3_ast
 
@@ -754,11 +754,13 @@ class OpenPulseVisitor:
 
         return _return_value, [statement]
 
-    def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
+    def visit_statement(
+            self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
+        ) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
         Args:
-            statement (qasm3_ast.Statement): The statement to visit.
+            statement (Statement | Pragma): The statement to visit.
 
         Returns:
             None
@@ -809,13 +811,13 @@ class OpenPulseVisitor:
 
     def visit_basic_block(
         self,
-        stmt_list: list[qasm3_ast.Statement],
+        stmt_list: Sequence[qasm3_ast.Statement | qasm3_ast.Pragma],
         is_def_cal: bool,
     ) -> list[qasm3_ast.Statement]:
         """Visit a basic block of statements.
 
         Args:
-            stmt_list (list[qasm3_ast.Statement]): The list of statements to visit.
+            stmt_list (Sequence[Statement | Pragma]): The list of statements to visit.
             is_def_cal (bool): is the given statements from def_cal block.
 
         Returns:
