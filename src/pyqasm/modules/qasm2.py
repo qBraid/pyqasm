@@ -28,6 +28,22 @@ from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
 
+# the QASM 2.0 <qop> production: a gate application, a measurement or a reset.
+# only these may be the body of an 'if'.
+_QOP_STATEMENTS = (
+    qasm3_ast.QuantumGate,
+    qasm3_ast.QuantumMeasurementStatement,
+    qasm3_ast.QuantumReset,
+)
+
+# statements the user can write in a conditional body that QASM 2.0 has no form for,
+# named by the keyword they wrote rather than by the AST class they parsed into
+_NON_QOP_KEYWORDS = {
+    qasm3_ast.QuantumBarrier: "barrier",
+    qasm3_ast.DelayInstruction: "delay",
+    qasm3_ast.Box: "box",
+}
+
 
 def _qasm3_repr(node: qasm3_ast.QASMNode) -> str:
     """Render a node with the stock QASM 3 printer, for use in error messages."""
@@ -371,8 +387,43 @@ class Qasm2Module(QasmModule):
             if stmt_type not in self._whitelist_statements:
                 raise ValidationError(f"Statement of type {stmt_type} not supported in QASM 2.0")
             if isinstance(stmt, qasm3_ast.BranchingStatement):
+                self._filter_branch_body(stmt)
                 self._filter_branch(stmt)
             # TODO: add more filtering here if needed
+
+    def _filter_branch_body(self, statement: qasm3_ast.BranchingStatement):
+        """Filter the body of a conditional against what QASM 2.0 allows there.
+
+        The QASM 2.0 grammar admits only a ``<qop>`` as the body of an ``if`` --
+        a gate application, a measurement or a reset. Everything else, ``barrier``
+        included, belongs to a different production and cannot be conditioned. The
+        parser does not enforce that, so it is enforced here as a whitelist: a
+        blacklist would let through whatever statement kinds it had not enumerated.
+        """
+        for inner_stmt in [*statement.if_block, *statement.else_block]:
+            if isinstance(inner_stmt, _QOP_STATEMENTS):
+                continue
+            if isinstance(inner_stmt, qasm3_ast.BranchingStatement):
+                self._filter_branch_body(inner_stmt)
+                continue
+            if isinstance(inner_stmt, qasm3_ast.QuantumPhase):
+                # not something the user wrote: rzz/rxx decompose to a global phase, so this
+                # is only reachable by re-filtering an already-unrolled body (see issue #351)
+                raise_qasm3_error(
+                    "Global phase is not representable in QASM 2.0, so it cannot appear in "
+                    "a conditional body; it is introduced by unrolling gates such as 'rzz' "
+                    "and 'rxx'",
+                    error_node=inner_stmt,
+                    span=inner_stmt.span,
+                )
+            name = _NON_QOP_KEYWORDS.get(type(inner_stmt))
+            described = f"'{name}'" if name else f"statement of type {type(inner_stmt).__name__}"
+            raise_qasm3_error(
+                f"{described} is not supported as the body of an 'if' in QASM 2.0, which "
+                "allows only a gate, measurement or reset there",
+                error_node=inner_stmt,
+                span=inner_stmt.span,
+            )
 
     def _filter_branch(self, statement: qasm3_ast.BranchingStatement) -> None:
         """Reject the conditional shapes QASM 2.0 has no syntax for, before unrolling.
