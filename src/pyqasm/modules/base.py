@@ -22,7 +22,7 @@ import functools
 from abc import ABC, abstractmethod
 from collections import Counter
 from copy import deepcopy
-from typing import Optional
+from typing import Iterator, Optional, Sequence, TypeVar
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, Program, QuantumGate
@@ -34,6 +34,60 @@ from pyqasm.exceptions import UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
 from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
 from pyqasm.visitor import QasmVisitor, ScopeManager
+
+StatementT = TypeVar("StatementT", bound=qasm3_ast.QASMNode)
+
+
+def iter_quantum_statements(
+    statements: Sequence[qasm3_ast.QASMNode],
+) -> Iterator[qasm3_ast.Statement]:
+    """Yield the quantum statements in a statement list, nested ones included.
+
+    ``box`` and ``if`` blocks survive unrolling with their bodies intact, so a pass that
+    rewrites qubit operands has to reach the statements inside them too.
+
+    Args:
+        statements (Sequence[qasm3_ast.QASMNode]): The statements to walk.
+
+    Yields:
+        qasm3_ast.Statement: Each quantum statement, in program order.
+    """
+    for stmt in statements:
+        if isinstance(stmt, qasm3_ast.Box):
+            yield from iter_quantum_statements(stmt.body)
+        elif isinstance(stmt, BranchingStatement):
+            yield from iter_quantum_statements(stmt.if_block)
+            yield from iter_quantum_statements(stmt.else_block)
+        elif isinstance(stmt, QUANTUM_STATEMENTS):
+            yield stmt
+
+
+def drop_statements(statements: list[StatementT], unwanted: type) -> list[StatementT]:
+    """Return the statements without those of the unwanted type, nested ones included.
+
+    Bodies of ``box`` and ``if`` blocks are filtered in place. A box left with an empty
+    body is dropped, since pyqasm rejects a box that holds no statement.
+
+    Args:
+        statements (list[StatementT]): The statements to filter.
+        unwanted (type): The statement type to remove.
+
+    Returns:
+        list[StatementT]: The remaining statements.
+    """
+    kept: list[StatementT] = []
+    for stmt in statements:
+        if isinstance(stmt, qasm3_ast.Box):
+            stmt.body = drop_statements(stmt.body, unwanted)
+            if not stmt.body:
+                continue
+        elif isinstance(stmt, BranchingStatement):
+            stmt.if_block = drop_statements(stmt.if_block, unwanted)
+            stmt.else_block = drop_statements(stmt.else_block, unwanted)
+        elif isinstance(stmt, unwanted):
+            continue
+        kept.append(stmt)
+    return kept
 
 
 def track_user_operation(func):
@@ -183,7 +237,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 if len(self._unrolled_ast.statements) > 0
                 else self._statements
             )
-            for stmt in stmts_to_check:
+            for stmt in iter_quantum_statements(stmts_to_check):
                 if isinstance(stmt, qasm3_ast.QuantumMeasurementStatement):
                     self._has_measurements = True
                     break
@@ -199,20 +253,15 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         Returns:
             QasmModule: The module with the measurements removed if in_place is False
         """
+        # copy first: the filtering rewrites nested box and if bodies in place, so it
+        # has to run on the module that is being returned
+        curr_module = self if in_place else self.copy()
         stmt_list = (
-            self._statements
-            if len(self._unrolled_ast.statements) == 0
-            else self._unrolled_ast.statements
+            curr_module._statements
+            if len(curr_module._unrolled_ast.statements) == 0
+            else curr_module._unrolled_ast.statements
         )
-        stmts_without_meas = [
-            stmt
-            for stmt in stmt_list
-            if not isinstance(stmt, qasm3_ast.QuantumMeasurementStatement)
-        ]
-        curr_module = self
-
-        if not in_place:
-            curr_module = self.copy()
+        stmts_without_meas = drop_statements(stmt_list, qasm3_ast.QuantumMeasurementStatement)
 
         for qubit in curr_module._qubit_depths.values():
             qubit.num_measurements = 0
@@ -243,7 +292,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 if len(self._unrolled_ast.statements) > 0
                 else self._statements
             )
-            for stmt in stmts_to_check:
+            for stmt in iter_quantum_statements(stmts_to_check):
                 if isinstance(stmt, qasm3_ast.QuantumBarrier):
                     self._has_barriers = True
                     break
@@ -259,17 +308,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         Returns:
             QasmModule: The module with the barriers removed if in_place is False
         """
+        # copy first, as in remove_measurements: nested bodies are filtered in place
+        curr_module = self if in_place else self.copy()
         stmt_list = (
-            self._statements
-            if len(self._unrolled_ast.statements) == 0
-            else self._unrolled_ast.statements
+            curr_module._statements
+            if len(curr_module._unrolled_ast.statements) == 0
+            else curr_module._unrolled_ast.statements
         )
-        stmts_without_barriers = [
-            stmt for stmt in stmt_list if not isinstance(stmt, qasm3_ast.QuantumBarrier)
-        ]
-        curr_module = self
-        if not in_place:
-            curr_module = self.copy()
+        stmts_without_barriers = drop_statements(stmt_list, qasm3_ast.QuantumBarrier)
 
         for qubit in curr_module._qubit_depths.values():
             qubit.num_barriers = 0
@@ -380,17 +426,17 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         # gate decompositions can reuse the same operand node across multiple statements,
         # so track visited nodes to avoid remapping a shared node more than once
         visited_node_ids = set()
-        for operation in self._unrolled_ast.statements:
-            if isinstance(operation, QUANTUM_STATEMENTS):
-                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
-                for bit in bit_list:
-                    assert isinstance(bit, qasm3_ast.IndexedIdentifier)
-                    if bit.name.name == reg_name:
-                        index_node = bit.indices[0][0]  # type: ignore[index]
-                        if id(index_node) in visited_node_ids:
-                            continue
-                        visited_node_ids.add(id(index_node))
-                        index_node.value = idx_map[index_node.value]  # type: ignore[union-attr]
+        for operation in iter_quantum_statements(self._unrolled_ast.statements):
+            bit_list = Qasm3Analyzer.get_op_bit_list(operation)
+            for bit in bit_list:
+                if not isinstance(bit, qasm3_ast.IndexedIdentifier):
+                    continue  # physical qubit ("$n"): not part of any register
+                if bit.name.name == reg_name:
+                    index_node = bit.indices[0][0]  # type: ignore[index]
+                    if id(index_node) in visited_node_ids:
+                        continue
+                    visited_node_ids.add(id(index_node))
+                    index_node.value = idx_map[index_node.value]  # type: ignore[union-attr]
 
     def _get_idle_qubit_indices(self) -> dict[str, list[int]]:
         """Get the indices of the idle qubits in the module
@@ -536,29 +582,31 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         #    the depth maps here
 
         # 2. replace each qubit index in the Quantum Operations with the new index
-        for operation in qasm_module._unrolled_ast.statements:
-            if isinstance(operation, QUANTUM_STATEMENTS):
-                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
-                for bit in bit_list:
-                    curr_reg_name = bit.name.name
-                    curr_reg_idx = bit.indices[0][0].value
-                    new_reg_idx = new_qubit_mappings[curr_reg_name][curr_reg_idx]
+        for operation in iter_quantum_statements(qasm_module._unrolled_ast.statements):
+            bit_list = Qasm3Analyzer.get_op_bit_list(operation)
+            for bit in bit_list:
+                if not isinstance(bit, qasm3_ast.IndexedIdentifier):
+                    continue  # physical qubit ("$n"): not part of any register
+                curr_reg_name = bit.name.name
+                curr_reg_idx = bit.indices[0][0].value
+                new_reg_idx = new_qubit_mappings[curr_reg_name][curr_reg_idx]
 
-                    # make the idx -ve so that this is not touched
-                    # while updating the same index later
+                # make the idx -ve so that this is not touched
+                # while updating the same index later
 
-                    # idx -> -1 * idx - 1 as we also have to look at index 0
-                    # which will remain 0 if we just multiply by -1
-                    bit.indices[0][0].value = -1 * new_reg_idx - 1
+                # idx -> -1 * idx - 1 as we also have to look at index 0
+                # which will remain 0 if we just multiply by -1
+                bit.indices[0][0].value = -1 * new_reg_idx - 1
 
         # remove the -ve marker
-        for operation in qasm_module._unrolled_ast.statements:
-            if isinstance(operation, QUANTUM_STATEMENTS):
-                bit_list = Qasm3Analyzer.get_op_bit_list(operation)
-                for bit in bit_list:
-                    if bit.indices[0][0].value < 0:
-                        bit.indices[0][0].value += 1
-                        bit.indices[0][0].value *= -1
+        for operation in iter_quantum_statements(qasm_module._unrolled_ast.statements):
+            bit_list = Qasm3Analyzer.get_op_bit_list(operation)
+            for bit in bit_list:
+                if not isinstance(bit, qasm3_ast.IndexedIdentifier):
+                    continue
+                if bit.indices[0][0].value < 0:
+                    bit.indices[0][0].value += 1
+                    bit.indices[0][0].value *= -1
 
         # 3. update the original AST with the unrolled AST
         qasm_module._statements = qasm_module._unrolled_ast.statements
