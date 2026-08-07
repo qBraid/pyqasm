@@ -50,6 +50,9 @@ def test_loads_kwargs_are_stored(kwarg, attr, value):
 def test_loads_kwarg_none_means_not_passed():
     """An explicit None leaves the attribute at its default."""
     assert loads(QASM, device_qubits=None)._device_qubits is None
+    # defaults that are not None must survive an explicit None
+    assert loads(QASM, extern_functions=None)._extern_functions == {}
+    assert loads(QASM, frame_in_def_cal=None)._frame_in_def_cal is True
 
 
 def test_loads_empty_extern_functions_is_stored():
