@@ -1612,6 +1612,7 @@ class QasmVisitor:
         # negctrl -> ctrl conversion; build each x gate with fresh operand nodes so
         # the leading and trailing statements share nothing (issue #350)
         def _neg_x_gates() -> list[qasm3_ast.QuantumGate]:
+            """Build an x gate with fresh operand nodes for each negative control."""
             return [
                 qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], fresh_qubits(ctrl))
                 for ctrl in negctrls
