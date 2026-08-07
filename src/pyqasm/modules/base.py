@@ -813,7 +813,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """Convert the qasm AST to a string."""
 
     @abstractmethod
-    def accept(self, visitor: QasmVisitor) -> None:
+    def accept(self, visitor) -> None:
         """Accept a visitor for the module.
 
         Args:

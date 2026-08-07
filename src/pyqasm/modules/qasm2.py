@@ -24,7 +24,7 @@ from openqasm3.ast import Include, Program
 from openqasm3.printer import dumps
 
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.modules.base import QasmModule, QasmVisitor
+from pyqasm.modules.base import QasmModule
 from pyqasm.modules.qasm3 import Qasm3Module
 
 # the QASM 2.0 <qop> production: a gate application, a measurement or a reset.
@@ -148,7 +148,7 @@ class Qasm2Module(QasmModule):
         qasm_program.version = "3.0"
         return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
-    def accept(self, visitor: QasmVisitor) -> None:
+    def accept(self, visitor) -> None:
         """Accept a visitor for the module.
 
         Args:
