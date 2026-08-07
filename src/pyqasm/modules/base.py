@@ -89,6 +89,7 @@ def drop_statements(statements: list[StatementT], unwanted: type) -> list[Statem
         kept.append(stmt)
     return kept
 
+
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -592,7 +593,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 if not isinstance(bit, qasm3_ast.IndexedIdentifier):
                     continue  # physical qubit ("$n"): not part of any register
                 curr_reg_name = bit.name.name
-                curr_reg_idx = bit.indices[0][0].value
+                index_node = bit.indices[0][0]  # type: ignore[index]
+                curr_reg_idx = index_node.value  # type: ignore[union-attr]
                 new_reg_idx = new_qubit_mappings[curr_reg_name][curr_reg_idx]
 
                 # make the idx -ve so that this is not touched
@@ -600,7 +602,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
                 # idx -> -1 * idx - 1 as we also have to look at index 0
                 # which will remain 0 if we just multiply by -1
-                bit.indices[0][0].value = -1 * new_reg_idx - 1
+                index_node.value = -1 * new_reg_idx - 1  # type: ignore[union-attr]
 
         # remove the -ve marker
         for operation in iter_quantum_statements(qasm_module._unrolled_ast.statements):
@@ -608,9 +610,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             for bit in bit_list:
                 if not isinstance(bit, qasm3_ast.IndexedIdentifier):
                     continue
-                if bit.indices[0][0].value < 0:
-                    bit.indices[0][0].value += 1
-                    bit.indices[0][0].value *= -1
+                index_node = bit.indices[0][0]  # type: ignore[index]
+                if index_node.value < 0:  # type: ignore[union-attr]
+                    index_node.value += 1  # type: ignore[union-attr]
+                    index_node.value *= -1  # type: ignore[union-attr]
 
         # 3. update the original AST with the unrolled AST
         qasm_module._statements = qasm_module._unrolled_ast.statements
