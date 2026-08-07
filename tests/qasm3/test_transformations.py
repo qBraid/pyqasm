@@ -17,7 +17,14 @@ Module containing unit tests for transformations on qasm3 programs
 
 """
 
+import pytest
+from openqasm3.ast import DiscreteSet, Identifier, IndexedIdentifier, IntegerLiteral, Span
+
+from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.elements import BasisSet
 from pyqasm.entrypoint import dumps, loads
+from pyqasm.maps import QUANTUM_STATEMENTS
+from pyqasm.maps.gates import fresh_qubits
 from tests.utils import check_unrolled_qasm
 
 
@@ -154,6 +161,139 @@ def test_reverse_qubit_order_qasm3():
     module = loads(qasm3_str)
     module.reverse_qubit_order()
     check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def test_reverse_qubit_order_gate_decomposition():
+    """Test reverse_qubit_order on a decomposed gate whose statements previously
+    shared operand nodes (issue #333)"""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    crz(0.5) q[1], q[2];
+    """
+
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    rz(0.25) q[0];
+    rx(1.5707963267948966) q[0];
+    rz(3.141592653589793) q[0];
+    rx(1.5707963267948966) q[0];
+    rz(3.141592653589793) q[0];
+    cx q[1], q[0];
+    rz(-0.25) q[0];
+    rx(1.5707963267948966) q[0];
+    rz(3.141592653589793) q[0];
+    rx(1.5707963267948966) q[0];
+    rz(3.141592653589793) q[0];
+    cx q[1], q[0];
+    """
+
+    module = loads(qasm3_str)
+    module.unroll()
+    module.reverse_qubit_order()
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def _assert_no_shared_operand_nodes(module):
+    """Assert no two quantum statements in the unrolled AST share an operand node"""
+    seen_bits: set[int] = set()
+    seen_indices: set[int] = set()
+    for statement in module._unrolled_ast.statements:
+        if isinstance(statement, QUANTUM_STATEMENTS):
+            for bit in Qasm3Analyzer.get_op_bit_list(statement):
+                assert id(bit) not in seen_bits, f"operand node shared: {bit}"
+                seen_bits.add(id(bit))
+                # physical qubits are bare Identifiers, and an index may be a DiscreteSet
+                # or multi-dimensional; only plain reg[int] operands have an index node
+                if not isinstance(bit, IndexedIdentifier):
+                    continue
+                indices = bit.indices
+                if not (
+                    len(indices) == 1 and isinstance(indices[0], list) and len(indices[0]) == 1
+                ):
+                    continue
+                index_node = indices[0][0]
+                assert id(index_node) not in seen_indices, f"index node shared: {bit}"
+                seen_indices.add(id(index_node))
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "crz(0.5) q[1], q[2];",
+        "crx(0.5) q[0], q[1];",
+        "c4x q[0], q[1], q[2], q[3], q[4];",
+        "ecr q[0], q[1];",
+        "inv @ crz(0.5) q[1], q[2];",
+    ],
+)
+def test_unroll_emits_fresh_operand_nodes(operation):
+    """Test that unroll() never emits statements sharing operand nodes, so in-place
+    transformations remap each operand exactly once (issues #331, #333)"""
+    qasm3_str = f"""
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[5] q;
+    {operation}
+    """
+    module = loads(qasm3_str)
+    module.unroll()
+    _assert_no_shared_operand_nodes(module)
+
+
+@pytest.mark.parametrize(
+    "operation", ["crz(0.5) q[1], q[2];", "swap q[0], q[2];", "cz q[1], q[2];"]
+)
+def test_rebase_emits_fresh_operand_nodes(operation):
+    """Test that rebase() never emits statements sharing operand nodes (issue #333)
+
+    ``swap`` and ``cz`` are in DECOMPOSITION_RULES so they exercise
+    Decomposer._get_decomposed_gates; ``crz`` is handled by maps/gates.py instead.
+    """
+    qasm3_str = f"""
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    {operation}
+    """
+    module = loads(qasm3_str).rebase(BasisSet.ROTATIONAL_CX)
+    _assert_no_shared_operand_nodes(module)
+
+
+@pytest.mark.parametrize(
+    "qubit",
+    [
+        # plain reg[int] operand, rebuilt node by node
+        IndexedIdentifier(Identifier("q"), [[IntegerLiteral(2)]]),
+        # physical qubit, kept as a bare Identifier
+        Identifier("$0"),
+        # anything else falls back to a deep copy
+        IndexedIdentifier(Identifier("q"), [DiscreteSet([IntegerLiteral(0), IntegerLiteral(1)])]),
+        IndexedIdentifier(Identifier("q"), [[IntegerLiteral(0)], [IntegerLiteral(1)]]),
+    ],
+)
+def test_fresh_qubits_shares_no_nodes(qubit):
+    """Test that fresh_qubits returns an equal operand that shares no node with the original"""
+    qubit.span = Span(1, 0, 1, 4)
+
+    (copied,) = fresh_qubits(qubit)
+
+    assert copied == qubit
+    assert copied.span == qubit.span
+    assert copied is not qubit
+    if isinstance(qubit, IndexedIdentifier):
+        assert copied.name is not qubit.name
+        for copied_dim, original_dim in zip(copied.indices, qubit.indices):
+            assert copied_dim is not original_dim
+            copied_exprs = copied_dim.values if isinstance(copied_dim, DiscreteSet) else copied_dim
+            original_exprs = (
+                original_dim.values if isinstance(original_dim, DiscreteSet) else original_dim
+            )
+            for copied_index, original_index in zip(copied_exprs, original_exprs):
+                assert copied_index is not original_index
 
 
 def test_populate_idle_qubits_qasm3():

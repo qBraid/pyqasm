@@ -423,8 +423,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             del self._qubit_depths[(reg_name, idx)]
 
         # update the operations that use the qubits
-        # gate decompositions can reuse the same operand node across multiple statements,
-        # so track visited nodes to avoid remapping a shared node more than once
+        # the negctrl expansion in the visitor re-inserts the same QuantumGate object before
+        # and after the controlled gate, so a single index node can be reached more than once;
+        # track visited nodes so it is remapped exactly once
         visited_node_ids = set()
         for operation in iter_quantum_statements(self._unrolled_ast.statements):
             bit_list = Qasm3Analyzer.get_op_bit_list(operation)
