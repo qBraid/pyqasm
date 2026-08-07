@@ -133,6 +133,61 @@ def test_remove_measurement():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_remove_measurement_inside_box_and_branch():
+    """Measurements nested in a box or an if block must be found and removed too (see #342)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    h q[0];
+    box {
+        c[0] = measure q[0];
+    }
+    if (c[0] == 1) {
+        x q[1];
+        c[1] = measure q[1];
+    }
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    h q[0];
+    if (c[0] == true) {
+        x q[1];
+    }
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+    assert module.has_measurements() is True
+    module.remove_measurements()
+    # the box held nothing but the measurement, and an empty box is not a valid program
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_remove_measurement_not_in_place_leaves_the_original_alone():
+    """Filtering rewrites nested bodies in place, so it must run on the returned copy."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    h q[0];
+    box {
+        c[0] = measure q[0];
+        x q[1];
+    }
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+    new_module = module.remove_measurements(in_place=False)
+
+    assert "measure" not in dumps(new_module)
+    assert "measure" in dumps(module)
+
+
 def test_init_measure():
     qasm3_string = """
     OPENQASM 3.0;

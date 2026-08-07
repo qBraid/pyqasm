@@ -144,6 +144,11 @@ class QasmVisitor:
         # timeline within the box. Delays on disjoint qubits run in parallel,
         # so box durations are validated against the per-qubit maximum.
         self._box_delay_frames: list[dict[tuple[str, int], float]] = []
+        # A 'braket verbatim' pragma applies to the box that immediately follows it.
+        # Gates inside such a box are emitted as written so that the device receives
+        # the exact native instructions the user asked for.
+        self._verbatim_pragma_pending: bool = False
+        self._in_verbatim_box: bool = False
         self._in_extern_function: bool = False
         self._openpulse_qubit_map: dict[str, set[str]] = {}
         self._total_pulse_qubits: int = 0
@@ -189,6 +194,7 @@ class QasmVisitor:
             qasm3_ast.ContinueStatement: self._visit_continue,
             qasm3_ast.DelayInstruction: self._visit_delay_statement,
             qasm3_ast.Box: self._visit_box_statement,
+            qasm3_ast.Pragma: self._visit_pragma,
             qasm3_ast.CalibrationDefinition: self._visit_calibration_definition,
             qasm3_ast.CalibrationStatement: self._visit_calibration_statement,
             qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
@@ -629,11 +635,13 @@ class QasmVisitor:
                     )
                 )
                 # if measurement gate is not in branching statement
+                src_name, src_idx = QasmVisitor._get_qubit_name_and_id(src_id)
                 if not self._in_branching_statement:
-                    src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
-                    qubit_node = self._module._qubit_depths[(src_name, src_id)]
+                    qubit_node = self._module._qubit_depths[(src_name, src_idx)]
                     qubit_node.depth += 1
                     qubit_node.num_measurements += 1
+                else:
+                    self._mark_branch_qubit(src_name, src_idx)
         else:
             target_name: str = (
                 target.name if isinstance(target, qasm3_ast.Identifier) else target.name.name
@@ -662,12 +670,12 @@ class QasmVisitor:
                     target=tgt_id if target else None,
                 )
                 # if measurement gate is not in branching statement
+                src_name, src_idx = QasmVisitor._get_qubit_name_and_id(src_id)
                 if not self._in_branching_statement:
-                    src_name, src_id = src_id.name.name, src_id.indices[0][0].value  # type: ignore
                     tgt_name, tgt_id = tgt_id.name.name, tgt_id.indices[0][0].value  # type: ignore
 
                     qubit_node, clbit_node = (
-                        self._module._qubit_depths[(src_name, src_id)],
+                        self._module._qubit_depths[(src_name, src_idx)],
                         self._module._clbit_depths[(tgt_name, tgt_id)],
                     )
                     qubit_node.depth += 1
@@ -683,6 +691,8 @@ class QasmVisitor:
                         self._measurement_set.add(target.name)
                     elif isinstance(target, qasm3_ast.IndexedIdentifier):
                         self._measurement_set.add(target.name.name)
+                else:
+                    self._mark_branch_qubit(src_name, src_idx)
 
                 unrolled_measurements.append(unrolled_measure)
 
@@ -770,7 +780,7 @@ class QasmVisitor:
                 qubit_node.depth += 1
                 qubit_node.num_resets += 1
             else:
-                self._is_branch_qubits.add((qubit_name, qubit_id))
+                self._mark_branch_qubit(qubit_name, qubit_id)
 
             unrolled_resets.append(unrolled_reset)
 
@@ -1043,6 +1053,19 @@ class QasmVisitor:
             self._module.num_qubits = max(self._module.num_qubits, phys_idx + 1)
         return phys_idx
 
+    def _mark_branch_qubit(self, qubit_name: str, qubit_idx: int) -> None:
+        """Record a qubit operated on inside an if/else block.
+
+        The depth of such a qubit is settled once the branch closes, but it counts as
+        used right away so that it is not mistaken for an idle qubit.
+
+        Args:
+            qubit_name: The register name (or physical qubit identifier).
+            qubit_idx: The index of the qubit within the register.
+        """
+        self._is_branch_qubits.add((qubit_name, qubit_idx))
+        self._module._qubit_depths[(qubit_name, qubit_idx)].used_in_branch = True
+
     @staticmethod
     def _get_qubit_name_and_id(
         qubit: qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier,
@@ -1183,7 +1206,7 @@ class QasmVisitor:
                     for qubit_subset in unrolled_targets + [ctrls]:
                         for qubit in qubit_subset:
                             qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
-                            self._is_branch_qubits.add((qubit_name, qubit_idx))
+                            self._mark_branch_qubit(qubit_name, qubit_idx)
 
         # check for duplicate bits
         for final_gate in result:
@@ -1258,8 +1281,9 @@ class QasmVisitor:
         self._scope_manager.push_context(Context.GATE)
 
         # Pause recording the depth of new gates because we are processing the
-        # definition of a custom gate here - handle the depth separately afterwards
-        self._recording_ext_gate_depth = gate_name in self._external_gates
+        # definition of a custom gate here - handle the depth separately afterwards.
+        # A verbatim gate is emitted as written, so it counts once, like an external gate.
+        self._recording_ext_gate_depth = self._in_verbatim_box or gate_name in self._external_gates
 
         result = []
         for gate_op in gate_definition_ops:
@@ -1300,7 +1324,7 @@ class QasmVisitor:
                 for qubit_subset in [op_qubits] + [ctrls]:
                     for qubit in qubit_subset:
                         qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
-                        self._is_branch_qubits.add((qubit_name, qubit_idx))
+                        self._mark_branch_qubit(qubit_name, qubit_idx)
 
         self._scope_manager.pop_scope()
         self._scope_manager.restore_context()
@@ -1591,7 +1615,7 @@ class QasmVisitor:
         for _ in range(power_value):
             if isinstance(operation, qasm3_ast.QuantumPhase):
                 result.extend(self._visit_phase_operation(operation, inverse_value, ctrls))
-            elif operation.name.name in self._external_gates:
+            elif self._in_verbatim_box or operation.name.name in self._external_gates:
                 result.extend(self._visit_external_gate_operation(operation, inverse_value, ctrls))
             elif operation.name.name in self._custom_gates:
                 result.extend(self._visit_custom_gate_operation(operation, inverse_value, ctrls))
@@ -2948,6 +2972,42 @@ class QasmVisitor:
 
         return [statement]
 
+    @staticmethod
+    def _is_verbatim_pragma(statement: qasm3_ast.Pragma) -> bool:
+        """Check whether a pragma marks the following box as verbatim.
+
+        Args:
+            statement (qasm3_ast.Pragma): The pragma to inspect.
+
+        Returns:
+            bool: True for a 'braket verbatim' pragma, False for any other.
+        """
+        return statement.command.split() == ["braket", "verbatim"]
+
+    def _visit_pragma(self, statement: qasm3_ast.Pragma) -> list[qasm3_ast.Pragma]:
+        """
+        Visit a Pragma statement.
+
+        Pragmas carry vendor specific directives which pyqasm does not interpret, so they
+        are passed through unchanged. A 'braket verbatim' pragma additionally marks the box
+        that follows it, whose gates are then left as written instead of being decomposed.
+        A verbatim pragma not followed by a box is honoured by nothing in pyqasm but is
+        still copied to the output, where the consumer applies it to whatever comes next.
+
+        Args:
+            statement (qasm3_ast.Pragma): The Pragma node to visit.
+        Returns:
+            list[qasm3_ast.Pragma]: The pragma, unmodified.
+        """
+        logger.debug("Visiting pragma '%s'", statement.command)
+        if self._is_verbatim_pragma(statement):
+            self._verbatim_pragma_pending = True
+
+        if self._check_only:
+            return []
+
+        return [statement]
+
     def _visit_box_statement(self, statement: qasm3_ast.Box) -> list[qasm3_ast.Statement]:
         """
         Visit a Box statement.
@@ -2957,6 +3017,9 @@ class QasmVisitor:
             list[qasm3_ast.Statement]: The list of statements generated by the Box statement.
         """
         statements = []
+        outer_verbatim = self._in_verbatim_box
+        self._in_verbatim_box = outer_verbatim or self._verbatim_pragma_pending
+        self._verbatim_pragma_pending = False
         _box_time_var = statement.duration
         box_duration_val = 0
         if _box_time_var is not None:
@@ -2990,6 +3053,9 @@ class QasmVisitor:
         self._scope_manager.restore_context()
         self._scope_manager.decrement_scope_level()
         self._scope_manager.pop_scope()
+        self._in_verbatim_box = outer_verbatim
+        # a marker left behind by the body must not reach the next box
+        self._verbatim_pragma_pending = False
 
         delay_frame = self._box_delay_frames.pop()
         if _box_time_var and box_duration_val and delay_frame:
@@ -3279,17 +3345,25 @@ class QasmVisitor:
 
         return [include]
 
-    def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
+    def visit_statement(
+        self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
+    ) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
         Args:
-            statement (qasm3_ast.Statement): The statement to visit.
+            statement (qasm3_ast.Statement | qasm3_ast.Pragma): The statement to visit.
 
         Returns:
             None
         """
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
+
+        if not isinstance(statement, qasm3_ast.Box):
+            # a pending verbatim pragma only carries over to a box directly following it.
+            # Clearing before dispatch lets a verbatim pragma re-arm the flag for itself,
+            # while any other statement - another pragma included - drops it.
+            self._verbatim_pragma_pending = False
 
         visitor_function = self._visit_map.get(type(statement))
         if visitor_function:
@@ -3307,11 +3381,13 @@ class QasmVisitor:
             )
         return result
 
-    def visit_basic_block(self, stmt_list: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
+    def visit_basic_block(
+        self, stmt_list: Sequence[qasm3_ast.Statement | qasm3_ast.Pragma]
+    ) -> list[qasm3_ast.Statement]:
         """Visit a basic block of statements.
 
         Args:
-            stmt_list (list[qasm3_ast.Statement]): The list of statements to visit.
+            stmt_list (Sequence[qasm3_ast.Statement | qasm3_ast.Pragma]): The statements to visit.
 
         Returns:
             list[qasm3_ast.Statement]: The list of unrolled statements.
