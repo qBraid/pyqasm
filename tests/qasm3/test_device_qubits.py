@@ -331,41 +331,52 @@ def test_incorrect_qubit_reg(qasm_code, error_message, error_span, caplog):
     assert error_span in caplog.text
 
 
-def test_physical_qubits_are_not_consolidated():
-    """Physical qubits are absolute hardware indices and belong to no declared register,
-    so consolidation must leave them alone instead of raising (see #343)."""
-    qasm = """OPENQASM 3.0;
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "cz $2, q[1];",
+        "c = measure $2;",
+        "reset $2;",
+        "barrier $2;",
+    ],
+)
+def test_mixed_declared_and_physical_rejected_when_consolidating(operation):
+    """A program mixing declared registers with physical qubits would consolidate into
+    two address spaces the output cannot relate, so it is rejected (issue #353)."""
+    qasm = f"""OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q;
     bit c;
     h q[0];
-    cz $2, q[1];
-    c = measure $2;
-    """
-    expected_qasm = """OPENQASM 3.0;
-    qubit[5] __PYQASM_QUBITS__;
-    include "stdgates.inc";
-    bit[1] c;
-    h __PYQASM_QUBITS__[0];
-    cz $2, __PYQASM_QUBITS__[1];
-    c = measure $2;
+    {operation}
     """
     result = loads(qasm, device_qubits=5)
-    result.unroll(consolidate_qubits=True)
-    check_unrolled_qasm(dumps(result), expected_qasm)
-    # two consolidated slots plus physical $2, which sizes the count to its own index + 1.
-    # neither number is the declared qubit[5], which comes from device_qubits (see #353)
+    with pytest.raises(ValidationError, match=r"mixes declared registers with physical qubits"):
+        result.unroll(consolidate_qubits=True)
+
+
+def test_mixed_declared_and_physical_still_unrolls_without_consolidation():
+    """The mixed-program rejection applies only under consolidate_qubits=True."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q[0];
+    cz $2, q[1];
+    """
+    result = loads(qasm, device_qubits=5)
+    result.unroll()
     assert result.num_qubits == 3
 
 
 def test_physical_qubits_only():
+    """With nothing to consolidate, no internal register is declared: the program
+    keeps speaking the physical address space alone (issue #353)."""
     qasm = """OPENQASM 3.0;
     include "stdgates.inc";
     h $1;
     cz $2, $1;
     """
     expected_qasm = """OPENQASM 3.0;
-    qubit[5] __PYQASM_QUBITS__;
     include "stdgates.inc";
     h $1;
     cz $2, $1;
@@ -373,6 +384,17 @@ def test_physical_qubits_only():
     result = loads(qasm, device_qubits=5)
     result.unroll(consolidate_qubits=True)
     check_unrolled_qasm(dumps(result), expected_qasm)
-    # nothing was consolidated, so the count comes entirely from the physical indices
-    # while the emitted declaration is sized by device_qubits (see #353)
+    # the count comes entirely from the physical indices
     assert result.num_qubits == 3
+
+
+def test_physical_qubits_only_without_device_qubits():
+    """The unreferenced declaration is suppressed with or without device_qubits set."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    h $1;
+    """
+    result = loads(qasm)
+    result.unroll(consolidate_qubits=True)
+    assert "__PYQASM_QUBITS__" not in dumps(result)
+    assert result.num_qubits == 2

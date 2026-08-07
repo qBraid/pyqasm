@@ -496,14 +496,30 @@ class QasmVisitor:
 
         Raises:
             ValidationError: If the total number of qubits exceeds the available device qubits,
-                             or if the reserved register '__PYQASM_QUBITS__' is already declared
-                             in the original QASM program.
+                             if the reserved register '__PYQASM_QUBITS__' is already declared
+                             in the original QASM program, or if the program mixes declared
+                             registers with physical qubits.
         """
         if total_qubits > self._module._device_qubits:  # type: ignore
             raise_qasm3_error(
                 # pylint: disable-next=line-too-long
                 f"Total qubits '({total_qubits})' exceed device qubits '({self._module._device_qubits})'.",
             )
+
+        # physical qubits are kept as written, so consolidating around them would emit
+        # two address spaces the output cannot relate (issue #353)
+        physical_qubits = sorted(
+            name for name, _ in self._module._qubit_depths if name.startswith("$")
+        )
+        if physical_qubits:
+            if sum(self._global_qreg_size_map.values()) > 0:
+                raise_qasm3_error(
+                    "Cannot consolidate qubit registers: the program mixes declared "
+                    f"registers with physical qubits ({', '.join(physical_qubits)})",
+                )
+            # only physical qubits: nothing to consolidate, so do not declare an
+            # internal register nothing would reference
+            return unrolled_stmts
 
         global_scope = self._scope_manager.get_global_scope()
         for var, val in global_scope.items():
