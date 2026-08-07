@@ -20,8 +20,6 @@ and caching them locally to avoid storing large files in version control.
 """
 
 import json
-import ssl
-import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Dict, Optional
@@ -57,34 +55,20 @@ class BenchmarkDownloader:
         raise ValueError(f"Unknown benchmark file: {filename}")
 
     def _fetch_remote_file(self, filename: str, file_info: Dict) -> Path:
-        """Fetch a remote benchmark file and return a temporary file path."""
+        """Fetch a remote benchmark file into the cache and return its path."""
+        cached_path = self.cache_dir / filename
+        if cached_path.exists():
+            return cached_path
+
         url = file_info["url"]
-
         try:
-            # Create SSL context that doesn't verify certificates (for development/CI)
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-
-            # Create opener with SSL context and fetch content
-            opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl_context))
-            urllib.request.install_opener(opener)
-
             with urllib.request.urlopen(url) as response:
                 content = response.read()
-
-            # Create temporary file and write content
-            with tempfile.NamedTemporaryFile(
-                mode="wb", suffix=".qasm", prefix=f"benchmark_{filename}_", delete=False
-            ) as temp_file:
-                temp_file.write(content)
-                temp_file_path = Path(temp_file.name)
-
-            return temp_file_path
-
         except Exception as e:
-            # pylint: disable-next=raise-missing-from
-            raise RuntimeError(f"Failed to fetch {filename} from {url}: {e}")
+            raise RuntimeError(f"Failed to fetch {filename} from {url}: {e}") from e
+
+        cached_path.write_bytes(content)
+        return cached_path
 
 
 def get_benchmark_file(filename: str) -> str:

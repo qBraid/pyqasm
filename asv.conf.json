@@ -23,10 +23,11 @@
         "3.10",
         "3.11",
         "3.12",
-        "3.13"
+        "3.13",
+        "3.14"
     ],
     "benchmark_dir": "tests/benchmarks",
     "env_dir": ".asv/env",
     "results_dir": ".asv/results",
-    "html_dir": "tests/benchmarks/.html"
+    "html_dir": ".asv/html"
 }
