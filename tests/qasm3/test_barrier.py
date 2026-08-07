@@ -109,6 +109,59 @@ def test_remove_barriers():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_remove_barriers_inside_box_and_branch():
+    """Barriers nested in a box or an if block must be found and removed too (see #342)."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit c;
+    h q[0];
+    box {
+        barrier q;
+        x q[1];
+    }
+    if (c == 1) {
+        barrier q;
+    }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[1] c;
+    h q[0];
+    box {
+        x q[1];
+    }
+    if (c[0] == true) {
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    assert module.has_barriers() is True
+    module.remove_barriers()
+    assert module.has_barriers() is False
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_remove_barriers_not_in_place_leaves_the_original_alone():
+    """Filtering rewrites nested bodies in place, so it must run on the returned copy."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q[0];
+    box {
+        barrier q;
+        x q[1];
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    new_module = module.remove_barriers(in_place=False)
+
+    assert "barrier" not in dumps(new_module)
+    assert "barrier" in dumps(module)
+
+
 def test_unroll_barrier():
     qasm_str = """
     OPENQASM 3.0;
