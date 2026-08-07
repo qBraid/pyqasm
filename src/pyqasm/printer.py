@@ -134,6 +134,8 @@ def mpl_draw(  # pylint: disable=too-many-locals
     for s in program._statements:
         if isinstance(s, ast.QuantumPhase):
             global_phase += Qasm3ExprEvaluator.evaluate_expression(s.argument)[0]
+        elif isinstance(s, ast.Pragma):
+            continue  # pragmas carry no timing information
         else:
             statements.append(s)
 
