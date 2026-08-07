@@ -167,6 +167,63 @@ def test_remove_measurement_inside_box_and_branch():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_has_and_remove_measurements_inside_loop_before_unroll():
+    """Measurements inside a for/while loop must be visible before unroll() (issue #354)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    for int i in [0:1] { c[i] = measure q[i]; }
+    """
+    module = loads(qasm3_string)
+    assert module.has_measurements() is True
+
+    module = loads(qasm3_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    assert "measure" not in dumps(module)
+
+    while_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    int i = 0;
+    while (i < 1) { c[0] = measure q[0]; i += 1; }
+    """
+    module = loads(while_string)
+    assert module.has_measurements() is True
+
+
+def test_has_and_remove_measurements_inside_switch_before_unroll():
+    """Measurements inside a switch case must be visible before unroll() (issue #354)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    const int i = 1;
+    qubit[1] q;
+    bit[1] c;
+    switch(i) {
+    case 1 {
+        c[0] = measure q[0];
+    }
+    default {
+        x q;
+    }
+    }
+    """
+    module = loads(qasm3_string)
+    assert module.has_measurements() is True
+
+    module = loads(qasm3_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    assert "measure" not in dumps(module)
+
+
 def test_remove_measurement_not_in_place_leaves_the_original_alone():
     """Filtering rewrites nested bodies in place, so it must run on the returned copy."""
     qasm3_string = """

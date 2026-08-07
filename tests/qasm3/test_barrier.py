@@ -143,6 +143,23 @@ def test_remove_barriers_inside_box_and_branch():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_has_and_remove_barriers_inside_loop_before_unroll():
+    """Barriers inside a loop or switch must be visible before unroll() (issue #354)."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    for int i in [0:1] { h q[i]; barrier q; }
+    """
+    module = loads(qasm_str)
+    assert module.has_barriers() is True
+
+    module = loads(qasm_str)
+    module.remove_barriers()
+    assert module.has_barriers() is False
+    module.unroll()
+    assert "barrier" not in dumps(module)
+
+
 def test_remove_barriers_not_in_place_leaves_the_original_alone():
     """Filtering rewrites nested bodies in place, so it must run on the returned copy."""
     qasm_str = """OPENQASM 3.0;
