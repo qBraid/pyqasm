@@ -22,14 +22,14 @@ import functools
 from abc import ABC, abstractmethod
 from collections import Counter
 from copy import deepcopy
-from typing import Iterator, Optional, Sequence, TypeVar
+from typing import Any, Callable, Iterator, Optional, Sequence, TypeVar
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, Program, QuantumGate
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.decomposer import Decomposer
-from pyqasm.elements import ClbitDepthNode, QubitDepthNode
+from pyqasm.elements import BasisSet, ClbitDepthNode, QubitDepthNode
 from pyqasm.exceptions import UnrollError, ValidationError
 from pyqasm.maps import QUANTUM_STATEMENTS
 from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
@@ -90,7 +90,10 @@ def drop_statements(statements: list[StatementT], unwanted: type) -> list[Statem
     return kept
 
 
-def track_user_operation(func):
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def track_user_operation(func: F) -> F:
     """Decorator to track user operations on a QasmModule."""
 
     @functools.wraps(func)
@@ -113,11 +116,11 @@ def track_user_operation(func):
         self._user_operations.append(log_message)
         return func(self, *args, **kwargs)
 
-    return wrapper
+    return wrapper  # type: ignore
 
 
 class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many-public-methods
-    """Abstract class for a Qasm module
+    """Abstract class for a Qasm module.
 
     Args:
         name (str): Name of the module.
@@ -170,18 +173,15 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         return self._num_qubits
 
     @num_qubits.setter
-    def num_qubits(self, value: int):
-        """Setter for the number of qubits"""
+    def num_qubits(self, value: int) -> None:
+        """Setter for the number of qubits."""
         self._num_qubits = value
 
-    def _add_qubit_register(self, reg_name: str, num_qubits: int):
-        """Add qubits to the module
+    def _add_qubit_register(self, reg_name: str, num_qubits: int) -> None:
+        """Add qubits to the module.
 
         Args:
-            num_qubits (int): The number of qubits to add to the module
-
-        Returns:
-            None
+            num_qubits (int): The number of qubits to add to the module.
         """
         self._qubit_registers[reg_name] = num_qubits
         self._num_qubits += num_qubits
@@ -195,39 +195,40 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         return self._num_clbits
 
     @num_clbits.setter
-    def num_clbits(self, value: int):
-        """Setter for the number of classical bits"""
+    def num_clbits(self, value: int) -> None:
+        """Setter for the number of classical bits."""
         self._num_clbits = value
 
-    def _add_classical_register(self, reg_name: str, num_clbits: int):
-        """Add classical bits to the module
+    def _add_classical_register(self, reg_name: str, num_clbits: int) -> None:
+        """Add classical bits to the module.
 
         Args:
-            num_clbits (int): The number of classical bits to add to the module
-
-        Returns:
-            None
+            num_clbits (int): The number of classical bits to add to the module.
         """
         self._classical_registers[reg_name] = num_clbits
         self._num_clbits += num_clbits
 
     @property
     def original_program(self) -> Program:
-        """Returns the program AST for the original qasm supplied by the user"""
+        """Returns the program AST for the original qasm supplied by the user."""
         return self._original_program
 
     @property
     def unrolled_ast(self) -> Program:
-        """Returns the unrolled AST for the module"""
+        """Returns the unrolled AST for the module."""
         return self._unrolled_ast
 
     @unrolled_ast.setter
-    def unrolled_ast(self, value: Program):
-        """Setter for the unrolled AST"""
+    def unrolled_ast(self, value: Program) -> None:
+        """Setter for the unrolled AST."""
         self._unrolled_ast = value
 
     def has_measurements(self) -> bool:
-        """Check if the module has any measurement operations."""
+        """Check if the module has any measurement operations.
+
+        Returns:
+            bool: True if the module has measurement operations, False otherwise.
+        """
         if self._has_measurements is None:
             self._has_measurements = False
             # try to check in the unrolled version as that will a better indicator of
@@ -245,13 +246,13 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     @track_user_operation
     def remove_measurements(self, in_place: bool = True) -> Optional["QasmModule"]:
-        """Remove the measurement operations
+        """Remove the measurement operations.
 
         Args:
             in_place (bool): Flag to indicate if the removal should be done in place.
 
         Returns:
-            QasmModule: The module with the measurements removed if in_place is False
+            QasmModule: The module with the measurements removed if in_place is False.
         """
         # copy first: the filtering rewrites nested box and if bodies in place, so it
         # has to run on the module that is being returned
@@ -277,11 +278,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
     def has_barriers(self) -> bool:
         """Check if the module has any barrier operations.
 
-        Args:
-            None
-
         Returns:
-            bool: True if the module has barrier operations, False otherwise
+            bool: True if the module has barrier operations, False otherwise.
         """
         if self._has_barriers is None:
             self._has_barriers = False
@@ -300,7 +298,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     @track_user_operation
     def remove_barriers(self, in_place: bool = True) -> Optional["QasmModule"]:
-        """Remove the barrier operations
+        """Remove the barrier operations.
 
         Args:
             in_place (bool): Flag to indicate if the removal should be done in place.
@@ -327,14 +325,14 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         return curr_module
 
     @track_user_operation
-    def remove_includes(self, in_place=True) -> Optional["QasmModule"]:
-        """Remove the include statements from the module
+    def remove_includes(self, in_place: bool = True) -> Optional["QasmModule"]:
+        """Remove the include statements from the module.
 
         Args:
             in_place (bool): Flag to indicate if the removal should be done in place.
 
         Returns:
-            QasmModule: The module with the includes removed if in_place is False, None otherwise
+            QasmModule: The module with the includes removed if in_place is False, None otherwise.
         """
         stmt_list = (
             self._statements
@@ -354,16 +352,16 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         return curr_module
 
     @track_user_operation
-    def depth(self, decompose_native_gates=True):
+    def depth(self, decompose_native_gates: bool = True) -> int:
         """Calculate the depth of the unrolled openqasm program.
 
         Args:
-        decompose_native_gates (bool): If True, calculate depth after decomposing gates.
-                                If False, treat all decompsable gates as a single gate operation.
-                                Defaults to True.
+            decompose_native_gates (bool): If True, calculate depth after decomposing gates.
+                If False, treat all decomposable gates as a single gate operation.
+                Defaults to True.
 
         Returns:
-            int: The depth of the current "unrolled" openqasm program
+            int: The depth of the current "unrolled" openqasm program.
         """
         # 1. Since the program will be unrolled before its execution on a QC, it makes sense to
         # calculate the depth of the unrolled program.
@@ -392,16 +390,22 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         max_depth = max(max_qubit_depth, max_clbit_depth)
         return max_depth
 
-    def _remap_qubits(self, reg_name: str, size: int, idle_indices: list[int]):
+    def _remap_qubits(self, reg_name: str, size: int, idle_indices: list[int]) -> None:
         """Remap the qubits in a register after removing idle qubits and update the operations
-        using this register accordingly"""
+        using this register accordingly.
+
+        Args:
+            reg_name (str): The name of the register to be remapped.
+            size (int): The size of the register.
+            idle_indices (list[int]): Indices of idle qubits to be remapped away.
+        """
 
         used_indices = [idx for idx in range(size) if idx not in idle_indices]
         new_size = size - len(idle_indices)
         idx_map = {used_indices[i]: i for i in range(new_size)}  # old_idx : new_idx
 
         # Example -
-        # reg_name = "q", original_size = 5, idle_indices = [1, 3]
+        # reg_name = "q", size = 5, idle_indices = [1, 3]
         # used_indices = [0, 2, 4], new_size = 3
         # idx_map = {0: 0, 2: 1, 4: 2}
 
@@ -440,11 +444,11 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                     index_node.value = idx_map[index_node.value]  # type: ignore[union-attr]
 
     def _get_idle_qubit_indices(self) -> dict[str, list[int]]:
-        """Get the indices of the idle qubits in the module
+        """Get the indices of the idle qubits in the module.
 
         Returns:
-            dict[str, list[int]]: A dictionary mapping the register name to the list of idle qubit
-                                  indices in that register
+            dict[str, list[int]]: A dictionary mapping the register name
+                to the list of idle qubit indices in that register.
         """
         idle_qubits = [qubit for qubit in self._qubit_depths.values() if qubit.is_idle()]
 
@@ -457,10 +461,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         return qubit_indices
 
-    def populate_idle_qubits(self, in_place: bool = True):
-        """Populate the idle qubits in the module with identity gates
+    def populate_idle_qubits(self, in_place: bool = True) -> QasmModule:
+        """Populate the idle qubits in the module with identity gates.
 
-        Note: unrolling is not performed while calling this function
+        Note: unrolling is not performed while calling this function.
 
         Args:
             in_place (bool): Flag to indicate if the population should be done in place.
@@ -500,7 +504,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         return qasm_module
 
-    def remove_idle_qubits(self, in_place: bool = True):
+    def remove_idle_qubits(self, in_place: bool = True) -> QasmModule:
         """Remove idle qubits from the module. Either collapse the size of a partially used
         quantum register OR remove the unused quantum register entirely.
 
@@ -553,7 +557,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         return qasm_module
 
     @track_user_operation
-    def reverse_qubit_order(self, in_place=True):
+    def reverse_qubit_order(self, in_place: bool = True) -> QasmModule:
         """Reverse the order of qubits in the module.
 
         Will unroll the module if not already done.
@@ -589,7 +593,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 if not isinstance(bit, qasm3_ast.IndexedIdentifier):
                     continue  # physical qubit ("$n"): not part of any register
                 curr_reg_name = bit.name.name
-                curr_reg_idx = bit.indices[0][0].value
+                index_node = bit.indices[0][0]  # type: ignore[index]
+                curr_reg_idx = index_node.value  # type: ignore[union-attr]
                 new_reg_idx = new_qubit_mappings[curr_reg_name][curr_reg_idx]
 
                 # make the idx -ve so that this is not touched
@@ -597,7 +602,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
                 # idx -> -1 * idx - 1 as we also have to look at index 0
                 # which will remain 0 if we just multiply by -1
-                bit.indices[0][0].value = -1 * new_reg_idx - 1
+                index_node.value = -1 * new_reg_idx - 1  # type: ignore[union-attr]
 
         # remove the -ve marker
         for operation in iter_quantum_statements(qasm_module._unrolled_ast.statements):
@@ -605,9 +610,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             for bit in bit_list:
                 if not isinstance(bit, qasm3_ast.IndexedIdentifier):
                     continue
-                if bit.indices[0][0].value < 0:
-                    bit.indices[0][0].value += 1
-                    bit.indices[0][0].value *= -1
+                index_node = bit.indices[0][0]  # type: ignore[index]
+                if index_node.value < 0:  # type: ignore[union-attr]
+                    index_node.value += 1  # type: ignore[union-attr]
+                    index_node.value *= -1  # type: ignore[union-attr]
 
         # 3. update the original AST with the unrolled AST
         qasm_module._statements = qasm_module._unrolled_ast.statements
@@ -616,8 +622,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         return qasm_module
 
     @track_user_operation
-    def validate(self):
-        """Validate the module"""
+    def validate(self) -> None:
+        """Validate the module."""
         if self._validated_program is True:
             return
         try:
@@ -637,7 +643,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._validated_program = True
 
     @track_user_operation
-    def unroll(self, **kwargs):
+    def unroll(self, **kwargs: Any) -> None:
         """Unroll the module into basic qasm operations.
 
         Args:
@@ -646,10 +652,9 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 unroll_barriers (bool): If True, barriers will be unrolled. Defaults to True.
                 max_loop_iters (int): Max number of iterations for unrolling loops. Defaults to 1e9.
                 check_only (bool): If True, only check the program without executing it.
-                                   Defaults to False.
-                device_qubits (int): Number of physical qubits available on the target device.
+                    Defaults to False.
                 consolidate_qubits (bool): If True, consolidate all quantum registers into
-                                           single register.
+                    single register.
 
         Raises:
             ValidationError: If the module fails validation during unrolling.
@@ -657,7 +662,10 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
         Notes:
             This method resets the module's qubit and classical bit counts before unrolling,
-            and sets them to -1 if an error occurs during unrolling.
+            and sets them to -1 if an error occurs during unrolling. ``device_qubits`` is set
+            on the module at load time -- ``loads(program, device_qubits=N)`` -- not through
+            ``unroll()``. When unset and ``consolidate_qubits=True``, it defaults to the
+            program's total qubit count.
         """
         if not kwargs:
             kwargs = {}
@@ -679,13 +687,13 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             raise err
 
     @track_user_operation
-    def rebase(self, target_basis_set, in_place=True):
+    def rebase(self, target_basis_set: BasisSet, in_place: bool = True) -> QasmModule:
         """Rebase the AST to use a specified target basis set.
 
-        Will unroll the module if not already done.
+        Note: Will unroll the module if not already done.
 
         Args:
-            target_basis_set: The target basis set to rebase the module to.
+            target_basis_set (BasisSet): The target basis set to rebase the module to.
             in_place (bool): Flag to indicate if the rebase operation should be done in place.
 
         Returns:
@@ -742,7 +750,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         ]
         return dict(Counter(gate.name.name for gate in gate_nodes))
 
-    def compare(self, other_module: QasmModule):
+    def compare(self, other_module: QasmModule) -> None:
         """Compare two QasmModule objects across multiple attributes.
 
         Args:
@@ -766,7 +774,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self_ext_gates_str = "\n".join(self._external_gates)
         other_ext_gates_str = "\n".join(other_module._external_gates)
 
-        table_data = [
+        table_data: list[list[Any]] = [
             ["Qubits", self.num_qubits, other_module.num_qubits],
             ["Classical Bits", self.num_clbits, other_module.num_clbits],
             ["Measurements", self.has_measurements(), other_module.has_measurements()],
@@ -791,28 +799,28 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         )
 
     def __str__(self) -> str:
-        """Return the string representation of the QASM program
+        """Return the string representation of the QASM program.
 
         Returns:
-            str: The string representation of the module
+            str: The string representation of the module.
         """
 
         if len(self._unrolled_ast.statements) > 1:
             return self._qasm_ast_to_str(self.unrolled_ast)
         return self._qasm_ast_to_str(self.original_program)
 
-    def copy(self):
-        """Return a deep copy of the module"""
+    def copy(self) -> QasmModule:
+        """Return a deep copy of the module."""
         return deepcopy(self)
 
     @abstractmethod
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
+    def _qasm_ast_to_str(self, qasm_ast: Program) -> str:
+        """Convert the qasm AST to a string."""
 
     @abstractmethod
-    def accept(self, visitor):
-        """Accept a visitor for the mßodule
+    def accept(self, visitor: QasmVisitor) -> None:
+        """Accept a visitor for the module.
 
         Args:
-            visitor (QasmVisitor): The visitor to accept
+            visitor (QasmVisitor): The visitor to accept.
         """
