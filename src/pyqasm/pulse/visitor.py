@@ -104,7 +104,13 @@ class OpenPulseVisitor:
 
         Args:
             statement (Any): The statement that is calling the function.
-            frame (str): The frame to get.
+            frame (str): The name of the frame to get.
+
+        Returns:
+            Frame: The frame that was gotten.
+
+        Raises:
+            ValidationError: If there is no frame with the provided name.
         """
         frame_obj = self._openpulse_scope_manager.get_from_visible_scope(frame)
         if not isinstance(frame_obj, Frame) or frame_obj is None:
@@ -134,6 +140,9 @@ class OpenPulseVisitor:
             statement (Any): The statement that is calling the function.
             identifier (Identifier | str): The identifier to get the value of,
                 or a string with its name.
+
+        Returns:
+            Any: The value of the identifier.
         """
         if isinstance(identifier, str):
             identifier = qasm3_ast.Identifier(name=identifier)
@@ -338,7 +347,7 @@ class OpenPulseVisitor:
 
         waveform_validators[wf_func_name]()
 
-    def _handle_scope_sync(self, statement: Any, return_value: Optional[Any]) -> None:
+    def _handle_scope_sync(self, statement: Any, return_value: Any = None) -> None:
         """Handle synchronization between QASM and OpenPulse scopes.
 
         Args:
@@ -372,7 +381,7 @@ class OpenPulseVisitor:
             statement (QuantumBarrier): The barrier statement to visit.
 
         Returns:
-            list[QuantumBarrier]: The list containing a single multi-qubit barrier statement.
+            list[QuantumBarrier]: The list containing the original barrier statement.
         """
         if barrier.qubits:
             for qubit in barrier.qubits:
@@ -664,7 +673,7 @@ class OpenPulseVisitor:
 
     def _visit_function_call(  # pylint: disable=too-many-branches, too-many-statements
         self, statement: qasm3_ast.FunctionCall
-    ) -> tuple[Any, list[qasm3_ast.FunctionCall]]:
+    ) -> tuple[Any, list[qasm3_ast.Statement | qasm3_ast.FunctionCall]]:
         """Visit a function call element.
 
         Args:
