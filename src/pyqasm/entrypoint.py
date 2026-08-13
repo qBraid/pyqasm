@@ -52,16 +52,31 @@ _POSITIVE_KWARGS = (
 )
 
 
-def _validate_kwargs(kwargs: dict) -> None:
-    """Reject unknown kwarg names and non-positive values at the call site,
-    instead of silently dropping them (issue #356)."""
+def _validate_kwargs(kwargs: dict, func: str = "loads") -> None:
+    """Reject unknown kwarg names and unusable values at the call site, instead of
+    silently dropping them (issue #356).
+
+    Args:
+        kwargs (dict): The keyword arguments the caller passed.
+        func (str): The entrypoint to name in error messages.
+
+    Raises:
+        TypeError: If a kwarg name is unrecognised, or a positive-only kwarg is not
+            a real number.
+        ValueError: If a positive-only kwarg is zero or negative.
+    """
     unknown = sorted(set(kwargs) - set(_LOADS_KWARG_ATTRS))
     if unknown:
-        raise TypeError(f"loads() got unexpected keyword argument(s): {', '.join(unknown)}")
+        raise TypeError(f"{func}() got unexpected keyword argument(s): {', '.join(unknown)}")
     for name in _POSITIVE_KWARGS:
         value = kwargs.get(name)
-        if value is not None and name in kwargs and value <= 0:
-            raise ValueError(f"loads() kwarg '{name}' must be positive, got {value!r}")
+        if value is None:
+            continue
+        # bool is a subclass of int, so True would otherwise pass as a count of 1
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{func}() kwarg '{name}' must be a number, got {type(value).__name__}")
+        if value <= 0:
+            raise ValueError(f"{func}() kwarg '{name}' must be positive, got {value!r}")
 
 
 def load(filename: str, **kwargs) -> QasmModule:
@@ -69,6 +84,15 @@ def load(filename: str, **kwargs) -> QasmModule:
 
     Args:
         filename (str): The filename of the OpenQASM program to validate.
+
+        **kwargs: Forwarded to :func:`loads`; see it for the supported names.
+
+    Raises:
+        TypeError: If ``filename`` is not a string, or if an unrecognized keyword
+            argument is passed.
+        FileNotFoundError: If the file does not exist.
+        ValueError: If a numeric keyword argument is zero or negative.
+        ValidationError: If the program fails parsing or semantic validation.
 
     Returns:
         QasmModule: An object containing the parsed qasm representation along with
@@ -78,6 +102,8 @@ def load(filename: str, **kwargs) -> QasmModule:
         raise TypeError("Input 'filename' must be of type 'str'.")
     if not os.path.isfile(filename):
         raise FileNotFoundError(f"QASM file '{filename}' not found.")
+    # validate here as well so the message names load(), the function the caller invoked
+    _validate_kwargs(kwargs, func="load")
     program = process_include_statements(filename)
     return loads(program, **kwargs)
 
@@ -104,9 +130,13 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
             - **play_in_cal_block** (bool): Whether to allow play in defcal.
 
+            Passing an explicit ``None`` for any of these means "not passed": the
+            module default is kept. Pass ``False`` to turn off a boolean kwarg.
+
     Raises:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance,
-            or if an unrecognized keyword argument is passed.
+            if an unrecognized keyword argument is passed, or if a numeric keyword
+            argument is not a real number.
         ValueError: If a numeric keyword argument is zero or negative.
         ValidationError: If the program fails parsing or semantic validation.
 
@@ -133,11 +163,13 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
     module = qasm_module("main", program)
-    # presence tests, not truthiness: a falsy value is a caller value, not an omission.
-    # An explicit None still means "not passed", so defaults like extern_functions={}
-    # are never clobbered.
+    # `is not None`, not truthiness: a falsy value is a caller value, not an omission.
+    # An explicit None means "not passed", so defaults like extern_functions={} and
+    # frame_in_def_cal=True are never clobbered.
     for name, attr in _LOADS_KWARG_ATTRS.items():
         if kwargs.get(name) is not None:
+            # setattr would happily create a phantom attribute if the module renamed one
+            assert hasattr(module, attr), f"module has no attribute '{attr}' for kwarg '{name}'"
             setattr(module, attr, kwargs[name])
     return module
 
