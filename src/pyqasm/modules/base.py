@@ -21,7 +21,7 @@ from __future__ import annotations
 import functools
 from abc import ABC, abstractmethod
 from collections import Counter
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import Iterator, Optional, Sequence, TypeVar
 
 import openqasm3.ast as qasm3_ast
@@ -47,6 +47,17 @@ def iter_quantum_statements(
     rewrites qubit operands has to reach the statements inside them too. Loop and switch
     bodies only exist before unrolling, but walking them lets the same pass work on a
     module that has not been unrolled (issue #354).
+
+    Walking a body that may never execute makes the pre-unroll answer an
+    over-approximation: a statement in a zero-iteration loop, an unmatched switch case or
+    an ``if (false)`` block is reported even though the unrolled program never runs it.
+    That is the safe direction for the callers here -- a false positive beats missing a
+    measurement -- but a caller branching on the result should unroll first if it needs
+    an exact answer.
+
+    Operand-rewriting callers rely on ``unroll()`` having run first, which expands loops
+    and switches away. Reading ``_unrolled_ast`` without unrolling can reach a ``q[i]``
+    inside a loop body, whose index is an ``Identifier`` rather than a literal.
 
     Args:
         statements (Sequence[qasm3_ast.QASMNode]): The statements to walk.
@@ -74,8 +85,16 @@ def iter_quantum_statements(
 def drop_statements(statements: list[StatementT], unwanted: type) -> list[StatementT]:
     """Return the statements without those of the unwanted type, nested ones included.
 
-    Bodies of ``box`` and ``if`` blocks are filtered in place. A box left with an empty
-    body is dropped, since pyqasm rejects a box that holds no statement.
+    A container whose body is filtered is shallow-copied first, so the caller's nodes are
+    left untouched. Without that, an in-place removal would reach through the shared AST
+    and strip nested statements out of the module's own ``original_program``, which stays
+    exposed as a public property -- leaving it neither the original nor the filtered
+    result. Statements that are kept unchanged are shared, not copied.
+
+    A box left with an empty body is dropped, since pyqasm rejects a box that holds no
+    statement. An emptied loop or switch case is kept: both re-serialize, re-parse and
+    unroll cleanly, and dropping an emptied ``while`` would turn a non-terminating loop
+    into a no-op rather than preserving what the program said.
 
     Args:
         statements (list[StatementT]): The statements to filter.
@@ -87,23 +106,46 @@ def drop_statements(statements: list[StatementT], unwanted: type) -> list[Statem
     kept: list[StatementT] = []
     for stmt in statements:
         if isinstance(stmt, qasm3_ast.Box):
+            stmt = copy(stmt)
             stmt.body = drop_statements(stmt.body, unwanted)
             if not stmt.body:
                 continue
         elif isinstance(stmt, BranchingStatement):
+            stmt = copy(stmt)
             stmt.if_block = drop_statements(stmt.if_block, unwanted)
             stmt.else_block = drop_statements(stmt.else_block, unwanted)
         elif isinstance(stmt, (qasm3_ast.ForInLoop, qasm3_ast.WhileLoop)):
+            stmt = copy(stmt)
             stmt.block = drop_statements(stmt.block, unwanted)
         elif isinstance(stmt, qasm3_ast.SwitchStatement):
-            for _, case_block in stmt.cases:
-                case_block.statements = drop_statements(case_block.statements, unwanted)
+            stmt = copy(stmt)
+            stmt.cases = [
+                (labels, copy_block(case_block, drop_statements(case_block.statements, unwanted)))
+                for labels, case_block in stmt.cases
+            ]
             if stmt.default is not None:
-                stmt.default.statements = drop_statements(stmt.default.statements, unwanted)
+                stmt.default = copy_block(
+                    stmt.default, drop_statements(stmt.default.statements, unwanted)
+                )
         elif isinstance(stmt, unwanted):
             continue
         kept.append(stmt)
     return kept
+
+
+def copy_block(block: qasm3_ast.CompoundStatement, statements: list) -> qasm3_ast.CompoundStatement:
+    """Return a shallow copy of a switch case/default block carrying new statements.
+
+    Args:
+        block (qasm3_ast.CompoundStatement): The block to copy.
+        statements (list): The statements the copy should hold.
+
+    Returns:
+        qasm3_ast.CompoundStatement: The copied block.
+    """
+    new_block = copy(block)
+    new_block.statements = statements
+    return new_block
 
 
 def track_user_operation(func):
@@ -243,7 +285,13 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._unrolled_ast = value
 
     def has_measurements(self) -> bool:
-        """Check if the module has any measurement operations."""
+        """Check if the module has any measurement operations.
+
+        On a module that has not been unrolled this is an over-approximation: a
+        measurement inside a zero-iteration loop, an unmatched switch case or an
+        ``if (false)`` block counts, even though the unrolled program never runs it.
+        Unroll first if an exact answer is needed.
+        """
         if self._has_measurements is None:
             self._has_measurements = False
             # try to check in the unrolled version as that will a better indicator of
@@ -292,6 +340,11 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     def has_barriers(self) -> bool:
         """Check if the module has any barrier operations.
+
+        On a module that has not been unrolled this is an over-approximation: a barrier
+        inside a zero-iteration loop, an unmatched switch case or an ``if (false)`` block
+        counts, even though the unrolled program never runs it. Unroll first if an exact
+        answer is needed.
 
         Args:
             None

@@ -18,6 +18,7 @@ Module containing unit tests for the barrier operation.
 """
 
 import pytest
+from openqasm3.printer import dumps as ast_dumps
 
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
@@ -180,6 +181,32 @@ def test_remove_barriers_not_in_place_leaves_the_original_alone():
 
     assert "barrier" not in dumps(new_module)
     assert "barrier" in dumps(module)
+
+
+@pytest.mark.parametrize(
+    "container",
+    [
+        "for int i in [0:1] { h q[i]; barrier q; }",
+        "box { h q[0]; barrier q; }",
+        "switch (i) { case 1 { h q[0]; barrier q; } default { x q[0]; barrier q; } }",
+    ],
+)
+def test_remove_barriers_leaves_original_program_pristine(container):
+    """An in-place removal must not reach through the shared AST and strip nested
+    statements out of original_program, which stays exposed as a public property."""
+    qasm_str = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    const int i = 1;
+    barrier q;
+    {container}
+    """
+    module = loads(qasm_str)
+    before = ast_dumps(module.original_program)
+    module.remove_barriers()
+
+    assert "barrier" not in dumps(module)
+    assert ast_dumps(module.original_program) == before
 
 
 def test_unroll_barrier():
