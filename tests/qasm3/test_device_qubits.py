@@ -357,6 +357,53 @@ def test_mixed_declared_and_physical_rejected_when_consolidating(operation):
         result.unroll(consolidate_qubits=True)
 
 
+def test_mixed_error_lists_physical_qubits_in_numeric_order():
+    """A lexicographic sort would report ($10, $2) once a device has ten or more
+    qubits, which reads as unordered when scanning for the offending references."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    h q[0];
+    h $2;
+    h $10;
+    """
+    result = loads(qasm, device_qubits=16)
+    with pytest.raises(
+        ValidationError, match=r"mixes declared registers with physical qubits \(\$2, \$10\)"
+    ):
+        result.unroll(consolidate_qubits=True)
+
+
+def test_mixed_error_names_the_way_out():
+    """The message is the whole diagnostic here -- no statement node is available at
+    finalize time, so there is no line number to fall back on."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    h q[0];
+    h $2;
+    """
+    result = loads(qasm, device_qubits=5)
+    with pytest.raises(ValidationError, match=r"Unroll without 'consolidate_qubits=True'"):
+        result.unroll(consolidate_qubits=True)
+
+
+@pytest.mark.parametrize(
+    "declaration", ["int __PYQASM_QUBITS__ = 3;", "qubit[2] __PYQASM_QUBITS__;"]
+)
+def test_reserved_name_is_reported_before_physical_qubit_exits(declaration):
+    """Declaring the reserved name must raise even when the program also uses physical
+    qubits, which would otherwise return early or report the wrong problem."""
+    qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    {declaration}
+    h $1;
+    """
+    result = loads(qasm, device_qubits=5)
+    with pytest.raises(ValidationError, match=r"'__PYQASM_QUBITS__' is already defined"):
+        result.unroll(consolidate_qubits=True)
+
+
 def test_zero_sized_register_still_counts_as_declared():
     """A zero-sized declared register is still a second address space (Argus P1)."""
     qasm = """OPENQASM 3.0;
@@ -379,6 +426,13 @@ def test_mixed_declared_and_physical_still_unrolls_without_consolidation():
     """
     result = loads(qasm, device_qubits=5)
     result.unroll()
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q[0];
+    cz $2, q[1];
+    """
+    check_unrolled_qasm(dumps(result), expected_qasm)
     assert result.num_qubits == 3
 
 

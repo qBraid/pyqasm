@@ -506,23 +506,8 @@ class QasmVisitor:
                 f"Total qubits '({total_qubits})' exceed device qubits '({self._module._device_qubits})'.",
             )
 
-        # physical qubits are kept as written, so consolidating around them would emit
-        # two address spaces the output cannot relate (issue #353)
-        physical_qubits = sorted(
-            name for name, _ in self._module._qubit_depths if name.startswith("$")
-        )
-        if physical_qubits:
-            # presence, not capacity: a zero-sized declared register still declares
-            # a second address space
-            if self._global_qreg_size_map:
-                raise_qasm3_error(
-                    "Cannot consolidate qubit registers: the program mixes declared "
-                    f"registers with physical qubits ({', '.join(physical_qubits)})",
-                )
-            # only physical qubits: nothing to consolidate, so do not declare an
-            # internal register nothing would reference
-            return unrolled_stmts
-
+        # checked before the physical-qubit exits below, so a program that declares the
+        # reserved name is told about that rather than about whatever it does next
         global_scope = self._scope_manager.get_global_scope()
         for var, val in global_scope.items():
             if var == INTERNAL_QUBIT_REGISTER:
@@ -530,6 +515,26 @@ class QasmVisitor:
                     f"Variable '{INTERNAL_QUBIT_REGISTER}' is already defined",
                     span=val.span,
                 )
+
+        # physical qubits are kept as written, so consolidating around them would emit
+        # two address spaces the output cannot relate (issue #353)
+        physical_qubits = sorted(
+            (name for name, _ in self._module._qubit_depths if name.startswith("$")),
+            key=lambda name: int(name[1:]),
+        )
+        if physical_qubits:
+            # presence, not capacity: a zero-sized declared register still declares
+            # a second address space
+            if self._global_qreg_size_map:
+                raise_qasm3_error(
+                    "Cannot consolidate qubit registers: the program mixes declared "
+                    f"registers with physical qubits ({', '.join(physical_qubits)}). "
+                    "Unroll without 'consolidate_qubits=True', or rewrite the physical "
+                    "qubits as operands of a declared register.",
+                )
+            # only physical qubits: nothing to consolidate, so do not declare an
+            # internal register nothing would reference
+            return unrolled_stmts
 
         pyqasm_reg_id = qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER)
         pyqasm_reg_size = qasm3_ast.IntegerLiteral(self._module._device_qubits)  # type: ignore
