@@ -19,6 +19,7 @@ Defines a module for handling OpenQASM 2.0 programs.
 import io
 import re
 from copy import deepcopy
+from typing import Sequence
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
@@ -52,10 +53,10 @@ def _qasm3_repr(node: qasm3_ast.QASMNode) -> str:
     return out.getvalue().strip()
 
 
-def _creg_sizes(program: Program) -> dict[str, int]:
-    """Map each classical register in the program to its declared size."""
+def _creg_sizes(statements: Sequence[qasm3_ast.Statement]) -> dict[str, int]:
+    """Map each classical register declared in the statements to its declared size."""
     sizes = {}
-    for statement in program.statements:
+    for statement in statements:
         if isinstance(statement, qasm3_ast.ClassicalDeclaration) and isinstance(
             statement.type, qasm3_ast.BitType
         ):
@@ -67,10 +68,10 @@ def _creg_sizes(program: Program) -> dict[str, int]:
     return sizes
 
 
-def _qreg_sizes(program: Program) -> dict[str, int]:
-    """Map each quantum register in the program to its declared size."""
+def _qreg_sizes(statements: Sequence[qasm3_ast.Statement]) -> dict[str, int]:
+    """Map each quantum register declared in the statements to its declared size."""
     sizes = {}
-    for statement in program.statements:
+    for statement in statements:
         if isinstance(statement, qasm3_ast.QubitDeclaration):
             size = statement.size
             sizes[statement.qubit.name] = (
@@ -400,7 +401,10 @@ class Qasm2Module(QasmModule):
         parser does not enforce that, so it is enforced here as a whitelist: a
         blacklist would let through whatever statement kinds it had not enumerated.
         """
-        for inner_stmt in [*statement.if_block, *statement.else_block]:
+        # only the if_block: _filter_branch rejects any 'else' outright, so walking the
+        # else body here would report a barrier inside it ahead of the more fundamental
+        # problem that QASM 2 has no 'else' at all
+        for inner_stmt in statement.if_block:
             if isinstance(inner_stmt, _QOP_STATEMENTS):
                 continue
             if isinstance(inner_stmt, qasm3_ast.BranchingStatement):
@@ -426,41 +430,25 @@ class Qasm2Module(QasmModule):
             )
 
     def _filter_branch(self, statement: qasm3_ast.BranchingStatement) -> None:
-        """Reject the conditional shapes QASM 2.0 has no syntax for, before unrolling.
+        """Reject the conditional shapes QASM 2.0 has no syntax for.
 
-        These are properties of the source program, so they are caught here rather than
-        at serialization: unrolling rewrites a register comparison into a chain of
-        per-bit tests, and by then the operator and nesting the user wrote are gone.
-        :class:`Qasm2Printer` re-checks what survives into the unrolled AST, since
-        callers may serialize a module they never validated.
+        This delegates to :func:`_flatten_branch`, the same routine
+        :class:`Qasm2Printer` uses, so one implementation defines what QASM 2 can
+        express and ``validate()`` can never be stricter than the serializer it
+        guards. That matters because ``_filter_statements`` does not only see source
+        as written: ``remove_measurements``, ``remove_barriers``,
+        ``remove_idle_qubits`` and ``reverse_qubit_order`` all reassign
+        ``_statements`` to the unrolled AST, so a later ``validate()`` re-filters a
+        per-bit chain. Checking the source shape directly rejected those chains even
+        though the printer collapses them back and emits a valid program.
+
+        The result is discarded; only the exceptions matter here.
         """
-        if statement.else_block:
-            raise_qasm3_error(
-                "'else' blocks are not supported in QASM 2.0, which only allows "
-                "'if (creg == int) <statement>'",
-                error_node=statement,
-                span=statement.span,
-            )
-        for inner_stmt in statement.if_block:
-            if isinstance(inner_stmt, qasm3_ast.BranchingStatement):
-                raise_qasm3_error(
-                    "Nested 'if' statements are not supported in QASM 2.0, which guards a "
-                    "single statement per conditional",
-                    error_node=inner_stmt,
-                    span=inner_stmt.span,
-                )
-        condition = statement.condition
-        if (
-            not isinstance(condition, qasm3_ast.BinaryExpression)
-            or condition.op != qasm3_ast.BinaryOperator["=="]
-            or not isinstance(condition.lhs, qasm3_ast.Identifier)
-            or not isinstance(condition.rhs, qasm3_ast.IntegerLiteral)
-        ):
-            raise_qasm3_error(
-                _unsupported_condition_message(condition),
-                error_node=statement,
-                span=condition.span,
-            )
+        _flatten_branch(
+            statement,
+            _creg_sizes(self._statements),
+            _qreg_sizes(self._statements),
+        )
 
     def _format_declarations(self, qasm_str):
         """Format the unrolled qasm for declarations in openqasm 2.0 format"""
@@ -484,8 +472,8 @@ class Qasm2Module(QasmModule):
         Qasm2Printer(
             stream,
             old_measurement=True,
-            creg_sizes=_creg_sizes(qasm_ast),
-            qreg_sizes=_qreg_sizes(qasm_ast),
+            creg_sizes=_creg_sizes(qasm_ast.statements),
+            qreg_sizes=_qreg_sizes(qasm_ast.statements),
         ).visit(qasm_ast)
         return self._format_declarations(stream.getvalue())
 

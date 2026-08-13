@@ -164,10 +164,11 @@ def test_branch_body_writing_tested_register_raises():
     measure q[0] -> m[0];
     if(m==1) { x q[0]; measure q[0] -> m[0]; }
     """
-    module = loads(qasm2_string)
-    module.unroll()
-    with pytest.raises(ValidationError, match="writes to 'm' -- the register the branch tests"):
-        dumps(module)
+    match = "writes to 'm' -- the register the branch tests"
+    with pytest.raises(ValidationError, match=match):
+        loads(qasm2_string).validate()
+    with pytest.raises(ValidationError, match=match):
+        dumps(loads(qasm2_string))
 
 
 @pytest.mark.parametrize(
@@ -201,41 +202,22 @@ def test_conflicting_chain_constraints_raise(operation, match):
     [
         ("if(m==1) x q[0]; else x q[1];", "'else' blocks are not supported"),
         ("if(m==1) if(c==1) x q[0];", "different registers"),
+        ("if(m==1) if(m==0) x q[0];", "nests another whole-register comparison"),
         ("if(m[0]==1) x q[0];", "unconstrained"),
-        ("if(m>=1) x q[0];", "only allows 'if \\(creg == int\\)'"),
-    ],
-)
-def test_inexpressible_branches_raise(operation, match):
-    """Test that each branch shape QASM 2 has no syntax for is rejected. Emitting these
-    would drop a branch or silently change which values trigger the body."""
-    qasm2_string = f"""OPENQASM 2.0;
-    include "qelib1.inc";
-    qreg q[2];
-    creg m[2];
-    creg c[1];
-    measure q[0] -> m[0];
-    {operation}
-    """
-    with pytest.raises(ValidationError, match=match):
-        dumps(loads(qasm2_string))
-
-
-@pytest.mark.parametrize(
-    "operation, match",
-    [
-        ("if(m==1) x q[0]; else x q[1];", "'else' blocks are not supported"),
-        ("if(m==1) if(c==1) x q[0];", "Nested 'if' statements are not supported"),
-        ("if(m==1) if(m==0) x q[0];", "Nested 'if' statements are not supported"),
-        ("if(m[0]==1) x q[0];", "only allows 'if \\(creg == int\\)'"),
-        # the operator has to be named here: unrolling ravels '>=' into a chain of
-        # equality tests, so by serialization time there is nothing left to name
+        # the operator has to be named: unrolling ravels '>=' into a chain of equality
+        # tests, so by serialization time there is nothing left to name
         ("if(m>=1) x q[0];", "which uses '>='"),
         ("if(m<2) x q[0];", "which uses '<'"),
     ],
 )
-def test_inexpressible_branches_rejected_by_validate(operation, match):
-    """Test that branch shapes with no QASM 2 form are reported by validate(), not left
-    for serialization to raise on a program already reported as valid"""
+def test_inexpressible_branches_rejected_identically_by_validate_and_dumps(operation, match):
+    """Test that each branch shape QASM 2 has no syntax for is rejected, by validate()
+    rather than only by serialization, and with the same diagnostic either way.
+
+    Both paths run ``_flatten_branch``, so a divergence here means validation and
+    serialization have drifted back into two implementations of one rule -- which is
+    how validate() came to reject per-bit chains the printer collapses correctly.
+    """
     qasm2_string = f"""OPENQASM 2.0;
     include "qelib1.inc";
     qreg q[2];
@@ -244,6 +226,64 @@ def test_inexpressible_branches_rejected_by_validate(operation, match):
     measure q[0] -> m[0];
     {operation}
     """
-    module = loads(qasm2_string)
     with pytest.raises(ValidationError, match=match):
-        module.validate()
+        loads(qasm2_string).validate()
+    with pytest.raises(ValidationError, match=match):
+        dumps(loads(qasm2_string))
+
+
+VALID_CONDITIONAL_1BIT = """OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg m[1];
+h q[0];
+measure q[0] -> m[0];
+if(m==1) x q[1];
+"""
+
+VALID_CONDITIONAL_2BIT = VALID_CONDITIONAL_1BIT.replace("creg m[1];", "creg m[2];").replace(
+    "if(m==1)", "if(m==2)"
+)
+
+
+@pytest.mark.parametrize("qasm2_string", [VALID_CONDITIONAL_1BIT, VALID_CONDITIONAL_2BIT])
+@pytest.mark.parametrize(
+    "sequence",
+    [
+        lambda m: (m.remove_idle_qubits(), m.validate()),
+        lambda m: (m.remove_idle_qubits(), m.remove_idle_qubits()),
+        lambda m: (m.remove_idle_qubits(), m.reverse_qubit_order()),
+        lambda m: (m.reverse_qubit_order(), m.remove_idle_qubits()),
+        lambda m: (m.unroll(), m.remove_measurements(), m.unroll()),
+        lambda m: (m.unroll(), m.remove_measurements(), m.validate()),
+    ],
+)
+def test_valid_conditional_survives_transformation_pass_sequences(qasm2_string, sequence):
+    """Test that re-filtering an already unrolled body accepts the per-bit chain
+    unrolling produced (issue #337).
+
+    remove_measurements, remove_barriers, remove_idle_qubits and reverse_qubit_order all
+    reassign _statements to the unrolled AST, so any later validate() or unroll() filters
+    unrolled statements rather than source. Validation used to reject that chain outright
+    even though the printer collapses it back into 'if (m == n) <statement>'.
+    """
+    module = loads(qasm2_string)
+    sequence(module)
+    unrolled = dumps(module)
+    assert "x q[" in unrolled
+    assert "{" not in unrolled and "}" not in unrolled
+
+
+def test_else_is_reported_before_a_problem_inside_it():
+    """Test that a program with both an 'else' and an inexpressible statement inside it
+    reports the 'else' -- the more fundamental of the two -- rather than costing the
+    author two round trips to learn QASM 2 has no 'else' at all."""
+    qasm2_string = """OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[2];
+    creg m[1];
+    measure q[0] -> m[0];
+    if(m==1) x q[0]; else barrier q;
+    """
+    with pytest.raises(ValidationError, match="'else' blocks are not supported"):
+        loads(qasm2_string).validate()
