@@ -139,7 +139,9 @@ def test_conditional_rzz_unrolls_without_gphase():
     unrolled = dumps(result)
     assert "gphase" not in unrolled
 
-    # the unrolled output must be a loadable QASM 2 program
+    # the unrolled output must still re-load in pyqasm. It is not yet accepted by a
+    # strict QASM 2 parser: the conditional still prints as `if (m[0] == true) { ... }`,
+    # which is QASM 3 syntax. That half is #338's territory, not this PR's.
     loads(unrolled).validate()
 
 

@@ -156,10 +156,22 @@ class Qasm2Module(QasmModule):
         filtered = []
         for stmt in statements:
             if isinstance(stmt, qasm3_ast.QuantumPhase):
+                # a controlled phase is relative, not global, and is observable; the
+                # visitor rewrites those to 'p' gates, so none should reach here
+                if stmt.modifiers:
+                    raise_qasm3_error(
+                        "Modified global phase cannot be dropped for a QASM 2 target",
+                        error_node=stmt,
+                        span=stmt.span,
+                    )
                 continue
             if isinstance(stmt, qasm3_ast.BranchingStatement):
                 stmt.if_block = self._drop_global_phase(stmt.if_block)
                 stmt.else_block = self._drop_global_phase(stmt.else_block)
+                if not stmt.if_block and not stmt.else_block:
+                    # the body was nothing but global phase, and QASM 2 has no
+                    # form for a conditional without a qop
+                    continue
             filtered.append(stmt)
         return filtered
 
