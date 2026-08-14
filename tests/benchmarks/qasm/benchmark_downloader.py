@@ -24,6 +24,8 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, Optional
 
+_DOWNLOAD_TIMEOUT = 30  # seconds
+
 
 class BenchmarkDownloader:
     """Handles downloading and caching of benchmark files."""
@@ -62,7 +64,8 @@ class BenchmarkDownloader:
 
         url = file_info["url"]
         try:
-            with urllib.request.urlopen(url) as response:
+            # without a timeout a stalled connection blocks the whole benchmark run
+            with urllib.request.urlopen(url, timeout=_DOWNLOAD_TIMEOUT) as response:
                 content = response.read()
         except Exception as e:
             raise RuntimeError(f"Failed to fetch {filename} from {url}: {e}") from e

@@ -16,7 +16,7 @@
 This module is used to test the import time of pyqasm.
 """
 
-from subprocess import call
+from subprocess import check_call
 from sys import executable
 
 
@@ -24,4 +24,5 @@ class PyqasmImport:
     """Test the import time of pyqasm."""
 
     def time_pyqasm_import(self):
-        call((executable, "-c", "import pyqasm"))
+        # check_call, not call: a failed import would otherwise be timed as a fast success
+        check_call((executable, "-c", "import pyqasm"))

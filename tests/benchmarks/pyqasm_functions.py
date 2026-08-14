@@ -56,6 +56,11 @@ class PyqasmFunctions:
         self.qasm_file = get_benchmark_file(self.files[file_size_key])
         self.pyqasm_obj = load(self.qasm_file)
 
+        # mpl_draw unrolls in place, so give it its own module, unrolled up front:
+        # sharing pyqasm_obj would make only the first draw pay for the unroll
+        self.draw_obj = load(self.qasm_file)
+        self.draw_obj.unroll()
+
         # Create output file path for dump operations
         input_path = Path(self.qasm_file)
         self.output_file = str(input_path.parent / f"{file_size_key}_unrolled.qasm")
@@ -82,4 +87,4 @@ class PyqasmFunctions:
 
     def time_draw(self, _):
         """Draw QASM object of specified size."""
-        _ = printer.mpl_draw(self.pyqasm_obj, idle_wires=True, external_draw=False)
+        _ = printer.mpl_draw(self.draw_obj, idle_wires=True, external_draw=False)
