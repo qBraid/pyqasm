@@ -26,7 +26,7 @@ from openqasm3.ast import Include, Program
 from openqasm3.printer import Printer, PrinterState, dumps
 
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.modules.base import QasmModule
+from pyqasm.modules.base import QasmModule, QasmVisitor
 from pyqasm.modules.qasm3 import Qasm3Module
 
 # the QASM 2.0 <qop> production: a gate application, a measurement or a reset.
@@ -53,7 +53,7 @@ def _qasm3_repr(node: qasm3_ast.QASMNode) -> str:
     return out.getvalue().strip()
 
 
-def _creg_sizes(statements: Sequence[qasm3_ast.Statement]) -> dict[str, int]:
+def _creg_sizes(statements: Sequence[qasm3_ast.Statement | qasm3_ast.Pragma]) -> dict[str, int]:
     """Map each classical register declared in the statements to its declared size."""
     sizes = {}
     for statement in statements:
@@ -68,7 +68,7 @@ def _creg_sizes(statements: Sequence[qasm3_ast.Statement]) -> dict[str, int]:
     return sizes
 
 
-def _qreg_sizes(statements: Sequence[qasm3_ast.Statement]) -> dict[str, int]:
+def _qreg_sizes(statements: Sequence[qasm3_ast.Statement | qasm3_ast.Pragma]) -> dict[str, int]:
     """Map each quantum register declared in the statements to its declared size."""
     sizes = {}
     for statement in statements:
@@ -365,7 +365,7 @@ class Qasm2Module(QasmModule):
         statements (list[Statement]): list of openqasm2 Statements.
     """
 
-    def __init__(self, name: str, program: Program):
+    def __init__(self, name: str, program: Program) -> None:
         super().__init__(name, program)
         self._unrolled_ast = Program(statements=[], version="2.0")
         self._whitelist_statements = {
@@ -381,8 +381,8 @@ class Qasm2Module(QasmModule):
             qasm3_ast.QuantumBarrier,
         }
 
-    def _filter_statements(self):
-        """Filter statements according to the whitelist"""
+    def _filter_statements(self) -> None:
+        """Filter statements according to the whitelist."""
         for stmt in self._statements:
             stmt_type = type(stmt)
             if stmt_type not in self._whitelist_statements:
@@ -392,7 +392,7 @@ class Qasm2Module(QasmModule):
                 self._filter_branch(stmt)
             # TODO: add more filtering here if needed
 
-    def _filter_branch_body(self, statement: qasm3_ast.BranchingStatement):
+    def _filter_branch_body(self, statement: qasm3_ast.BranchingStatement) -> None:
         """Filter the body of a conditional against what QASM 2.0 allows there.
 
         The QASM 2.0 grammar admits only a ``<qop>`` as the body of an ``if`` --
@@ -450,7 +450,7 @@ class Qasm2Module(QasmModule):
             _qreg_sizes(self._statements),
         )
 
-    def _format_declarations(self, qasm_str):
+    def _format_declarations(self, qasm_str: str) -> str:
         """Format the unrolled qasm for declarations in openqasm 2.0 format"""
         for declaration_type, replacement_type in [("qubit", "qreg"), ("bit", "creg")]:
             pattern = rf"{declaration_type}\[(\d+)\]\s+(\w+);"
@@ -458,8 +458,8 @@ class Qasm2Module(QasmModule):
             qasm_str = re.sub(pattern, replacement, qasm_str)
         return qasm_str
 
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string
+    def _qasm_ast_to_str(self, qasm_ast: Program) -> str:
+        """Convert the qasm AST to a string.
 
         Raises:
             ValidationError: If the program contains a conditional QASM 2.0 has no syntax
@@ -478,12 +478,11 @@ class Qasm2Module(QasmModule):
         return self._format_declarations(stream.getvalue())
 
     def to_qasm3(self, as_str: bool = False) -> str | Qasm3Module:
-        """Convert the module to openqasm3 format
+        """Convert the module to openqasm3 format.
 
         Args:
             as_str (bool): Flag to indicate if the conversion should be to a string
-                           or to a Qasm3Module object.
-                           Default is False.
+                or to a Qasm3Module object. Default is False.
 
         Returns:
             str | Qasm3Module: The module in openqasm3 format.
@@ -497,14 +496,14 @@ class Qasm2Module(QasmModule):
         qasm_program.version = "3.0"
         return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
-    def accept(self, visitor):
-        """Accept a visitor for the module
+    def accept(self, visitor: QasmVisitor) -> None:
+        """Accept a visitor for the module.
 
         Args:
-            visitor (QasmVisitor): The visitor to accept
+            visitor (QasmVisitor): The visitor to accept.
         """
         self._filter_statements()
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self.unrolled_ast.statements = final_stmt_list
+        self.unrolled_ast.statements = final_stmt_list  # type: ignore[assignment]
