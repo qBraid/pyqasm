@@ -115,7 +115,8 @@ class PulseValidator:
 
         Args:
             statement (Statement): The AST statement node.
-            base_type (Any): The declared type, function does nothing if not DurationType or StretchType.
+            base_type (Any): The declared type, function does nothing
+                if not DurationType or StretchType.
             rvalue (Any): The initializer or assigned value.
             global_scope (dict): Global symbol table.
 
