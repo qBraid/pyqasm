@@ -35,6 +35,7 @@ from openqasm3.printer import dumps
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import (
     INTERNAL_QUBIT_REGISTER,
+    PHYSICAL_QUBIT_PREFIX,
     Capture,
     ClbitDepthNode,
     Context,
@@ -44,6 +45,7 @@ from pyqasm.elements import (
     Variable,
     Waveform,
     is_internal_qubit_register,
+    is_physical_qubit,
 )
 from pyqasm.exceptions import (
     BreakSignal,
@@ -330,8 +332,9 @@ class QasmVisitor:
             else:
                 reg_name = bit.name
 
-            if qubits and reg_name.startswith("$"):
-                # Physical qubit reference (e.g. $0, $1).
+            if qubits and reg_name.startswith(PHYSICAL_QUBIT_PREFIX):
+                # Physical qubit reference (e.g. $0, $1). Matched on the prefix alone so
+                # that a malformed index is reported rather than read as a register name.
                 if not reg_name[1:].isdigit():
                     raise_qasm3_error(
                         f"Invalid physical qubit identifier '{reg_name}': "
@@ -502,8 +505,9 @@ class QasmVisitor:
 
         Raises:
             ValidationError: If the total number of qubits exceeds the available device qubits,
-                or if the reserved register '__PYQASM_QUBITS__' is already declared
-                in the original QASM program.
+                if the reserved register '__PYQASM_QUBITS__' is already declared in the
+                original QASM program, or if the program mixes declared registers with
+                physical qubits.
         """
         if total_qubits > self._module._device_qubits:  # type: ignore
             raise_qasm3_error(
@@ -511,6 +515,8 @@ class QasmVisitor:
                 f"Total qubits '({total_qubits})' exceed device qubits '({self._module._device_qubits})'.",
             )
 
+        # checked before the physical-qubit exits below, so a program that declares the
+        # reserved name is told about that rather than about whatever it does next
         global_scope = self._scope_manager.get_global_scope()
         for var, val in global_scope.items():
             if var == INTERNAL_QUBIT_REGISTER:
@@ -518,6 +524,31 @@ class QasmVisitor:
                     f"Variable '{INTERNAL_QUBIT_REGISTER}' is already defined",
                     span=val.span,
                 )
+
+        # physical qubits are kept as written, so consolidating around them would emit
+        # two address spaces the output cannot relate (issue #353)
+        # _qubit_depths is keyed (name, index), so the hardware index is already
+        # there to order on -- no need to parse it back out of the name
+        physical_qubits = [
+            name
+            for name, _ in sorted(
+                (key for key in self._module._qubit_depths if is_physical_qubit(key[0])),
+                key=lambda key: key[1],
+            )
+        ]
+        if physical_qubits:
+            # presence, not capacity: a zero-sized declared register still declares
+            # a second address space
+            if self._global_qreg_size_map:
+                raise_qasm3_error(
+                    "Cannot consolidate qubit registers: the program mixes declared "
+                    f"registers with physical qubits ({', '.join(physical_qubits)}). "
+                    "Unroll without 'consolidate_qubits=True', or rewrite the physical "
+                    "qubits as operands of a declared register.",
+                )
+            # only physical qubits: nothing to consolidate, so do not declare an
+            # internal register nothing would reference
+            return unrolled_stmts
 
         pyqasm_reg_id = qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER)
         pyqasm_reg_size = qasm3_ast.IntegerLiteral(self._module._device_qubits)  # type: ignore
@@ -592,7 +623,7 @@ class QasmVisitor:
         target = statement.target
         if isinstance(source, qasm3_ast.Identifier):
             is_pulse_gate = False
-            if source.name.startswith("$") and source.name[1:].isdigit():
+            if is_physical_qubit(source.name):
                 if self._openpulse_grammar_declared:
                     # OpenPulse program: rename to the internal virtual register used by the
                     # pulse visitor, and validate the index is in range.
@@ -738,7 +769,7 @@ class QasmVisitor:
             return False
 
         qubit_name = statement.qubits.name
-        if qubit_name.startswith("$") and qubit_name[1:].isdigit():
+        if is_physical_qubit(qubit_name):
             if self._openpulse_grammar_declared:
                 # OpenPulse program: rename to the internal virtual register used by the
                 # pulse visitor.
@@ -870,7 +901,7 @@ class QasmVisitor:
         valid_open_pulse_qubits = False
         for op_qubit in barrier.qubits:
             if isinstance(op_qubit, qasm3_ast.Identifier):
-                if op_qubit.name.startswith("$") and op_qubit.name[1:].isdigit():
+                if is_physical_qubit(op_qubit.name):
                     phys_idx = int(op_qubit.name[1:])
                     # In an OpenPulse program all physical qubits are declared up-front via
                     # defcal; validate that the index is within the known range.
@@ -3244,7 +3275,7 @@ class QasmVisitor:
             if not isinstance(qubit, qasm3_ast.Identifier):
                 continue
             name = qubit.name
-            if name.startswith("$") and name[1:].isdigit():
+            if is_physical_qubit(name):
                 _qubit_set.add(int(name[1:]))
                 self._openpulse_qubit_map[statement.name.name].add(name)
                 self._total_pulse_qubits = max(self._total_pulse_qubits, int(name[1:]) + 1)
