@@ -23,6 +23,49 @@ from typing import Any, Optional
 
 import numpy as np
 
+INTERNAL_QUBIT_REGISTER = "__PYQASM_QUBITS__"
+"""Reserved register that qubits are consolidated onto, and that physical qubits ("$n")
+are rewritten to for OpenPulse programs."""
+
+
+def is_internal_qubit_register(qubit_name: str) -> bool:
+    """Check whether an identifier refers to the internal qubit register.
+
+    The register appears either as the bare name, or followed by an index or a slice
+    ("__PYQASM_QUBITS__[2]", "__PYQASM_QUBITS__[0:2]"). Matching on the prefix alone
+    would also match a user register that merely starts with the reserved name, e.g.
+    "__PYQASM_QUBITS__foo".
+
+    Args:
+        qubit_name (str): The identifier name to check.
+
+    Returns:
+        bool: True if the identifier refers to the internal qubit register.
+    """
+    return qubit_name == INTERNAL_QUBIT_REGISTER or qubit_name.startswith(
+        f"{INTERNAL_QUBIT_REGISTER}["
+    )
+
+
+PHYSICAL_QUBIT_PREFIX = "$"
+"""Prefix marking a physical qubit: an absolute hardware index that belongs to no
+declared register."""
+
+
+def is_physical_qubit(qubit_name: str) -> bool:
+    """Check whether an identifier refers to a physical qubit ("$0", "$12").
+
+    The index must be a non-negative integer, so neither the bare prefix nor a name
+    such as "$foo" is a physical qubit.
+
+    Args:
+        qubit_name (str): The identifier name to check.
+
+    Returns:
+        bool: True if the identifier refers to a physical qubit.
+    """
+    return qubit_name.startswith(PHYSICAL_QUBIT_PREFIX) and qubit_name[1:].isdigit()
+
 
 class InversionOp(Enum):
     """
@@ -63,12 +106,17 @@ class QubitDepthNode(DepthNode):
     num_measurements: int = 0
     num_gates: int = 0
     num_barriers: int = 0
+    # Set when the qubit is operated on inside an if/else block. Those operations are
+    # flagged rather than counted: their depth is only settled once the branch closes,
+    # and a branch body may be visited more than once, so only the fact that the qubit
+    # is used can be relied on.
+    used_in_branch: bool = False
 
     def _total_ops(self) -> int:
         return self.num_resets + self.num_measurements + self.num_gates + self.num_barriers
 
     def is_idle(self) -> bool:
-        return self._total_ops() == 0
+        return self._total_ops() == 0 and not self.used_in_branch
 
 
 @dataclass(slots=True)

@@ -22,6 +22,7 @@ from typing import Any, Sequence
 
 import openqasm3.ast as qasm3_ast
 
+from pyqasm.elements import INTERNAL_QUBIT_REGISTER, is_physical_qubit
 from pyqasm.exceptions import raise_qasm3_error
 
 
@@ -74,7 +75,7 @@ class PulseUtils:
         _qubit_set = set()
         for i, qubit in enumerate(operation.qubits):
             qubit_id = qubit.name.name if hasattr(qubit.name, "name") else qubit.name
-            if qubit_id.startswith("$") and qubit_id[1:].isdigit():
+            if is_physical_qubit(qubit_id):
                 if (
                     gate_op not in openpulse_qubit_map
                     or qubit_id not in openpulse_qubit_map[gate_op]
@@ -91,7 +92,7 @@ class PulseUtils:
                     )
                 _qubit_set.add(int(qubit_id[1:]))
                 operation.qubits[i] = qasm3_ast.IndexedIdentifier(
-                    name=qasm3_ast.Identifier("__PYQASM_QUBITS__"),
+                    name=qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER),
                     indices=[[qasm3_ast.IntegerLiteral(int(qubit_id[1:]))]],
                 )
                 stmts = [operation]
@@ -101,7 +102,7 @@ class PulseUtils:
                         name=qasm3_ast.Identifier(gate_op),
                         qubits=[
                             qasm3_ast.IndexedIdentifier(
-                                name=qasm3_ast.Identifier("__PYQASM_QUBITS__"),
+                                name=qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER),
                                 indices=[[qasm3_ast.IntegerLiteral(j)]],
                             )
                         ],

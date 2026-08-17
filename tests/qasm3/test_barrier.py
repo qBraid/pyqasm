@@ -18,10 +18,11 @@ Module containing unit tests for the barrier operation.
 """
 
 import pytest
+from openqasm3.printer import dumps as ast_dumps
 
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
-from tests.utils import check_unrolled_qasm
+from tests.utils import check_single_qubit_gate_op, check_unrolled_qasm
 
 
 # 1. Test barrier operations in different ways
@@ -107,6 +108,129 @@ def test_remove_barriers():
     module.remove_barriers()
     assert module.has_barriers() is False
     check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_remove_barriers_inside_box_and_branch():
+    """Barriers nested in a box or an if block must be found and removed too (see #342)."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit c;
+    h q[0];
+    box {
+        barrier q;
+        x q[1];
+    }
+    if (c == 1) {
+        barrier q;
+    }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[1] c;
+    h q[0];
+    box {
+        x q[1];
+    }
+    if (c[0] == true) {
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    assert module.has_barriers() is True
+    module.remove_barriers()
+    assert module.has_barriers() is False
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_has_and_remove_barriers_inside_loop_before_unroll():
+    """Barriers inside a loop or switch must be visible before unroll() (issue #354)."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    for int i in [0:1] { h q[i]; barrier q; }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q[0];
+    h q[1];
+    """
+    module = loads(qasm_str)
+    assert module.has_barriers() is True
+
+    module = loads(qasm_str)
+    module.remove_barriers()
+    assert module.has_barriers() is False
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+    # the loop's gates must survive the removal pass
+    check_single_qubit_gate_op(module.unrolled_ast, 2, [0, 1], "h")
+
+
+def test_remove_barriers_not_in_place_leaves_the_original_alone():
+    """Filtering rewrites nested bodies in place, so it must run on the returned copy."""
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    h q[0];
+    box {
+        barrier q;
+        x q[1];
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    new_module = module.remove_barriers(in_place=False)
+
+    assert "barrier" not in dumps(new_module)
+    assert "barrier" in dumps(module)
+
+
+@pytest.mark.parametrize(
+    "container, expected_container",
+    [
+        pytest.param(
+            "for int i in [0:1] { h q[i]; barrier q; }",
+            "for int i in [0:1] {\n  h q[i];\n}",
+            id="for",
+        ),
+        pytest.param(
+            "box { h q[0]; barrier q; }",
+            "box {\n  h q[0];\n}",
+            id="box",
+        ),
+        pytest.param(
+            "switch (i) { case 1 { h q[0]; barrier q; } default { x q[0]; barrier q; } }",
+            "switch (i) {\n  case 1 {\n    h q[0];\n  }\n  default {\n    x q[0];\n  }\n}",
+            id="switch",
+        ),
+    ],
+)
+def test_remove_barriers_leaves_original_program_pristine(container, expected_container):
+    """An in-place removal must not reach through the shared AST and strip nested
+    statements out of original_program, which stays exposed as a public property."""
+    qasm_str = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    const int i = 1;
+    barrier q;
+    {container}
+    """
+    expected_qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    const int i = 1;
+    {expected_container}
+    """
+    module = loads(qasm_str)
+    before = ast_dumps(module.original_program)
+    module.remove_barriers()
+
+    # the nested operations survive; only the barriers go
+    check_unrolled_qasm(dumps(module), expected_qasm)
+    assert ast_dumps(module.original_program) == before
 
 
 def test_unroll_barrier():

@@ -680,12 +680,87 @@ def test_gate_depth_decomposable_gates(input_qasm_str, before_decompose, after_d
 
 
 @pytest.mark.parametrize(
-    ["input_qasm_str", "before_decompose", "after_decompose"],
-    [(QASM3_DECOMPOSE_CUSTOM_GATE_DEPTH, 2, 2)],
+    ["input_qasm_str", "external_gates", "before_decompose", "after_decompose"],
+    [
+        (QASM3_DECOMPOSE_CUSTOM_GATE_DEPTH, ["custom_crx", "custom_rccx"], 2, 2),
+        (QASM3_DECOMPOSE_GATE_DEPTH, ["crx", "rccx"], 2, 2),
+    ],
 )
-def test_gate_depth_decomposable_external_gates(input_qasm_str, before_decompose, after_decompose):
+def test_gate_depth_decomposable_external_gates(
+    input_qasm_str, external_gates, before_decompose, after_decompose
+):
+    """An external gate skips its decomposition, so it must not count the depth of
+    the decomposition it skipped (issue #352)"""
     result = loads(input_qasm_str)
-    result._external_gates = ["custom_crx", "custom_rccx"]
+    result._external_gates = external_gates
     assert result.depth(decompose_native_gates=False) == before_decompose
     # by default its true
     assert result.depth() == after_decompose
+
+
+def test_external_basic_gate_counts_own_depth():
+    """One external crz statement is emitted, so it counts as depth 1 (issue #352)"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    crz(0.5) q[0], q[1];
+    """
+    result = loads(qasm3_string)
+    result.unroll(external_gates=["crz"])
+    assert result.depth() == 1
+
+
+def test_external_basic_gate_depth_with_neighbours():
+    """External gate depth composes with surrounding gates like any single gate"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    x q[0];
+    crz(0.5) q[0], q[1];
+    x q[1];
+    """
+    result = loads(qasm3_string)
+    result.unroll(external_gates=["crz"])
+    assert result.depth() == 3
+
+
+@pytest.mark.parametrize("external_gates", [None, ["crz"]])
+def test_external_gate_in_conditional_depth(external_gates):
+    """A gate inside an if block reports the same depth whether or not it is external:
+    the external gate marks the branch qubits itself instead of letting the skipped
+    decomposition mark them (issue #352).
+
+    The branch-marking arm is currently also reached by the validation-only call, since
+    ``_recording_ext_gate_depth`` guards depth recording but not branch marking. This
+    pins the contract so extending that guard cannot regress conditional depth silently.
+    """
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    bit[1] c;
+    c[0] = measure q[0];
+    if (c[0] == 1) { crz(0.5) q[1], q[2]; }
+    """
+    result = loads(qasm3_string)
+    result.unroll(external_gates=external_gates)
+    assert result.depth() == 2
+
+
+@pytest.mark.parametrize("external_gates", [None, ["crz"]])
+def test_external_gate_in_conditional_on_idle_qubits_depth(external_gates):
+    """Same contract when the conditional gate acts on qubits untouched outside the
+    branch, so branch marking is the only thing giving them any depth (issue #352)"""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    bit[1] c;
+    c[0] = measure q[0];
+    if (c[0] == 1) { crz(0.5) q[2], q[3]; }
+    """
+    result = loads(qasm3_string)
+    result.unroll(external_gates=external_gates)
+    assert result.depth() == 2

@@ -30,27 +30,27 @@ jobs:
             python: 314
             platform_id: win_amd64
 
-          # Linux 64 bit manylinux2014
+          # Linux 64 bit manylinux_2_28
           - os: ubuntu-latest
             python: 310
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
           - os: ubuntu-latest
             python: 311
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
           - os: ubuntu-latest
             python: 312
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
           - os: ubuntu-latest
             python: 313
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
           - os: ubuntu-latest
             python: 314
             platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+            manylinux_image: manylinux_2_28
 
           # MacOS x86_64
           - os: macos-15-intel
@@ -89,10 +89,10 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -126,10 +126,10 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -160,7 +160,7 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
     
       - name: Download artifacts 
         uses: actions/download-artifact@v8

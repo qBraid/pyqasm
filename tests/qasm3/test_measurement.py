@@ -21,7 +21,7 @@ import pytest
 
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
-from tests.utils import check_unrolled_qasm
+from tests.utils import check_measure_op, check_unrolled_qasm
 
 
 # Test measurement operations in different ways
@@ -133,6 +133,148 @@ def test_remove_measurement():
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+def test_remove_measurement_inside_box_and_branch():
+    """Measurements nested in a box or an if block must be found and removed too (see #342)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    h q[0];
+    box {
+        c[0] = measure q[0];
+    }
+    if (c[0] == 1) {
+        x q[1];
+        c[1] = measure q[1];
+    }
+    """
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    h q[0];
+    if (c[0] == true) {
+        x q[1];
+    }
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+    assert module.has_measurements() is True
+    module.remove_measurements()
+    # the box held nothing but the measurement, and an empty box is not a valid program
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_has_and_remove_measurements_inside_loop_before_unroll():
+    """Measurements inside a for/while loop must be visible before unroll() (issue #354)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    for int i in [0:1] { c[i] = measure q[i]; }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    """
+    module = loads(qasm3_string)
+    assert module.has_measurements() is True
+    module.unroll()
+    check_measure_op(module.unrolled_ast, 2, [(("q", 0), ("c", 0)), (("q", 1), ("c", 1))])
+
+    module = loads(qasm3_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+    check_measure_op(module.unrolled_ast, 0, [])
+
+    while_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    int i = 0;
+    while (i < 1) { c[0] = measure q[0]; i += 1; }
+    """
+    expected_while_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    """
+    module = loads(while_string)
+    assert module.has_measurements() is True
+    module.unroll()
+    check_measure_op(module.unrolled_ast, 1, [(("q", 0), ("c", 0))])
+
+    module = loads(while_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_while_qasm)
+    check_measure_op(module.unrolled_ast, 0, [])
+
+
+def test_has_and_remove_measurements_inside_switch_before_unroll():
+    """Measurements inside a switch case must be visible before unroll() (issue #354)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    const int i = 1;
+    qubit[1] q;
+    bit[1] c;
+    switch(i) {
+    case 1 {
+        c[0] = measure q[0];
+    }
+    default {
+        x q;
+    }
+    }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    """
+    module = loads(qasm3_string)
+    assert module.has_measurements() is True
+    module.unroll()
+    check_measure_op(module.unrolled_ast, 1, [(("q", 0), ("c", 0))])
+
+    module = loads(qasm3_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+    check_measure_op(module.unrolled_ast, 0, [])
+
+
+def test_remove_measurement_not_in_place_leaves_the_original_alone():
+    """Filtering rewrites nested bodies in place, so it must run on the returned copy."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    h q[0];
+    box {
+        c[0] = measure q[0];
+        x q[1];
+    }
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+    new_module = module.remove_measurements(in_place=False)
+
+    assert "measure" not in dumps(new_module)
+    assert "measure" in dumps(module)
+
+
 def test_init_measure():
     qasm3_string = """
     OPENQASM 3.0;
@@ -183,6 +325,37 @@ def test_standalone_measurement():
     h q[1];
     measure q[0];
     measure q[1];
+    """
+
+    module = loads(qasm3_string)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_measure_on_register_named_like_the_internal_one_is_unrolled():
+    """A user register whose name merely starts with the reserved internal register
+    name is a normal register and must be unrolled.
+
+    The internal register is matched on its exact name, or on the name followed by an
+    index or slice. Matching the bare prefix instead also swallowed registers like
+    "__PYQASM_QUBITS__foo", short-circuiting them out of unrolling so the measurement
+    was emitted verbatim rather than expanded per qubit.
+    """
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] __PYQASM_QUBITS__foo;
+    bit[2] c;
+    c = measure __PYQASM_QUBITS__foo;
+    """
+
+    expected_qasm = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] __PYQASM_QUBITS__foo;
+    bit[2] c;
+    c[0] = measure __PYQASM_QUBITS__foo[0];
+    c[1] = measure __PYQASM_QUBITS__foo[1];
     """
 
     module = loads(qasm3_string)
