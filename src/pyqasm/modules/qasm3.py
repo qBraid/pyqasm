@@ -89,4 +89,4 @@ class Qasm3Module(QasmModule):
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self._unrolled_ast.statements = final_stmt_list  # type: ignore[assignment]
+        self._unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]

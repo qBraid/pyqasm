@@ -96,12 +96,11 @@ class Qasm2Module(QasmModule):
                 self._filter_branch_body(inner_stmt)
                 continue
             if isinstance(inner_stmt, qasm3_ast.QuantumPhase):
-                # not something the user wrote: rzz/rxx decompose to a global phase, so this
-                # is only reachable by re-filtering an already-unrolled body (see issue #351)
+                # unroll-emitted phases are dropped in accept() (issue #351), so only a
+                # user-written gphase reaches this
                 raise_qasm3_error(
                     "Global phase is not representable in QASM 2.0, so it cannot appear in "
-                    "a conditional body; it is introduced by unrolling gates such as 'rzz' "
-                    "and 'rxx'",
+                    "a conditional body",
                     error_node=inner_stmt,
                     span=inner_stmt.span,
                 )
@@ -148,6 +147,46 @@ class Qasm2Module(QasmModule):
         qasm_program.version = "3.0"
         return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
+    def finalize(self, statements: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
+        """Apply the QASM 2 transformations the finalized statement list needs.
+
+        Args:
+            statements (list[Statement]): The finalized statements.
+
+        Returns:
+            list[Statement]: The statements to store as the unrolled AST.
+        """
+        return self._drop_global_phase(statements)
+
+    def _drop_global_phase(
+        self, statements: list[qasm3_ast.Statement]
+    ) -> list[qasm3_ast.Statement]:
+        """Remove QuantumPhase statements the unroller emitted (e.g. from the rzz/rxx
+        decompositions), descending into conditional bodies. OpenQASM 2 has no
+        global-phase syntax, and a global phase is unobservable, so dropping it is
+        semantically safe (issue #351)."""
+        filtered = []
+        for stmt in statements:
+            if isinstance(stmt, qasm3_ast.QuantumPhase):
+                # a controlled phase is relative, not global, and is observable; the
+                # visitor rewrites those to 'p' gates, so none should reach here
+                if stmt.modifiers:
+                    raise_qasm3_error(
+                        "Modified global phase cannot be dropped for a QASM 2 target",
+                        error_node=stmt,
+                        span=stmt.span,
+                    )
+                continue
+            if isinstance(stmt, qasm3_ast.BranchingStatement):
+                stmt.if_block = self._drop_global_phase(stmt.if_block)
+                stmt.else_block = self._drop_global_phase(stmt.else_block)
+                if not stmt.if_block and not stmt.else_block:
+                    # the body was nothing but global phase, and QASM 2 has no
+                    # form for a conditional without a qop
+                    continue
+            filtered.append(stmt)
+        return filtered
+
     def accept(self, visitor: QasmVisitor) -> None:
         """Accept a visitor for the module.
 
@@ -158,4 +197,4 @@ class Qasm2Module(QasmModule):
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self.unrolled_ast.statements = final_stmt_list  # type: ignore[assignment]
+        self.unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]
