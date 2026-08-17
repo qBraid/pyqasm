@@ -32,7 +32,7 @@ source "$TEMP_ENV_DIR/bin/activate"
 # Install the source distribution
 SCRIPT_DIR="$TARGET_PATH/bin"
 
-"$SCRIPT_DIR/install_wheel_extras.sh" "$TARGET_PATH/dist" --type sdist --extra cli --extra test --extra pulse
+"$SCRIPT_DIR/install_wheel_extras.sh" "$TARGET_PATH/dist" --type sdist --extra cli --extra test --extra test-sim --extra pulse
 
 # Print the installed version
 python -c "import pyqasm; print('Installed pyqasm version:', pyqasm.__version__)"
@@ -56,8 +56,10 @@ if [[ ${RELEASE_BUILD:-false} == "true" ]]; then
     fi
 fi
 
-# Run the tests on the installed source distribution
-pytest "$TARGET_PATH/tests"
+# Run the tests on the installed source distribution.
+# Benchmark/perf-regression tests enforce hardware-dependent time budgets and are
+# excluded from CI (see tests/test_perf_regression.py).
+pytest "$TARGET_PATH/tests" -m "not benchmark"
 
 # Deactivate and remove venv
 deactivate

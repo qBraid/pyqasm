@@ -15,6 +15,27 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added a statevector simulator as a new `pyqasm.simulator` subpackage, backed by a Cython/OpenMP-capable kernel (`pyqasm.accelerate.sv_sim`). `Simulator.run()` accepts an OpenQASM 3 string or an already-unrolled `QasmModule` and returns a `SimulatorResult` carrying the final statevector, outcome probabilities, and sampled measurement counts, all indexed little-endian to match qiskit. Ships with cross-validation tests against qiskit (`test-sim` extra), an optional `simulation` extra (numba-accelerated preprocessing helpers), and a `benchmarks/` suite. ([#316](https://github.com/qBraid/pyqasm/pull/316))
+
+  ```python
+  from pyqasm.simulator import Simulator
+
+  program = """
+  OPENQASM 3.0;
+  include "stdgates.inc";
+  qubit[2] q;
+  bit[2] c;
+  h q[0];
+  cx q[0], q[1];
+  c = measure q;
+  """
+
+  result = Simulator(seed=42).run(program, shots=1000)
+
+  print(result.measurement_counts)  # Counter({'00': 503, '11': 497})
+  print(result.final_statevector)   # [0.70710678+0.j 0.+0.j 0.+0.j 0.70710678+0.j]
+  ```
+
 - Added support for `#pragma` statements, which previously raised `ValidationError: Unsupported statement of type <class 'openqasm3.ast.Pragma'>` and blocked any program carrying one. Pragmas are now passed through `loads`/`validate`/`unroll`/`dumps` unchanged, and are printed in their `#pragma` form (the upstream printer emits the bare `pragma` keyword). A `#pragma braket verbatim` additionally marks the `box` that immediately follows it: gates inside a verbatim box are emitted as written instead of being decomposed, so verbatim submissions to Braket QPUs keep the native gates they were built with. ([#341](https://github.com/qBraid/pyqasm/pull/341))
 - Added support for the `c3x` (3-controlled X) and `rc3x`/`rcccx` (relative-phase 3-controlled X) gates, decomposed into basis gates following qiskit's `C3XGate`/`RC3XGate` definitions. Also extended the `ctrl @` modifier chain so that 3- and 4-control stacks on `x` (e.g. `ctrl @ ctrl @ ctrl @ x`, `ctrl(4) @ x`) resolve to `c3x`/`c4x`. ([#320](https://github.com/qBraid/pyqasm/pull/320))
 
