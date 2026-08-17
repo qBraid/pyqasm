@@ -22,7 +22,7 @@ from typing import Any
 from openqasm3.ast import Pragma, Program, QASMNode
 from openqasm3.printer import Printer, PrinterState
 
-from pyqasm.modules.base import QasmModule
+from pyqasm.modules.base import QasmModule, QasmVisitor
 
 
 class Qasm3Printer(Printer):
@@ -70,23 +70,23 @@ class Qasm3Module(QasmModule):
         statements (list[Statement]): list of openqasm3 Statements.
     """
 
-    def __init__(self, name: str, program: Program):
+    def __init__(self, name: str, program: Program) -> None:
         super().__init__(name, program)
         self._unrolled_ast = Program(statements=[], version="3.0")
 
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
+    def _qasm_ast_to_str(self, qasm_ast: Program) -> str:
+        """Convert the qasm AST to a string."""
         # set the version to 3.0
         qasm_ast.version = "3.0"
         return dumps(qasm_ast)
 
-    def accept(self, visitor):
-        """Accept a visitor for the module
+    def accept(self, visitor: QasmVisitor) -> None:
+        """Accept a visitor for the module.
 
         Args:
-            visitor (QasmVisitor): The visitor to accept
+            visitor (QasmVisitor): The visitor to accept.
         """
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self._unrolled_ast.statements = final_stmt_list
+        self._unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]
