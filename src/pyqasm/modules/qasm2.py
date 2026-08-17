@@ -147,6 +147,17 @@ class Qasm2Module(QasmModule):
         qasm_program.version = "3.0"
         return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
+    def finalize(self, statements: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
+        """Apply the QASM 2 transformations the finalized statement list needs.
+
+        Args:
+            statements (list[Statement]): The finalized statements.
+
+        Returns:
+            list[Statement]: The statements to store as the unrolled AST.
+        """
+        return self._drop_global_phase(statements)
+
     def _drop_global_phase(
         self, statements: list[qasm3_ast.Statement]
     ) -> list[qasm3_ast.Statement]:
@@ -186,6 +197,4 @@ class Qasm2Module(QasmModule):
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self.unrolled_ast.statements = self._drop_global_phase(  # type: ignore[assignment]
-            final_stmt_list
-        )
+        self.unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]
