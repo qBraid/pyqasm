@@ -1389,8 +1389,15 @@ class QasmVisitor:
             # Don't need to check if custom gate exists, since we just validated the call
             gate_qubit_count = len(self._custom_gates[gate_name].qubits)
         else:
-            # Ignore result, this is just for validation
-            self._visit_basic_gate_operation(operation)
+            # Ignore result, this is just for validation. Suppress depth recording so the
+            # skipped decomposition does not count; the gate's own depth is recorded
+            # below (issue #352)
+            prev_recording = self._recording_ext_gate_depth
+            self._recording_ext_gate_depth = True
+            try:
+                self._visit_basic_gate_operation(operation)
+            finally:
+                self._recording_ext_gate_depth = prev_recording
             # Don't need to check if basic gate exists, since we just validated the call
             _, gate_qubit_count = map_qasm_op_to_callable(operation)
 
@@ -1423,6 +1430,16 @@ class QasmVisitor:
 
         all_targets = self._unroll_multiple_target_qubits(operation, gate_qubit_count)
         result = self._broadcast_gate_operation(gate_function, all_targets)
+
+        # record the external gate's own depth; the custom-gate path has already done so
+        if gate_name not in self._custom_gates:
+            if not self._in_branching_statement:
+                self._update_qubit_depth_for_gate(all_targets, ctrls)
+            else:
+                for qubit_subset in all_targets + [ctrls]:
+                    for qubit in qubit_subset:
+                        qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
+                        self._mark_branch_qubit(qubit_name, qubit_idx)
 
         # check for any duplicates
         for final_gate in result:
