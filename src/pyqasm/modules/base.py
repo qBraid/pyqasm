@@ -813,6 +813,22 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """Return a deep copy of the module."""
         return deepcopy(self)
 
+    def finalize(self, statements: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
+        """Apply dialect-specific transformations to the finalized statement list.
+
+        Runs after the visitor has unrolled and finalized the program, on the
+        statements about to become the unrolled AST. The base implementation
+        returns them unchanged; a subclass overrides this when its dialect
+        cannot express something the unroller emits.
+
+        Args:
+            statements (list[Statement]): The finalized statements.
+
+        Returns:
+            list[Statement]: The statements to store as the unrolled AST.
+        """
+        return statements
+
     @abstractmethod
     def _qasm_ast_to_str(self, qasm_ast: Program) -> str:
         """Convert the qasm AST to a string."""
