@@ -57,6 +57,11 @@ Types of changes:
 - Bumped `codecov/codecov-action` from 5.5.2 to 6.0.0. ([#308](https://github.com/qBraid/pyqasm/pull/308))
 - Bumped `actions/deploy-pages` from 4 to 5. ([#309](https://github.com/qBraid/pyqasm/pull/309))
 - Updated `pillow` requirement from `<12.2.0` to `<12.3.0`. ([#310](https://github.com/qBraid/pyqasm/pull/310))
+- Updated `docutils` requirement from `<0.23` to `<0.24`. ([#319](https://github.com/qBraid/pyqasm/pull/319))
+- Bumped `codecov/codecov-action` from 6.0.0 to 7.0.0. ([#321](https://github.com/qBraid/pyqasm/pull/321))
+- Bumped `actions/checkout` from 6 to 7. ([#323](https://github.com/qBraid/pyqasm/pull/323))
+- Updated `pillow` requirement from `<12.3.0` to `<12.4.0`. ([#324](https://github.com/qBraid/pyqasm/pull/324))
+- Bumped `actions/setup-python` from 6 to 7. ([#328](https://github.com/qBraid/pyqasm/pull/328))
 
 ### Other
 
