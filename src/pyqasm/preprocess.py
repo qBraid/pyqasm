@@ -46,7 +46,41 @@ PATTERNS = {
         r'^\s*include\s+"(?:stdgates\.inc|qelib1\.inc)";\s*', re.MULTILINE
     ),
     "include": re.compile(r'^\s*include\s+"([^"]+)";\s*', re.MULTILINE),
+    # OPENQASM 2 only. Captures indent, name, the parenthesised parameter list if any,
+    # and the qubit list: "opaque Rz(lam) q;", "opaque ZZ() q1,q2;", "opaque zz q1,q2;"
+    "opaque": re.compile(
+        r"^([ \t]*)opaque\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\([^)]*\))?\s*([^;{}]*?)\s*;",
+        re.MULTILINE,
+    ),
+    "openqasm2": re.compile(r"^\s*OPENQASM\s+2(?:\.\d+)?;", re.MULTILINE),
 }
+
+
+def rewrite_opaque_declarations(program: str) -> tuple[str, set[str]]:
+    """Rewrite OpenQASM 2 ``opaque`` declarations into gate definitions with empty bodies.
+
+    The ``openqasm3`` parser pyqasm routes qasm2 through has no production for ``opaque``,
+    so this runs before parsing. The empty body carries the gate's name and arity only,
+    which is all an opaque gate has (issue #370). Gated on the qasm2 header, since
+    ``opaque`` is not OpenQASM 3 syntax.
+
+    Args:
+        program (str): The OpenQASM program text.
+
+    Returns:
+        tuple[str, set[str]]: The rewritten program, and the names declared opaque.
+    """
+    if not PATTERNS["openqasm2"].search(program):
+        return program, set()
+
+    names: set[str] = set()
+
+    def _replace(match: re.Match) -> str:
+        indent, name, params, qubits = match.groups()
+        names.add(name)
+        return f"{indent}gate {name}{params or ''} {qubits} {{ }}"
+
+    return PATTERNS["opaque"].sub(_replace, program), names
 
 
 def process_include_statements(filename: str, include_dir: str | None = None) -> str:
