@@ -711,6 +711,44 @@ def test_external_basic_gate_counts_own_depth():
     assert result.depth() == 1
 
 
+NESTED_EXTERNAL_GATE_DEPTH = """
+OPENQASM 3.0;
+include "stdgates.inc";
+gate inner a, b { crz(0.5) a, b; }
+gate outer a, b { inner a, b; h a; }
+qubit[2] q;
+outer q[0], q[1];
+"""
+
+
+@pytest.mark.parametrize("external_gates", [["outer"], ["inner", "outer"]])
+def test_nested_external_custom_gate_counts_own_depth(external_gates):
+    """An external custom gate whose body calls another custom gate emits one statement,
+    so it counts as depth 1. The two parametrizations failed differently before the fix:
+    13 and 2 respectively (issue #367)."""
+    result = loads(NESTED_EXTERNAL_GATE_DEPTH)
+    result.unroll(external_gates=external_gates)
+    assert len(result.unrolled_ast.statements) == 3  # OPENQASM, include, outer
+    assert result.depth() == 1
+
+
+def test_nested_custom_gate_depth_unchanged_without_external_gates():
+    """The nested shape still decomposes fully when nothing is external, so the flag
+    handling cannot silently suppress ordinary depth counting."""
+    result = loads(NESTED_EXTERNAL_GATE_DEPTH)
+    result.unroll()
+    assert result.depth() == 13
+
+
+def test_inner_external_gate_records_depth_inside_plain_custom_gate():
+    """Only the outermost external gate is skipped, so an inner one still records its own
+    depth when the enclosing gate is not external."""
+    result = loads(NESTED_EXTERNAL_GATE_DEPTH)
+    result.unroll(external_gates=["inner"])
+    # inner counts once on q[0], q[1], then `h a` adds one more on q[0]
+    assert result.depth() == 2
+
+
 def test_external_basic_gate_depth_with_neighbours():
     """External gate depth composes with surrounding gates like any single gate"""
     qasm3_string = """
