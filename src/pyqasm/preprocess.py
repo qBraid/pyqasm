@@ -56,6 +56,40 @@ PATTERNS = {
 }
 
 
+def _blank_comments(program: str) -> str:
+    """Overwrite `//` and `/* */` comments with spaces, keeping length and line breaks.
+
+    Offsets in the result line up with the input, so a pattern can be matched against
+    code alone and the match spans still index the original text.
+
+    Args:
+        program (str): The OpenQASM program text.
+
+    Returns:
+        str: The text with comment characters replaced by spaces.
+    """
+    out = list(program)
+    idx, end = 0, len(program)
+    in_line = in_block = False
+    while idx < end:
+        char, following = program[idx], program[idx + 1 : idx + 2]
+        if in_line:
+            in_line = char != "\n"
+            out[idx] = char if char == "\n" else " "
+        elif in_block:
+            in_block = not (char == "*" and following == "/")
+            out[idx] = char if char == "\n" else " "
+            if not in_block:
+                out[idx + 1] = " "
+                idx += 1
+        elif char == "/" and following in ("/", "*"):
+            in_line, in_block = following == "/", following == "*"
+            out[idx] = out[idx + 1] = " "
+            idx += 1
+        idx += 1
+    return "".join(out)
+
+
 def rewrite_opaque_declarations(program: str) -> tuple[str, set[str]]:
     """Rewrite OpenQASM 2 ``opaque`` declarations into gate definitions with empty bodies.
 
@@ -70,17 +104,23 @@ def rewrite_opaque_declarations(program: str) -> tuple[str, set[str]]:
     Returns:
         tuple[str, set[str]]: The rewritten program, and the names declared opaque.
     """
-    if not PATTERNS["openqasm2"].search(program):
+    # match against code only, so a declaration commented out with `//` or `/* */` is
+    # neither rewritten nor recorded
+    code = _blank_comments(program)
+    if not PATTERNS["openqasm2"].search(code):
         return program, set()
 
     names: set[str] = set()
-
-    def _replace(match: re.Match) -> str:
+    pieces, cursor = [], 0
+    for match in PATTERNS["opaque"].finditer(code):
         indent, name, params, qubits = match.groups()
         names.add(name)
-        return f"{indent}gate {name}{params or ''} {qubits} {{ }}"
+        pieces.append(program[cursor : match.start()])
+        pieces.append(f"{indent}gate {name}{params or ''} {qubits} {{ }}")
+        cursor = match.end()
+    pieces.append(program[cursor:])
 
-    return PATTERNS["opaque"].sub(_replace, program), names
+    return "".join(pieces), names
 
 
 def process_include_statements(filename: str, include_dir: str | None = None) -> str:
