@@ -1287,24 +1287,6 @@ class QasmVisitor:
             error_node=statement,
         )
 
-    def _raise_recursive_gate_error(self, gate_op: qasm3_ast.QuantumGate) -> None:
-        """Report a cyclic gate definition, naming the cycle it closes (issue #369).
-
-        Args:
-            gate_op (QuantumGate): The call in the gate body that closes the cycle.
-
-        Raises:
-            ValidationError: Always.
-        """
-        gate_name = gate_op.name.name
-        cycle = self._gate_expansion_chain[self._gate_expansion_chain.index(gate_name) :]
-        raise_qasm3_error(
-            f"Recursive definitions not allowed for gate '{gate_name}' "
-            f"({' -> '.join(cycle + [gate_name])})",
-            error_node=gate_op,
-            span=gate_op.span,
-        )
-
     def _visit_custom_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
@@ -1377,7 +1359,17 @@ class QasmVisitor:
                         isinstance(gate_op, qasm3_ast.QuantumGate)
                         and gate_op.name.name in self._gate_expansion_chain
                     ):
-                        self._raise_recursive_gate_error(gate_op)
+                        # name the cycle the call closes, e.g. (a -> b -> a)
+                        called = gate_op.name.name
+                        cycle = self._gate_expansion_chain[
+                            self._gate_expansion_chain.index(called) :
+                        ] + [called]
+                        raise_qasm3_error(
+                            f"Recursive definitions not allowed for gate '{called}' "
+                            f"({' -> '.join(cycle)})",
+                            error_node=gate_op,
+                            span=gate_op.span,
+                        )
                     Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
                     Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
                     # need to trickle the inverse down to the child gates
