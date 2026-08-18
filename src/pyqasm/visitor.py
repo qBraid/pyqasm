@@ -124,6 +124,9 @@ class QasmVisitor:
         self._function_qreg_transform_map: deque = deque([])  # for nested functions
         self._global_creg_size_map: dict[str, int] = {}
         self._custom_gates: dict[str, qasm3_ast.QuantumGateDefinition] = {}
+        # gates currently being expanded, outermost first; a name reappearing on it is a
+        # cycle of any length between gate definitions (issue #369)
+        self._gate_expansion_chain: list[str] = []
         self._external_gates: list[str] = [] if external_gates is None else external_gates
         self._subroutine_defns: dict[
             str, qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
@@ -1338,40 +1341,58 @@ class QasmVisitor:
         # Pause recording the depth of new gates because we are processing the
         # definition of a custom gate here - handle the depth separately afterwards.
         # A verbatim gate is emitted as written, so it counts once, like an external gate.
-        self._recording_ext_gate_depth = self._in_verbatim_box or gate_name in self._external_gates
+        # 'or', not '=': a nested gate must stay suppressed inside an enclosing external
+        # gate rather than re-enable recording for the body its parent skips (issue #367)
+        prev_recording = self._recording_ext_gate_depth
+        is_external = self._in_verbatim_box or gate_name in self._external_gates
+        self._recording_ext_gate_depth = prev_recording or is_external
 
         result = []
-        for gate_op in gate_definition_ops:
-            if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
-                gate_op_copy = copy.deepcopy(gate_op)
-                # necessary to avoid modifying the original gate definition
-                # in case the gate is reapplied
-                if isinstance(gate_op, qasm3_ast.QuantumGate) and gate_op.name.name == gate_name:
+        self._gate_expansion_chain.append(gate_name)
+        try:
+            for gate_op in gate_definition_ops:
+                if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
+                    gate_op_copy = copy.deepcopy(gate_op)
+                    # necessary to avoid modifying the original gate definition
+                    # in case the gate is reapplied
+                    if (
+                        isinstance(gate_op, qasm3_ast.QuantumGate)
+                        and gate_op.name.name in self._gate_expansion_chain
+                    ):
+                        # name the cycle the call closes, e.g. (a -> b -> a)
+                        called = gate_op.name.name
+                        cycle = self._gate_expansion_chain[
+                            self._gate_expansion_chain.index(called) :
+                        ] + [called]
+                        raise_qasm3_error(
+                            f"Recursive definitions not allowed for gate '{called}' "
+                            f"({' -> '.join(cycle)})",
+                            error_node=gate_op,
+                            span=gate_op.span,
+                        )
+                    Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
+                    Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
+                    # need to trickle the inverse down to the child gates
+                    if inverse:
+                        # span doesn't matter as we don't analyze it
+                        gate_op_copy.modifiers.append(
+                            qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)
+                        )
+                    result.extend(self._visit_generic_gate_operation(gate_op_copy, ctrls))
+                else:
+                    # TODO: add control flow support
                     raise_qasm3_error(
-                        f"Recursive definitions not allowed for gate '{gate_name}'",
+                        f"Unsupported statement in gate definition '{type(gate_op).__name__}'",
                         error_node=gate_op,
                         span=gate_op.span,
                     )
-                Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
-                Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
-                # need to trickle the inverse down to the child gates
-                if inverse:
-                    # span doesn't matter as we don't analyze it
-                    gate_op_copy.modifiers.append(
-                        qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)
-                    )
-                result.extend(self._visit_generic_gate_operation(gate_op_copy, ctrls))
-            else:
-                # TODO: add control flow support
-                raise_qasm3_error(
-                    f"Unsupported statement in gate definition '{type(gate_op).__name__}'",
-                    error_node=gate_op,
-                    span=gate_op.span,
-                )
+        finally:
+            self._gate_expansion_chain.pop()
+            self._recording_ext_gate_depth = prev_recording
 
-        # Update the depth only once for the entire custom gate
-        if self._recording_ext_gate_depth:
-            self._recording_ext_gate_depth = False
+        # Update the depth once for the whole gate, from the outermost external gate only:
+        # an inner one is already covered by its parent's single count
+        if is_external and not prev_recording:
             if not self._in_branching_statement:  # if custom gate is not in branching statement
                 self._update_qubit_depth_for_gate([op_qubits], ctrls)
             else:
