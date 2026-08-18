@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added an `include_dir` kwarg to `loads()` and `load()`, naming the directory custom `include` statements resolve against. A program given as a string could not resolve includes at all, and failed later naming the gate rather than the include. Resolution is opt-in: without the kwarg, no files are read. ([#368](https://github.com/qBraid/pyqasm/issues/368))
 
 ### Improved / Modified
 

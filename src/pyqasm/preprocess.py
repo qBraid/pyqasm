@@ -31,6 +31,8 @@ class IncludeContext:
     include_stdgates: bool = False
     include_qelib1: bool = False
     visited: set[str] = field(default_factory=set)
+    # directory to resolve includes against, tried before the including file's own
+    include_dir: str | None = None
 
 
 PATTERNS = {
@@ -47,13 +49,15 @@ PATTERNS = {
 }
 
 
-def process_include_statements(filename: str) -> str:
+def process_include_statements(filename: str, include_dir: str | None = None) -> str:
     """
     Recursively processes include statements in an OpenQASM file, replacing them with the
     contents of the included files. Handles circular includes and missing files.
 
     Args:
         filename (str): The path to the OpenQASM file to process.
+        include_dir (str | None): Directory to resolve includes against, tried before the
+            directory of the including file.
 
     Returns:
         str: The fully include-resolved program content.
@@ -62,40 +66,73 @@ def process_include_statements(filename: str) -> str:
         FileNotFoundError: If an included file cannot be found.
         ValidationError: If a circular include is detected.
     """
-    # Generate context for include processing
-    ctx = IncludeContext()
-
     with open(filename, "r", encoding="utf-8") as f:
         program = f.read()
 
+    return _inline_includes(program, filename, include_dir)
+
+
+def process_include_sources(program: str, include_dir: str) -> str:
+    """
+    Resolve the include statements of a program held as a string, against a directory the
+    caller names.
+
+    A string has no filesystem location of its own to resolve relative includes against,
+    so ``include_dir`` supplies one (issue #368).
+
+    Args:
+        program (str): The OpenQASM program text.
+        include_dir (str): Directory holding the include files.
+
+    Returns:
+        str: The fully include-resolved program content.
+
+    Raises:
+        ValidationError: If an include is not found in the directory, or is circular.
+    """
+    return _inline_includes(program, None, include_dir)
+
+
+def _inline_includes(program: str, origin: str | None, include_dir: str | None) -> str:
+    """
+    Inline the include statements of a program, from either a file or a string.
+
+    Args:
+        program (str): The OpenQASM program text.
+        origin (str | None): The path the text was read from, or None for a string.
+        include_dir (str | None): Directory to resolve includes against.
+
+    Returns:
+        str: The fully include-resolved program content.
+    """
+    ctx = IncludeContext(include_dir=include_dir)
     _collect_headers(ctx, program)
 
     # Return program and let entrypoint handle error if missing OPENQASM line
     if len(ctx.base_file_header) == 0 or "OPENQASM" not in ctx.base_file_header[0]:
         return program
 
-    # Recursively process and replace includes in-line
-    result = _process_file(ctx, filename)
+    if origin is not None:
+        ctx.visited.add(os.path.basename(origin))  # Mark as visited to avoid looping
 
-    # Return processed file with original header
+    # bind first: the walk appends to base_file_header when it meets a std include
+    # inside an included file
+    result = _process_source(ctx, program, origin)
+
+    # Return processed program with original header
     return "\n".join(ctx.base_file_header) + "\n\n" + result
 
 
 def _process_file(ctx: IncludeContext, filepath: str) -> str:
     """
-    Process a single file, replacing include statements with the contents of the included files
-    recursively.
+    Read a file and inline its own include statements recursively.
 
     Args:
         ctx (IncludeContext): The context for processing includes.
         filepath (str): The path to the file to process.
 
     Returns:
-        str: The fully include-resolved program content.
-
-    Raises:
-        FileNotFoundError: If an included file cannot be found.
-        ValidationError: If a circular include is detected.
+        str: The fully include-resolved file content, empty if already included.
     """
     filename = os.path.basename(filepath)
     if filename in ctx.visited:
@@ -105,6 +142,27 @@ def _process_file(ctx: IncludeContext, filepath: str) -> str:
         program = f.read()
 
     ctx.visited.add(filename)  # Mark as visited to avoid looping
+    return _process_source(ctx, program, filepath)
+
+
+def _process_source(ctx: IncludeContext, program: str, origin: str | None) -> str:
+    """
+    Replace the include statements in one source with the contents of the included files.
+
+    Args:
+        ctx (IncludeContext): The context for processing includes.
+        program (str): The text of the source to process.
+        origin (str | None): The path the text was read from, or None for a string.
+
+    Returns:
+        str: The fully include-resolved program content.
+
+    Raises:
+        FileNotFoundError: If an included file cannot be found.
+        ValidationError: If a circular include is detected, or an include cannot be
+            resolved for a program given as a string.
+    """
+    filename = os.path.basename(origin) if origin is not None else None
     new_program_lines = []
 
     for idx, line in enumerate(program.splitlines()):
@@ -113,19 +171,22 @@ def _process_file(ctx: IncludeContext, filepath: str) -> str:
         if match:
             include_filename = match.group(1)
             # Check for circular imports
-            if include_filename.strip() == filename.strip():
+            if filename is not None and include_filename.strip() == filename.strip():
                 col = line.index(include_filename) + 1
                 raise ValidationError(
                     f"Circular include detected for file '{include_filename}'"
                     f" at line {idx + 1}, column {col}: '{line.strip()}'"
                 )
             # Find valid path to included file
-            include_path = _resolve_include_path(filepath, include_filename)
+            include_path = _resolve_include_path(origin, include_filename, ctx.include_dir)
             if include_path is None:
-                raise FileNotFoundError(
-                    f"Include file '{include_filename}' not found at line "
-                    f"{idx+1}, column {line.find(include_filename)+1}"
-                )
+                where = f"at line {idx + 1}, column {line.find(include_filename) + 1}"
+                if origin is None:  # a string can only have come from include_dir
+                    raise ValidationError(
+                        f"Include file '{include_filename}' not found in include_dir "
+                        f"'{ctx.include_dir}' {where}: '{line.strip()}'"
+                    )
+                raise FileNotFoundError(f"Include file '{include_filename}' not found {where}")
             # Recursively process include statements within the included file
             included_content = _process_file(ctx, include_path)
             new_program_lines.append(included_content)
@@ -137,7 +198,7 @@ def _process_file(ctx: IncludeContext, filepath: str) -> str:
             ):
                 new_program_lines.append(line)
 
-    # Join and save cleaned content for this file
+    # Join and save cleaned content for this source
     cleaned = "\n".join(new_program_lines)
     return cleaned  # return the fully inlined program
 
@@ -162,18 +223,27 @@ def _check_for_std_includes(ctx: IncludeContext, line: str) -> None:
         ctx.base_file_header.append('include "qelib1.inc";')
 
 
-def _resolve_include_path(base_file: str, file_to_include: str) -> str | None:
+def _resolve_include_path(
+    base_file: str | None, file_to_include: str, include_dir: str | None = None
+) -> str | None:
     """
     Resolve the include path for a given file.
 
     Args:
-        base_file (str): The base file from which the include is being made.
+        base_file (str | None): The file the include is made from, or None for a string.
         file_to_include (str): The file to include.
+        include_dir (str | None): Directory to try before the base file's own.
 
     Returns:
         str | None: The resolved include path, or None if not found.
     """
-    possible_paths = [os.path.join(os.path.dirname(base_file), file_to_include), file_to_include]
+    possible_paths = []
+    if include_dir is not None:
+        possible_paths.append(os.path.join(include_dir, file_to_include))
+    if base_file is not None:
+        # a string has no directory of its own, and must not fall back to the cwd
+        possible_paths += [os.path.join(os.path.dirname(base_file), file_to_include)]
+        possible_paths += [file_to_include]
     for path in possible_paths:
         if os.path.isfile(path):
             return path
