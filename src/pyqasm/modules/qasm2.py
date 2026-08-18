@@ -143,8 +143,7 @@ class Qasm2Module(QasmModule):
             str | Qasm3Module: The module in openqasm3 format.
         """
         if self._opaque_gates:
-            # an opaque gate is carried as a body-less gate definition, which OpenQASM 3
-            # reads as the identity -- refuse rather than silently change the program
+            # OpenQASM 3 removed `opaque` from the language
             raise ValidationError(
                 "Cannot convert to OpenQASM 3: the program declares the opaque gate(s) "
                 f"{', '.join(sorted(self._opaque_gates))}. OpenQASM 3 removed 'opaque' and "

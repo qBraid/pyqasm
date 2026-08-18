@@ -82,6 +82,36 @@ def test_opaque_declaration_forms(declaration, name):
     assert module._opaque_gates == {name}
 
 
+@pytest.mark.parametrize(
+    "commented",
+    [
+        "// opaque hidden q;",
+        "  //opaque hidden q;",
+        "/* opaque hidden q; */",
+        "/*\nopaque hidden q;\n*/",
+    ],
+)
+def test_commented_out_opaque_is_not_declared(commented):
+    """The rewrite runs on source text, so it must see code only. A declaration inside a
+    `//` or `/* */` comment is neither rewritten nor recorded -- recording it would make
+    a real gate of that name be emitted as written instead of unrolled."""
+    module = loads(f'OPENQASM 2.0;\ninclude "qelib1.inc";\n{commented}\nqreg q[1];\nh q[0];\n')
+    module.unroll()
+    assert not module._opaque_gates
+    assert "h q[0];" in dumps(module)
+
+
+def test_opaque_declaration_with_a_trailing_comment():
+    """Blanking comments must not disturb the declaration they sit beside."""
+    module = loads(
+        'OPENQASM 2.0;\ninclude "qelib1.inc";\n'
+        "opaque ZZ() a,b; // the native two-qubit gate\nqreg q[2];\nZZ q[0],q[1];\n"
+    )
+    module.unroll()
+    assert module._opaque_gates == {"ZZ"}
+    assert "ZZ q[0], q[1];" in dumps(module)
+
+
 def test_opaque_gate_is_emitted_as_written():
     """An opaque gate has no decomposition, so unrolling emits the call unchanged."""
     expected_qasm_str = """

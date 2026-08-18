@@ -200,8 +200,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._validated_program = False
         self._unrolled_ast = Program(statements=[])
         self._external_gates: list[str] = []
-        # declared `opaque` in the source: a property of the program, not of one unroll()
-        # call, so unroll() never flushes these the way it flushes _external_gates
+        # declared `opaque` in the source, so unroll() never flushes these
         self._opaque_gates: set[str] = set()
         self._decompose_native_gates: Optional[bool] = None
         self._device_qubits: Optional[int] = None
