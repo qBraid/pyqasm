@@ -124,6 +124,9 @@ class QasmVisitor:
         self._function_qreg_transform_map: deque = deque([])  # for nested functions
         self._global_creg_size_map: dict[str, int] = {}
         self._custom_gates: dict[str, qasm3_ast.QuantumGateDefinition] = {}
+        # gates currently being expanded, outermost first; a name reappearing on it is a
+        # cycle of any length between gate definitions (issue #369)
+        self._gate_expansion_chain: list[str] = []
         self._external_gates: list[str] = [] if external_gates is None else external_gates
         self._subroutine_defns: dict[
             str, qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
@@ -1284,6 +1287,24 @@ class QasmVisitor:
             error_node=statement,
         )
 
+    def _raise_recursive_gate_error(self, gate_op: qasm3_ast.QuantumGate) -> None:
+        """Report a cyclic gate definition, naming the cycle it closes (issue #369).
+
+        Args:
+            gate_op (QuantumGate): The call in the gate body that closes the cycle.
+
+        Raises:
+            ValidationError: Always.
+        """
+        gate_name = gate_op.name.name
+        cycle = self._gate_expansion_chain[self._gate_expansion_chain.index(gate_name) :]
+        raise_qasm3_error(
+            f"Recursive definitions not allowed for gate '{gate_name}' "
+            f"({' -> '.join(cycle + [gate_name])})",
+            error_node=gate_op,
+            span=gate_op.span,
+        )
+
     def _visit_custom_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
@@ -1345,6 +1366,7 @@ class QasmVisitor:
         self._recording_ext_gate_depth = prev_recording or is_external
 
         result = []
+        self._gate_expansion_chain.append(gate_name)
         try:
             for gate_op in gate_definition_ops:
                 if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
@@ -1353,13 +1375,9 @@ class QasmVisitor:
                     # in case the gate is reapplied
                     if (
                         isinstance(gate_op, qasm3_ast.QuantumGate)
-                        and gate_op.name.name == gate_name
+                        and gate_op.name.name in self._gate_expansion_chain
                     ):
-                        raise_qasm3_error(
-                            f"Recursive definitions not allowed for gate '{gate_name}'",
-                            error_node=gate_op,
-                            span=gate_op.span,
-                        )
+                        self._raise_recursive_gate_error(gate_op)
                     Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
                     Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
                     # need to trickle the inverse down to the child gates
@@ -1377,6 +1395,7 @@ class QasmVisitor:
                         span=gate_op.span,
                     )
         finally:
+            self._gate_expansion_chain.pop()
             self._recording_ext_gate_depth = prev_recording
 
         # Update the depth once for the whole gate, from the outermost external gate only:
