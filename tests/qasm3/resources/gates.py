@@ -484,6 +484,57 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         12,
         "custom_gate(a, b) p, q;",
     ),
+    # A cycle of length two between gate definitions used to exhaust the Python stack
+    # with a bare RecursionError, because the guard compared a single name (issue #369)
+    "indirect_recursive_definition": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        gate gate_a(a) p{
+            gate_b(a) p;
+        }
+
+        gate gate_b(a) p{
+            gate_a(a) p;
+        }
+
+        qubit[1] q1;
+        gate_a(0.5) q1;
+        """,
+        r"Recursive definitions not allowed for gate 'gate_a' \(gate_a -> gate_b -> gate_a\)",
+        10,
+        12,
+        "gate_a(a) p;",
+    ),
+    "three_gate_recursive_definition": (
+        """
+        OPENQASM 3;
+        include "stdgates.inc";
+
+        gate gate_a(a) p{
+            gate_b(a) p;
+        }
+
+        gate gate_b(a) p{
+            gate_c(a) p;
+        }
+
+        gate gate_c(a) p{
+            gate_a(a) p;
+        }
+
+        qubit[1] q1;
+        gate_a(0.5) q1;
+        """,
+        (
+            r"Recursive definitions not allowed for gate 'gate_a' "
+            r"\(gate_a -> gate_b -> gate_c -> gate_a\)"
+        ),
+        14,
+        12,
+        "gate_a(a) p;",
+    ),
     "duplicate_definition": (
         """
         OPENQASM 3;
