@@ -95,10 +95,10 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           # cibuildwheel is designed to build wheels for multiple Python versions. 
           # It does this by downloading and using the appropriate Python versions internally, 
@@ -136,10 +136,10 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -164,9 +164,9 @@ jobs:
             python: 311
             platform_id: macosx_arm64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: 3.11
           cache: pip
@@ -185,7 +185,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.python == 311 }}
-        uses: codecov/codecov-action@v6.0.0
+        uses: codecov/codecov-action@v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
