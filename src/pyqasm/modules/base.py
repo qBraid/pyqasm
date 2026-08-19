@@ -183,7 +183,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
     Args:
         name (str): Name of the module.
         program (Program): The original openqasm3 program.
-        statements (list[Statement]): list of openqasm3 Statements.
     """
 
     def __init__(self, name: str, program: Program):
