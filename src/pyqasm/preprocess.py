@@ -53,6 +53,10 @@ PATTERNS = {
         re.MULTILINE,
     ),
     "openqasm2": re.compile(r"^\s*OPENQASM\s+2(?:\.\d+)?;", re.MULTILINE),
+    # a string literal, a `//` line comment, or a `/* */` block comment (unterminated
+    # one included). The string alternative comes first so a `//` inside an include path
+    # is consumed as a string and never mistaken for a comment.
+    "string_or_comment": re.compile(r'"[^"\n]*"|//[^\n]*|/\*.*?(?:\*/|\Z)', re.DOTALL),
 }
 
 
@@ -69,26 +73,13 @@ def _blank_comments(program: str) -> str:
     Returns:
         str: The text with comment characters replaced by spaces.
     """
-    out = list(program)
-    idx, end = 0, len(program)
-    in_line = in_block = False
-    while idx < end:
-        char, following = program[idx], program[idx + 1 : idx + 2]
-        if in_line:
-            in_line = char != "\n"
-            out[idx] = char if char == "\n" else " "
-        elif in_block:
-            in_block = not (char == "*" and following == "/")
-            out[idx] = char if char == "\n" else " "
-            if not in_block:
-                out[idx + 1] = " "
-                idx += 1
-        elif char == "/" and following in ("/", "*"):
-            in_line, in_block = following == "/", following == "*"
-            out[idx] = out[idx + 1] = " "
-            idx += 1
-        idx += 1
-    return "".join(out)
+
+    def blank(match: re.Match) -> str:
+        text = match.group()
+        # keep string literals as they are; only comments are blanked
+        return text if text.startswith('"') else re.sub(r"[^\n]", " ", text)
+
+    return PATTERNS["string_or_comment"].sub(blank, program)
 
 
 def rewrite_opaque_declarations(program: str) -> tuple[str, set[str]]:

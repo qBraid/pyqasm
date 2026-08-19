@@ -101,6 +101,15 @@ def test_commented_out_opaque_is_not_declared(commented):
     assert "h q[0];" in dumps(module)
 
 
+@pytest.mark.parametrize("path", ["dir//lib.inc", "dir/*x*/lib.inc"])
+def test_comment_markers_inside_a_string_are_not_blanked(path):
+    """Blanking runs over source text, so a `//` or `/*` inside an include path must be
+    recognised as a string and left alone -- blanking it would truncate the statement."""
+    module = loads(f'OPENQASM 2.0;\ninclude "{path}";\nqreg q[1];\nh q[0];\n')
+    module.unroll()
+    assert f'include "{path}";' in dumps(module)
+
+
 def test_opaque_declaration_with_a_trailing_comment():
     """Blanking comments must not disturb the declaration they sit beside."""
     module = loads(
