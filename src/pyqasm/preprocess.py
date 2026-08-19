@@ -57,10 +57,11 @@ PATTERNS = {
 
 
 def _blank_comments(program: str) -> str:
-    """Overwrite `//` and `/* */` comments with spaces, keeping length and line breaks.
+    """Overwrite `//` and `/* */` comments with spaces.
 
-    Offsets in the result line up with the input, so a pattern can be matched against
-    code alone and the match spans still index the original text.
+    Blanked rather than deleted so line and column numbers are unchanged: the parser
+    reports spans against this text, and deleting a comment would shift every position
+    after it.
 
     Args:
         program (str): The OpenQASM program text.
@@ -98,29 +99,28 @@ def rewrite_opaque_declarations(program: str) -> tuple[str, set[str]]:
     which is all an opaque gate has (issue #370). Gated on the qasm2 header, since
     ``opaque`` is not OpenQASM 3 syntax.
 
+    Comments are blanked first, so a declaration commented out with ``/* */`` is neither
+    rewritten nor recorded. The result goes straight to the parser, which discards
+    comments anyway.
+
     Args:
         program (str): The OpenQASM program text.
 
     Returns:
         tuple[str, set[str]]: The rewritten program, and the names declared opaque.
     """
-    # match against code only, so a declaration commented out with `//` or `/* */` is
-    # neither rewritten nor recorded
     code = _blank_comments(program)
     if not PATTERNS["openqasm2"].search(code):
         return program, set()
 
     names: set[str] = set()
-    pieces, cursor = [], 0
-    for match in PATTERNS["opaque"].finditer(code):
+
+    def _replace(match: re.Match) -> str:
         indent, name, params, qubits = match.groups()
         names.add(name)
-        pieces.append(program[cursor : match.start()])
-        pieces.append(f"{indent}gate {name}{params or ''} {qubits} {{ }}")
-        cursor = match.end()
-    pieces.append(program[cursor:])
+        return f"{indent}gate {name}{params or ''} {qubits} {{ }}"
 
-    return "".join(pieces), names
+    return PATTERNS["opaque"].sub(_replace, code), names
 
 
 def process_include_statements(filename: str, include_dir: str | None = None) -> str:
