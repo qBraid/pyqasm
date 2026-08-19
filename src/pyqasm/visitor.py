@@ -2725,8 +2725,7 @@ class QasmVisitor:
             statement (WhileLoop): The while-loop AST node.
 
         Returns:
-            list[Statement]: The list of unrolled statements from the while-loop, or an
-                empty list if self._check_only is True.
+            list[Statement]: The list of unrolled statements from the while-loop.
 
         Raises:
             ValidationError: If loop condition is non-classical or dynamic.
@@ -3122,9 +3121,10 @@ class QasmVisitor:
         still copied to the output, where the consumer applies it to whatever comes next.
 
         Args:
-            statement (qasm3_ast.Pragma): The Pragma node to visit.
+            statement (Pragma): The Pragma node to visit.
         Returns:
-            list[qasm3_ast.Pragma]: The pragma, unmodified.
+            list[Pragma]: The pragma, unmodified, or an empty list
+                if self._check_only is True.
         """
         logger.debug("Visiting pragma '%s'", statement.command)
         if self._is_verbatim_pragma(statement):
