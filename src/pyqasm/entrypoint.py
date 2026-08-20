@@ -27,7 +27,7 @@ import openqasm3
 from pyqasm.exceptions import ValidationError
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
-from pyqasm.preprocess import process_include_statements
+from pyqasm.preprocess import process_include_sources, process_include_statements
 
 if TYPE_CHECKING:
     import openqasm3.ast
@@ -42,6 +42,9 @@ _LOADS_KWARG_ATTRS = {
     "frame_limit_per_port": "_frame_limit_per_port",
     "play_in_cal_block": "_play_in_cal",
 }
+
+# kwargs consumed by the entrypoint itself rather than stored on the module
+_PREPROCESS_KWARGS = ("include_dir",)
 
 # kwargs that must be positive when given; an explicit None counts as not given
 _POSITIVE_KWARGS = (
@@ -65,9 +68,14 @@ def _validate_kwargs(kwargs: dict, func: str = "loads") -> None:
             a real number.
         ValueError: If a positive-only kwarg is zero or negative.
     """
-    unknown = sorted(set(kwargs) - set(_LOADS_KWARG_ATTRS))
+    unknown = sorted(set(kwargs) - set(_LOADS_KWARG_ATTRS) - set(_PREPROCESS_KWARGS))
     if unknown:
         raise TypeError(f"{func}() got unexpected keyword argument(s): {', '.join(unknown)}")
+    include_dir = kwargs.get("include_dir")
+    if include_dir is not None and not isinstance(include_dir, str):
+        raise TypeError(
+            f"{func}() kwarg 'include_dir' must be a path, got {type(include_dir).__name__}"
+        )
     for name in _POSITIVE_KWARGS:
         value = kwargs.get(name)
         if value is None:
@@ -86,11 +94,13 @@ def load(filename: str, **kwargs) -> QasmModule:
         filename (str): The filename of the OpenQASM program to validate.
 
         **kwargs: Forwarded to :func:`loads`; see it for the supported names.
+            ``include_dir`` is consumed here, and is tried before the directory of the
+            including file.
 
     Raises:
         TypeError: If ``filename`` is not a string, or if an unrecognized keyword
             argument is passed.
-        FileNotFoundError: If the file does not exist.
+        FileNotFoundError: If the file does not exist, or an included file is not found.
         ValueError: If a numeric keyword argument is zero or negative.
         ValidationError: If the program fails parsing or semantic validation.
 
@@ -104,7 +114,8 @@ def load(filename: str, **kwargs) -> QasmModule:
         raise FileNotFoundError(f"QASM file '{filename}' not found.")
     # validate here as well so the message names load(), the function the caller invoked
     _validate_kwargs(kwargs, func="load")
-    program = process_include_statements(filename)
+    # consumed here, so loads() does not walk the already-inlined program again
+    program = process_include_statements(filename, kwargs.pop("include_dir", None))
     return loads(program, **kwargs)
 
 
@@ -130,6 +141,12 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
             - **play_in_cal_block** (bool): Whether to allow play in defcal.
 
+            - **include_dir** (str): Directory holding the program's custom include files.
+              A program given as a string has no filesystem location of its own, so this
+              is the only way to resolve its includes. Omit it and custom includes are
+              left unresolved and passed through, as before; pass it and an include the
+              directory does not hold raises a ``ValidationError`` naming it.
+
             Passing an explicit ``None`` for any of these means "not passed": the
             module default is kept. Pass ``False`` to turn off a boolean kwarg.
 
@@ -137,21 +154,32 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         TypeError: If the input is not a string or an `openqasm3.ast.Program` instance,
             if an unrecognized keyword argument is passed, or if a numeric keyword
             argument is not a real number.
-        ValueError: If a numeric keyword argument is zero or negative.
-        ValidationError: If the program fails parsing or semantic validation.
+        ValueError: If a numeric keyword argument is zero or negative, or if
+            ``include_dir`` is passed with an already-parsed `openqasm3.ast.Program`.
+        ValidationError: If the program fails parsing or semantic validation, or if a
+            custom include is not found in ``include_dir``.
 
     Returns:
         QasmModule: An object containing the parsed qasm representation along with
             some useful metadata and methods
     """
     _validate_kwargs(kwargs)
+    include_dir = kwargs.pop("include_dir", None)
     if isinstance(program, str):
+        if include_dir is not None:
+            program = process_include_sources(program, include_dir)
         try:
             program = openqasm3.parse(program)
         except openqasm3.parser.QASM3ParsingError as err:
             raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
+    elif include_dir is not None:
+        # a parsed Program has no include statements left to resolve
+        raise ValueError(
+            "loads() kwarg 'include_dir' needs the program as a string; an "
+            "'openqasm3.ast.Program' has already been parsed."
+        )
     if program.version not in SUPPORTED_QASM_VERSIONS:
         raise ValidationError(
             f"Unsupported OpenQASM version: {program.version}. "
