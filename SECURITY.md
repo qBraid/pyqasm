@@ -2,9 +2,12 @@
 
 ## Supported Versions
 
-qBraid actively supports security updates for the most recent minor release of
-`pyqasm`. Older minor versions receive fixes only where an issue is judged severe
-and a straightforward backport exists.
+qBraid actively supports security updates for the latest minor release line of `pyqasm`:
+the most recent `MAJOR.MINOR` version together with every patch release within it. For
+example, if the current release is `1.2.3`, then `1.2.x` is supported and `1.1.x` is not.
+
+Older minor lines receive fixes only where an issue is judged severe and a straightforward
+backport exists.
 
 ## Reporting a Vulnerability
 
