@@ -41,6 +41,35 @@ Source code for OpenQASM 3 program validator and semantic analyzer
 | ComplexType                    | ✅          | Completed              |
 | AngleType                      | ✅          | Completed              |
 | ExternDeclaration              | ✅          | Completed              |
+| opaque (OpenQASM 2 only)       | ✅          | Emitted as written     |
+
+## Opaque gates
+
+`opaque NAME(params) qubits;` is OpenQASM 2 syntax that was removed in OpenQASM 3. It
+declares a hardware primitive: a gate with a name and an arity and no decomposition.
+Quantinuum's `hqslib1.inc` opens with six of them.
+
+pyqasm rewrites the declaration before parsing and records the name, so `validate()`,
+`depth()`, `has_measurements()` and the qubit-renumbering passes all work. A call to an
+opaque gate is emitted as written rather than unrolled, and counts as one layer of depth,
+exactly as an external gate does. `unroll()` never drops that treatment: unlike
+`external_gates`, which the caller sets per call, an opaque gate is a property of the
+program and has no decomposition to fall back on.
+
+Two things to know:
+
+- **The declaration is not re-emitted.** Unrolling drops it, the same way it drops the
+  `gate` definition of an external gate, so the output carries calls to a gate it does
+  not declare and does not load back into pyqasm on its own.
+- **`opaque` in an OpenQASM 3 program is still a parse error.** The rewrite is gated on
+  the `OPENQASM 2` header, because the keyword is not OpenQASM 3 syntax.
+- **`rebase()` reports it as unsupported.** An opaque primitive has no decomposition, so
+  it cannot be rewritten onto a standard basis set; it reaches the existing
+  unsupported-gate path and is named there.
+- **`to_qasm3()` refuses a program that declares one.** OpenQASM 3 removed `opaque` and
+  has no equivalent for a gate with no decomposition, and a body-less `gate` in
+  OpenQASM 3 means the identity — so converting would silently turn each hardware
+  primitive into a no-op.
 
 ## Pragmas
 

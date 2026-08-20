@@ -135,9 +135,20 @@ class Qasm2Module(QasmModule):
             as_str (bool): Flag to indicate if the conversion should be to a string
                 or to a Qasm3Module object. Default is False.
 
+        Raises:
+            ValidationError: If the program declares an `opaque` gate. OpenQASM 3 removed
+                `opaque` and has no equivalent, so there is no correct translation.
+
         Returns:
             str | Qasm3Module: The module in openqasm3 format.
         """
+        if self._opaque_gates:
+            # OpenQASM 3 removed `opaque` from the language
+            raise ValidationError(
+                "Cannot convert to OpenQASM 3: the program declares the opaque gate(s) "
+                f"{', '.join(sorted(self._opaque_gates))}. OpenQASM 3 removed 'opaque' and "
+                "has no equivalent for a gate with no decomposition."
+            )
         qasm_program = deepcopy(self._original_program)
         # replace the include with stdgates.inc
         for stmt in qasm_program.statements:
