@@ -25,10 +25,10 @@ requests, or discussions.
 
 ### Vulnerabilities in dependencies
 
-`pyqasm` reaches third-party quantum SDKs through optional extras. If you are reporting an
-issue that originates in one of those upstream packages rather than in `pyqasm` itself,
-please report it upstream as well, and tell us here so we can assess whether users are
-exposed through a path this package creates and advise them accordingly.
+If an issue originates in an upstream dependency rather than in `pyqasm` itself, whether a
+direct dependency or one reached through an optional extra, please report it to that
+project as well and tell us here. We will assess whether users are exposed through a path
+this package creates, and advise them accordingly.
 
 ### What to expect
 
