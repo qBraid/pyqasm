@@ -29,6 +29,7 @@ Types of changes:
 ### Dependencies
 
 ### Other
+- Added a `SECURITY.md` with a private vulnerability disclosure path. There was no documented way to report one, leaving a public issue or a guessed email address as the only options. Reports now go through this repository's GitHub security advisory form. ([#383](https://github.com/qBraid/pyqasm/pull/383))
 
 ## Past Release Notes
 
