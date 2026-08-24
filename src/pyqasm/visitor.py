@@ -135,6 +135,7 @@ class QasmVisitor:
         self._unroll_barriers: bool = unroll_barriers
         self._recording_ext_gate_depth = False
         self._in_branching_statement: int = 0
+        self._loop_depth: int = 0
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
         self._measurement_set: set[str] = set()
@@ -1276,12 +1277,42 @@ class QasmVisitor:
         return result
 
     def _visit_break(self, statement: qasm3_ast.BreakStatement) -> None:
+        """Visit a break statement by raising the signal its enclosing loop catches.
+
+        Args:
+            statement (BreakStatement): The break statement to visit.
+
+        Raises:
+            BreakSignal: Always, when inside a loop.
+            ValidationError: If the statement appears outside any loop.
+        """
+        if self._loop_depth <= 0:
+            raise_qasm3_error(
+                "'break' statement outside of loop",
+                error_node=statement,
+                span=statement.span,
+            )
         raise_qasm3_error(
             err_type=BreakSignal,
             error_node=statement,
         )
 
     def _visit_continue(self, statement: qasm3_ast.ContinueStatement) -> None:
+        """Visit a continue statement by raising the signal its enclosing loop catches.
+
+        Args:
+            statement (ContinueStatement): The continue statement to visit.
+
+        Raises:
+            ContinueSignal: Always, when inside a loop.
+            ValidationError: If the statement appears outside any loop.
+        """
+        if self._loop_depth <= 0:
+            raise_qasm3_error(
+                "'continue' statement outside of loop",
+                error_node=statement,
+                span=statement.span,
+            )
         raise_qasm3_error(
             err_type=ContinueSignal,
             error_node=statement,
@@ -2333,6 +2364,27 @@ class QasmVisitor:
         self._scope_manager.increment_scope_level()
         self._in_branching_statement += 1
 
+        try:
+            return self._visit_branching_statement_body(statement)
+        except LoopControlSignal:
+            # Undo what this frame pushed, then re-raise for the enclosing loop.
+            # visit_basic_block has already attached the branch body's statements.
+            self._scope_manager.decrement_scope_level()
+            self._scope_manager.pop_scope()
+            self._scope_manager.restore_context()
+            self._in_branching_statement -= 1
+            if not self._in_branching_statement:
+                self._update_branching_gate_depths()
+            raise
+
+    def _visit_branching_statement_body(
+        self, statement: qasm3_ast.BranchingStatement
+    ) -> list[qasm3_ast.Statement]:
+        """Body of :meth:`_visit_branching_statement`.
+
+        Split out so the caller can wrap it in a ``try/except LoopControlSignal``
+        that still pops the scope it pushed when a ``break``/``continue`` raises.
+        """
         result = []
         condition = statement.condition
 
@@ -2499,39 +2551,56 @@ class QasmVisitor:
 
         result = []
         statement_block = None
-        for ival in irange:
-            self._scope_manager.push_context(Context.BLOCK)
-            self._scope_manager.push_scope({})
+        self._loop_depth += 1
+        try:
+            for ival in irange:
+                self._scope_manager.push_context(Context.BLOCK)
+                self._scope_manager.push_scope({})
 
-            # Initialize loop variable in loop scope
-            # need to re-declare as we discard the block scope in subsequent
-            # iterations of the loop
-            result.extend(
-                self._visit_classical_declaration(
-                    qasm3_ast.ClassicalDeclaration(statement.type, statement.identifier, init_exp)
+                # Initialize loop variable in loop scope
+                # need to re-declare as we discard the block scope in subsequent
+                # iterations of the loop
+                result.extend(
+                    self._visit_classical_declaration(
+                        qasm3_ast.ClassicalDeclaration(
+                            statement.type, statement.identifier, init_exp
+                        )
+                    )
                 )
-            )
-            i = self._scope_manager.get_from_visible_scope(statement.identifier.name)
+                i = self._scope_manager.get_from_visible_scope(statement.identifier.name)
 
-            # Update scope with current value of loop Variable
-            if i is not None:
-                i.value = ival
-                self._scope_manager.update_var_in_scope(i)
+                # Update scope with current value of loop Variable
+                if i is not None:
+                    i.value = ival
+                    self._scope_manager.update_var_in_scope(i)
 
-            if statement_block != statement.block:
-                statement_block = copy.deepcopy(statement.block)
-                result.extend(self.visit_basic_block(statement_block))
-            else:
-                result.extend(self.visit_basic_block(statement.block))
+                try:
+                    if statement_block != statement.block:
+                        statement_block = copy.deepcopy(statement.block)
+                        result.extend(self.visit_basic_block(statement_block))
+                    else:
+                        result.extend(self.visit_basic_block(statement.block))
+                except LoopControlSignal as lcs:
+                    # Keep what this iteration emitted before the break/continue.
+                    result.extend(lcs.partial_result)
+                    self._scope_manager.pop_scope()
+                    self._scope_manager.restore_context()
+                    if self._check_only:
+                        return []
+                    if lcs.signal_type == "break":
+                        break
+                    continue
 
-            # scope not persistent between loop iterations
-            self._scope_manager.pop_scope()
-            self._scope_manager.restore_context()
+                # scope not persistent between loop iterations
+                self._scope_manager.pop_scope()
+                self._scope_manager.restore_context()
 
-            # as we are only checking compile time errors
-            # not runtime errors, we can break here
-            if self._check_only:
-                return []
+                # as we are only checking compile time errors
+                # not runtime errors, we can break here
+                if self._check_only:
+                    return []
+        finally:
+            self._loop_depth -= 1
         return result
 
     def _visit_subroutine_definition(
@@ -2746,35 +2815,46 @@ class QasmVisitor:
                 span=statement.span,
             )
 
-        while True:
-            cond_value = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)[0]
-            if not cond_value:
-                break
+        self._loop_depth += 1
+        try:
+            while True:
+                cond_value = Qasm3ExprEvaluator.evaluate_expression(statement.while_condition)[0]
+                if not cond_value:
+                    break
 
-            self._scope_manager.push_context(Context.BLOCK)
-            self._scope_manager.push_scope({})
+                # Checked once the condition is known true, so exactly
+                # `max_iterations` iterations may complete - matching the bound
+                # `_visit_forin_loop` applies to its range length.
+                if loop_counter >= max_iterations:
+                    raise_qasm3_error(
+                        "Loop exceeded max allowed iterations",
+                        err_type=LoopLimitExceededError,
+                        error_node=statement,
+                        span=statement.span,
+                    )
 
-            try:
-                result.extend(self.visit_basic_block(statement.block))
-            except LoopControlSignal as lcs:
+                self._scope_manager.push_context(Context.BLOCK)
+                self._scope_manager.push_scope({})
+
+                signal_type: Optional[str] = None
+                try:
+                    result.extend(self.visit_basic_block(statement.block))
+                except LoopControlSignal as lcs:
+                    # Keep what this iteration emitted before the break/continue.
+                    result.extend(lcs.partial_result)
+                    signal_type = lcs.signal_type
+
                 self._scope_manager.pop_scope()
                 self._scope_manager.restore_context()
-                if lcs.signal_type == "break":
+
+                if signal_type == "break":
                     break
-                if lcs.signal_type == "continue":
-                    continue
 
-            self._scope_manager.pop_scope()
-            self._scope_manager.restore_context()
-
-            loop_counter += 1
-            if loop_counter >= max_iterations:
-                raise_qasm3_error(
-                    "Loop exceeded max allowed iterations",
-                    err_type=LoopLimitExceededError,
-                    error_node=statement,
-                    span=statement.span,
-                )
+                # Counted on the `continue` path too, or `while (cond) { continue; }`
+                # never reaches the limit.
+                loop_counter += 1
+        finally:
+            self._loop_depth -= 1
 
         return result
 
@@ -2935,15 +3015,36 @@ class QasmVisitor:
         #    each element in the list of the values
         #    should be of const int type and no duplicates should be present
 
-        def _evaluate_case(statements):
+        def _evaluate_case(
+            statements: list[qasm3_ast.Statement],
+        ) -> list[qasm3_ast.Statement]:
+            """Visit one case body in its own scope.
+
+            Args:
+                statements: The statements making up the case body.
+
+            Returns:
+                list[Statement]: The unrolled statements of the case body.
+
+            Raises:
+                LoopControlSignal: Re-raised on a ``break``/``continue`` bound for an
+                    enclosing loop, carrying the statements emitted so far.
+            """
             # can not put 'context' outside
             # BECAUSE the case expression CAN CONTAIN VARS from global scope
             self._scope_manager.push_context(Context.BLOCK)
             self._scope_manager.push_scope({})
             result = []
-            for stmt in statements:
-                Qasm3Validator.validate_statement_type(SWITCH_BLACKLIST_STMTS, stmt, "switch")
-                result.extend(self.visit_statement(stmt))
+            try:
+                for stmt in statements:
+                    Qasm3Validator.validate_statement_type(SWITCH_BLACKLIST_STMTS, stmt, "switch")
+                    result.extend(self.visit_statement(stmt))
+            except LoopControlSignal as lcs:
+                # Carry this case body's statements up to the enclosing loop.
+                lcs.partial_result = result + list(lcs.partial_result)
+                self._scope_manager.pop_scope()
+                self._scope_manager.restore_context()
+                raise
 
             self._scope_manager.pop_scope()
             self._scope_manager.restore_context()
@@ -3526,10 +3627,19 @@ class QasmVisitor:
 
         Returns:
             list[Statement]: The list of unrolled statements.
+
+        Raises:
+            LoopControlSignal: Re-raised on a nested ``break``/``continue``, with
+                this block's statements attached to ``partial_result``.
         """
-        result = []
+        result: list[qasm3_ast.Statement] = []
         for stmt in stmt_list:
-            result.extend(self.visit_statement(stmt))
+            try:
+                result.extend(self.visit_statement(stmt))
+            except LoopControlSignal as lcs:
+                # This block's statements precede those from deeper blocks.
+                lcs.partial_result = result + list(lcs.partial_result)
+                raise
         return result
 
     def finalize(self, unrolled_stmts: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
