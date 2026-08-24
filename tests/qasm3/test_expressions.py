@@ -17,6 +17,9 @@ Module containing unit tests for expressions.
 
 """
 
+import math
+import re
+
 import pytest
 
 from pyqasm.analyzer import bits_to_int, int_to_bits
@@ -231,3 +234,104 @@ def test_bit_register_op_result_stays_bit_type():
     text = dumps(module)
     assert "c = a | b" in text
     assert "d = c & a" in text
+
+
+# ---------------------------------------------------------------------------
+# Issue #390 — built-in constant expression functions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "call,expected",
+    [
+        ("exp(1.0)", math.e),
+        ("log(2.0)", math.log(2.0)),
+        ("ceiling(1.2)", 2.0),
+        ("floor(1.8)", 1.0),
+        ("mod(7, 2)", 1),
+        ("popcount(37)", 3),
+        ("sqrt(4.0)", 2.0),
+    ],
+)
+def test_builtin_function_in_const_and_gate_argument(call, expected):
+    """Each built-in evaluates identically in a ``const`` initializer and inline
+    as a gate argument."""
+    module = loads(f"""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        qubit[1] q;
+        const float[64] c = {call};
+        rx(c) q[0];
+        rx({call}) q[0];
+        """)
+    module.unroll()
+    check_single_qubit_rotation_op(module.unrolled_ast, 2, [0, 0], [expected, expected], "rx")
+
+
+@pytest.mark.parametrize("amount", [0, 1, 3, 8, 11, -3])
+def test_bit_rotation_preserves_width_and_direction(amount):
+    """``rotl(a, n) == rotr(a, -n)``, both in and out of a ``const`` initializer, and
+    both keep the operand's declared width."""
+    module = loads(f"""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        qubit[1] q;
+        bit[8] left = rotl("00101010", {amount});
+        bit[8] right = rotr("00101010", {-amount});
+        const bit[8] const_left = rotl("00101010", {amount});
+        const bit[8] const_right = rotr("00101010", {-amount});
+        rx(const_left) q[0];
+        rx(const_right) q[0];
+        """)
+    module.unroll()
+    source, shift = "00101010", amount % 8
+    expected = source[shift:] + source[:shift]
+    left, right = re.findall(r'= "(\d+)";', dumps(module))
+    assert left == right == expected
+    assert len(left) == 8
+    rotated = int(expected, 2)
+    check_single_qubit_rotation_op(module.unrolled_ast, 2, [0, 0], [rotated, rotated], "rx")
+
+
+def test_rotation_on_uint_uses_declared_width():
+    """A ``uint[n]`` operand carries no width at evaluation time, so the width is
+    recovered from its declaration."""
+    module = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        qubit[1] q;
+        const uint[8] u = 37;
+        rx(rotl(u, 3)) q[0];
+        rx(rotr(u, -3)) q[0];
+        """)
+    module.unroll()
+    check_single_qubit_rotation_op(module.unrolled_ast, 2, [0, 0], [41, 41], "rx")
+
+
+@pytest.mark.parametrize(
+    "call,message",
+    [
+        ("sqrt(2.0, 3.0)", r"Function 'sqrt' expects 1 argument\(s\), but 2 were given"),
+        ("mod(7)", r"Function 'mod' expects 2 argument\(s\), but 1 were given"),
+        ('rotl("1010")', r"Function 'rotl' expects 2 argument\(s\), but 1 were given"),
+        ('ceiling("01")', r"Invalid argument for function 'ceiling'"),
+        ('rotl("1010", 1.5)', r"Invalid argument for function 'rotl'"),
+        ("popcount(1.5)", r"Invalid argument for function 'popcount'"),
+        ("rotl(37, 3)", r"Function 'rotl' expects a 'bit\[n\]' or 'uint\[n\]' operand"),
+        ("nosuchfn(2.0)", r"Undefined subroutine 'nosuchfn' was called"),
+    ],
+)
+def test_builtin_function_errors_name_the_function(call, message):
+    """An unknown name, a wrong arity, or a wrong argument type names the offending
+    function instead of only reporting a generic initialization failure."""
+    with pytest.raises(ValidationError, match=message):
+        loads(f"OPENQASM 3.0;\nconst float[64] c = {call};").validate()
+
+
+def test_pow_function_is_parse_blocked_and_power_operator_works():
+    """``pow`` is ambiguous with the gate modifier of the same name, so ``openqasm3``
+    rejects the call before pyqasm sees it. Upstream removed ``pow`` from the spec
+    (openqasm/openqasm#635); ``**`` is the supported spelling."""
+    with pytest.raises(ValidationError, match="Failed to parse OpenQASM string"):
+        loads("OPENQASM 3.0;\nconst int c = pow(2, 3);")
+    loads("OPENQASM 3.0;\nconst int c = 2 ** 3;").validate()

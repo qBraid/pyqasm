@@ -17,7 +17,7 @@ Module mapping supported QASM expressions to lower level gate operations.
 
 """
 
-from typing import Callable
+from typing import Any, Callable
 
 import numpy as np
 from openqasm3.ast import (
@@ -243,16 +243,53 @@ TIME_UNITS_MAP: dict[str, dict[str, float]] = {
     "s": {"ns": 1_000_000_000, "s": 1},
 }
 
-# Function map for complex functions
-FUNCTION_MAP = {
-    "abs": np.abs,
-    "real": lambda v: v.real if isinstance(v, complex) else v,
-    "imag": lambda v: v.imag if isinstance(v, complex) else v,
-    "sqrt": np.sqrt,
-    "sin": np.sin,
-    "cos": np.cos,
-    "tan": np.tan,
-    "arccos": np.arccos,
-    "arcsin": np.arcsin,
-    "arctan": np.arctan,
+
+def _popcount(value: Any) -> int:
+    """Count the set bits of a ``bit[n]`` / ``uint[n]`` value."""
+    if isinstance(value, str):
+        value = int(value, 2) if value else 0
+    if not isinstance(value, (int, np.integer)) or value < 0:
+        raise TypeError("expected a non-negative 'bit[n]' or 'uint[n]' operand")
+    return int(value).bit_count()
+
+
+def _rotl(value: BitValue, amount: Any) -> BitValue:
+    """Rotate ``value`` left by ``amount`` bits, preserving its width."""
+    if not isinstance(amount, (int, np.integer)):
+        # Reject a non-integral rotation amount rather than silently truncating it.
+        raise TypeError("rotation amount must be an integer")
+    width = value.width
+    if width == 0:
+        return value
+    shift = int(amount) % width
+    return BitValue((int(value) << shift) | (int(value) >> (width - shift)), width)
+
+
+# Functions whose first operand must carry a register width; see ``rotl`` / ``rotr``.
+BIT_ROTATION_FUNCTIONS = frozenset({"rotl", "rotr"})
+
+# Built-in constant expression functions, mapped to their implementation and arity.
+# Reference: https://openqasm.com/language/types.html#built-in-constant-expression-functions
+# ``pow`` is absent by design: it is ambiguous with the gate modifier of the same name,
+# so ``openqasm3`` cannot parse ``pow(a, b)`` as a call. Upstream removed it from the
+# spec (openqasm/openqasm#635); use the ``**`` operator instead.
+FUNCTION_MAP: dict[str, tuple[Callable[..., Any], int]] = {
+    "abs": (np.abs, 1),
+    "real": (lambda v: v.real if isinstance(v, complex) else v, 1),
+    "imag": (lambda v: v.imag if isinstance(v, complex) else v, 1),
+    "sqrt": (np.sqrt, 1),
+    "sin": (np.sin, 1),
+    "cos": (np.cos, 1),
+    "tan": (np.tan, 1),
+    "arccos": (np.arccos, 1),
+    "arcsin": (np.arcsin, 1),
+    "arctan": (np.arctan, 1),
+    "exp": (np.exp, 1),
+    "log": (np.log, 1),
+    "ceiling": (np.ceil, 1),
+    "floor": (np.floor, 1),
+    "mod": (np.mod, 2),
+    "popcount": (_popcount, 1),
+    "rotl": (_rotl, 2),
+    "rotr": (lambda v, n: _rotl(v, -n), 2),
 }

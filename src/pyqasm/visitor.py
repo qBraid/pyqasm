@@ -51,6 +51,7 @@ from pyqasm.elements import (
 from pyqasm.exceptions import (
     BreakSignal,
     ContinueSignal,
+    FunctionCallError,
     LoopControlSignal,
     LoopLimitExceededError,
     ValidationError,
@@ -609,13 +610,14 @@ class QasmVisitor:
         return _valid_statements
 
     def _handle_function_init_expression(
-        self, expression: qasm3_ast.FunctionCall, init_value: Any
+        self, expression: qasm3_ast.FunctionCall, init_value: Any, base_type: Any = None
     ) -> None | qasm3_ast.Expression:
         """Handle function initialization expression.
 
         Args:
             expression (FunctionCall): The statement to handle function initialization expression.
             init_value (Any): The value to handle function initialization expression.
+            base_type (Any): The declared type of the assignment target, if known.
 
         Returns:
             None | Expression: The resultant expression if
@@ -624,8 +626,15 @@ class QasmVisitor:
         if isinstance(expression, qasm3_ast.FunctionCall):
             func_name = expression.name.name
             if func_name in FUNCTION_MAP:
-                if isinstance(init_value, (float, int)):
-                    return qasm3_ast.FloatLiteral(init_value)
+                # ``BitValue`` is an ``int`` subclass, so it must be matched first.
+                if isinstance(init_value, BitValue):
+                    if isinstance(base_type, qasm3_ast.BitType):
+                        return qasm3_ast.BitstringLiteral(int(init_value), init_value.width)
+                    return qasm3_ast.IntegerLiteral(int(init_value))
+                if isinstance(init_value, (int, np.integer)):
+                    return qasm3_ast.IntegerLiteral(int(init_value))
+                if isinstance(init_value, (float, np.floating)):
+                    return qasm3_ast.FloatLiteral(float(init_value))
         return None
 
     def _handle_extern_function_cleanup(
@@ -1891,7 +1900,9 @@ class QasmVisitor:
 
         if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
             statement.init_expression = (
-                self._handle_function_init_expression(statement.init_expression, init_value)
+                self._handle_function_init_expression(
+                    statement.init_expression, init_value, base_type
+                )
                 or statement.init_expression
             )
         self._handle_extern_function_cleanup(statements, statement)
@@ -2136,7 +2147,9 @@ class QasmVisitor:
 
         if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
             statement.init_expression = (
-                self._handle_function_init_expression(statement.init_expression, init_value)
+                self._handle_function_init_expression(
+                    statement.init_expression, init_value, base_type
+                )
                 or statement.init_expression
             )
 
@@ -2321,7 +2334,7 @@ class QasmVisitor:
 
         if isinstance(statement.rvalue, qasm3_ast.FunctionCall):
             statement.rvalue = (
-                self._handle_function_init_expression(statement.rvalue, rvalue_eval)
+                self._handle_function_init_expression(statement.rvalue, rvalue_eval, lvar_base_type)
                 or statement.rvalue
             )
 
@@ -2675,6 +2688,7 @@ class QasmVisitor:
                 return None, []
             raise_qasm3_error(
                 f"Undefined subroutine '{fn_name}' was called",
+                err_type=FunctionCallError,
                 error_node=statement,
                 span=statement.span,
             )

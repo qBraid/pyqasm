@@ -17,6 +17,8 @@ Types of changes:
 ### Added
 - Negative indices are now honored across arrays, `bit[n]`, `qubit[n]`, and `let` aliases, including ranges: `myArray[-1]`, `a[-1] = 10`, `h q[-1]`, `bit c = b[-1]`, `let last_three = two[-4:-1]`. An index still outside `[-size, size)` after normalization raises `ValidationError` and names the index as written. ([#391](https://github.com/qBraid/pyqasm/issues/391))
 
+- Added the built-in constant expression functions `ceiling`, `floor`, `exp`, `log`, `mod`, `popcount`, `rotl`, and `rotr`, each usable in a `const` initializer and as a gate argument. `rotl` and `rotr` preserve the operand's declared width, so `rotl(a, n) == rotr(a, -n)`. An unknown function name, a wrong argument count, or a wrong argument type now names the function instead of reporting only `Invalid initialization value`. `pow` is deliberately excluded: it is ambiguous with the gate modifier of the same name, and upstream removed it from the spec in [openqasm/openqasm#635](https://github.com/openqasm/openqasm/pull/635), leaving `**` as the supported spelling. ([#390](https://github.com/qBraid/pyqasm/issues/390))
+
 ### Improved / Modified
 
 ### Deprecated
