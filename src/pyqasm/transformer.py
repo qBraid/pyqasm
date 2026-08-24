@@ -48,7 +48,7 @@ from openqasm3.ast import (
     UnaryOperator,
 )
 
-from pyqasm.elements import INTERNAL_QUBIT_REGISTER, Variable
+from pyqasm.elements import INTERNAL_QUBIT_REGISTER, OperandGroups, Variable
 from pyqasm.exceptions import raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps.expressions import VARIABLE_TYPE_MAP
@@ -163,6 +163,30 @@ class Qasm3Transformer:
             end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=op_node
         )
         return list(range(start_qid, end_qid, step))
+
+    @staticmethod
+    def drop_leading_qubits(groups: OperandGroups, count: int) -> OperandGroups:
+        """Drop the first ``count`` resolved qubits, keeping operand boundaries.
+
+        A boundary landing inside a register splits that group, so the surviving
+        tail stays a usable operand: ``ctrl @ x q2`` consumes ``q2[0]`` as the
+        control and leaves ``[[q2[1]]]`` as the target.
+
+        Args:
+            groups (OperandGroups): The resolved qubits, grouped by operand.
+            count (int): How many qubits to drop from the front.
+
+        Returns:
+            OperandGroups: The remaining groups, in order.
+        """
+        remaining: OperandGroups = []
+        for group in groups:
+            if count >= len(group):
+                count -= len(group)
+            else:
+                remaining.append(group[count:])
+                count = 0
+        return remaining
 
     @staticmethod
     def transform_gate_qubits(

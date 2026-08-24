@@ -358,7 +358,7 @@ def test_duplicate_qubit_broadcast():
     OPENQASM 3.0;
     include "stdgates.inc";
     qubit[3] q;
-    
+
     cx q[0], q[1], q[1], q[2];"""
 
     module = loads(qasm3_string)

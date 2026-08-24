@@ -39,6 +39,7 @@ from openqasm3.ast import (
     UnaryExpression,
 )
 
+from pyqasm.elements import QubitRef
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
 
 if TYPE_CHECKING:
@@ -287,6 +288,26 @@ class Qasm3Analyzer:
             return (qubit.name, int(qubit.name[1:]))
         assert isinstance(qubit, IndexedIdentifier)
         return (qubit.name.name, qubit.indices[0][0].value)  # type: ignore
+
+    @staticmethod
+    def extract_operand_name(group: list[QubitRef]) -> str:
+        """Return the register (or physical qubit) name behind a resolved operand.
+
+        Every qubit in a group comes from one source-level operand and so shares a
+        name; the first suffices. Used to name operands in error messages.
+
+        Args:
+            group (list[QubitRef]): The resolved qubits of a single operand.
+
+        Returns:
+            str: The operand's name, or "<empty>" if the group holds no qubits.
+        """
+        if not group:
+            return "<empty>"
+        first = group[0]
+        if isinstance(first, Identifier):
+            return first.name
+        return first.name.name
 
     @staticmethod
     def verify_gate_qubits(gate: QuantumGate, span: Optional[Span] = None):

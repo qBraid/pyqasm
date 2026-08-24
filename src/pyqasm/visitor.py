@@ -41,7 +41,9 @@ from pyqasm.elements import (
     Context,
     Frame,
     InversionOp,
+    OperandGroups,
     QubitDepthNode,
+    QubitRef,
     Variable,
     Waveform,
     is_internal_qubit_register,
@@ -290,14 +292,19 @@ class QasmVisitor:
             return []
         return [register]
 
-    # pylint: disable-next=too-many-locals,too-many-branches,too-many-statements
     def _get_op_bits(
         self,
         operation: Any,
         qubits: bool = True,
         function_qubit_sizes: Optional[dict[str, int]] = None,
-    ) -> list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]:
+    ) -> list[QubitRef]:
         """Get the quantum / classical bits for the operation.
+
+        Returns a *flat* list; operand boundaries are collapsed. Callers that
+        need to preserve which resolved qubit came from which source-level
+        operand (for OpenQASM 3 broadcasting semantics) must use
+        :meth:`_get_op_bits_per_operand` instead.
+
         Args:
             operation (Any): The operation to get qubits for.
             qubits (bool): Whether the bits are quantum bits or classical bits. Defaults to True.
@@ -305,7 +312,34 @@ class QasmVisitor:
             list[IndexedIdentifier | Identifier]: The quantum or classical bits for the operation,
                 or an empty list if check_only is true.
         """
-        openqasm_bits: list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier] = []
+        groups = self._get_op_bits_per_operand(operation, qubits, function_qubit_sizes)
+        return [bit for group in groups for bit in group]
+
+    # pylint: disable-next=too-many-locals,too-many-branches,too-many-statements
+    def _get_op_bits_per_operand(
+        self,
+        operation: Any,
+        qubits: bool = True,
+        function_qubit_sizes: Optional[dict[str, int]] = None,
+    ) -> OperandGroups:
+        """Resolve each source-level operand of ``operation`` into its own qubit list.
+
+        Preserving per-operand boundaries is required for OpenQASM 3 gate
+        broadcasting: element-wise register operands must be zipped, single-qubit
+        operands repeated, and mismatched register lengths reported. Flattening
+        (as :meth:`_get_op_bits` does) hides that boundary.
+
+        Args:
+            operation (Any): The operation whose operands to resolve.
+            qubits (bool): Whether the bits are quantum bits or classical bits. Defaults to True.
+            function_qubit_sizes (dict[str, int] | None): Optional map used when
+                resolving qubits inside a nested function scope.
+
+        Returns:
+            list[list[IndexedIdentifier | Identifier]]: One inner list per source-level
+                operand, each holding the resolved single-qubit references.
+        """
+        operand_groups: OperandGroups = []
         bit_list = []
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
@@ -315,20 +349,26 @@ class QasmVisitor:
                 assert operation.target is not None
                 bit_list = [operation.target]
         elif isinstance(operation, qasm3_ast.QuantumPhase) and operation.qubits is None:
+            # A bare `gphase(x)` applies to every declared qubit; each register is its
+            # own operand. The original code built generator objects here rather than
+            # lists, which no caller ever consumed as such.
             for reg_name, reg_size in self._global_qreg_size_map.items():
-                bit_list.append(
-                    qasm3_ast.IndexedIdentifier(
-                        qasm3_ast.Identifier(reg_name), [[qasm3_ast.IntegerLiteral(i)]]
-                    )
-                    for i in range(reg_size)
+                operand_groups.append(
+                    [
+                        qasm3_ast.IndexedIdentifier(
+                            qasm3_ast.Identifier(reg_name), [[qasm3_ast.IntegerLiteral(i)]]
+                        )
+                        for i in range(reg_size)
+                    ]
                 )
-            return bit_list
+            return operand_groups
         else:
             bit_list = (
                 operation.qubits if isinstance(operation.qubits, list) else [operation.qubits]
             )
 
         for bit in bit_list:
+            openqasm_bits: list[QubitRef] = []
             # required for each bit
             if isinstance(bit, qasm3_ast.IndexedIdentifier):
                 reg_name = bit.name.name
@@ -348,6 +388,7 @@ class QasmVisitor:
                 self._register_physical_qubit(reg_name)
                 # Keep as an Identifier so it serialises as "$0" rather than "$0[0]".
                 openqasm_bits.append(qasm3_ast.Identifier(reg_name))
+                operand_groups.append(openqasm_bits)
                 continue
 
             max_register_size = 0
@@ -409,8 +450,9 @@ class QasmVisitor:
                 for bit_id in bit_ids
             ]
             openqasm_bits.extend(new_bits)
+            operand_groups.append(openqasm_bits)
 
-        return openqasm_bits
+        return operand_groups
 
     def _check_variable_type_size(
         self, statement: qasm3_ast.Statement, var_name: str, var_format: str, base_type: Any
@@ -1040,37 +1082,128 @@ class QasmVisitor:
 
         return []
 
+    @staticmethod
+    def _broadcast_operand_groups(
+        operand_groups: OperandGroups,
+        operation: qasm3_ast.QuantumGate,
+    ) -> OperandGroups:
+        """Apply OpenQASM 3 element-wise broadcasting across per-operand qubit groups.
+
+        Every register operand (length > 1) must share the same length ``n``; the
+        gate is emitted ``n`` times, taking element ``i`` from each register operand
+        and repeating single-qubit operands unchanged. With no register operands
+        exactly one application is emitted. Register operands whose sizes differ
+        raise :class:`ValidationError` naming the mismatched operands.
+
+        See https://openqasm.com/versions/3.1/language/gates.html#broadcasting.
+        """
+        # Width shared by every register operand; 0 until the first one is seen.
+        width = 0
+        first: list[QubitRef] = []
+        for group in operand_groups:
+            if len(group) <= 1:
+                continue
+            if not width:
+                first, width = group, len(group)
+            elif len(group) != width:
+                raise_qasm3_error(
+                    f"Register operands broadcast to different sizes for gate "
+                    f"'{operation.name.name}': operand "
+                    f"'{Qasm3Analyzer.extract_operand_name(first)}' (size {width}) and operand "
+                    f"'{Qasm3Analyzer.extract_operand_name(group)}' (size {len(group)}). "
+                    f"All register operands must share the same length.",
+                    error_node=operation,
+                    span=operation.span,
+                )
+
+        if not width:
+            return [[group[0] for group in operand_groups]]
+
+        return [
+            [group[i] if len(group) > 1 else group[0] for group in operand_groups]
+            for i in range(width)
+        ]
+
     def _unroll_multiple_target_qubits(
-        self, operation: qasm3_ast.QuantumGate, gate_qubit_count: int
-    ) -> list[list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]]:
-        """Unroll the complete list of all qubits that the given operation is applied to.
-            E.g. this maps 'cx q[0], q[1], q[2], q[3]' to [[q[0], q[1]], [q[2], q[3]]]
+        self,
+        operation: qasm3_ast.QuantumGate,
+        gate_qubit_count: int,
+        operand_groups: Optional[OperandGroups] = None,
+    ) -> OperandGroups:
+        """Expand ``operation`` into the per-application target qubit lists.
+
+        Dispatch is ordered so that a single input matches at most one rule; the
+        first rule that fits wins.
+
+            1. ``flat_count == gate_qubit_count`` -> one application over the flat
+               qubit list. Covers the single-application spec forms (``cx q[0], q[1]``)
+               and the pyqasm extension where a single register operand fills all
+               slots (``cx q2`` with ``qubit[2] q2``).
+            2. ``group_count == gate_qubit_count`` -> OpenQASM 3 element-wise
+               broadcast. Register operands must share length; mismatches raise.
+            3. All groups single-qubit and ``flat_count`` is a multiple of the arity
+               -> pyqasm legacy chunking (``cx q[0], q[1], q[1], q[2]``).
+            4. Otherwise -> :class:`ValidationError`; the shape is ambiguous.
 
         Args:
-            operation (QuantumGate): The gate to be applied.
-            gate_qubit_count (list[int]): The number of qubits that a single gate acts on.
+            operation (QuantumGate): The gate whose targets to expand.
+            gate_qubit_count (int): The gate's target-qubit arity (i.e. after any
+                ``ctrl @`` qubits have already been peeled off).
+            operand_groups: Optional pre-resolved per-operand qubit groups. When
+                omitted, the groups are derived from ``operation.qubits`` (each
+                element becomes its own length-1 group, matching the shape of
+                qubit lists that have already been unrolled upstream).
 
         Returns:
-            list[list[IndexedIdentifier | Identifier]]: The list of all targets that
-                the unrolled gate should act on.
+            list[list[IndexedIdentifier | Identifier]]: One inner list per emitted
+                application, each of length ``gate_qubit_count``.
         """
-        op_qubits = self._get_op_bits(operation, qubits=True)
-        if len(op_qubits) <= 0 or len(op_qubits) % gate_qubit_count != 0:
+        if operand_groups is None:
+            # Fallback: qubits have already been resolved to single-qubit references
+            # (e.g. during the inverse-recursion inside _visit_basic_gate_operation).
+            operand_groups = [[bit] for bit in operation.qubits]
+
+        flat = [q for group in operand_groups for q in group]
+        flat_count = len(flat)
+        group_count = len(operand_groups)
+
+        if flat_count == 0 or gate_qubit_count == 0:
             raise_qasm3_error(
-                f"Invalid number of qubits {len(op_qubits)} for operation {operation.name.name}",
+                f"Invalid number of qubits {flat_count} for operation {operation.name.name}",
                 error_node=operation,
                 span=operation.span,
             )
-        qubit_subsets = []
-        for i in range(0, len(op_qubits), gate_qubit_count):
-            # we apply the gate on the qubit subset linearly
-            qubit_subsets.append(op_qubits[i : i + gate_qubit_count])
-        return qubit_subsets
+
+        # Rule 1: exact-fit single application over the flat list.
+        if flat_count == gate_qubit_count:
+            return [flat]
+
+        # Rule 2: spec broadcast when operand count matches the gate arity.
+        if group_count == gate_qubit_count:
+            return self._broadcast_operand_groups(operand_groups, operation)
+
+        # Rule 3: legacy pyqasm chunking - only when every operand is single-qubit.
+        # Rejecting mixed-register cases here is what turns silent-wrong broadcasts
+        # (e.g. `cx q, r, s` with three qubit[2] registers) into loud errors.
+        all_single = all(len(g) == 1 for g in operand_groups)
+        if all_single and flat_count % gate_qubit_count == 0:
+            return [flat[i : i + gate_qubit_count] for i in range(0, flat_count, gate_qubit_count)]
+
+        raise_qasm3_error(
+            f"Cannot broadcast operation '{operation.name.name}' onto "
+            f"{group_count} operand(s) (total {flat_count} qubit(s)) for a "
+            f"{gate_qubit_count}-qubit gate. Provide exactly {gate_qubit_count} operand(s) "
+            f"for element-wise broadcasting, or a total qubit count that is a multiple of "
+            f"the gate arity.",
+            error_node=operation,
+            span=operation.span,
+        )
+        return []  # pragma: no cover - raise_qasm3_error always raises
 
     def _broadcast_gate_operation(
         self,
         gate_function: Callable,
-        all_targets: list[list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]],
+        all_targets: OperandGroups,
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Broadcasts the application of a gate onto multiple sets of target qubits.
@@ -1147,7 +1280,7 @@ class QasmVisitor:
 
     def _update_qubit_depth_for_gate(
         self,
-        all_targets: list[list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]],
+        all_targets: OperandGroups,
         ctrls: list[qasm3_ast.IndexedIdentifier],
     ) -> None:
         """Updates the depth of the circuit after applying a broadcasted gate.
@@ -1177,6 +1310,7 @@ class QasmVisitor:
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
+        operand_groups: Optional[OperandGroups] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Visit a gate operation element.
 
@@ -1232,7 +1366,9 @@ class QasmVisitor:
             )
 
         result = []
-        unrolled_targets = self._unroll_multiple_target_qubits(operation, op_qubit_count)
+        unrolled_targets = self._unroll_multiple_target_qubits(
+            operation, op_qubit_count, operand_groups=operand_groups
+        )
         unrolled_gate_function = partial(qasm_func, *op_parameters)
 
         if inverse:
@@ -1292,6 +1428,7 @@ class QasmVisitor:
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
+        operand_groups: Optional[OperandGroups] = None,
     ) -> list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase]:
         """Visit a custom gate operation element recursively.
 
@@ -1302,6 +1439,11 @@ class QasmVisitor:
                 inverse modifier is appended to each gate call.
                 See https://openqasm.com/language/gates.html#inverse-modifier
                 for more clarity.
+            operand_groups: Optional pre-resolved per-operand qubit groups. When
+                provided, OpenQASM 3 broadcasting applies (register operands zipped,
+                single-qubit operands repeated). When omitted the caller has already
+                arranged for ``operation.qubits`` to hold exactly one qubit per
+                formal argument.
 
         Returns:
             list[QuantumGate | QuantumPhase]: The list of gates and phase operations
@@ -1312,10 +1454,47 @@ class QasmVisitor:
             ctrls = []
         gate_name: str = operation.name.name
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
-        op_qubits: list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier] = self._get_op_bits(
-            operation, qubits=True
+
+        # One entry per broadcast application, each holding exactly one resolved
+        # qubit per formal argument.
+        all_targets = self._unroll_multiple_target_qubits(
+            operation, len(gate_definition.qubits), operand_groups=operand_groups
         )
 
+        result: list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase] = []
+        for per_app_qubits in all_targets:
+            result.extend(
+                self._expand_custom_gate_body(
+                    operation, gate_definition, per_app_qubits, inverse, ctrls
+                )
+            )
+        if self._check_only:
+            return []
+        return result
+
+    # pylint: disable-next=too-many-locals,too-many-branches,too-many-arguments
+    def _expand_custom_gate_body(
+        self,
+        operation: qasm3_ast.QuantumGate,
+        gate_definition: qasm3_ast.QuantumGateDefinition,
+        op_qubits: list[QubitRef],
+        inverse: bool,
+        ctrls: list[qasm3_ast.IndexedIdentifier],
+    ) -> list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase]:
+        """Expand one application of a custom gate against the given qubits.
+
+        Args:
+            operation: The originating source-level gate call (used for error spans).
+            gate_definition: The custom gate definition to expand.
+            op_qubits: The resolved single-qubit references for this application,
+                one per formal argument.
+            inverse: Whether the ``inv @`` modifier applies.
+            ctrls: The list of control qubits accumulated from ``ctrl @`` modifiers.
+
+        Returns:
+            list[QuantumGate | QuantumPhase]: The gates produced by this application.
+        """
+        gate_name = gate_definition.name.name
         Qasm3Validator.validate_gate_call(operation, gate_definition, len(op_qubits))
         # we need this because the gates applied inside a gate definition use the
         # VARIABLE names and not the qubits
@@ -1415,6 +1594,7 @@ class QasmVisitor:
         operation: qasm3_ast.QuantumGate,
         inverse: bool = False,
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
+        operand_groups: Optional[OperandGroups] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Visit an external gate operation element.
 
@@ -1437,7 +1617,9 @@ class QasmVisitor:
 
         if gate_name in self._custom_gates:
             # Ignore result, this is just for validation
-            self._visit_custom_gate_operation(operation, inverse, ctrls)
+            self._visit_custom_gate_operation(
+                operation, inverse, ctrls, operand_groups=operand_groups
+            )
             # Don't need to check if custom gate exists, since we just validated the call
             gate_qubit_count = len(self._custom_gates[gate_name].qubits)
         else:
@@ -1480,7 +1662,9 @@ class QasmVisitor:
                 )
             ]
 
-        all_targets = self._unroll_multiple_target_qubits(operation, gate_qubit_count)
+        all_targets = self._unroll_multiple_target_qubits(
+            operation, gate_qubit_count, operand_groups=operand_groups
+        )
         result = self._broadcast_gate_operation(gate_function, all_targets)
 
         # record the external gate's own depth; the custom-gate path has already done so
@@ -1631,7 +1815,12 @@ class QasmVisitor:
                     )
                 )
 
-        operation.qubits = self._get_op_bits(operation, qubits=True)  # type: ignore
+        # Resolve into per-operand groups so element-wise broadcasting can happen
+        # downstream. Boundaries are lost as soon as we flatten, and the ctrl @ handling
+        # below still consumes single-qubit slots by flat index, so we keep a flat view
+        # here and split the first surviving group if a ctrl boundary lands mid-register.
+        operand_groups = self._get_op_bits_per_operand(operation, qubits=True)
+        operation.qubits = [bit for group in operand_groups for bit in group]  # type: ignore
 
         # ctrl / pow / inv modifiers commute. so group them.
         exponent = 1
@@ -1686,7 +1875,10 @@ class QasmVisitor:
 
         power_value, inverse_value = abs(exponent), exponent < 0
 
-        operation.qubits = operation.qubits[ctrl_arg_ind:]
+        # The ctrl @ qubits were taken off the front by flat index; drop the same
+        # count from the groups so the two views cannot drift apart.
+        target_operand_groups = Qasm3Transformer.drop_leading_qubits(operand_groups, ctrl_arg_ind)
+        operation.qubits = [qubit for group in target_operand_groups for qubit in group]
         operation.modifiers = []
 
         # apply pow(int) via duplication
@@ -1700,15 +1892,23 @@ class QasmVisitor:
 
         # get controlled? inverted? operation x power times
         result: list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase] = []
-        for _ in range(power_value):
-            if isinstance(operation, qasm3_ast.QuantumPhase):
-                result.extend(self._visit_phase_operation(operation, inverse_value, ctrls))
-            elif self._in_verbatim_box or operation.name.name in self._external_gates:
-                result.extend(self._visit_external_gate_operation(operation, inverse_value, ctrls))
+        visit_gate: Callable[..., list]
+        if isinstance(operation, qasm3_ast.QuantumPhase):
+            # A phase has no target operands, so it takes no groups.
+            visit_gate = partial(self._visit_phase_operation, operation, inverse_value, ctrls)
+        else:
+            if self._in_verbatim_box or operation.name.name in self._external_gates:
+                gate_visitor = self._visit_external_gate_operation
             elif operation.name.name in self._custom_gates:
-                result.extend(self._visit_custom_gate_operation(operation, inverse_value, ctrls))
+                gate_visitor = self._visit_custom_gate_operation  # type: ignore[assignment]
             else:
-                result.extend(self._visit_basic_gate_operation(operation, inverse_value, ctrls))
+                gate_visitor = self._visit_basic_gate_operation
+            visit_gate = partial(
+                gate_visitor, operation, inverse_value, ctrls, target_operand_groups
+            )
+
+        for _ in range(power_value):
+            result.extend(visit_gate())
 
         # negctrl -> ctrl conversion; build each x gate with fresh operand nodes so
         # the leading and trailing statements share nothing (issue #350)

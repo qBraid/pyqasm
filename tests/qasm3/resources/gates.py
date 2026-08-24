@@ -337,7 +337,8 @@ SINGLE_QUBIT_GATE_INCORRECT_TESTS = {
         qubit[3] q1;
         cx q1;  // invalid application of gate, as we apply it to 3 qubits in blocks of 2
         """,
-        "Invalid number of qubits 3 for operation cx",
+        r"Cannot broadcast operation 'cx' onto 1 operand\(s\) \(total 3 qubit\(s\)\)"
+        r" for a 2-qubit gate",
         6,
         8,
         "cx q1[0], q1[1], q1[2];",  # expanded line
@@ -444,7 +445,8 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         qubit[3] q1;
         custom_gate(0.5, 0.5) q1;  // qubit count mismatch
         """,
-        "Qubit count mismatch for gate 'custom_gate'. Expected 2 qubits, but got 3 instead.",
+        r"Cannot broadcast operation 'custom_gate' onto 1 operand\(s\) \(total 3 qubit\(s\)\)"
+        r" for a 2-qubit gate",
         11,
         8,
         "custom_gate(0.5, 0.5) q1[0], q1[1], q1[2];",  # expanded line
