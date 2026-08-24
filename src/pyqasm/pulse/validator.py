@@ -46,6 +46,7 @@ from openqasm3.ast import (
     TimeUnit,
 )
 
+from pyqasm.elements import BitValue
 from pyqasm.exceptions import raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
 from pyqasm.maps.expressions import CONSTANTS_MAP
@@ -472,6 +473,22 @@ class PulseValidator:
                         float(arg_var.value) if arg_var.value is not None else 0.0,
                         unit=(TimeUnit.dt if device_cycle_time else TimeUnit.ns),
                     )
+                elif isinstance(arg_var.value, BitValue):
+                    # ``bit[n]`` variables are internally a width-carrying int; emit
+                    # them as a ``BitstringLiteral`` so the serialized call reads
+                    # ``func("0101")`` rather than a bare int.
+                    statement.arguments[i] = BitstringLiteral(
+                        int(arg_var.value), arg_var.value.width
+                    )
+                elif isinstance(arg_var.base_type, BitType):
+                    # Legacy path: a ``bit`` variable whose value is not yet a
+                    # ``BitValue`` (str / int / bool) but is typed ``bit[n]``.
+                    width = arg_var.base_size
+                    if isinstance(arg_var.value, str):
+                        value = int(arg_var.value, 2) if arg_var.value else 0
+                    else:
+                        value = int(bool(arg_var.value))
+                    statement.arguments[i] = BitstringLiteral(value, width)
                 elif isinstance(arg_var.value, float):
                     statement.arguments[i] = FloatLiteral(arg_var.value)
                 elif isinstance(arg_var.value, int):

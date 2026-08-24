@@ -19,8 +19,11 @@ Module containing unit tests for expressions.
 
 import pytest
 
-from pyqasm.entrypoint import loads
+from pyqasm.analyzer import bits_to_int, int_to_bits
+from pyqasm.elements import BitValue
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
+from pyqasm.maps.expressions import qasm3_expression_op_map
 from tests.utils import check_measure_op, check_single_qubit_gate_op, check_single_qubit_rotation_op
 
 
@@ -105,3 +108,126 @@ def test_incorrect_expressions(caplog):
             loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
     assert "Error at line 1" in caplog.text
     assert "x" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Issue #385 — bitwise, shift, and index operations on ``bit[n]``
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "op,expected_bits",
+    [
+        ("|", "1111"),  # 1010 | 0101
+        ("&", "0000"),  # 1010 & 0101
+        ("^", "1111"),  # 1010 ^ 0101
+    ],
+)
+def test_bit_register_binary_bitwise_ops(op, expected_bits):
+    """Binary bitwise operators on two ``bit[n]`` operands produce a masked result."""
+    qasm = f"""
+    OPENQASM 3.0;
+    bit[4] a = "1010";
+    bit[4] b = "0101";
+    bit[4] c = a {op} b;
+    """
+    loads(qasm).validate()
+
+    # The declaration above only proves the operator no longer raises. Drive the
+    # same dispatch directly to pin the value it produces, and its width.
+    lhs = BitValue(bits_to_int("1010", 4), 4)
+    rhs = BitValue(bits_to_int("0101", 4), 4)
+    result = qasm3_expression_op_map(op, lhs, rhs)
+    assert int_to_bits(int(result), result.width) == expected_bits
+    assert result.width == 4
+
+
+def test_bit_register_unary_not_masks_to_width():
+    """``~a`` on a ``bit[n]`` value re-masks so the result stays within ``n`` bits."""
+    qasm = """
+    OPENQASM 3.0;
+    bit[4] a = "1010";
+    bit[4] c = ~a;
+    """
+    module = loads(qasm)
+    module.validate()
+    assert "c = ~a" in dumps(module)
+
+
+@pytest.mark.parametrize("shift_op", ["<<", ">>"])
+def test_bit_register_shift_ops(shift_op):
+    """``<<`` and ``>>`` on a ``bit[n]`` register with an integer shift-count work."""
+    qasm = f"""
+    OPENQASM 3.0;
+    bit[4] a = "1010";
+    bit[4] c = a {shift_op} 1;
+    """
+    module = loads(qasm)
+    module.validate()
+    assert f"c = a {shift_op} 1" in dumps(module)
+
+
+def test_bit_register_binary_width_mismatch_raises(caplog):
+    """Two ``bit[n]`` operands of different widths in a bitwise op raise ValidationError
+    with the source span attached (an unspanned error would ship without a line number)."""
+    qasm = """
+    OPENQASM 3.0;
+    bit[4] a = "1010";
+    bit[3] b = "010";
+    bit[4] c;
+    c = a | b;
+    """
+    with pytest.raises(ValidationError, match="Width mismatch for bitwise"):
+        with caplog.at_level("ERROR"):
+            loads(qasm).validate()
+    # The re-raise attaches the span; the logged message names the source line.
+    assert "Error at line" in caplog.text
+
+
+def test_bit_register_single_element_index():
+    """``b[i]`` returns a single-bit value that can initialize a ``bit`` variable."""
+    qasm = """
+    OPENQASM 3.0;
+    bit[4] b = "1010";
+    bit c = b[0];
+    """
+    module = loads(qasm)
+    module.validate()
+    text = dumps(module)
+    assert "bit[1] c = b[0]" in text
+
+
+def test_bit_register_range_and_stepped_index():
+    """``b[a:c]`` and ``b[a:step:c]`` both yield a bit register of the sliced width."""
+    module = loads("""
+        OPENQASM 3.0;
+        bit[4] b = "1010";
+        bit[3] c = b[0:2];
+        bit[2] d = b[0:2:3];
+        """)
+    module.validate()
+    text = dumps(module)
+    assert "bit[3] c = b[0:2]" in text
+    assert "bit[2] d = b[0:2:3]" in text
+
+
+def test_bit_register_bitstring_literal_roundtrips():
+    """A ``bit[n] = \"1010\"`` declaration serializes back to the same literal form."""
+    src = 'OPENQASM 3.0;\nbit[4] a = "1010";\n'
+    out = dumps(loads(src))
+    assert 'bit[4] a = "1010";' in out
+
+
+def test_bit_register_op_result_stays_bit_type():
+    """The result of ``a | b`` retains bit type and can seed a further ``bit[n]``."""
+    module = loads("""
+        OPENQASM 3.0;
+        bit[4] a = "1010";
+        bit[4] b = "0101";
+        bit[4] c = a | b;
+        bit[4] d = c & a;
+        """)
+    module.validate()
+    text = dumps(module)
+    assert "c = a | b" in text
+    assert "d = c & a" in text

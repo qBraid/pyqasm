@@ -17,7 +17,7 @@ Module with utility functions for QASM visitor
 
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, overload
 
 import numpy as np
 from openqasm3.ast import (
@@ -42,22 +42,50 @@ from pyqasm.maps.expressions import LIMITS_MAP, VARIABLE_TYPE_MAP, qasm_variable
 class Qasm3Validator:
     """Class with validation functions for QASM visitor"""
 
+    @overload
+    @staticmethod
+    def validate_register_index(
+        index: None, size: int, qubit: bool = ..., op_node: Optional[Any] = ...
+    ) -> None: ...
+
+    @overload
+    @staticmethod
+    def validate_register_index(
+        index: int, size: int, qubit: bool = ..., op_node: Optional[Any] = ...
+    ) -> int: ...
+
     @staticmethod
     def validate_register_index(
         index: Optional[int], size: int, qubit: bool = False, op_node: Optional[Any] = None
-    ) -> None:
-        """Validate the index for a register.
+    ) -> Optional[int]:
+        """Validate a register index, normalizing negative indices from the end.
+
+        Applies the OpenQASM 3 rule that ``-1`` refers to the last element and
+        ``-size`` to the first. Returns the normalized non-negative index so the
+        caller can rewrite the emitted AST with it; passing the value through is
+        important because passes downstream of unroll (register consolidation,
+        idle-qubit removal, qubit-order reversal) expect concrete non-negative
+        integers in the AST.
 
         Args:
-            index (optional, int): The index to validate.
+            index (optional, int): The index to validate. ``None`` passes through.
             size (int): The size of the register.
             qubit (bool): Whether the register is a qubit register.
+            op_node: The AST node used for span attribution on error.
+
+        Returns:
+            Optional[int]: The normalized index, or ``None`` if ``index`` was
+                ``None``.
 
         Raises:
-            ValidationError: If the index is out of range.
+            ValidationError: If the index is out of the range
+                ``[-size, size - 1]`` after normalization.
         """
-        if index is None or 0 <= index < size:
-            return
+        if index is None:
+            return None
+        normalized = index + size if index < 0 else index
+        if 0 <= normalized < size:
+            return normalized
 
         raise_qasm3_error(
             message=f"Index {index} out of range for register of size {size} in "
@@ -65,6 +93,7 @@ class Qasm3Validator:
             error_node=op_node,
             span=op_node.span if op_node else None,
         )
+        return None  # pragma: no cover - raise_qasm3_error never returns
 
     @staticmethod
     def validate_statement_type(blacklisted_stmts: set, statement: Any, construct: str) -> None:

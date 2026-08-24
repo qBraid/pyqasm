@@ -32,6 +32,7 @@ from openqasm3.ast import (
     UintType,
 )
 
+from pyqasm.elements import BitValue
 from pyqasm.exceptions import ValidationError
 
 # Define the type for the operator functions
@@ -67,6 +68,13 @@ OPERATOR_MAP: dict[str, OperatorFunction] = {
 }
 
 
+# Binary bitwise operators for which both operands must be the same width when
+# they are ``BitValue``s. Shifts (``<<``, ``>>``) take an int shift-count and are
+# not width-checked against the right-hand side.
+_BITWISE_EQUAL_WIDTH_OPS = frozenset({"|", "&", "^"})
+_BITWISE_SHIFT_OPS = frozenset({"<<", ">>"})
+
+
 def qasm3_expression_op_map(op_name: str, *args) -> float | int | bool:
     """
     Return the result of applying the given operator to the given operands.
@@ -79,15 +87,46 @@ def qasm3_expression_op_map(op_name: str, *args) -> float | int | bool:
 
     Returns:
         (float | int | bool): The result of applying the operator to the operands.
+
+    Raises:
+        ValidationError: For unknown operators, or when two ``BitValue`` operands of
+            a width-sensitive bitwise op have different widths.
     """
     try:
         operator = OPERATOR_MAP[op_name]
-        return operator(*args)
     except KeyError as exc:
         raise ValidationError(f"Unsupported / undeclared QASM operator: {op_name}") from exc
 
+    if len(args) == 2:
+        lhs, rhs = args
+        lhs_is_bit = isinstance(lhs, BitValue)
+        rhs_is_bit = isinstance(rhs, BitValue)
+        if lhs_is_bit or rhs_is_bit:
+            width = lhs.width if lhs_is_bit else rhs.width  # type: ignore[union-attr]
+            if op_name in _BITWISE_EQUAL_WIDTH_OPS:
+                if lhs_is_bit and rhs_is_bit and lhs.width != rhs.width:  # type: ignore[union-attr]
+                    raise ValidationError(
+                        f"Width mismatch for bitwise '{op_name}': "
+                        f"lhs has width {lhs.width} but rhs has width "  # type: ignore[union-attr]
+                        f"{rhs.width}"  # type: ignore[union-attr]
+                    )
+                return BitValue(int(operator(int(lhs), int(rhs))), width)  # type: ignore[call-arg]
+            if op_name in _BITWISE_SHIFT_OPS and lhs_is_bit:
+                return BitValue(int(operator(int(lhs), int(rhs))), width)  # type: ignore[call-arg]
+        return operator(*args)  # type: ignore[call-arg]
 
-# pylint: disable=inconsistent-return-statements,too-many-return-statements
+    if len(args) == 1:
+        (operand,) = args
+        if isinstance(operand, BitValue) and op_name == "~":
+            # ``~`` on Python ints turns the operand negative; re-mask to width so
+            # the result remains a valid ``bit[n]`` value.
+            return BitValue(int(operator(int(operand))), operand.width)  # type: ignore[call-arg]
+        return operator(*args)  # type: ignore[call-arg]
+
+    return operator(*args)
+
+
+# pylint: disable=inconsistent-return-statements,too-many-return-statements,too-many-branches
 def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     """Cast the variable type to the type to match, if possible.
 
@@ -101,7 +140,10 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     Raises:
         ValidationError: If the cast is not possible.
     """
-    type_of_rhs = type(rhs_value)
+    # ``BitValue`` is an ``int`` subclass; treat it as ``int`` for the type-cast
+    # table lookup so a value read from a ``bit[n]`` register can flow into a
+    # cast to bool / int / uint / float without a bespoke tuple entry per site.
+    type_of_rhs = int if isinstance(rhs_value, BitValue) else type(rhs_value)
 
     if openqasm_type in (DurationType, StretchType):
         return rhs_value
@@ -121,10 +163,18 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
         return int(rhs_value) % (2**base_size)
     if openqasm_type == FloatType:
         return float(rhs_value)
-    # not sure if we wanna hande array bit assignments too.
-    # For now, we only cater to single bit assignment.
+    # ``bit`` / ``bit[n]`` values are normalized to a width-carrying ``BitValue``
+    # so downstream bitwise operators can enforce the OpenQASM equal-width rule
+    # and produce properly-masked results. A ``str`` bitstring ("1010") is parsed
+    # into its integer form; the caller (``_visit_classical_declaration`` or
+    # ``_visit_classical_assignment``) is responsible for validating the string
+    # width against ``base_size`` before we get here.
     if openqasm_type == BitType:
-        return rhs_value
+        if isinstance(rhs_value, BitValue):
+            return rhs_value
+        if isinstance(rhs_value, str):
+            return BitValue(int(rhs_value, 2) if rhs_value else 0, base_size)
+        return BitValue(int(rhs_value), base_size)
     if openqasm_type == AngleType:
         if isinstance(rhs_value, bool):
             return ((2 * CONSTANTS_MAP["pi"]) * (1 / 2)) if rhs_value else 0.0
@@ -164,7 +214,7 @@ VARIABLE_TYPE_MAP = {
 VARIABLE_TYPE_CAST_MAP = {
     BoolType: (int, float, bool, np.int64, np.float64, np.bool_),
     IntType: (bool, int, float, np.int64, np.float64, np.bool_),
-    BitType: (bool, int, np.int64, np.bool_, str),
+    BitType: (bool, int, np.int64, np.bool_, str, BitValue),
     UintType: (bool, int, float, np.int64, np.uint64, np.float64, np.bool_),
     FloatType: (bool, int, float, np.int64, np.float64, np.bool_),
     AngleType: (float, np.float64, bool, np.bool_),

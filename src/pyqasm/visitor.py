@@ -32,10 +32,11 @@ import numpy as np
 import openqasm3.ast as qasm3_ast
 from openqasm3.printer import dumps
 
-from pyqasm.analyzer import Qasm3Analyzer
+from pyqasm.analyzer import Qasm3Analyzer, bits_to_int
 from pyqasm.elements import (
     INTERNAL_QUBIT_REGISTER,
     PHYSICAL_QUBIT_PREFIX,
+    BitValue,
     Capture,
     ClbitDepthNode,
     Context,
@@ -85,6 +86,48 @@ from pyqasm.validator import Qasm3Validator
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
+
+
+# pylint: disable-next=too-many-locals
+def _write_bit_slice(
+    current: Any,
+    width: int,
+    indices: list[tuple[int, int, int]],
+    new_value: Any,
+) -> BitValue:
+    """Return a new ``BitValue`` with the selected bit positions rewritten.
+
+    Overwrites the positions selected by ``indices`` (as produced by
+    ``analyze_classical_indices``) with the low bits of ``new_value``. Bit 0 of
+    the register is the most-significant bit of the underlying integer, matching
+    the ``BitstringLiteral`` convention used by :func:`~pyqasm.dumps`.
+
+    Args:
+        current: The current bit register value (``BitValue``, ``int``, ``str``,
+            or ``ndarray``); converted through :func:`bits_to_int`.
+        width: The register width, in bits.
+        indices: One ``(start, end, step)`` tuple per dimension, from
+            ``analyze_classical_indices`` — always exactly one for a bit register.
+        new_value: The value to write into the slice. For a single-bit target this
+            is the raw bit; for a ranged target its low ``k`` bits are used.
+
+    Returns:
+        BitValue: The updated register value, masked to ``width`` bits.
+    """
+    start, end, step = indices[0]
+    current_int = bits_to_int(current, width)
+    positions = list(range(start, end + 1, step))
+    slice_width = len(positions)
+    new_int = bits_to_int(new_value, slice_width)
+    result = current_int
+    # Iterate MSB-first through the slice positions so the highest-order bit of
+    # ``new_value`` lands at the lowest slice position (matching the read order
+    # in ``_get_var_value``).
+    for offset, pos in enumerate(positions):
+        bit_from_new = (new_int >> (slice_width - 1 - offset)) & 1
+        target_shift = width - 1 - pos
+        result = (result & ~(1 << target_shift)) | (bit_from_new << target_shift)
+    return BitValue(result, width)
 
 
 # pylint: disable-next=too-many-instance-attributes
@@ -387,7 +430,7 @@ class QasmVisitor:
                     )
                 else:
                     bit_id = Qasm3ExprEvaluator.evaluate_expression(bit.indices[0][0])[0]
-                    Qasm3Validator.validate_register_index(
+                    bit_id = Qasm3Validator.validate_register_index(
                         bit_id, max_register_size, qubit=qubits, op_node=operation
                     )
                     bit_ids = [bit_id]
@@ -1899,7 +1942,7 @@ class QasmVisitor:
                     span=statement.span,
                 )
 
-        init_value = None
+        init_value: Any = None
         base_type = statement.type
         dimensions = []
         final_dimensions = []
@@ -1923,10 +1966,14 @@ class QasmVisitor:
         base_size = self._check_variable_type_size(statement, var_name, "variable", base_type)
         Qasm3Validator.validate_classical_type(base_type, base_size, var_name, statement)
 
-        # initialize the bit register
+        # initialize the bit register — stored as a width-carrying ``BitValue``
+        # so downstream bitwise/shift/indexing operations can be evaluated as
+        # integers with a clean equal-width contract. ``final_dimensions`` still
+        # records the register width so ``analyze_classical_indices`` continues
+        # to work for ``b[i]`` / ``b[i:j]``.
         if isinstance(base_type, qasm3_ast.BitType):
             final_dimensions = [base_size]
-            init_value = np.full(final_dimensions, 0)
+            init_value = BitValue(0, base_size)
 
         if len(dimensions) > 0:
             # bit type arrays are not allowed
@@ -2245,11 +2292,22 @@ class QasmVisitor:
                     span=statement.span,
                     raised_from=err,
                 )
-            Qasm3Transformer.update_array_element(
-                multi_dim_arr=lvar.value,  # type: ignore[union-attr, arg-type]
-                indices=validated_l_indices,
-                value=rvalue_eval,
-            )
+            if isinstance(lvar_base_type, qasm3_ast.BitType):
+                # Bit registers are stored as a single ``BitValue`` — an ``int``
+                # is immutable, so build a fresh masked value with the selected
+                # bit positions rewritten and rebind ``lvar.value``.
+                lvar.value = _write_bit_slice(  # type: ignore[union-attr]
+                    lvar.value,  # type: ignore[union-attr, arg-type]
+                    lvar.base_size,  # type: ignore[union-attr]
+                    validated_l_indices,
+                    rvalue_eval,
+                )
+            else:
+                Qasm3Transformer.update_array_element(
+                    multi_dim_arr=lvar.value,  # type: ignore[union-attr, arg-type]
+                    indices=validated_l_indices,
+                    value=rvalue_eval,
+                )
         else:
             lvar.value = rvalue_eval  # type: ignore[union-attr]
         self._scope_manager.update_var_in_scope(lvar)  # type: ignore[arg-type]
@@ -2357,8 +2415,9 @@ class QasmVisitor:
             else_block = self.visit_basic_block(statement.else_block)
 
             if reg_idx is not None:
-                # single bit branch
-                Qasm3Validator.validate_register_index(
+                # single bit branch — normalize a negative index against the register
+                # size (spec: ``c[-1]`` refers to the last classical bit).
+                reg_idx = Qasm3Validator.validate_register_index(
                     reg_idx, self._global_creg_size_map[reg_name], qubit=False, op_node=condition
                 )
 
@@ -2841,13 +2900,15 @@ class QasmVisitor:
                 target_qids = Qasm3Transformer.extract_values_from_discrete_set(
                     value.index, statement
                 )
-                for qid in target_qids:
+                target_qids = [
                     Qasm3Validator.validate_register_index(
                         qid,
                         self._global_qreg_size_map[aliased_reg_name],
                         qubit=True,
                         op_node=statement,
                     )
+                    for qid in target_qids
+                ]
                 alias_reg_size = len(target_qids)
             else:
                 if len(value.index) != 1:
