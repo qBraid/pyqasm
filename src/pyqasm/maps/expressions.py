@@ -32,7 +32,7 @@ from openqasm3.ast import (
     UintType,
 )
 
-from pyqasm.elements import BitValue
+from pyqasm.elements import AngleValue, BitValue
 from pyqasm.exceptions import ValidationError
 
 # Define the type for the operator functions
@@ -126,6 +126,35 @@ def qasm3_expression_op_map(op_name: str, *args) -> float | int | bool:
     return operator(*args)
 
 
+def qasm_type_name(qasm_type: type) -> str:
+    """Return the OpenQASM source spelling of an AST type class, e.g. ``uint``."""
+    return qasm_type.__name__.removesuffix("Type").lower()
+
+
+def cast_to_angle(value: float, width: int) -> AngleValue:
+    """Cast ``value`` to an ``angle[width]``.
+
+    An angle source is re-expressed at the new width — truncating when narrowing — so a
+    cast between angle widths follows the fixed-point rules rather than re-rounding the
+    real number.
+
+    Args:
+        value (float): The value to cast — a real number, a ``bool``, or an
+            :class:`~pyqasm.elements.AngleValue`.
+        width (int): Target precision, in bits.
+
+    Returns:
+        AngleValue: The angle, quantized to ``width`` bits.
+    """
+    if isinstance(value, bool):
+        # OpenQASM has no bool -> angle cast, but pyqasm has long accepted one that
+        # maps ``true`` to the half-turn; see ALLOWED_CASTS.
+        value = CONSTANTS_MAP["pi"] if value else 0.0
+    if isinstance(value, AngleValue):
+        return value.resize(width)
+    return AngleValue(float(value), width)
+
+
 # pylint: disable=inconsistent-return-statements,too-many-return-statements,too-many-branches
 def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     """Cast the variable type to the type to match, if possible.
@@ -140,10 +169,12 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     Raises:
         ValidationError: If the cast is not possible.
     """
-    # ``BitValue`` is an ``int`` subclass; treat it as ``int`` for the type-cast
-    # table lookup so a value read from a ``bit[n]`` register can flow into a
-    # cast to bool / int / uint / float without a bespoke tuple entry per site.
-    type_of_rhs = int if isinstance(rhs_value, BitValue) else type(rhs_value)
+    # ``BitValue`` and ``AngleValue`` are ``int`` / ``float`` subclasses; look them up
+    # under their base type so a value read from a ``bit[n]`` or ``angle[n]`` register
+    # flows into a cast without a bespoke tuple entry per site.
+    type_of_rhs = type(rhs_value)
+    if isinstance(rhs_value, (BitValue, AngleValue)):
+        type_of_rhs = type_of_rhs.__base__
 
     if openqasm_type in (DurationType, StretchType):
         return rhs_value
@@ -158,6 +189,11 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     if openqasm_type == BoolType:
         return bool(rhs_value)
     if openqasm_type == IntType:
+        if isinstance(rhs_value, BitValue) and rhs_value.width == base_size:
+            # ``int[n](b)`` reinterprets a ``bit[n]`` register as the integer's
+            # two's-complement bit pattern, so a set sign bit reads as negative.
+            sign_bit = int(rhs_value) >> (base_size - 1)
+            return int(rhs_value) - (1 << base_size) if sign_bit else int(rhs_value)
         return int(rhs_value)
     if openqasm_type == UintType:
         return int(rhs_value) % (2**base_size)
@@ -176,9 +212,7 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
             return BitValue(int(rhs_value, 2) if rhs_value else 0, base_size)
         return BitValue(int(rhs_value), base_size)
     if openqasm_type == AngleType:
-        if isinstance(rhs_value, bool):
-            return ((2 * CONSTANTS_MAP["pi"]) * (1 / 2)) if rhs_value else 0.0
-        return rhs_value  # not sure
+        return cast_to_angle(rhs_value, base_size)
     if openqasm_type == ComplexType:
         if isinstance(rhs_value, float):
             return complex(rhs_value)
@@ -219,6 +253,27 @@ VARIABLE_TYPE_CAST_MAP = {
     FloatType: (bool, int, float, np.int64, np.float64, np.bool_),
     AngleType: (float, np.float64, bool, np.bool_),
     ComplexType: (complex, np.complex128, float, np.float64),
+}
+
+# The explicit-cast surface, as ``source type -> allowed target types``. Rows follow the
+# spec's allowed-casts table (https://openqasm.com/language/types.html#allowed-casts),
+# with these deliberate differences, each of which pyqasm has always had:
+#   - bool -> angle, angle -> {int, uint, float} and bit -> float are marked "No" by the
+#     spec but are accepted here. The spec is self-inconsistent on angle -> float: its
+#     own angle comparison example uses it. Left alone pending an upstream ruling.
+#   - duration -> * is marked "No" by the spec but is accepted here.
+#   - bit -> angle and angle -> bit are marked "Yes" by the spec but are not implemented.
+# A source type absent from this map (``stretch``, arrays) is not classified, so its
+# casts fall through to the value-level check in ``qasm_variable_type_cast``.
+ALLOWED_CASTS: dict[type, frozenset[type]] = {
+    BoolType: frozenset({BoolType, IntType, UintType, FloatType, AngleType, BitType}),
+    IntType: frozenset({BoolType, IntType, UintType, FloatType, BitType}),
+    UintType: frozenset({BoolType, IntType, UintType, FloatType, BitType}),
+    FloatType: frozenset({BoolType, IntType, UintType, FloatType, AngleType, ComplexType}),
+    AngleType: frozenset({BoolType, IntType, UintType, FloatType, AngleType, ComplexType}),
+    BitType: frozenset({BoolType, IntType, UintType, FloatType, BitType}),
+    DurationType: frozenset({BoolType, IntType, UintType, FloatType, AngleType, ComplexType}),
+    ComplexType: frozenset({ComplexType}),
 }
 
 ARRAY_TYPE_MAP = {

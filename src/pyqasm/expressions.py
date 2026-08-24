@@ -26,6 +26,7 @@ from openqasm3.ast import (
     BoolType,
     Cast,
     DurationLiteral,
+    DurationType,
     Expression,
     FloatLiteral,
 )
@@ -49,12 +50,22 @@ from pyqasm.analyzer import Qasm3Analyzer, bits_to_int
 from pyqasm.elements import BitValue, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.maps.expressions import (
+    ALLOWED_CASTS,
     CONSTANTS_MAP,
     FUNCTION_MAP,
     TIME_UNITS_MAP,
     qasm3_expression_op_map,
+    qasm_type_name,
 )
 from pyqasm.validator import Qasm3Validator
+
+_LITERAL_CAST_TYPES: dict[type, type] = {
+    BooleanLiteral: BoolType,
+    IntegerLiteral: Qasm3IntType,
+    FloatLiteral: Qasm3FloatType,
+    BitstringLiteral: BitType,
+    DurationLiteral: DurationType,
+}
 
 
 class Qasm3ExprEvaluator:
@@ -62,6 +73,56 @@ class Qasm3ExprEvaluator:
 
     visitor_obj = None
     angle_var_in_expr = None
+
+    @classmethod
+    def _resolve_cast_source_type(cls, argument) -> type | None:
+        """Resolve the OpenQASM type a cast argument is being converted *from*.
+
+        Args:
+            argument: The argument node of a :class:`~openqasm3.ast.Cast`.
+
+        Returns:
+            type | None: The AST type class of the argument, or ``None`` when it cannot
+            be pinned down — a binary expression, a function call, a built-in constant.
+            Callers must treat ``None`` as "unclassified" and skip the cast-table check,
+            so an expression pyqasm cannot type is never rejected on that basis alone.
+        """
+        if isinstance(argument, Cast):
+            return type(argument.type)
+        if isinstance(argument, (Identifier, IndexExpression)):
+            var_name = (
+                argument.name
+                if isinstance(argument, Identifier)
+                else Qasm3Analyzer.analyze_index_expression(argument)[0]
+            )
+            var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)  # type: ignore
+            return type(var.base_type) if var else None
+        return _LITERAL_CAST_TYPES.get(type(argument))
+
+    @classmethod
+    def _validate_cast_types(cls, expression: Cast) -> None:
+        """Reject an explicit cast that pyqasm does not support.
+
+        Args:
+            expression (Cast): The cast node to check.
+
+        Raises:
+            ValidationError: If the source and target types are both known and the pair
+                is absent from :data:`~pyqasm.maps.expressions.ALLOWED_CASTS`.
+        """
+        source_type = cls._resolve_cast_source_type(expression.argument)
+        if source_type is None:
+            return
+        allowed = ALLOWED_CASTS.get(source_type)
+        target_type = type(expression.type)
+        if allowed is None or target_type in allowed:
+            return
+        raise_qasm3_error(
+            f"Cannot cast '{qasm_type_name(source_type)}' to '{qasm_type_name(target_type)}'",
+            err_type=ValidationError,
+            error_node=expression,
+            span=expression.span,
+        )
 
     @classmethod
     def set_visitor_obj(cls, visitor_obj) -> None:
@@ -540,6 +601,17 @@ class Qasm3ExprEvaluator:
             var_value, cast_stmts = cls.evaluate_expression(
                 expression=expression.argument, const_expr=const_expr
             )
+            cls._validate_cast_types(expression)
+
+            if isinstance(expression.type, AngleType) and expression.type.size is None:
+                # A designator-less ``angle(x)`` takes its fixed-point width from the
+                # assignment context, so leave the value unquantized here and let the
+                # declaration or assignment settle the width. ``bool`` is mapped now,
+                # because by then nothing can tell a deferred ``true`` from the number 1.
+                statements.extend(cast_stmts)
+                if isinstance(var_value, bool):
+                    var_value = CONSTANTS_MAP["pi"] if var_value else 0.0
+                return _check_and_return_value(var_value)
 
             var_format = "variable"
             if var_name == "":
