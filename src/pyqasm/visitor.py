@@ -32,7 +32,7 @@ import numpy as np
 import openqasm3.ast as qasm3_ast
 from openqasm3.printer import dumps
 
-from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions
+from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions, write_int_bits
 from pyqasm.elements import (
     INTERNAL_QUBIT_REGISTER,
     PHYSICAL_QUBIT_PREFIX,
@@ -128,6 +128,89 @@ def _write_bit_slice(
         target_shift = width - 1 - pos
         result = (result & ~(1 << target_shift)) | (bit_from_new << target_shift)
     return BitValue(result, width)
+
+
+def _bit_vector_operand(value: Any, slice_width: int, var_name: str, node: Any) -> int:
+    """Coerce the right-hand side of a bit-slice assignment to a bit vector.
+
+    Args:
+        value: The evaluated right-hand side: a bitstring, a ``BitValue``, or an
+            integer for a single-bit target.
+        slice_width: The number of bits the target slice selects.
+        var_name: The assignment target name (used in error messages).
+        node: The AST node used for span attribution on error.
+
+    Returns:
+        int: The right-hand side as a ``slice_width``-bit vector.
+
+    Raises:
+        ValidationError: If the value is not a bit vector, or its width differs
+            from ``slice_width``.
+    """
+    width = slice_width
+    if isinstance(value, str):
+        width, value = len(value), int(value, 2) if value else 0
+    elif isinstance(value, BitValue):
+        width = value.width
+    elif isinstance(value, (bool, int, np.integer)):
+        # A bare integer carries no width; require it to fit the target slice.
+        if not 0 <= int(value) < (1 << slice_width):
+            raise_qasm3_error(
+                f"Value {value} out of range for a {slice_width}-bit slice of '{var_name}'",
+                err_type=ValidationError,
+                error_node=node,
+                span=node.span,
+            )
+    else:
+        raise_qasm3_error(
+            f"Cannot assign value of type '{type(value).__name__}' to a bit slice "
+            f"of '{var_name}'",
+            err_type=ValidationError,
+            error_node=node,
+            span=node.span,
+        )
+    if width != slice_width:
+        raise_qasm3_error(
+            f"Cannot assign a {width}-bit value to a {slice_width}-bit slice of '{var_name}'",
+            err_type=ValidationError,
+            error_node=node,
+            span=node.span,
+        )
+    return int(value)
+
+
+def _write_int_bit_slice(var: Variable, indices: list[Any], value: Any, node: Any) -> None:
+    """Write ``value`` into the bit representation of an ``int`` / ``uint`` variable.
+
+    Args:
+        var: The ``int[n]`` / ``uint[n]`` variable, or an array of them.
+        indices: The subscripts, the last of which selects the bits to overwrite.
+        value: The evaluated right-hand side.
+        node: The AST node used for span attribution on error.
+
+    Raises:
+        ValidationError: If a subscript is out of range, or the right-hand side
+            does not match the width of the selected slice.
+    """
+    element_indices, positions = Qasm3Analyzer.analyze_int_bit_slice(
+        indices, var, Qasm3ExprEvaluator  # type: ignore[arg-type]
+    )
+    current = (
+        Qasm3Analyzer.find_array_element(var.value, element_indices)  # type: ignore[arg-type]
+        if element_indices
+        else var.value
+    )
+    updated = write_int_bits(
+        int(current or 0),
+        positions,
+        _bit_vector_operand(value, len(positions), var.name, node),
+        var.base_size,
+        signed=isinstance(var.base_type, qasm3_ast.IntType),
+    )
+    if element_indices:
+        Qasm3Transformer.update_array_element(var.value, element_indices, updated)  # type: ignore
+    else:
+        var.value = updated
 
 
 # pylint: disable-next=too-many-instance-attributes
@@ -2187,6 +2270,17 @@ class QasmVisitor:
                 error_node=statement,
                 span=statement.span,
             )
+        l_indices: list[Any] = []
+        if isinstance(lvalue, qasm3_ast.IndexedIdentifier):
+            # stupid indices structure in openqasm :/
+            if len(lvalue.indices[0]) > 1:  # type: ignore[arg-type]
+                l_indices = lvalue.indices[0]  # type: ignore[assignment]
+            else:
+                l_indices = [idx[0] for idx in lvalue.indices]  # type: ignore[index]
+        # A bit-slice target holds a bit vector, not a value of the variable's own
+        # type, so it must bypass the scalar cast/range check below.
+        int_bit_target = Qasm3Analyzer.is_int_bit_slice(lvar, l_indices)  # type: ignore[arg-type]
+
         binary_op: str | None | qasm3_ast.BinaryOperator = None
         if statement.op != qasm3_ast.AssignmentOperator["="]:
             # eg. j += 1 -> broken down to j = j + 1
@@ -2247,7 +2341,9 @@ class QasmVisitor:
                 lvar.base_size = len(angle_val_bit_string)  # type: ignore[union-attr]
         # cast + validation
         rvalue_eval = None
-        if not isinstance(rvalue_raw, np.ndarray):
+        if int_bit_target:
+            rvalue_eval = rvalue_raw
+        elif not isinstance(rvalue_raw, np.ndarray):
             # rhs is a scalar
             if rvalue_raw is not None and not self._in_extern_function:
                 rvalue_eval = Qasm3Validator.validate_variable_assignment_value(
@@ -2275,12 +2371,9 @@ class QasmVisitor:
             )
 
         # lvalue will be the variable which will HOLD this value
-        if isinstance(lvalue, qasm3_ast.IndexedIdentifier):
-            # stupid indices structure in openqasm :/
-            if len(lvalue.indices[0]) > 1:  # type: ignore[arg-type]
-                l_indices = lvalue.indices[0]
-            else:
-                l_indices = [idx[0] for idx in lvalue.indices]  # type: ignore[assignment, index]
+        if int_bit_target:
+            _write_int_bit_slice(lvar, l_indices, rvalue_eval, statement)  # type: ignore[arg-type]
+        elif isinstance(lvalue, qasm3_ast.IndexedIdentifier):
             try:
                 validated_l_indices = Qasm3Analyzer.analyze_classical_indices(
                     l_indices, lvar, Qasm3ExprEvaluator  # type: ignore[arg-type]

@@ -45,7 +45,7 @@ from openqasm3.ast import (
     UnaryExpression,
 )
 
-from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions
+from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, read_int_bits, slice_positions
 from pyqasm.elements import BitValue, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.maps.expressions import (
@@ -183,6 +183,19 @@ class Qasm3ExprEvaluator:
         var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)
         if isinstance(expression, Identifier):
             return var.value
+
+        if Qasm3Analyzer.is_int_bit_slice(var, indices):
+            element_indices, positions = Qasm3Analyzer.analyze_int_bit_slice(indices, var, cls)
+            source = (
+                Qasm3Analyzer.find_array_element(var.value, element_indices)
+                if element_indices
+                else var.value
+            )
+            if source is None:
+                # Defer to ``_check_var_initialized`` for the uninitialized message.
+                return None
+            selected = read_int_bits(int(source), positions)
+            return selected if len(positions) == 1 else BitValue(selected, len(positions))
 
         validated_indices = Qasm3Analyzer.analyze_classical_indices(indices, var, cls)
 

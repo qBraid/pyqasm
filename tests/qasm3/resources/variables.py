@@ -297,12 +297,14 @@ ASSIGNMENT_TESTS = {
         8,
         "float[32] x = 1.2345678912345679e+44;",
     ),
+    # ``int`` / ``uint`` scalars are excluded here: they are bit-sliceable per the
+    # OpenQASM classical value bit slicing rules, so ``x[0]`` is a valid lvalue.
     "indexing_non_array": (
         """
         OPENQASM 3.0;
         include "stdgates.inc";
 
-        int x = 3;
+        float x = 3.0;
         x[0] = 4;
         """,
         "Invalid index for variable 'x'",

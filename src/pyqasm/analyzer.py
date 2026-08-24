@@ -36,6 +36,7 @@ from openqasm3.ast import (
     QuantumMeasurementStatement,
     RangeDefinition,
     Span,
+    UintType,
     UnaryExpression,
 )
 
@@ -109,6 +110,53 @@ def slice_positions(start: int, end: int, step: int) -> range:
     return range(start, end + (1 if step > 0 else -1), step)
 
 
+def read_int_bits(value: int, positions: range) -> int:
+    """Extract the bits of an integer at ``positions`` into a bit vector.
+
+    Bit 0 of an ``int[n]`` / ``uint[n]`` value is its *least*-significant bit, per
+    `classical value bit slicing
+    <https://openqasm.com/versions/3.1/language/types.html#classical-value-bit-slicing>`_.
+    The first selected position becomes the least-significant bit of the result, so
+    ``myInt[0:2:31]`` on ``int[32] myInt = 15`` yields ``3``.
+
+    Args:
+        value: The source integer. Negative values are read in two's complement.
+        positions: The bit positions to read, in traversal order.
+
+    Returns:
+        int: The extracted bit vector, ``len(positions)`` bits wide.
+    """
+    result = 0
+    for shift, pos in enumerate(positions):
+        result |= ((value >> pos) & 1) << shift
+    return result
+
+
+def write_int_bits(value: int, positions: range, bits: int, width: int, signed: bool) -> int:
+    """Return ``value`` with the bits at ``positions`` replaced by ``bits``.
+
+    The inverse of :func:`read_int_bits`: bit ``j`` of ``bits`` lands at
+    ``positions[j]``. The result is re-interpreted in ``width`` bits, so writing
+    the top bit of a signed integer yields a negative value.
+
+    Args:
+        value: The current integer value.
+        positions: The bit positions to overwrite, in traversal order.
+        bits: The replacement bit vector, ``len(positions)`` bits wide.
+        width: The declared width of the integer, in bits.
+        signed: ``True`` for ``int[n]``, ``False`` for ``uint[n]``.
+
+    Returns:
+        int: The updated value.
+    """
+    result = value & ((1 << width) - 1)
+    for shift, pos in enumerate(positions):
+        result = (result & ~(1 << pos)) | (((bits >> shift) & 1) << pos)
+    if signed and result >> (width - 1):
+        result -= 1 << width
+    return result
+
+
 class Qasm3Analyzer:
     """Class with utility functions for analyzing QASM3 elements"""
 
@@ -120,6 +168,7 @@ class Qasm3Analyzer:
         index_node: Any,
         dim_num: Optional[int] = None,
         qubit: bool = False,
+        type_name: Optional[str] = None,
     ) -> int:
         """Normalize an index against a register or dimension of size ``size``.
 
@@ -136,6 +185,9 @@ class Qasm3Analyzer:
             dim_num: Optional zero-based dimension number for multi-dim arrays; if
                 given, the error message mentions it.
             qubit: ``True`` for a qubit register (used for message phrasing).
+            type_name: Optional scalar type name ("int", "uint") for a bit-slice of a
+                classical value; if given, the error message names the declared width
+                instead of a register dimension.
 
         Returns:
             int: The normalized non-negative index.
@@ -149,7 +201,12 @@ class Qasm3Analyzer:
             return idx
         register_kind = "qubit" if qubit else "clbit"
         span = getattr(index_node, "span", None)
-        if dim_num is not None:
+        if type_name is not None:
+            message = (
+                f"Index {source_index} out of range for '{type_name}[{size}]' "
+                f"variable '{var_name}'"
+            )
+        elif dim_num is not None:
             message = (
                 f"Index {source_index} out of bounds for dimension {dim_num} "
                 f"of variable '{var_name}'. Expected index in range "
@@ -170,7 +227,82 @@ class Qasm3Analyzer:
         raise ValidationError(message)
 
     @staticmethod
-    def analyze_classical_indices(  # pylint: disable=too-many-locals
+    def _validate_step(start_id: int, end_id: int, step: int, index_node: Any) -> None:
+        """Reject a range whose step cannot reach its end bound."""
+        if step == 0:
+            raise_qasm3_error(
+                message="Index step cannot be zero",
+                err_type=ValidationError,
+                error_node=index_node,
+                span=index_node.span,
+            )
+        if (step < 0 and start_id < end_id) or (step > 0 and start_id > end_id):
+            direction = "less than" if step < 0 else "greater than"
+            raise_qasm3_error(
+                message=f"Index {start_id} is {direction} {end_id} but step"
+                f" is {'negative' if step < 0 else 'positive'}",
+                err_type=ValidationError,
+                error_node=index_node,
+                span=index_node.span,
+            )
+
+    @staticmethod
+    def resolve_index(  # pylint: disable=too-many-arguments
+        index: Any,
+        size: int,
+        var_name: str,
+        expr_evaluator: Qasm3ExprEvaluator,
+        dim_num: Optional[int] = None,
+        type_name: Optional[str] = None,
+    ) -> tuple[int, int, int]:
+        """Resolve one subscript against a dimension of ``size`` elements.
+
+        Handles both a scalar subscript and a ``RangeDefinition``, normalizing
+        negative bounds and rejecting a step that cannot reach its end bound.
+
+        Args:
+            index: The subscript AST node.
+            size: The number of elements the subscript selects from.
+            var_name: The variable name (used in error messages).
+            expr_evaluator: The evaluator used to reduce index expressions.
+            dim_num: Optional zero-based dimension number, for array error messages.
+            type_name: Optional scalar type name, for bit-slice error messages.
+
+        Returns:
+            tuple[int, int, int]: The inclusive ``(start, end, step)`` triple.
+
+        Raises:
+            ValidationError: If the subscript type, bounds, or step are invalid.
+        """
+        if not isinstance(index, (Identifier, Expression, RangeDefinition, IntegerLiteral)):
+            raise_qasm3_error(
+                message=f"Unsupported index type '{type(index)}' for "
+                f"classical variable '{var_name}'",
+                err_type=ValidationError,
+                error_node=index,
+                span=index.span,
+            )
+
+        def _bound(expr: Any) -> int:
+            raw = expr_evaluator.evaluate_expression(expr, reqd_type=IntType)[0]
+            return Qasm3Analyzer.normalize_index(
+                raw, size, var_name, index, dim_num=dim_num, type_name=type_name
+            )
+
+        if isinstance(index, RangeDefinition):
+            start_id = 0 if index.start is None else _bound(index.start)
+            end_id = size - 1 if index.end is None else _bound(index.end)
+            step = 1
+            if index.step is not None:
+                step = expr_evaluator.evaluate_expression(index.step, reqd_type=IntType)[0]
+            Qasm3Analyzer._validate_step(start_id, end_id, step, index)
+            return start_id, end_id, step
+
+        index_value = _bound(index)
+        return index_value, index_value, 1
+
+    @staticmethod
+    def analyze_classical_indices(
         indices: list[Any], var: Variable, expr_evaluator: Qasm3ExprEvaluator
     ) -> list:
         """Validate the indices for a classical variable.
@@ -208,67 +340,69 @@ class Qasm3Analyzer:
                 span=indices[0].span,
             )
 
-        def _validate_step(start_id, end_id, step, index_node):
-            if (step < 0 and start_id < end_id) or (step > 0 and start_id > end_id):
-                direction = "less than" if step < 0 else "greater than"
-                raise_qasm3_error(
-                    message=f"Index {start_id} is {direction} {end_id} but step"
-                    f" is {'negative' if step < 0 else 'positive'}",
-                    err_type=ValidationError,
-                    error_node=index_node,
-                    span=index_node.span,
-                )
-
+        assert var_dimensions is not None
         for i, index in enumerate(indices):
-            if not isinstance(index, (Identifier, Expression, RangeDefinition, IntegerLiteral)):
-                raise_qasm3_error(
-                    message=f"Unsupported index type '{type(index)}' for "
-                    f"classical variable '{var.name}'",
-                    err_type=ValidationError,
-                    error_node=index,
-                    span=index.span,
+            indices_list.append(
+                Qasm3Analyzer.resolve_index(
+                    index, var_dimensions[i], var.name, expr_evaluator, dim_num=i
                 )
-
-            if isinstance(index, RangeDefinition):
-                assert var_dimensions is not None
-                dim_size = var_dimensions[i]
-
-                if index.start is not None:
-                    raw_start = expr_evaluator.evaluate_expression(index.start, reqd_type=IntType)[
-                        0
-                    ]
-                    start_id = Qasm3Analyzer.normalize_index(
-                        raw_start, dim_size, var.name, index, dim_num=i
-                    )
-                else:
-                    start_id = 0
-
-                if index.end is not None:
-                    raw_end = expr_evaluator.evaluate_expression(index.end, reqd_type=IntType)[0]
-                    end_id = Qasm3Analyzer.normalize_index(
-                        raw_end, dim_size, var.name, index, dim_num=i
-                    )
-                else:
-                    end_id = dim_size - 1
-
-                step = 1
-                if index.step is not None:
-                    step = expr_evaluator.evaluate_expression(index.step, reqd_type=IntType)[0]
-
-                _validate_step(start_id, end_id, step, index)
-
-                indices_list.append((start_id, end_id, step))
-
-            if isinstance(index, (Identifier, IntegerLiteral, Expression)):
-                raw_value = expr_evaluator.evaluate_expression(index, reqd_type=IntType)[0]
-                curr_dimension = var_dimensions[i]  # type: ignore[index]
-                index_value = Qasm3Analyzer.normalize_index(
-                    raw_value, curr_dimension, var.name, index, dim_num=i
-                )
-
-                indices_list.append((index_value, index_value, 1))
+            )
 
         return indices_list
+
+    @staticmethod
+    def is_int_bit_slice(var: Variable, indices: Any) -> bool:
+        """Check whether ``indices`` bit-slice an ``int[n]`` / ``uint[n]`` value.
+
+        A bit slice carries exactly one subscript more than the variable has
+        dimensions: the leading subscripts select an array element (none for a
+        scalar) and the trailing one selects bits of that element.
+
+        Args:
+            var: The variable being indexed.
+            indices: The subscripts, as returned by ``analyze_index_expression``.
+                A ``DiscreteSet`` is never a bit slice.
+
+        Returns:
+            bool: True if the subscripts address the bits of an integer value.
+        """
+        return (
+            isinstance(var.base_type, (IntType, UintType))
+            and isinstance(indices, list)
+            and len(indices) == len(var.dims or []) + 1
+        )
+
+    @staticmethod
+    def analyze_int_bit_slice(
+        indices: list[Any], var: Variable, expr_evaluator: Qasm3ExprEvaluator
+    ) -> tuple[list[tuple[int, int, int]], range]:
+        """Split a bit-slice subscript chain into element indices and bit positions.
+
+        Args:
+            indices: The subscripts, the last of which selects bits.
+            var: The ``int[n]`` / ``uint[n]`` variable, possibly an array of them.
+            expr_evaluator: The evaluator used to reduce index expressions.
+
+        Returns:
+            tuple: The validated element indices (empty for a scalar) and the
+            selected bit positions, counted from the least-significant bit.
+
+        Raises:
+            ValidationError: If any subscript is out of range or malformed.
+        """
+        element_indices = (
+            Qasm3Analyzer.analyze_classical_indices(indices[:-1], var, expr_evaluator)
+            if len(indices) > 1
+            else []
+        )
+        start, end, step = Qasm3Analyzer.resolve_index(
+            indices[-1],
+            var.base_size,
+            var.name,
+            expr_evaluator,
+            type_name=type(var.base_type).__name__.removesuffix("Type").lower(),
+        )
+        return element_indices, slice_positions(start, end, step)
 
     @staticmethod
     def analyze_index_expression(
