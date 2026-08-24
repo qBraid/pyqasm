@@ -717,6 +717,11 @@ class QasmVisitor:
         if self._function_qreg_size_map:
             # A formal qubit argument only exists inside the subroutine, so rewrite it to
             # the caller's actual qubits, innermost scope outwards, as ``_visit_reset`` does.
+            # The rewrite runs on a copy: a subroutine body is only shallow-copied per call,
+            # so the inner ``measure`` node is shared with the definition, and mutating it
+            # would leave the caller's qubits behind for the next visit of that body.
+            statement = copy.copy(statement)
+            statement.measure = copy.copy(statement.measure)
             for transform_map, size_map in zip(
                 reversed(self._function_qreg_transform_map),
                 reversed(self._function_qreg_size_map),

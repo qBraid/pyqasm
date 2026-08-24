@@ -256,6 +256,102 @@ def test_nested_subroutine_forwards_literal_bit_return():
     )
 
 
+MEASURING_SUBROUTINES = {
+    "return_measure": """
+    def my_function(qubit qin) -> bit {
+        h qin;
+        return measure qin;
+    }
+    qubit q;
+    bit x = my_function(q);
+    """,
+    "assign_then_return": """
+    def my_function(qubit qin) -> bit {
+        bit c;
+        h qin;
+        c = measure qin;
+        return c;
+    }
+    qubit q;
+    bit x = my_function(q);
+    """,
+    "nested_forward": """
+    def inner(qubit qin) -> bit {
+        return measure qin;
+    }
+    def outer(qubit qin) -> bit {
+        h qin;
+        return inner(qin);
+    }
+    qubit q;
+    bit x = outer(q);
+    """,
+    "measure_without_return": """
+    def my_function(qubit qin) {
+        bit c;
+        h qin;
+        c = measure qin;
+    }
+    qubit q;
+    my_function(q);
+    """,
+    "literal_bit_return": """
+    def my_function(qubit qin) -> bit[2] {
+        h qin;
+        bit[2] b = "10";
+        return b;
+    }
+    qubit q;
+    bit[2] x = my_function(q);
+    """,
+}
+
+
+@pytest.mark.parametrize("body", MEASURING_SUBROUTINES.values(), ids=MEASURING_SUBROUTINES)
+def test_validate_then_unroll(body):
+    """Test that validating a module first does not change what unrolling it produces.
+
+    A subroutine body is only shallow-copied per call, so rewriting a measurement's qubit
+    operand in place left the caller's qubits on the definition. The validation pass then
+    poisoned the definition for the unroll that followed, raising
+    `AttributeError: 'list' object has no attribute 'name'`.
+    """
+    qasm_str = 'OPENQASM 3.0;\ninclude "stdgates.inc";\n' + body
+
+    unrolled_only = loads(qasm_str)
+    unrolled_only.unroll()
+
+    validated_first = loads(qasm_str)
+    validated_first.validate()
+    validated_first.unroll()
+
+    check_unrolled_qasm(dumps(validated_first), dumps(unrolled_only))
+
+
+def test_repeated_assign_then_return_calls():
+    """Test that calling an assign-then-return subroutine twice measures both qubits.
+
+    The second call used to re-read the qubit operand the first call had rewritten,
+    raising `AttributeError: 'list' object has no attribute 'name'`.
+    """
+    qasm_str = """OPENQASM 3.0;
+    include "stdgates.inc";
+    def my_function(qubit qin) -> bit {
+        bit c;
+        c = measure qin;
+        return c;
+    }
+    qubit[2] q;
+    bit a = my_function(q[0]);
+    bit b = my_function(q[1]);
+    """
+
+    result = loads(qasm_str)
+    result.unroll()
+
+    check_measure_op(result.unrolled_ast, 2, [(("q", 0), ("c", 0)), (("q", 1), ("c", 0))])
+
+
 def test_repeated_calls_get_distinct_return_registers():
     """Test that each call to a measurement-returning subroutine gets its own temporary
     register. The return statement is shared between calls, so a qubit operand rewritten
