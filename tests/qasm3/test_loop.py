@@ -181,7 +181,7 @@ def test_convert_qasm3_for_loop_bit_register():
         include "stdgates.inc";
 
         qubit[2] q;
-        bit[4] b = "1001";
+        bit[4] b = "1101";
 
         for int i in b {
             x q[i];
@@ -189,7 +189,8 @@ def test_convert_qasm3_for_loop_bit_register():
         """)
     result.unroll()
 
-    check_single_qubit_gate_op(result.unrolled_ast, 4, [1, 0, 0, 1], "x")
+    # non-palindromic literal, so LSB-first iteration would fail this assertion
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [1, 1, 0, 1], "x")
 
 
 def test_convert_qasm3_for_loop_bit_loop_variable():
