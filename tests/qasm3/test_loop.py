@@ -174,6 +174,136 @@ def test_convert_qasm3_for_loop_discrete_set():
     check_two_qubit_gate_op(result.unrolled_ast, 3, [(0, 1), (1, 2), (2, 3)], "cx")
 
 
+def test_convert_qasm3_for_loop_bit_register():
+    """Test a for loop iterating a bit[n] register, in index order b[0], b[1], ..."""
+    result = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[2] q;
+        bit[4] b = "1001";
+
+        for int i in b {
+            x q[i];
+        }
+        """)
+    result.unroll()
+
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [1, 0, 0, 1], "x")
+
+
+def test_convert_qasm3_for_loop_bit_loop_variable():
+    """Test a bit[n] register iterated with a `bit` loop variable, as the spec spells it."""
+    result = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[2] q;
+        bit[3] b = "101";
+
+        for bit x in b {
+            h q[0];
+        }
+        """)
+    result.unroll()
+
+    check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 0, 0], "h")
+
+
+def test_convert_qasm3_for_loop_array():
+    """Test a for loop iterating a one-dimensional array."""
+    result = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[4] q;
+        array[int[8], 3] a = {2, 0, 3};
+
+        for int[8] i in a {
+            x q[i];
+        }
+        """)
+    result.unroll()
+
+    check_single_qubit_gate_op(result.unrolled_ast, 3, [2, 0, 3], "x")
+
+
+def test_convert_qasm3_for_loop_index_expression():
+    """Test a for loop iterating an index expression; QASM ranges are inclusive."""
+    result = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[4] q;
+        array[int[8], 4] a = {3, 2, 1, 0};
+
+        for int[8] i in a[1:2] {
+            x q[i];
+        }
+        """)
+    result.unroll()
+
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [2, 1], "x")
+
+
+def test_for_loop_variable_write_does_not_modify_source():
+    """Test that assigning to the loop variable leaves the iterated array untouched."""
+    result = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+
+        qubit[4] q;
+        array[int[8], 2] a = {0, 1};
+
+        for int[8] i in a {
+            i = 3;
+        }
+        for int[8] j in a {
+            x q[j];
+        }
+        """)
+    result.unroll()
+
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 1], "x")
+
+
+def test_for_loop_multi_dimensional_array_rejected():
+    """Test that a multi-dimensional array is rejected as a loop iterable."""
+    with pytest.raises(
+        ValidationError, match="Iterable of loop must be one-dimensional, but 'a' has 2 dimensions"
+    ):
+        loads("""
+            OPENQASM 3.0;
+            include "stdgates.inc";
+
+            qubit[2] q;
+            array[int[8], 2, 2] a = {{1, 2}, {3, 4}};
+
+            for int[8] i in a {
+                x q[0];
+            }
+            """).unroll()
+
+
+def test_for_loop_scalar_index_expression_rejected():
+    """Test that an index expression yielding a scalar is not an iterable."""
+    with pytest.raises(
+        ValidationError,
+        match="Unexpected type <class 'openqasm3.ast.IndexExpression'> of set_declaration in loop.",
+    ):
+        loads("""
+            OPENQASM 3.0;
+            include "stdgates.inc";
+
+            qubit[2] q;
+            array[int[8], 3] a = {1, 2, 3};
+
+            for int[8] i in a[1] {
+                x q[0];
+            }
+            """).unroll()
+
+
 def test_function_executed_in_loop():
     """Test that a function executed in a loop is correctly parsed."""
     qasm_str = """OPENQASM 3;
