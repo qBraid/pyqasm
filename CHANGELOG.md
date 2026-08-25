@@ -30,6 +30,7 @@ Types of changes:
 ### Dependencies
 
 ### Other
+- Fixed the pre-release build stamping a version that `pyqasm.__version__` and the package metadata spelled differently. `pre_build.sh` wrote `1.1.0-a.0` into `pyproject.toml`, setuptools normalized that to `1.1.0a0` for the metadata, and `_version.py` kept the raw string, so `pip show pyqasm` and `pyqasm.__version__` disagreed and `test_sdist.sh` failed its version check. The stamped version is now normalized to PEP 440 before it is written. ([#414](https://github.com/qBraid/pyqasm/pull/414))
 - Fixed the pre-release workflow publishing its source distribution under the released version instead of the pre-release one. `build_sdist.sh` ran `git reset --hard` and `git clean -xdf`, which discarded the `pyproject.toml` version that the preceding step had just stamped, so a run that built `1.1.0a0` wheels built a `1.1.0` sdist and PyPI rejected it as a duplicate. `pre_build.sh` already resets the tree, so the second reset is gone. It also no longer destroys uncommitted work when the script is run locally. ([#413](https://github.com/qBraid/pyqasm/pull/413))
 - Added a `SECURITY.md` with a private vulnerability disclosure path. There was no documented way to report one, leaving a public issue or a guessed email address as the only options. Reports now go through this repository's GitHub security advisory form. ([#383](https://github.com/qBraid/pyqasm/pull/383))
 
