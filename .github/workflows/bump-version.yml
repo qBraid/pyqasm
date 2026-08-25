@@ -12,6 +12,11 @@ on:
           - minor
           - patch
         default: 'patch'
+      alpha:
+        description: 'Append an -alpha suffix, to open a development cycle'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   bump-version:
@@ -47,10 +52,20 @@ jobs:
         id: bump_version
         run: |
           BUMP_TYPE=${{ github.event.inputs.bump_type }}
-          VERSION=$(python3 bin/bump_version.py pyqasm $BUMP_TYPE)
-          python3 bin/update_citation.py $VERSION
+
+          if [[ "${{ inputs.alpha }}" == "true" ]]; then
+            # An alpha version is not a release, so CITATION.cff keeps
+            # describing the last one until that release ships.
+            VERSION=$(python3 bin/bump_version.py pyqasm $BUMP_TYPE --alpha)
+            FILES="pyproject.toml"
+          else
+            VERSION=$(python3 bin/bump_version.py pyqasm $BUMP_TYPE)
+            python3 bin/update_citation.py $VERSION
+            FILES="pyproject.toml CITATION.cff"
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          git add pyproject.toml CITATION.cff
+          git add $FILES
           git commit -m "Bump $BUMP_TYPE version to $VERSION"
           git push origin qbraid-bot/${{ github.run_id }}
 
