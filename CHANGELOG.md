@@ -30,6 +30,7 @@ Types of changes:
 ### Dependencies
 
 ### Other
+- Switched PyPI publishing from a long-lived `PYPI_API_TOKEN` repository secret to trusted publishing. The publish job now mints a short-lived OIDC credential scoped to that one workflow, and the action attaches PEP 740 attestations recording the repository, workflow and commit SHA behind each uploaded file. Attestations apply to releases published after this merges, not retroactively. ([#411](https://github.com/qBraid/pyqasm/pull/411))
 - Added a `SECURITY.md` with a private vulnerability disclosure path. There was no documented way to report one, leaving a public issue or a guessed email address as the only options. Reports now go through this repository's GitHub security advisory form. ([#383](https://github.com/qBraid/pyqasm/pull/383))
 
 ## Past Release Notes
