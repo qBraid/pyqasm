@@ -148,6 +148,9 @@ jobs:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      id-token: write  # mint the OIDC token PyPI trusted publishing verifies
+      contents: read  # actions/checkout
 
     steps:
       - name: Checkout PyQASM
@@ -165,6 +168,3 @@ jobs:
 
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
