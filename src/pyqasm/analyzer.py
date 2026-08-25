@@ -223,8 +223,8 @@ class Qasm3Analyzer:
             )
         return bit_list
 
-    @staticmethod  # pylint: disable-next=inconsistent-return-statements
-    def extract_qasm_version(qasm: str) -> float:  # type: ignore[return]
+    @staticmethod
+    def extract_qasm_version(qasm: str) -> float:
         """
         Extracts the OpenQASM version from a given OpenQASM string.
 

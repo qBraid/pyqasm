@@ -1166,8 +1166,7 @@ def map_qasm_op_num_params(op_name: str) -> int:
     return 0
 
 
-# pylint: disable-next=inconsistent-return-statements
-def map_qasm_op_to_callable(op_node: QuantumGate) -> tuple[Callable, int]:  # type: ignore[return]
+def map_qasm_op_to_callable(op_node: QuantumGate) -> tuple[Callable, int]:
     """
     Map a QASM operation to a callable.
 
