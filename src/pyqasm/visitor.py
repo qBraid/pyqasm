@@ -26,7 +26,7 @@ import sys
 from collections import OrderedDict, deque
 from functools import partial
 from io import StringIO
-from typing import Any, Callable, Optional, Sequence, Union, cast
+from typing import Any, Callable, Optional, Sequence, cast
 
 import numpy as np
 import openqasm3.ast as qasm3_ast
@@ -35,6 +35,7 @@ from openqasm3.printer import dumps
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import (
     INTERNAL_QUBIT_REGISTER,
+    PHYSICAL_QUBIT_PREFIX,
     Capture,
     ClbitDepthNode,
     Context,
@@ -44,6 +45,7 @@ from pyqasm.elements import (
     Variable,
     Waveform,
     is_internal_qubit_register,
+    is_physical_qubit,
 )
 from pyqasm.exceptions import (
     BreakSignal,
@@ -62,6 +64,7 @@ from pyqasm.maps.expressions import (
     MAX_ARRAY_DIMENSIONS,
 )
 from pyqasm.maps.gates import (
+    fresh_qubits,
     map_qasm_ctrl_op_to_callable,
     map_qasm_inv_op_to_callable,
     map_qasm_op_num_params,
@@ -121,6 +124,9 @@ class QasmVisitor:
         self._function_qreg_transform_map: deque = deque([])  # for nested functions
         self._global_creg_size_map: dict[str, int] = {}
         self._custom_gates: dict[str, qasm3_ast.QuantumGateDefinition] = {}
+        # gates currently being expanded, outermost first; a name reappearing on it is a
+        # cycle of any length between gate definitions (issue #369)
+        self._gate_expansion_chain: list[str] = []
         self._external_gates: list[str] = [] if external_gates is None else external_gates
         self._subroutine_defns: dict[
             str, qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
@@ -208,7 +214,8 @@ class QasmVisitor:
             register (QubitDeclaration): The register name and size.
 
         Returns:
-            None
+            list[QubitDeclaration]: The list containing the register,
+                or an empty list if self._check_only is True.
         """
         logger.debug("Visiting register '%s'", str(register))
 
@@ -289,15 +296,16 @@ class QasmVisitor:
         operation: Any,
         qubits: bool = True,
         function_qubit_sizes: Optional[dict[str, int]] = None,
-    ) -> list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]:
+    ) -> list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]:
         """Get the quantum / classical bits for the operation.
         Args:
             operation (Any): The operation to get qubits for.
             qubits (bool): Whether the bits are quantum bits or classical bits. Defaults to True.
         Returns:
-            The quantum or classical bits for the operation.
+            list[IndexedIdentifier | Identifier]: The quantum or classical bits for the operation,
+                or an empty list if check_only is true.
         """
-        openqasm_bits: list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] = []
+        openqasm_bits: list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier] = []
         bit_list = []
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
@@ -327,8 +335,9 @@ class QasmVisitor:
             else:
                 reg_name = bit.name
 
-            if qubits and reg_name.startswith("$"):
-                # Physical qubit reference (e.g. $0, $1).
+            if qubits and reg_name.startswith(PHYSICAL_QUBIT_PREFIX):
+                # Physical qubit reference (e.g. $0, $1). Matched on the prefix alone so
+                # that a malformed index is reported rather than read as a register name.
                 if not reg_name[1:].isdigit():
                     raise_qasm3_error(
                         f"Invalid physical qubit identifier '{reg_name}': "
@@ -414,7 +423,7 @@ class QasmVisitor:
             base_type (Any): Base type of the variable.
             is_const (bool): whether the statement is constant declaration or not.
         Returns:
-            Int: size of the variable base type.
+            int: size of the variable base type.
         """
         base_size = 1
         if not isinstance(base_type, qasm3_ast.BoolType):
@@ -464,8 +473,6 @@ class QasmVisitor:
             base_type (Any): Base type of the declaration variable.
             base_size(Any): literal to get the base size of the declaration variable.
             is_const (bool): whether the statement is constant declaration or not.
-        Returns:
-            None
         """
         if not val_type:
             val_type = base_type
@@ -492,12 +499,18 @@ class QasmVisitor:
         Consolidate all quantum registers into a single register '__PYQASM_QUBITS__'.
 
         Args:
-            unrolled_stmts (list): The list of statements to process and modify in-place.
+            unrolled_stmts (list): The list of non-QubitDeclaration statements to append
+                after consolidating the quantum registers.
+            total_qubits (int): The total number of allocated qubits in quantum registers.
+
+        Returns:
+            A new list of statements with the quantum register statements consolidated.
 
         Raises:
             ValidationError: If the total number of qubits exceeds the available device qubits,
-                             or if the reserved register '__PYQASM_QUBITS__' is already declared
-                             in the original QASM program.
+                if the reserved register '__PYQASM_QUBITS__' is already declared in the
+                original QASM program, or if the program mixes declared registers with
+                physical qubits.
         """
         if total_qubits > self._module._device_qubits:  # type: ignore
             raise_qasm3_error(
@@ -505,6 +518,8 @@ class QasmVisitor:
                 f"Total qubits '({total_qubits})' exceed device qubits '({self._module._device_qubits})'.",
             )
 
+        # checked before the physical-qubit exits below, so a program that declares the
+        # reserved name is told about that rather than about whatever it does next
         global_scope = self._scope_manager.get_global_scope()
         for var, val in global_scope.items():
             if var == INTERNAL_QUBIT_REGISTER:
@@ -512,6 +527,31 @@ class QasmVisitor:
                     f"Variable '{INTERNAL_QUBIT_REGISTER}' is already defined",
                     span=val.span,
                 )
+
+        # physical qubits are kept as written, so consolidating around them would emit
+        # two address spaces the output cannot relate (issue #353)
+        # _qubit_depths is keyed (name, index), so the hardware index is already
+        # there to order on -- no need to parse it back out of the name
+        physical_qubits = [
+            name
+            for name, _ in sorted(
+                (key for key in self._module._qubit_depths if is_physical_qubit(key[0])),
+                key=lambda key: key[1],
+            )
+        ]
+        if physical_qubits:
+            # presence, not capacity: a zero-sized declared register still declares
+            # a second address space
+            if self._global_qreg_size_map:
+                raise_qasm3_error(
+                    "Cannot consolidate qubit registers: the program mixes declared "
+                    f"registers with physical qubits ({', '.join(physical_qubits)}). "
+                    "Unroll without 'consolidate_qubits=True', or rewrite the physical "
+                    "qubits as operands of a declared register.",
+                )
+            # only physical qubits: nothing to consolidate, so do not declare an
+            # internal register nothing would reference
+            return unrolled_stmts
 
         pyqasm_reg_id = qasm3_ast.Identifier(INTERNAL_QUBIT_REGISTER)
         pyqasm_reg_size = qasm3_ast.IntegerLiteral(self._module._device_qubits)  # type: ignore
@@ -526,13 +566,17 @@ class QasmVisitor:
         return _valid_statements
 
     def _handle_function_init_expression(
-        self, expression: Any, init_value: Any
+        self, expression: qasm3_ast.FunctionCall, init_value: Any
     ) -> None | qasm3_ast.Expression:
         """Handle function initialization expression.
 
         Args:
-            statement (Any): The statement to handle function initialization expression.
+            expression (FunctionCall): The statement to handle function initialization expression.
             init_value (Any): The value to handle function initialization expression.
+
+        Returns:
+            None | Expression: The resultant expression if
+                the expression is applied, otherwise None.
         """
         if isinstance(expression, qasm3_ast.FunctionCall):
             func_name = expression.name.name
@@ -570,10 +614,11 @@ class QasmVisitor:
         """Visit a measurement statement element.
 
         Args:
-            statement (qasm3_ast.QuantumMeasurementStatement): The measurement statement to visit.
+            statement (QuantumMeasurementStatement): The measurement statement to visit.
 
         Returns:
-            None
+            list[QuantumMeasurementStatement]: The list of unrolled measurements,
+                or an empty list if self._check_only is True.
         """
         logger.debug("Visiting measurement statement '%s'", str(statement))
 
@@ -581,7 +626,7 @@ class QasmVisitor:
         target = statement.target
         if isinstance(source, qasm3_ast.Identifier):
             is_pulse_gate = False
-            if source.name.startswith("$") and source.name[1:].isdigit():
+            if is_physical_qubit(source.name):
                 if self._openpulse_grammar_declared:
                     # OpenPulse program: rename to the internal virtual register used by the
                     # pulse visitor, and validate the index is in range.
@@ -611,7 +656,7 @@ class QasmVisitor:
                     )
             if is_pulse_gate:
                 return [statement]
-        # # TODO: handle in-function measurements
+        # TODO: handle in-function measurements
         source_name: str = (
             source.name if isinstance(source, qasm3_ast.Identifier) else source.name.name
         )
@@ -716,7 +761,7 @@ class QasmVisitor:
         register slot: a physical qubit ("$n") or the internal pulse register.
 
         Args:
-            statement (qasm3_ast.QuantumReset): The reset statement whose operand
+            statement (QuantumReset): The reset statement whose operand
                 is being resolved. Renamed in place for OpenPulse programs.
 
         Returns:
@@ -727,7 +772,7 @@ class QasmVisitor:
             return False
 
         qubit_name = statement.qubits.name
-        if qubit_name.startswith("$") and qubit_name[1:].isdigit():
+        if is_physical_qubit(qubit_name):
             if self._openpulse_grammar_declared:
                 # OpenPulse program: rename to the internal virtual register used by the
                 # pulse visitor.
@@ -745,10 +790,11 @@ class QasmVisitor:
         """Visit a reset statement element.
 
         Args:
-            statement (qasm3_ast.QuantumReset): The reset statement to visit.
+            statement (QuantumReset): The reset statement to visit.
 
         Returns:
-            None
+            list[QuantumReset]: The list of unrolled resets,
+                or an empty list if self._check_only is True.
         """
         logger.debug("Visiting reset statement '%s'", str(statement))
         if self._resolve_unindexed_reset_qubit(statement):
@@ -806,7 +852,15 @@ class QasmVisitor:
     ) -> list:
         """Replace RangeDefinition-containing qubits in a barrier with their
         expanded IndexedIdentifier equivalents so that consolidate_qubit_registers
-        only sees IntegerLiteral indices."""
+        only sees IntegerLiteral indices.
+
+        Args:
+            barrier (QuantumBarrier): The barrier whose qubits are being expanded.
+            barrier_qubits (list[IndexedIdentifier | Identifier]): The expanded qubit operands.
+
+        Returns:
+            list: The resultant list of consolidated qubits.
+        """
         consolidated_qubits: list = []
         expanded_idx = 0
         for op_qubit in barrier.qubits:
@@ -841,15 +895,16 @@ class QasmVisitor:
         """Visit a barrier statement element.
 
         Args:
-            statement (qasm3_ast.QuantumBarrier): The barrier statement to visit.
+            statement (QuantumBarrier): The barrier statement to visit.
 
         Returns:
-            None
+            list[QuantumBarrier]: The list containing a single multi-qubit barrier statement,
+                or an empty list if self._check_only is True.
         """
         valid_open_pulse_qubits = False
         for op_qubit in barrier.qubits:
             if isinstance(op_qubit, qasm3_ast.Identifier):
-                if op_qubit.name.startswith("$") and op_qubit.name[1:].isdigit():
+                if is_physical_qubit(op_qubit.name):
                     phys_idx = int(op_qubit.name[1:])
                     # In an OpenPulse program all physical qubits are declared up-front via
                     # defcal; validate that the index is within the known range.
@@ -945,7 +1000,7 @@ class QasmVisitor:
         """Get the parameters for the operation.
 
         Args:
-            operation (qasm3_ast.QuantumGate): The operation to get parameters for.
+            operation (QuantumGate): The operation to get parameters for.
 
         Returns:
             list[float]: The parameters for the operation.
@@ -972,7 +1027,7 @@ class QasmVisitor:
             definition (qasm3_ast.QuantumGateDefinition): The gate definition to visit.
 
         Returns:
-            None
+            An empty list.
         """
         gate_name = definition.name.name
         if gate_name in self._custom_gates:
@@ -987,16 +1042,17 @@ class QasmVisitor:
 
     def _unroll_multiple_target_qubits(
         self, operation: qasm3_ast.QuantumGate, gate_qubit_count: int
-    ) -> list[list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]]:
+    ) -> list[list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]]:
         """Unroll the complete list of all qubits that the given operation is applied to.
-           E.g. this maps 'cx q[0], q[1], q[2], q[3]' to [[q[0], q[1]], [q[2], q[3]]]
+            E.g. this maps 'cx q[0], q[1], q[2], q[3]' to [[q[0], q[1]], [q[2], q[3]]]
 
         Args:
-            operation (qasm3_ast.QuantumGate): The gate to be applied.
+            operation (QuantumGate): The gate to be applied.
             gate_qubit_count (list[int]): The number of qubits that a single gate acts on.
 
         Returns:
-            The list of all targets that the unrolled gate should act on.
+            list[list[IndexedIdentifier | Identifier]]: The list of all targets that
+                the unrolled gate should act on.
         """
         op_qubits = self._get_op_bits(operation, qubits=True)
         if len(op_qubits) <= 0 or len(op_qubits) % gate_qubit_count != 0:
@@ -1014,20 +1070,21 @@ class QasmVisitor:
     def _broadcast_gate_operation(
         self,
         gate_function: Callable,
-        all_targets: list[list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]],
+        all_targets: list[list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]],
         ctrls: Optional[list[qasm3_ast.IndexedIdentifier]] = None,
     ) -> list[qasm3_ast.QuantumGate]:
         """Broadcasts the application of a gate onto multiple sets of target qubits.
 
         Args:
-            gate_function (callable): The gate that should be applied to multiple target qubits.
+            gate_function (Callable): The gate that should be applied to multiple target qubits.
             (All arguments of the callable should be qubits, i.e. all non-qubit arguments of the
             gate should already be evaluated, e.g. using functools.partial).
-            all_targets (list[list[qasm3_ast.IndexedIdentifier]]):
+            all_targets (list[list[IndexedIdentifier]]):
                 The list of target qubits.
                 The length of this list indicates the number of time the gate is invoked.
+
         Returns:
-            List of all executed gates.
+            list[QuantumGate]: The list of all executed gates.
         """
         result = []
         if ctrls is None:
@@ -1040,10 +1097,10 @@ class QasmVisitor:
         """Register a physical qubit ``$n`` for depth / count tracking if not already known.
 
         Args:
-            name: The physical qubit identifier string (e.g. ``"$0"``).
+            name (str): The physical qubit identifier string (e.g. ``"$0"``).
 
         Returns:
-            The physical qubit index.
+            int: The physical qubit index.
         """
         phys_idx = int(name[1:])
         if (name, phys_idx) not in self._module._qubit_depths:
@@ -1074,6 +1131,12 @@ class QasmVisitor:
         Physical qubits are represented as ``Identifier("$n")`` and carry their
         index in the name itself.  Virtual qubits are ``IndexedIdentifier`` with
         an explicit index in ``.indices``.
+
+        Args:
+            qubit (IndexedIdentifier | Identifier): The qubit to get the name and id of.
+
+        Returns:
+            tuple[str, int]: A tuple containing the name and id of the qubit.
         """
         if isinstance(qubit, qasm3_ast.Identifier):
             # Physical qubit: name is "$n", index is n.
@@ -1084,16 +1147,15 @@ class QasmVisitor:
 
     def _update_qubit_depth_for_gate(
         self,
-        all_targets: list[list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]]],
+        all_targets: list[list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]],
         ctrls: list[qasm3_ast.IndexedIdentifier],
-    ):
+    ) -> None:
         """Updates the depth of the circuit after applying a broadcasted gate.
 
         Args:
-            all_targes: The list of qubits on which a gate was just added.
-
-        Returns:
-            None
+            all_targets (list[list[IndexedIdentifier | Identifier]]):
+                The list of qubits on which a gate was just added.
+            ctrls (list[IndexedIdentifier]): The list of control qubits for the gate.
         """
         if not self._recording_ext_gate_depth:
             for qubit_subset in all_targets:
@@ -1119,20 +1181,17 @@ class QasmVisitor:
         """Visit a gate operation element.
 
         Args:
-            operation (qasm3_ast.QuantumGate): The gate operation to visit.
+            operation (QuantumGate): The gate operation to visit.
             inverse (bool): Whether the operation is an inverse operation. Defaults to False.
-
-                          - if inverse is True, we apply check for different cases in the
-                            map_qasm_inv_op_to_callable method.
-
-                          - Only rotation and S / T gates are affected by this inversion. For S/T
-                            gates we map them to Sdg / Tdg and vice versa.
-
-                          - For rotation gates, we map to the same gates but invert the rotation
-                            angles.
+                    If inverse is True, we apply check for different cases in the
+                    map_qasm_inv_op_to_callable method.
+                    Only rotation and S / T gates are affected by this inversion. For S/T
+                    gates we map them to Sdg / Tdg and vice versa.
+                    For rotation gates, we map to the same gates but invert the rotation angles.
 
         Returns:
-            None
+            list[QuantumGate]: The list of gates after unrolling,
+                or an empty list if self._check_only is True.
 
         Raises:
             ValidationError: If the number of qubits is invalid.
@@ -1237,24 +1296,24 @@ class QasmVisitor:
         """Visit a custom gate operation element recursively.
 
         Args:
-            operation (qasm3_ast.QuantumGate): The gate operation to visit.
+            operation (QuantumGate): The gate operation to visit.
             inverse (bool): Whether the operation is an inverse operation. Defaults to False.
-
-                            If True, the gate operation is applied in reverse order and the
-                            inverse modifier is appended to each gate call.
-                            See https://openqasm.com/language/gates.html#inverse-modifier
-                            for more clarity.
+                If True, the gate operation is applied in reverse order and the
+                inverse modifier is appended to each gate call.
+                See https://openqasm.com/language/gates.html#inverse-modifier
+                for more clarity.
 
         Returns:
-            None
+            list[QuantumGate | QuantumPhase]: The list of gates and phase operations
+                after unrolling, or an empty list if self._check_only is True.
         """
         logger.debug("Visiting custom gate operation '%s'", str(operation))
         if ctrls is None:
             ctrls = []
         gate_name: str = operation.name.name
         gate_definition: qasm3_ast.QuantumGateDefinition = self._custom_gates[gate_name]
-        op_qubits: list[Union[qasm3_ast.IndexedIdentifier, qasm3_ast.Identifier]] = (
-            self._get_op_bits(operation, qubits=True)
+        op_qubits: list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier] = self._get_op_bits(
+            operation, qubits=True
         )
 
         Qasm3Validator.validate_gate_call(operation, gate_definition, len(op_qubits))
@@ -1282,40 +1341,58 @@ class QasmVisitor:
         # Pause recording the depth of new gates because we are processing the
         # definition of a custom gate here - handle the depth separately afterwards.
         # A verbatim gate is emitted as written, so it counts once, like an external gate.
-        self._recording_ext_gate_depth = self._in_verbatim_box or gate_name in self._external_gates
+        # 'or', not '=': a nested gate must stay suppressed inside an enclosing external
+        # gate rather than re-enable recording for the body its parent skips (issue #367)
+        prev_recording = self._recording_ext_gate_depth
+        is_external = self._in_verbatim_box or gate_name in self._external_gates
+        self._recording_ext_gate_depth = prev_recording or is_external
 
         result = []
-        for gate_op in gate_definition_ops:
-            if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
-                gate_op_copy = copy.deepcopy(gate_op)
-                # necessary to avoid modifying the original gate definition
-                # in case the gate is reapplied
-                if isinstance(gate_op, qasm3_ast.QuantumGate) and gate_op.name.name == gate_name:
+        self._gate_expansion_chain.append(gate_name)
+        try:
+            for gate_op in gate_definition_ops:
+                if isinstance(gate_op, (qasm3_ast.QuantumGate, qasm3_ast.QuantumPhase)):
+                    gate_op_copy = copy.deepcopy(gate_op)
+                    # necessary to avoid modifying the original gate definition
+                    # in case the gate is reapplied
+                    if (
+                        isinstance(gate_op, qasm3_ast.QuantumGate)
+                        and gate_op.name.name in self._gate_expansion_chain
+                    ):
+                        # name the cycle the call closes, e.g. (a -> b -> a)
+                        called = gate_op.name.name
+                        cycle = self._gate_expansion_chain[
+                            self._gate_expansion_chain.index(called) :
+                        ] + [called]
+                        raise_qasm3_error(
+                            f"Recursive definitions not allowed for gate '{called}' "
+                            f"({' -> '.join(cycle)})",
+                            error_node=gate_op,
+                            span=gate_op.span,
+                        )
+                    Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
+                    Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
+                    # need to trickle the inverse down to the child gates
+                    if inverse:
+                        # span doesn't matter as we don't analyze it
+                        gate_op_copy.modifiers.append(
+                            qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)
+                        )
+                    result.extend(self._visit_generic_gate_operation(gate_op_copy, ctrls))
+                else:
+                    # TODO: add control flow support
                     raise_qasm3_error(
-                        f"Recursive definitions not allowed for gate '{gate_name}'",
+                        f"Unsupported statement in gate definition '{type(gate_op).__name__}'",
                         error_node=gate_op,
                         span=gate_op.span,
                     )
-                Qasm3Transformer.transform_gate_params(gate_op_copy, param_map)
-                Qasm3Transformer.transform_gate_qubits(gate_op_copy, qubit_map)
-                # need to trickle the inverse down to the child gates
-                if inverse:
-                    # span doesn't matter as we don't analyze it
-                    gate_op_copy.modifiers.append(
-                        qasm3_ast.QuantumGateModifier(qasm3_ast.GateModifierName.inv, None)
-                    )
-                result.extend(self._visit_generic_gate_operation(gate_op_copy, ctrls))
-            else:
-                # TODO: add control flow support
-                raise_qasm3_error(
-                    f"Unsupported statement in gate definition '{type(gate_op).__name__}'",
-                    error_node=gate_op,
-                    span=gate_op.span,
-                )
+        finally:
+            self._gate_expansion_chain.pop()
+            self._recording_ext_gate_depth = prev_recording
 
-        # Update the depth only once for the entire custom gate
-        if self._recording_ext_gate_depth:
-            self._recording_ext_gate_depth = False
+        # Update the depth once for the whole gate, from the outermost external gate only:
+        # an inner one is already covered by its parent's single count
+        if is_external and not prev_recording:
             if not self._in_branching_statement:  # if custom gate is not in branching statement
                 self._update_qubit_depth_for_gate([op_qubits], ctrls)
             else:
@@ -1344,14 +1421,14 @@ class QasmVisitor:
         Args:
             operation (qasm3_ast.QuantumGate): The external gate operation to visit.
             inverse (bool): Whether the operation is an inverse operation. Defaults to False.
-
-                            If True, the gate operation is applied in reverse order and the
-                            inverse modifier is appended to each gate call.
-                            See https://openqasm.com/language/gates.html#inverse-modifier
-                            for more clarity.
+                If True, the gate operation is applied in reverse order and the
+                inverse modifier is appended to each gate call.
+                See https://openqasm.com/language/gates.html#inverse-modifier
+                for more clarity.
 
         Returns:
-            list[qasm3_ast.QuantumGate]: The quantum gate that was collected.
+            list[QuantumGate]: The list containing the quantum gate that was collected,
+                or an empty list if self._check_only is True.
         """
         logger.debug("Visiting external gate operation '%s'", str(operation))
         gate_name: str = operation.name.name
@@ -1364,8 +1441,15 @@ class QasmVisitor:
             # Don't need to check if custom gate exists, since we just validated the call
             gate_qubit_count = len(self._custom_gates[gate_name].qubits)
         else:
-            # Ignore result, this is just for validation
-            self._visit_basic_gate_operation(operation)
+            # Ignore result, this is just for validation. Suppress depth recording so the
+            # skipped decomposition does not count; the gate's own depth is recorded
+            # below (issue #352)
+            prev_recording = self._recording_ext_gate_depth
+            self._recording_ext_gate_depth = True
+            try:
+                self._visit_basic_gate_operation(operation)
+            finally:
+                self._recording_ext_gate_depth = prev_recording
             # Don't need to check if basic gate exists, since we just validated the call
             _, gate_qubit_count = map_qasm_op_to_callable(operation)
 
@@ -1399,6 +1483,16 @@ class QasmVisitor:
         all_targets = self._unroll_multiple_target_qubits(operation, gate_qubit_count)
         result = self._broadcast_gate_operation(gate_function, all_targets)
 
+        # record the external gate's own depth; the custom-gate path has already done so
+        if gate_name not in self._custom_gates:
+            if not self._in_branching_statement:
+                self._update_qubit_depth_for_gate(all_targets, ctrls)
+            else:
+                for qubit_subset in all_targets + [ctrls]:
+                    for qubit in qubit_subset:
+                        qubit_name, qubit_idx = QasmVisitor._get_qubit_name_and_id(qubit)
+                        self._mark_branch_qubit(qubit_name, qubit_idx)
+
         # check for any duplicates
         for final_gate in result:
             Qasm3Analyzer.verify_gate_qubits(final_gate, operation.span)
@@ -1418,11 +1512,16 @@ class QasmVisitor:
         """Visit a phase operation element.
 
         Args:
-            operation (qasm3_ast.QuantumPhase): The phase operation to visit.
+            operation (QuantumPhase): The phase operation to visit.
             inverse (bool): Whether the operation is an inverse operation. Defaults to False.
+                If True, the gate operation is applied in reverse order and the
+                inverse modifier is appended to each gate call.
+                See https://openqasm.com/language/gates.html#inverse-modifier
+                for more clarity.
 
         Returns:
-            list[qasm3_ast.Statement]: The unrolled quantum phase operation.
+            list[QuantumPhase]: The unrolled quantum phase operation, or an empty list
+                if self._check_only is True.
         """
         logger.debug("Visiting phase operation '%s'", str(operation))
         if ctrls is None:
@@ -1476,10 +1575,13 @@ class QasmVisitor:
         """Visit a gate operation element.
 
         Args:
-            operation (qasm3_ast.QuantumGate): The gate operation to visit.
+            operation (QuantumGate | QuantumPhase): The gate operation to visit.
+            ctrls (list[IndexedIdentifier]): An optional list of control qubits
+                on the gate operation.
 
         Returns:
-            None
+            list[QuantumGate | QuantumPhase]: The list of gates and phase operations
+                after unrolling, or an empty list if self._check_only is True.
         """
         operation, ctrls = copy.copy(operation), copy.copy(ctrls)
         negctrls = []
@@ -1608,11 +1710,16 @@ class QasmVisitor:
             else:
                 result.extend(self._visit_basic_gate_operation(operation, inverse_value, ctrls))
 
-        # negctrl -> ctrl conversion
-        negs = [
-            qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], [ctrl]) for ctrl in negctrls
-        ]
-        result = negs + result + negs  # type: ignore
+        # negctrl -> ctrl conversion; build each x gate with fresh operand nodes so
+        # the leading and trailing statements share nothing (issue #350)
+        def _neg_x_gates() -> list[qasm3_ast.QuantumGate]:
+            """Build an x gate with fresh operand nodes for each negative control."""
+            return [
+                qasm3_ast.QuantumGate([], qasm3_ast.Identifier("x"), [], fresh_qubits(ctrl))
+                for ctrl in negctrls
+            ]
+
+        result = _neg_x_gates() + result + _neg_x_gates()  # type: ignore
         self._in_generic_gate_op_scope -= 1
         if self._consolidate_qubits and not self._in_generic_gate_op_scope:
             result = cast(
@@ -1638,10 +1745,11 @@ class QasmVisitor:
         type variables and not arrays. Assignment is mandatory in constant declaration.
 
         Args:
-            statement (qasm3_ast.ConstantDeclaration): The constant declaration to visit.
+            statement (ConstantDeclaration): The constant declaration to visit.
 
         Returns:
-            None
+            list[Statement]: The list containing the unrolled statement, or an empty
+                list if self._check_only is True.
         """
         statements = []
         var_name = statement.identifier.name
@@ -1757,10 +1865,11 @@ class QasmVisitor:
         """Visit a classical operation element.
 
         Args:
-            statement (ClassicalType): The classical operation to visit.
+            statement (ClassicalDeclaration): The classical operation to visit.
 
         Returns:
-            None
+            list[Statement]: The list containing the unrolled statement, or an empty list
+                if self._check_only is True.
         """
         statements = []
         var_name = statement.identifier.name
@@ -1995,10 +2104,11 @@ class QasmVisitor:
         """Visit a classical assignment element.
 
         Args:
-            statement (qasm3_ast.ClassicalAssignment): The classical assignment to visit.
+            statement (ClassicalAssignment): The classical assignment to visit.
 
         Returns:
-            list[qasm3_ast.Statement]: The list of statements generated by the assignment.
+            list[Statement]: The list containing the unrolled statement, or an empty list
+                if self._check_only is True.
         """
         statements = []
         lvalue = statement.lvalue
@@ -2170,7 +2280,7 @@ class QasmVisitor:
         """Evaluate an array initialization.
 
         Args:
-            array_literal (qasm3_ast.ArrayLiteral): The array literal to evaluate.
+            array_literal (ArrayLiteral): The array literal to evaluate.
             dimensions (list[int]): The dimensions of the array.
             base_type (Any): The base type of the array.
 
@@ -2212,10 +2322,11 @@ class QasmVisitor:
         """Visit a branching statement element.
 
         Args:
-            statement (qasm3_ast.BranchingStatement): The branching statement to visit.
+            statement (BranchingStatement): The branching statement to visit.
 
         Returns:
-            None
+            list[Statement]: The list of unrolled branch statements, or an empty list
+                if self._check_only is True.
         """
         self._scope_manager.push_context(Context.BLOCK)
         self._scope_manager.push_scope({})
@@ -2340,7 +2451,15 @@ class QasmVisitor:
         return result  # type: ignore[return-value]
 
     def _visit_forin_loop(self, statement: qasm3_ast.ForInLoop) -> list[qasm3_ast.Statement]:
-        # Compute loop variable values
+        """Visit a for-in loop statement element.
+
+        Args:
+            statement (ForInLoop): The for-in loop statement to visit.
+
+        Returns:
+            list[Statement]: The list containing the loop statements,
+                or an empty list if self._check_only is True.
+        """
         irange = []
         if isinstance(statement.set_declaration, qasm3_ast.RangeDefinition):
             init_exp = statement.set_declaration.start
@@ -2422,10 +2541,13 @@ class QasmVisitor:
            Reference: https://openqasm.com/language/subroutines.html#subroutines
 
         Args:
-            statement (qasm3_ast.SubroutineDefinition): The subroutine definition to visit.
+            statement (SubroutineDefinition | ExternDeclaration):
+                The subroutine definition to visit.
 
         Returns:
-            None
+            Sequence[None | ExternDeclaration]: The list containing the statement
+                if it is an ExternDeclaration, otherwise an empty list.
+                Returns an empty list if self._check_only is True.
         """
         fn_name = statement.name.name
         statements = []
@@ -2473,10 +2595,15 @@ class QasmVisitor:
         """Visit a function call element.
 
         Args:
-            statement (qasm3_ast.FunctionCall): The function call to visit.
-        Returns:
-            None
+            statement (FunctionCall): The function call to visit.
 
+        Returns:
+            tuple[Any | None, list[Statement | FunctionCall]]: If the function is undefined,
+                returns a tuple of None and an empty list.
+                If the function is defined, returns a tuple of the function's return
+                value and a list containing the function statement.
+                If self._check_only is True, instead return a tuple of
+                the function's return value and an empty list.
         """
         fn_name = statement.name.name
         if fn_name not in self._subroutine_defns and fn_name not in FUNCTION_MAP:
@@ -2595,12 +2722,15 @@ class QasmVisitor:
         """Visit a while-loop element.
 
         Args:
-            statement (qasm3_ast.WhileLoop) - the while-loop AST node
+            statement (WhileLoop): The while-loop AST node.
+
         Returns:
-            list[qasm3_ast.Statement] - flattened/unrolled statements
+            list[Statement]: The list of unrolled statements from the while-loop.
+
         Raises:
-            ValidationError - if loop condition is non-classical or dynamic
-            LoopLimitExceededError - if the loop exceeds the maximum limit"""
+            ValidationError: If loop condition is non-classical or dynamic.
+            LoopLimitExceededError: If the loop exceeds the maximum limit.
+        """
 
         result = []
 
@@ -2652,10 +2782,10 @@ class QasmVisitor:
         """Visit an alias statement element.
 
         Args:
-            statement (qasm3_ast.AliasStatement): The alias statement to visit.
+            statement (AliasStatement): The alias statement to visit.
 
         Returns:
-            None
+            list[None]: An empty list.
         """
         # pylint: disable=too-many-branches
         target = statement.target
@@ -2768,10 +2898,11 @@ class QasmVisitor:
         """Visit a switch statement element.
 
         Args:
-            statement (qasm3_ast.SwitchStatement): The switch statement to visit.
+            statement (SwitchStatement): The switch statement to visit.
 
         Returns:
-            list[qasm3_ast.Statement]: The list of statements generated by the switch statement.
+            list[Statement]: The list of statements generated by the switch statement,
+                or an empty list if self._check_only is True.
         """
         # 1. analyze the target - it should ONLY be int, not casted
         switch_target = statement.target
@@ -2852,12 +2983,18 @@ class QasmVisitor:
             default_stmts = statement.default.statements
             return _evaluate_case(default_stmts)
 
-    def _resolve_duration_unit(self, time_var) -> qasm3_ast.TimeUnit:
+    def _resolve_duration_unit(self, time_var: qasm3_ast.Expression) -> qasm3_ast.TimeUnit:
         """Determine the output unit for a duration literal.
 
         `dt` is backend-dependent and not convertible to SI units without a known
         sample rate. Preserve it when the source unit was `dt` (or a device cycle
         time is set). SI units are already converted to ns by the evaluator.
+
+        Args:
+            time_var (Expression): A DurationLiteral to check.
+
+        Returns:
+            TimeUnit: The unit of the DurationLiteral.
         """
         source_is_dt = (
             isinstance(time_var, qasm3_ast.DurationLiteral)
@@ -2874,10 +3011,13 @@ class QasmVisitor:
     ) -> list[qasm3_ast.Statement]:
         """
         Visit a DelayInstruction statement.
+
         Args:
-            statement (qasm3_ast.DelayInstruction): The DelayInstruction statement to visit.
+            statement (DelayInstruction): The DelayInstruction statement to visit.
+
         Returns:
-            list[qasm3_ast.Statement]: The list of statements generated by the DelayInstruction.
+            list[Statement]: The list of statements generated by the DelayInstruction,
+                or an empty list if self._check_only is True.
         """
         _delay_time_var = statement.duration
         global_scope = self._scope_manager.get_global_scope()
@@ -2981,9 +3121,10 @@ class QasmVisitor:
         still copied to the output, where the consumer applies it to whatever comes next.
 
         Args:
-            statement (qasm3_ast.Pragma): The Pragma node to visit.
+            statement (Pragma): The Pragma node to visit.
         Returns:
-            list[qasm3_ast.Pragma]: The pragma, unmodified.
+            list[Pragma]: The pragma, unmodified, or an empty list
+                if self._check_only is True.
         """
         logger.debug("Visiting pragma '%s'", statement.command)
         if self._is_verbatim_pragma(statement):
@@ -2997,10 +3138,13 @@ class QasmVisitor:
     def _visit_box_statement(self, statement: qasm3_ast.Box) -> list[qasm3_ast.Statement]:
         """
         Visit a Box statement.
+
         Args:
-            statement (qasm3_ast.Box): The Box statement node to visit.
+            statement (Box): The Box statement node to visit.
+
         Returns:
-            list[qasm3_ast.Statement]: The list of statements generated by the Box statement.
+            list[Statement]: The list of unrolled statements from the Box statement, or an
+                empty list if self._check_only is True.
         """
         statements = []
         outer_verbatim = self._in_verbatim_box
@@ -3075,14 +3219,15 @@ class QasmVisitor:
 
     def _visit_calibration_definition(
         self, statement: qasm3_ast.CalibrationDefinition
-    ) -> list[Any]:
+    ) -> list[qasm3_ast.Statement]:
         """Visit a calibration definition element.
 
         Args:
-            statement (qasm3_ast.CalibrationDefinition): The calibration definition to visit.
+            statement (CalibrationDefinition): The calibration definition to visit.
 
         Returns:
-            None
+            list[Statement]: The list of unrolled statements, or the original statement
+                in a list if self._check_only is True.
         """
         from openpulse.parser import (  # pylint: disable=import-outside-toplevel
             OpenPulseParsingError,
@@ -3151,7 +3296,7 @@ class QasmVisitor:
             if not isinstance(qubit, qasm3_ast.Identifier):
                 continue
             name = qubit.name
-            if name.startswith("$") and name[1:].isdigit():
+            if is_physical_qubit(name):
                 _qubit_set.add(int(name[1:]))
                 self._openpulse_qubit_map[statement.name.name].add(name)
                 self._total_pulse_qubits = max(self._total_pulse_qubits, int(name[1:]) + 1)
@@ -3222,14 +3367,17 @@ class QasmVisitor:
 
         return [statement]
 
-    def _visit_calibration_statement(self, statement: qasm3_ast.CalibrationStatement) -> list[Any]:
+    def _visit_calibration_statement(
+        self, statement: qasm3_ast.CalibrationStatement
+    ) -> list[qasm3_ast.Statement]:
         """Visit a calibration statement element.
 
         Args:
-            statement (qasm3_ast.CalibrationStatement): The calibration statement to visit.
+            statement (CalibrationStatement): The calibration statement to visit.
 
         Returns:
-            None
+            list[Statement]: The list of unrolled statements, or the original statement
+                in a list if self._check_only is True.
         """
         from openpulse.parser import (  # pylint: disable=import-outside-toplevel
             OpenPulseParsingError,
@@ -3295,10 +3443,10 @@ class QasmVisitor:
         """Visit a calibration grammar declaration element.
 
         Args:
-            statement (qasm3_ast.CalibrationGrammarDeclaration): The calibration grammar declaration
+            statement (CalibrationGrammarDeclaration): The calibration grammar declaration
 
         Returns:
-            None
+            list[Statement]: The list of unrolled statements.
         """
         if statement.name != "openpulse":
             raise_qasm3_error(
@@ -3315,10 +3463,11 @@ class QasmVisitor:
         """Visit an include statement element.
 
         Args:
-            include (qasm3_ast.Include): The include statement to visit.
+            include (Include): The include statement to visit.
 
         Returns:
-            None
+            list[Statement]: A list containing the include statement,
+                or an empty list if self._check_only is True.
         """
         filename = include.filename
         if filename in self._included_files:
@@ -3337,10 +3486,10 @@ class QasmVisitor:
         """Visit a statement element.
 
         Args:
-            statement (qasm3_ast.Statement | qasm3_ast.Pragma): The statement to visit.
+            statement (Statement | Pragma): The statement to visit.
 
         Returns:
-            None
+            list[Statement]: The list of unrolled statements.
         """
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
@@ -3373,27 +3522,27 @@ class QasmVisitor:
         """Visit a basic block of statements.
 
         Args:
-            stmt_list (Sequence[qasm3_ast.Statement | qasm3_ast.Pragma]): The statements to visit.
+            stmt_list (Sequence[Statement | Pragma]): The list of statements to visit.
 
         Returns:
-            list[qasm3_ast.Statement]: The list of unrolled statements.
+            list[Statement]: The list of unrolled statements.
         """
         result = []
         for stmt in stmt_list:
             result.extend(self.visit_statement(stmt))
         return result
 
-    def finalize(self, unrolled_stmts):
+    def finalize(self, unrolled_stmts: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
         """Finalize the unrolled statements.
         Rules:
         - Remove qubit args from phase operations if ALL qubits are used
         To add more rules if needed
 
         Args:
-            unrolled_stmts (list[qasm3_ast.Statement]): The list of unrolled statements.
+            unrolled_stmts (list[Statement]): The list of unrolled statements.
 
         Returns:
-            list[qasm3_ast.Statement]: The list of finalized statements.
+            list[Statement]: The list of finalized statements.
 
         """
         # remove the gphase qubits if they use ALL qubits

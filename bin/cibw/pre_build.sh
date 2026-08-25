@@ -66,7 +66,10 @@ if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
 
     # Get the path to .toml file
     PYPROJECT_TOML_PATH="${project}/pyproject.toml"
-    DEV_VERSION="${PRE_RELEASE_VERSION}"
+
+    # Normalize to PEP 440, so that pyproject.toml, _version.py and the package
+    # metadata all spell the version the same way, eg 1.1.0-a.0 -> 1.1.0a0
+    DEV_VERSION=$(python -c "from packaging.version import Version; print(Version('${PRE_RELEASE_VERSION}'))")
 
     # Update the version in the .toml file
     echo "Setting version to ${DEV_VERSION}"

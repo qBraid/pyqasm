@@ -24,7 +24,7 @@ from openqasm3.ast import Include, Program
 from openqasm3.printer import dumps
 
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
-from pyqasm.modules.base import QasmModule
+from pyqasm.modules.base import QasmModule, QasmVisitor
 from pyqasm.modules.qasm3 import Qasm3Module
 
 # the QASM 2.0 <qop> production: a gate application, a measurement or a reset.
@@ -54,7 +54,7 @@ class Qasm2Module(QasmModule):
         statements (list[Statement]): list of openqasm2 Statements.
     """
 
-    def __init__(self, name: str, program: Program):
+    def __init__(self, name: str, program: Program) -> None:
         super().__init__(name, program)
         self._unrolled_ast = Program(statements=[], version="2.0")
         self._whitelist_statements = {
@@ -70,8 +70,8 @@ class Qasm2Module(QasmModule):
             qasm3_ast.QuantumBarrier,
         }
 
-    def _filter_statements(self):
-        """Filter statements according to the whitelist"""
+    def _filter_statements(self) -> None:
+        """Filter statements according to the whitelist."""
         for stmt in self._statements:
             stmt_type = type(stmt)
             if stmt_type not in self._whitelist_statements:
@@ -80,7 +80,7 @@ class Qasm2Module(QasmModule):
                 self._filter_branch_body(stmt)
             # TODO: add more filtering here if needed
 
-    def _filter_branch_body(self, statement: qasm3_ast.BranchingStatement):
+    def _filter_branch_body(self, statement: qasm3_ast.BranchingStatement) -> None:
         """Filter the body of a conditional against what QASM 2.0 allows there.
 
         The QASM 2.0 grammar admits only a ``<qop>`` as the body of an ``if`` --
@@ -96,12 +96,11 @@ class Qasm2Module(QasmModule):
                 self._filter_branch_body(inner_stmt)
                 continue
             if isinstance(inner_stmt, qasm3_ast.QuantumPhase):
-                # not something the user wrote: rzz/rxx decompose to a global phase, so this
-                # is only reachable by re-filtering an already-unrolled body (see issue #351)
+                # unroll-emitted phases are dropped in accept() (issue #351), so only a
+                # user-written gphase reaches this
                 raise_qasm3_error(
                     "Global phase is not representable in QASM 2.0, so it cannot appear in "
-                    "a conditional body; it is introduced by unrolling gates such as 'rzz' "
-                    "and 'rxx'",
+                    "a conditional body",
                     error_node=inner_stmt,
                     span=inner_stmt.span,
                 )
@@ -114,7 +113,7 @@ class Qasm2Module(QasmModule):
                 span=inner_stmt.span,
             )
 
-    def _format_declarations(self, qasm_str):
+    def _format_declarations(self, qasm_str: str) -> str:
         """Format the unrolled qasm for declarations in openqasm 2.0 format"""
         for declaration_type, replacement_type in [("qubit", "qreg"), ("bit", "creg")]:
             pattern = rf"{declaration_type}\[(\d+)\]\s+(\w+);"
@@ -122,20 +121,19 @@ class Qasm2Module(QasmModule):
             qasm_str = re.sub(pattern, replacement, qasm_str)
         return qasm_str
 
-    def _qasm_ast_to_str(self, qasm_ast):
-        """Convert the qasm AST to a string"""
+    def _qasm_ast_to_str(self, qasm_ast: Program) -> str:
+        """Convert the qasm AST to a string."""
         # set the version to 2.0
         qasm_ast.version = "2.0"
         raw_qasm = dumps(qasm_ast, old_measurement=True)
         return self._format_declarations(raw_qasm)
 
     def to_qasm3(self, as_str: bool = False) -> str | Qasm3Module:
-        """Convert the module to openqasm3 format
+        """Convert the module to openqasm3 format.
 
         Args:
             as_str (bool): Flag to indicate if the conversion should be to a string
-                           or to a Qasm3Module object.
-                           Default is False.
+                or to a Qasm3Module object. Default is False.
 
         Returns:
             str | Qasm3Module: The module in openqasm3 format.
@@ -149,14 +147,54 @@ class Qasm2Module(QasmModule):
         qasm_program.version = "3.0"
         return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
 
-    def accept(self, visitor):
-        """Accept a visitor for the module
+    def finalize(self, statements: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
+        """Apply the QASM 2 transformations the finalized statement list needs.
 
         Args:
-            visitor (QasmVisitor): The visitor to accept
+            statements (list[Statement]): The finalized statements.
+
+        Returns:
+            list[Statement]: The statements to store as the unrolled AST.
+        """
+        return self._drop_global_phase(statements)
+
+    def _drop_global_phase(
+        self, statements: list[qasm3_ast.Statement]
+    ) -> list[qasm3_ast.Statement]:
+        """Remove QuantumPhase statements the unroller emitted (e.g. from the rzz/rxx
+        decompositions), descending into conditional bodies. OpenQASM 2 has no
+        global-phase syntax, and a global phase is unobservable, so dropping it is
+        semantically safe (issue #351)."""
+        filtered = []
+        for stmt in statements:
+            if isinstance(stmt, qasm3_ast.QuantumPhase):
+                # a controlled phase is relative, not global, and is observable; the
+                # visitor rewrites those to 'p' gates, so none should reach here
+                if stmt.modifiers:
+                    raise_qasm3_error(
+                        "Modified global phase cannot be dropped for a QASM 2 target",
+                        error_node=stmt,
+                        span=stmt.span,
+                    )
+                continue
+            if isinstance(stmt, qasm3_ast.BranchingStatement):
+                stmt.if_block = self._drop_global_phase(stmt.if_block)
+                stmt.else_block = self._drop_global_phase(stmt.else_block)
+                if not stmt.if_block and not stmt.else_block:
+                    # the body was nothing but global phase, and QASM 2 has no
+                    # form for a conditional without a qop
+                    continue
+            filtered.append(stmt)
+        return filtered
+
+    def accept(self, visitor: QasmVisitor) -> None:
+        """Accept a visitor for the module.
+
+        Args:
+            visitor (QasmVisitor): The visitor to accept.
         """
         self._filter_statements()
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self.unrolled_ast.statements = final_stmt_list
+        self.unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]

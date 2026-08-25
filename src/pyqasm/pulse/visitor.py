@@ -21,11 +21,11 @@ Module defining OpenPulse Visitor.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import openqasm3.ast as qasm3_ast
 
-from pyqasm.elements import Capture, Frame, Variable, Waveform
+from pyqasm.elements import Capture, Frame, Variable, Waveform, is_physical_qubit
 from pyqasm.exceptions import (
     raise_qasm3_error,
 )
@@ -103,8 +103,14 @@ class OpenPulseVisitor:
         """Get the frame from the global scope.
 
         Args:
-            frame (str): The frame to get.
             statement (Any): The statement that is calling the function.
+            frame (str): The name of the frame to get.
+
+        Returns:
+            Frame: The frame that was gotten.
+
+        Raises:
+            ValidationError: If there is no frame with the provided name.
         """
         frame_obj = self._openpulse_scope_manager.get_from_visible_scope(frame)
         if not isinstance(frame_obj, Frame) or frame_obj is None:
@@ -131,8 +137,12 @@ class OpenPulseVisitor:
         """Get the value of an identifier.
 
         Args:
-            identifier (qasm3_ast.Identifier): The identifier to get the value of.
             statement (Any): The statement that is calling the function.
+            identifier (Identifier | str): The identifier to get the value of,
+                or a string with its name.
+
+        Returns:
+            Any: The value of the identifier.
         """
         if isinstance(identifier, str):
             identifier = qasm3_ast.Identifier(name=identifier)
@@ -148,7 +158,12 @@ class OpenPulseVisitor:
         return _id_var_obj
 
     def _check_identifier(self, statement: Any, identifier: qasm3_ast.Identifier) -> None:
-        """Check if an identifier is declared."""
+        """Check if an identifier is declared.
+
+        Args:
+            statement (Any): The statement that is calling the function.
+            identifier (Identifier): The identifier that is checked for declaration.
+        """
         _id_var_obj = self._openpulse_scope_manager.get_from_global_scope(
             identifier.name
         ) or self._qasm3_scope_manager.get_from_visible_scope(identifier.name)
@@ -180,7 +195,7 @@ class OpenPulseVisitor:
         Args:
             statement (Any): The statement that is calling the function.
             frame (str): The frame to set or shift the phase of.
-            phase (qasm3_ast.FloatLiteral | qasm3_ast.Identifier): The phase to set or shift.
+            phase (FloatLiteral | Identifier): The phase to set or shift.
             set_phase (bool): If True, set the phase of the frame.
             shift_phase (bool): If True, shift the phase of the frame.
         """
@@ -220,11 +235,11 @@ class OpenPulseVisitor:
         shift_frequency: bool = False,
     ) -> None:
         """Set or shift the frequency of a frame.
+
         Args:
             statement (Any): The statement that is calling the function.
-            frame (Frame): The frame to set or shift the frequency of frame.
-            frequency (qasm3_ast.FloatLiteral | qasm3_ast.Identifier): The frequency to
-                                                                       set or shift.
+            frame (str): The frame to set or shift the frequency of.
+            frequency (FloatLiteral | Identifier): The frequency to set or shift.
             set_frequency (bool): If True, set the frequency of the frame.
             shift_frequency (bool): If True, shift the frequency of the frame.
         """
@@ -260,9 +275,12 @@ class OpenPulseVisitor:
 
         Args:
             statement (Any): The statement that is calling the function.
-            frame (str): The frame to get the phase or frequency of frame.
+            frame (str): The frame to get the phase or frequency of.
             get_phase (bool): If True, get the phase of the frame.
             get_frequency (bool): If True, get the frequency of the frame.
+
+        Returns:
+            FloatLiteral: The phase or frequency of the frame.
         """
         frame_obj = self._get_frame(statement, frame)
         if get_phase:
@@ -279,7 +297,7 @@ class OpenPulseVisitor:
         Args:
             statement (Any): The statement that is calling the function.
             wf_func_name (str): The name of the waveform function.
-            waveform_name (Optional[str|Any]): The name or index identifier of the waveform.
+            waveform_name (str | Any): An optional name or index identifier of the waveform.
         """
         # Use a dispatch dictionary to mimic the structure of visit statement
         waveform_validators = {
@@ -333,9 +351,8 @@ class OpenPulseVisitor:
         """Handle synchronization between QASM and OpenPulse scopes.
 
         Args:
-            statement: The statement being processed
-            return_value: Return value from function calls
-            is_assignment: True if this is an assignment, False if declaration
+            statement (Any): The statement being processed.
+            return_value (Any): An optional return value from function calls.
         """
         qasm_scope = self._qasm3_scope_manager.get_curr_scope()
         if not qasm_scope:
@@ -361,16 +378,14 @@ class OpenPulseVisitor:
         """Visit a barrier statement element.
 
         Args:
-            statement (qasm3_ast.QuantumBarrier): The barrier statement to visit.
+            statement (QuantumBarrier): The barrier statement to visit.
 
         Returns:
-            None
+            list[QuantumBarrier]: The list containing the original barrier statement.
         """
         if barrier.qubits:
             for qubit in barrier.qubits:
-                if isinstance(qubit, qasm3_ast.Identifier) and not (
-                    qubit.name.startswith("$") and qubit.name[1:].isdigit()
-                ):
+                if isinstance(qubit, qasm3_ast.Identifier) and not is_physical_qubit(qubit.name):
                     frame = self._openpulse_scope_manager.get_from_global_scope(qubit.name)
                     if frame is None:
                         raise_qasm3_error(
@@ -391,6 +406,9 @@ class OpenPulseVisitor:
 
         Args:
             statement (ClassicalAssignment): The classical assignment to visit.
+
+        Returns:
+            list[Statement]: The list containing the original statement.
         """
         r_value = statement.rvalue
         l_value = statement.lvalue
@@ -499,7 +517,7 @@ class OpenPulseVisitor:
             statement (ClassicalType): The classical operation to visit.
 
         Returns:
-            None
+            list[Statement]: The list containing the original statement.
         """
         from openpulse.ast import (  # pylint: disable=import-outside-toplevel
             FrameType,
@@ -657,10 +675,11 @@ class OpenPulseVisitor:
         """Visit a function call element.
 
         Args:
-            statement (qasm3_ast.FunctionCall): The function call to visit.
-        Returns:
-            None
+            statement (FunctionCall): The function call to visit.
 
+        Returns:
+            tuple[Any, list[Statement | FunctionCall]]: A tuple of the function's return
+                value and a list containing the function call.
         """
         # evaluate expressions to get name
         _return_value: Any = None
@@ -754,14 +773,16 @@ class OpenPulseVisitor:
 
         return _return_value, [statement]
 
-    def visit_statement(self, statement: qasm3_ast.Statement) -> list[qasm3_ast.Statement]:
+    def visit_statement(
+        self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
+    ) -> list[qasm3_ast.Statement]:
         """Visit a statement element.
 
         Args:
-            statement (qasm3_ast.Statement): The statement to visit.
+            statement (Statement | Pragma): The statement to visit.
 
         Returns:
-            None
+            list[Statement]: The list of resulting statements.
         """
         logger.debug("Visiting statement '%s'", str(statement))
         result = []
@@ -809,17 +830,17 @@ class OpenPulseVisitor:
 
     def visit_basic_block(
         self,
-        stmt_list: list[qasm3_ast.Statement],
+        stmt_list: Sequence[qasm3_ast.Statement | qasm3_ast.Pragma],
         is_def_cal: bool,
     ) -> list[qasm3_ast.Statement]:
         """Visit a basic block of statements.
 
         Args:
-            stmt_list (list[qasm3_ast.Statement]): The list of statements to visit.
-            is_def_cal (bool): is the given statements from def_cal block.
+            stmt_list (Sequence[Statement | Pragma]): The list of statements to visit.
+            is_def_cal (bool): True if the given statements are from a def_cal block.
 
         Returns:
-            list[qasm3_ast.Statement]: The list of unrolled statements.
+            list[Statement]: The list of unrolled statements.
         """
         result = []
         self._is_def_cal = is_def_cal
