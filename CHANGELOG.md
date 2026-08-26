@@ -17,6 +17,8 @@ Types of changes:
 ### Added
 - Negative indices are now honored across arrays, `bit[n]`, `qubit[n]`, and `let` aliases, including ranges: `myArray[-1]`, `a[-1] = 10`, `h q[-1]`, `bit c = b[-1]`, `let last_three = two[-4:-1]`. An index still outside `[-size, size)` after normalization raises `ValidationError` and names the index as written. ([#391](https://github.com/qBraid/pyqasm/issues/391))
 
+- `for` loops now iterate a `bit[n]` register, a one-dimensional `array[<scalar>, n]`, or an index expression arriving at either, e.g. `for bit x in b`, `for int[8] i in a` and `for int[8] i in a[1:2]`. Values are visited in index order, and the loop variable is bound by copy, so writing to it leaves the source untouched. A multi-dimensional array raises `ValidationError`. Classical `let` aliases remain unsupported, tracked in [#392](https://github.com/qBraid/pyqasm/issues/392). ([#393](https://github.com/qBraid/pyqasm/issues/393))
+
 ### Improved / Modified
 
 ### Deprecated

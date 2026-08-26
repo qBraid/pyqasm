@@ -2509,6 +2509,70 @@ class QasmVisitor:
 
         return result  # type: ignore[return-value]
 
+    def _resolve_loop_iterable(
+        self, statement: qasm3_ast.ForInLoop
+    ) -> tuple[list[Any], Optional[qasm3_ast.Expression]]:
+        """Resolve the iterable of a for-in loop to a concrete list of values.
+
+        Reference: https://openqasm.com/versions/3.1/language/classical.html#for-loops
+
+        Supports a discrete set, a range definition, and any expression evaluating to a
+        ``bit[n]`` register or a one-dimensional ``array[<scalar>, n]`` — including an
+        index expression that arrives at one of those, e.g. ``a[1:2]``.
+
+        Args:
+            statement (ForInLoop): The for-in loop whose iterable to resolve.
+
+        Returns:
+            tuple[list[Any], Optional[Expression]]: The values to iterate over, in index
+                order, and the initializer to declare the loop variable with.
+
+        Raises:
+            ValidationError: If the iterable is of an unsupported type, or is a
+                multi-dimensional array.
+        """
+        declaration = statement.set_declaration
+
+        if isinstance(declaration, qasm3_ast.RangeDefinition):
+            startval = Qasm3ExprEvaluator.evaluate_expression(declaration.start)[0]
+            stepval = (
+                1
+                if declaration.step is None
+                else Qasm3ExprEvaluator.evaluate_expression(declaration.step)[0]
+            )
+            endval = Qasm3ExprEvaluator.evaluate_expression(declaration.end)[0]
+            irange = list(range(int(startval), int(endval) + int(stepval), int(stepval)))
+            return irange, declaration.start
+
+        if isinstance(declaration, qasm3_ast.DiscreteSet):
+            values = [Qasm3ExprEvaluator.evaluate_expression(exp)[0] for exp in declaration.values]
+            return values, declaration.values[0]
+
+        if isinstance(declaration, (qasm3_ast.Identifier, qasm3_ast.IndexExpression)):
+            value = Qasm3ExprEvaluator.evaluate_expression(declaration)[0]
+            # ``BitValue`` is an ``int`` subclass, so it must be matched first. Bit 0 is
+            # the leftmost character of the bitstring, giving ``b[0]``, ``b[1]``, ... order.
+            if isinstance(value, BitValue):
+                return [int(bit) for bit in value.to_bitstring()], None
+            if isinstance(value, np.ndarray):
+                if value.ndim > 1:
+                    raise_qasm3_error(
+                        f"Iterable of loop must be one-dimensional, but "
+                        f"'{dumps(declaration)}' has {value.ndim} dimensions",
+                        error_node=statement,
+                        span=statement.span,
+                    )
+                # ``tolist`` copies into native Python scalars, so writing to the loop
+                # variable in the body can not reach back into the source array.
+                return value.tolist(), None
+
+        raise_qasm3_error(
+            f"Unexpected type {type(declaration)} of set_declaration in loop.",
+            error_node=statement,
+            span=statement.span,
+        )
+        return [], None  # pragma: no cover - raise_qasm3_error never returns
+
     def _visit_forin_loop(self, statement: qasm3_ast.ForInLoop) -> list[qasm3_ast.Statement]:
         """Visit a for-in loop statement element.
 
@@ -2519,30 +2583,7 @@ class QasmVisitor:
             list[Statement]: The list containing the loop statements,
                 or an empty list if self._check_only is True.
         """
-        irange = []
-        if isinstance(statement.set_declaration, qasm3_ast.RangeDefinition):
-            init_exp = statement.set_declaration.start
-            startval = Qasm3ExprEvaluator.evaluate_expression(init_exp)[0]
-            range_def = statement.set_declaration
-            stepval = (
-                1
-                if range_def.step is None
-                else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
-            )
-            endval = Qasm3ExprEvaluator.evaluate_expression(range_def.end)[0]
-            irange = list(range(int(startval), int(endval) + int(stepval), int(stepval)))
-        elif isinstance(statement.set_declaration, qasm3_ast.DiscreteSet):
-            init_exp = statement.set_declaration.values[0]
-            irange = [
-                Qasm3ExprEvaluator.evaluate_expression(exp)[0]
-                for exp in statement.set_declaration.values
-            ]
-        else:
-            raise_qasm3_error(
-                f"Unexpected type {type(statement.set_declaration)} of set_declaration in loop.",
-                error_node=statement,
-                span=statement.span,
-            )
+        irange, init_exp = self._resolve_loop_iterable(statement)
 
         # Check if the loop range exceeds the maximum allowed iterations
         if len(irange) > self._loop_limit:
