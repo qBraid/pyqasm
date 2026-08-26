@@ -194,6 +194,39 @@ class Qasm3ExprEvaluator:
         return var_value
 
     @classmethod
+    def _find_stretch_operand(cls, expression):
+        """Return the name of a 'stretch' variable referenced in ``expression``, if any.
+
+        A ``stretch`` resolves to its span only at schedule time, so its value stays
+        ``None`` during evaluation. When such an operand reaches arithmetic it cannot be
+        folded to a compile-time constant, so this locates the stretch variable in order
+        to report it.
+
+        Args:
+            expression: The expression (or sub-expression) to inspect.
+
+        Returns:
+            str | None: The name of a referenced stretch variable, or ``None``.
+        """
+        var_name = None
+        if isinstance(expression, Identifier):
+            var_name = expression.name
+        elif isinstance(expression, IndexExpression):
+            var_name, _ = Qasm3Analyzer.analyze_index_expression(expression)
+        elif isinstance(expression, BinaryExpression):
+            return cls._find_stretch_operand(expression.lhs) or cls._find_stretch_operand(
+                expression.rhs
+            )
+        elif isinstance(expression, UnaryExpression):
+            return cls._find_stretch_operand(expression.expression)
+
+        if var_name is not None:
+            var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)
+            if var is not None and isinstance(var.base_type, StretchType):
+                return var_name
+        return None
+
+    @classmethod
     # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals,too-many-arguments
     def evaluate_expression(  # type: ignore[return]
         cls,
@@ -476,6 +509,15 @@ class Qasm3ExprEvaluator:
                 return (None, [])
 
             statements.extend(rhs_statements)
+            if lhs_value is None or rhs_value is None:
+                stretch_name = cls._find_stretch_operand(expression)
+                if stretch_name is not None:
+                    raise_qasm3_error(
+                        f"Arithmetic on 'stretch' operand '{stretch_name}' is not yet supported",
+                        err_type=ValidationError,
+                        error_node=expression,
+                        span=expression.span,
+                    )
             return _check_and_return_value(
                 qasm3_expression_op_map(expression.op.name, lhs_value, rhs_value)
             )
