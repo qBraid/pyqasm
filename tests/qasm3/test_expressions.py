@@ -105,3 +105,12 @@ def test_incorrect_expressions(caplog):
             loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
     assert "Error at line 1" in caplog.text
     assert "x" in caplog.text
+
+
+def test_bare_expression_statement_is_rejected(caplog):
+    """A bare expression statement has no effect and must raise a clear error."""
+    with pytest.raises(ValidationError, match="Expression statement has no effect"):
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3; int[32] a = 2; int[32] b = 3; a * b;").validate()
+    assert "Error at line 1" in caplog.text
+    assert "a * b" in caplog.text

@@ -193,7 +193,7 @@ class QasmVisitor:
             qasm3_ast.SwitchStatement: self._visit_switch_statement,
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExternDeclaration: self._visit_subroutine_definition,
-            qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
+            qasm3_ast.ExpressionStatement: self._visit_expression_statement,
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.BreakStatement: self._visit_break,
             qasm3_ast.ContinueStatement: self._visit_continue,
@@ -2589,6 +2589,33 @@ class QasmVisitor:
         return statements
 
     # pylint: disable=too-many-locals, too-many-statements
+    def _visit_expression_statement(
+        self, statement: qasm3_ast.ExpressionStatement
+    ) -> tuple[Any | None, list[qasm3_ast.Statement | qasm3_ast.FunctionCall]]:
+        """Visit an expression statement.
+
+        Only a function call has an effect on the program. Any other bare
+        expression statement, such as the arithmetic examples in the spec's
+        classical types chapter, has no effect, so reject it with a clear
+        error instead of dereferencing ``.name`` on an expression that is not
+        a function call.
+
+        Args:
+            statement (ExpressionStatement): The expression statement to visit.
+
+        Returns:
+            tuple[Any | None, list[Statement | FunctionCall]]: The result of
+                visiting the underlying function call.
+        """
+        expression = statement.expression
+        if not isinstance(expression, qasm3_ast.FunctionCall):
+            raise_qasm3_error(
+                "Expression statement has no effect",
+                error_node=statement,
+                span=statement.span,
+            )
+        return self._visit_function_call(expression)
+
     def _visit_function_call(
         self, statement: qasm3_ast.FunctionCall
     ) -> tuple[Any | None, list[qasm3_ast.Statement | qasm3_ast.FunctionCall]]:
