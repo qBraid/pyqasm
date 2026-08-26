@@ -18,6 +18,7 @@ Module containing unit tests for expressions.
 """
 
 import pytest
+from openqasm3.ast import QuantumGate
 
 from pyqasm.analyzer import bits_to_int, int_to_bits
 from pyqasm.elements import BitValue
@@ -266,3 +267,208 @@ def test_bit_register_op_result_stays_bit_type():
     text = dumps(module)
     assert "c = a | b" in text
     assert "d = c & a" in text
+
+
+def test_bit_register_descending_slice():
+    """``b[3:-1:0]`` selects every position down to 0, not just down to 1.
+
+    Regression guard: an inclusive range must extend its stop bound in the
+    direction of travel, so a negative step keeps the final position.
+    """
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        bit[4] b = "1100";
+        bit[4] r = b[3:-1:0];
+        int[8] v = r;
+        rx(v) q;
+        """)
+    module.unroll()
+    # "1100" read back-to-front is "0011" == 3.
+    assert _rotation_args(module) == [3]
+
+
+# ---------------------------------------------------------------------------
+# Issue #395 — classical value bit slicing on ``int`` / ``uint``
+# ---------------------------------------------------------------------------
+
+
+def _rotation_args(module):
+    """Return the evaluated ``rx`` arguments of an unrolled module, in order.
+
+    Bit-slice results are not otherwise observable from the public API, so the
+    tests below funnel each value into an ``rx`` angle and read it back.
+    """
+    return [
+        stmt.arguments[0].value
+        for stmt in module.unrolled_ast.statements
+        if isinstance(stmt, QuantumGate) and stmt.name.name == "rx"
+    ]
+
+
+def test_int_bit_slice_spec_example():
+    """The spec's ``int[32] myInt = 15`` example evaluates to its documented values.
+
+    Reference: https://openqasm.com/versions/3.1/language/types.html#classical-value-bit-slicing
+    """
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        int[32] myInt = 15;
+        bit[1] lastBit = myInt[0];
+        bit[1] signBit = myInt[31];
+        bit[1] alsoSignBit = myInt[-1];
+        bit[16] evenBits = myInt[0:2:31];
+        bit[16] upperBits = myInt[-16:-1];
+        int[8] a = lastBit;
+        int[8] b = signBit;
+        int[8] c = alsoSignBit;
+        int[32] d = evenBits;
+        int[32] e = upperBits;
+        myInt[4:7] = "1010";
+        rx(a) q;
+        rx(b) q;
+        rx(c) q;
+        rx(d) q;
+        rx(e) q;
+        rx(myInt) q;
+        """)
+    module.unroll()
+    assert _rotation_args(module) == [1, 0, 0, 3, 0, 0xAF]
+
+
+@pytest.mark.parametrize("int_type", ["int", "uint"])
+def test_int_bit_slice_single_bit_read(int_type):
+    """``i[k]`` yields the bit at position ``k``, counted from the LSB."""
+    module = loads(f"""
+        OPENQASM 3.0;
+        qubit q;
+        {int_type}[8] i = 15;
+        int[8] low = i[0];
+        int[8] high = i[4];
+        rx(low) q;
+        rx(high) q;
+        """)
+    module.unroll()
+    assert _rotation_args(module) == [1, 0]
+
+
+@pytest.mark.parametrize("int_type", ["int", "uint"])
+def test_int_bit_slice_assignment(int_type):
+    """``i[a:b] = <bit[k]>`` writes the bit vector into the integer, LSB first."""
+    module = loads(f"""
+        OPENQASM 3.0;
+        qubit q;
+        {int_type}[32] i = 15;
+        i[4:7] = "1010";
+        rx(i) q;
+        """)
+    module.unroll()
+    # 0b1010 written LSB-first into positions 4..7 sets bits 5 and 7: 15 + 32 + 128.
+    assert _rotation_args(module) == [0xAF]
+
+
+def test_int_bit_slice_assignment_wraps_to_signed():
+    """Writing the top bit of a signed ``int[n]`` re-reads as a negative value."""
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        int[4] x = 0;
+        uint[4] y = 0;
+        x[3] = 1;
+        y[3] = 1;
+        rx(x) q;
+        rx(y) q;
+        """)
+    module.unroll()
+    assert _rotation_args(module) == [-8, 8]
+
+
+def test_int_bit_slice_array_element():
+    """``arr[i][k]`` and ``arr[i][a:b]`` address the bits of one array element."""
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        array[int[32], 5] intArr = {0, 1, 2, 3, 4};
+        intArr[0][0] = 1;
+        bit[5] b = intArr[4][0:4];
+        int[8] v = b;
+        int[8] w = intArr[0];
+        rx(v) q;
+        rx(w) q;
+        """)
+    module.unroll()
+    assert _rotation_args(module) == [4, 1]
+
+
+def test_int_bit_slice_multi_dimensional_array_element():
+    """A trailing bit subscript is separated from the element subscripts, not flattened.
+
+    Regression guard for ``Invalid index for variable``: ``a[0][0][3]`` carries one
+    subscript more than the array has dimensions, and the extra one selects bits.
+    """
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        array[int[8], 2, 3] a = {{1, 2, 3}, {4, 5, 6}};
+        a[0][0][3] = 1;
+        bit[3] s = a[1][1][0:2];
+        int[8] w = a[0][0];
+        int[8] u = s;
+        rx(w) q;
+        rx(u) q;
+        """)
+    module.unroll()
+    # a[0][0] == 1, setting bit 3 adds 8; a[1][1] == 5, whose low three bits are 0b101.
+    assert _rotation_args(module) == [9, 5]
+
+
+def test_int_bit_slice_reversed_range_requires_explicit_step(caplog):
+    """A descending range needs an explicit negative step.
+
+    The spec's ``myInt[-1:-16]`` is an empty index set under the normative range
+    definition (``a:b`` implies step 1, and no ``a + m`` reaches a smaller ``b``),
+    yet its example assigns it to a ``bit[16]``. pyqasm follows the normative rule
+    and rejects the ambiguous form; ``myInt[-1:-1:-16]`` gives the reversed slice.
+    """
+    with pytest.raises(ValidationError, match="Invalid initialization value"):
+        with caplog.at_level("ERROR"):
+            loads("""
+                OPENQASM 3.0;
+                int[32] myInt = 15;
+                bit[16] upperReversed = myInt[-1:-16];
+                """).validate()
+    assert "Error at line" in caplog.text
+
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        int[8] myInt = 15;
+        bit[8] reversed_bits = myInt[-1:-1:-8];
+        int[16] v = reversed_bits;
+        rx(v) q;
+        """)
+    module.unroll()
+    # 0b00001111 read from bit 7 down to bit 0 is 0b11110000 == 240.
+    assert _rotation_args(module) == [240]
+
+
+def test_int_bit_slice_index_out_of_range_names_width(caplog):
+    """An index outside ``[0, n)`` after normalisation reports the declared width."""
+    with pytest.raises(ValidationError, match=r"Index 32 out of range for 'int\[32\]' variable"):
+        with caplog.at_level("ERROR"):
+            loads("OPENQASM 3.0; int[32] m = 15; m[32] = 1;").validate()
+    assert "Error at line" in caplog.text
+
+    with pytest.raises(ValidationError) as excinfo:
+        loads("OPENQASM 3.0; uint[8] m = 15; bit b = m[-9];").validate()
+    assert "Index -9 out of range for 'uint[8]' variable 'm'" in str(excinfo.value.__cause__)
+
+
+def test_int_bit_slice_assignment_width_mismatch():
+    """The right-hand side of a slice assignment must match the slice width."""
+    with pytest.raises(ValidationError, match="Cannot assign a 2-bit value to a 4-bit slice"):
+        loads('OPENQASM 3.0; int[32] m = 15; m[0:3] = "10";').validate()
+
+    with pytest.raises(ValidationError, match="Value 4 out of range for a 1-bit slice"):
+        loads("OPENQASM 3.0; int[32] m = 15; m[0] = 4;").validate()

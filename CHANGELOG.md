@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added classical value bit slicing on `int[n]` / `uint[n]`, including array elements: `myInt[0]`, `myInt[0:2:31]`, `myInt[4:7] = "1010"`, `intArr[0][0] = 1`. These previously raised `Invalid initialization value` or `Cannot cast 'str' to 'IntType'`. Index 0 is the least-significant bit. A descending range requires an explicit negative step (`myInt[-1:-1:-16]`). ([#395](https://github.com/qBraid/pyqasm/issues/395))
 - Negative indices are now honored across arrays, `bit[n]`, `qubit[n]`, and `let` aliases, including ranges: `myArray[-1]`, `a[-1] = 10`, `h q[-1]`, `bit c = b[-1]`, `let last_three = two[-4:-1]`. An index still outside `[-size, size)` after normalization raises `ValidationError` and names the index as written. ([#391](https://github.com/qBraid/pyqasm/issues/391))
 
 ### Improved / Modified
