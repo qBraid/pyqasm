@@ -32,7 +32,7 @@ import numpy as np
 import openqasm3.ast as qasm3_ast
 from openqasm3.printer import dumps
 
-from pyqasm.analyzer import Qasm3Analyzer, bits_to_int
+from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions
 from pyqasm.elements import (
     INTERNAL_QUBIT_REGISTER,
     PHYSICAL_QUBIT_PREFIX,
@@ -116,7 +116,7 @@ def _write_bit_slice(
     """
     start, end, step = indices[0]
     current_int = bits_to_int(current, width)
-    positions = list(range(start, end + 1, step))
+    positions = slice_positions(start, end, step)
     slice_width = len(positions)
     new_int = bits_to_int(new_value, slice_width)
     result = current_int

@@ -211,6 +211,41 @@ def test_bit_register_range_and_stepped_index():
     assert "bit[2] d = b[0:2:3]" in text
 
 
+def test_bit_register_descending_slice_read():
+    """A negative step reverses the slice and still keeps its final position.
+
+    The stop bound has to move one past ``end`` in the direction of travel; a fixed
+    ``end + 1`` drops every position below ``start`` and yields ``0``.
+    """
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        bit[4] b = "1100";
+        bit[4] r = b[3:-1:0];
+        int[8] v = r;
+        rx(v) q;
+        """)
+    module.unroll()
+    # Bit 0 is the most-significant bit, so "1100" read back-to-front is "0011" == 3.
+    check_single_qubit_rotation_op(module.unrolled_ast, 1, [0], [3], "rx")
+
+
+def test_bit_register_descending_slice_write():
+    """A descending target range writes every selected position, not just the first."""
+    module = loads("""
+        OPENQASM 3.0;
+        qubit q;
+        bit[4] b = "0000";
+        bit[2] t = "11";
+        b[3:-1:2] = t;
+        int[8] v = b;
+        rx(v) q;
+        """)
+    module.unroll()
+    # Positions 3 and 2 both become 1, giving "0011" == 3.
+    check_single_qubit_rotation_op(module.unrolled_ast, 1, [0], [3], "rx")
+
+
 def test_bit_register_bitstring_literal_roundtrips():
     """A ``bit[n] = \"1010\"`` declaration serializes back to the same literal form."""
     src = 'OPENQASM 3.0;\nbit[4] a = "1010";\n'

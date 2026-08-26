@@ -92,6 +92,23 @@ def int_to_bits(value: int, width: int) -> str:
     return format(int(value) & mask, f"0{width}b")
 
 
+def slice_positions(start: int, end: int, step: int) -> range:
+    """Return the positions selected by an inclusive OpenQASM range.
+
+    OpenQASM ranges include both endpoints, so the stop bound is pushed one past
+    ``end`` in the direction of travel.
+
+    Args:
+        start: The first position of the range.
+        end: The last position of the range, inclusive.
+        step: The stride; negative for a descending range. Must be non-zero.
+
+    Returns:
+        range: The selected positions, in traversal order.
+    """
+    return range(start, end + (1 if step > 0 else -1), step)
+
+
 class Qasm3Analyzer:
     """Class with utility functions for analyzing QASM3 elements"""
 

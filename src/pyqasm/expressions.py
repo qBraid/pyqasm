@@ -45,7 +45,7 @@ from openqasm3.ast import (
     UnaryExpression,
 )
 
-from pyqasm.analyzer import Qasm3Analyzer, bits_to_int
+from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions
 from pyqasm.elements import BitValue, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.maps.expressions import (
@@ -200,7 +200,7 @@ class Qasm3ExprEvaluator:
                 return (source_int >> (width - 1 - start)) & 1
             # Ranged read — build the sub-bitstring by iterating in the step
             # order (already validated non-empty by ``analyze_classical_indices``).
-            selected_positions = list(range(start, end + 1, step))
+            selected_positions = slice_positions(start, end, step)
             slice_width = len(selected_positions)
             result = 0
             for pos in selected_positions:
