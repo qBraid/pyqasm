@@ -520,6 +520,17 @@ class QasmVisitor:
         if not val_type:
             val_type = base_type
 
+        if (
+            isinstance(val_type, qasm3_ast.AngleType)
+            and isinstance(base_type, qasm3_ast.AngleType)
+            and val_type.size is None
+        ):
+            # A designator-less ``angle(...)`` cast inherits the declared width, as in
+            # the spec's ``angle[20] a; angle[10] c; c = angle(a + b);``. Other types
+            # still require the cast width to match, because their casts must commit to
+            # a width before the assignment site is reached.
+            return
+
         var_format = "variable"
         if is_const:
             var_format = "constant"

@@ -16,6 +16,7 @@ Types of changes:
 
 ### Added
 - Negative indices are now honored across arrays, `bit[n]`, `qubit[n]`, and `let` aliases, including ranges: `myArray[-1]`, `a[-1] = 10`, `h q[-1]`, `bit c = b[-1]`, `let last_three = two[-4:-1]`. An index still outside `[-size, size)` after normalization raises `ValidationError` and names the index as written. ([#391](https://github.com/qBraid/pyqasm/issues/391))
+- `angle(x)` and `angle[n](x)` now cast from `float` and `angle`, narrowing by truncating low-order bits, and `int[n](b)`/`uint[n](b)` reinterpret a `bit[n]` register. An unsupported cast now raises `ValidationError` naming both types, replacing `Invalid initialization value`. ([#399](https://github.com/qBraid/pyqasm/issues/399))
 
 ### Improved / Modified
 
