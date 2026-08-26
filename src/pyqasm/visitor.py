@@ -181,6 +181,10 @@ class QasmVisitor:
         self._is_branch_qubits: set[tuple[str, int]] = set()
         self._is_branch_clbits: set[tuple[str, int]] = set()
         self._measurement_set: set[str] = set()
+        # Expression a caller must substitute for the most recently completed
+        # bit-returning subroutine call. See ``_bit_return_expression``.
+        self._fn_return_expr: qasm3_ast.Expression | None = None
+        self._fn_return_count: int = 0
         self._init_utilities()
         self._loop_limit = max_loop_iters
         self._consolidate_qubits: bool = consolidate_qubits
@@ -349,11 +353,14 @@ class QasmVisitor:
                 or an empty list if check_only is true.
         """
         openqasm_bits: list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier] = []
-        bit_list = []
+        bit_list: list[Any] = []
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
             if qubits:
-                bit_list = [operation.measure.qubit]
+                # After an in-subroutine qubit transform the source holds the caller's
+                # actual qubits as a list, the same shape ``QuantumReset`` uses.
+                source = operation.measure.qubit
+                bit_list = source if isinstance(source, list) else [source]
             else:
                 assert operation.target is not None
                 bit_list = [operation.target]
@@ -626,6 +633,11 @@ class QasmVisitor:
             if func_name in FUNCTION_MAP:
                 if isinstance(init_value, (float, int)):
                     return qasm3_ast.FloatLiteral(init_value)
+            elif func_name in self._subroutine_defns:
+                # Bit declarations and assignments survive unrolling verbatim while the
+                # subroutine definition does not, so the call has to be replaced by the
+                # expression standing in for its return value.
+                return self._fn_return_expr
         return None
 
     def _handle_extern_function_cleanup(
@@ -699,11 +711,27 @@ class QasmVisitor:
                     )
             if is_pulse_gate:
                 return [statement]
-        # TODO: handle in-function measurements
         source_name: str = (
             source.name if isinstance(source, qasm3_ast.Identifier) else source.name.name
         )
-        if source_name not in self._global_qreg_size_map:
+        if self._function_qreg_size_map:
+            # A formal qubit argument only exists inside the subroutine, so rewrite it to
+            # the caller's actual qubits, innermost scope outwards, as ``_visit_reset`` does.
+            # The rewrite runs on a copy: a subroutine body is only shallow-copied per call,
+            # so the inner ``measure`` node is shared with the definition, and mutating it
+            # would leave the caller's qubits behind for the next visit of that body.
+            statement = copy.copy(statement)
+            statement.measure = copy.copy(statement.measure)
+            for transform_map, size_map in zip(
+                reversed(self._function_qreg_transform_map),
+                reversed(self._function_qreg_size_map),
+            ):
+                statement.measure.qubit = (
+                    Qasm3Transformer.transform_function_qubits(  # type: ignore[assignment]
+                        statement, transform_map, size_map
+                    )
+                )
+        elif source_name not in self._global_qreg_size_map:
             raise_qasm3_error(
                 f"Missing register declaration for '{source_name}' in measurement " f"operation",
                 error_node=statement,
@@ -2135,10 +2163,17 @@ class QasmVisitor:
             statement.init_expression = PulseValidator.make_complex_binary_expression(init_value)
 
         if isinstance(statement.init_expression, qasm3_ast.FunctionCall):
-            statement.init_expression = (
-                self._handle_function_init_expression(statement.init_expression, init_value)
-                or statement.init_expression
+            substitute = self._handle_function_init_expression(
+                statement.init_expression, init_value
             )
+            if substitute is not None:
+                if statements and statements[-1] is statement:
+                    # An emitted bit declaration is the source node itself, and the
+                    # substitute may name a register that exists only in the unrolled
+                    # output. Emit a copy so re-unrolling the module still sees the call.
+                    statement = copy.copy(statement)
+                    statements[-1] = statement
+                statement.init_expression = substitute
 
         if self._check_only:
             return []
@@ -2320,10 +2355,18 @@ class QasmVisitor:
             )
 
         if isinstance(statement.rvalue, qasm3_ast.FunctionCall):
-            statement.rvalue = (
-                self._handle_function_init_expression(statement.rvalue, rvalue_eval)
-                or statement.rvalue
-            )
+            substitute = self._handle_function_init_expression(statement.rvalue, rvalue_eval)
+            if isinstance(substitute, qasm3_ast.Identifier) and isinstance(
+                lvar_base_type, qasm3_ast.BitType
+            ):
+                # A run-time bit value cannot be folded into ``lvar``, so the copy from the
+                # subroutine's register has to survive into the emitted program. Emit a copy
+                # so re-unrolling the module still sees the original call.
+                emitted = copy.copy(statement)
+                emitted.rvalue = substitute
+                statements.append(emitted)
+            elif substitute is not None:
+                statement.rvalue = substitute
 
         self._handle_extern_function_cleanup(statements, statement)
 
@@ -2647,6 +2690,122 @@ class QasmVisitor:
 
         return statements
 
+    def _synthesize_measurement_return(
+        self,
+        subroutine_def: qasm3_ast.SubroutineDefinition,
+        return_statement: qasm3_ast.ReturnStatement,
+    ) -> tuple[BitValue, list[qasm3_ast.Statement], qasm3_ast.Identifier]:
+        """Bind ``return measure q;`` to a temporary bit register at the call site.
+
+        A measurement has no compile-time value, so the returned expression cannot be
+        folded into a literal. Declaring a temporary register in the caller's scope keeps
+        the emitted program valid OpenQASM: the measurement gets a classical target, and
+        the caller's variable is initialised from that target.
+
+        Args:
+            subroutine_def (SubroutineDefinition): The subroutine being called.
+            return_statement (ReturnStatement): The return statement holding the measurement.
+
+        Returns:
+            tuple[BitValue, list[Statement], Identifier]: The compile-time value of the
+                temporary register, the statements declaring and measuring into it, and
+                the identifier a caller substitutes for the call.
+
+        Raises:
+            ValidationError: If the subroutine's declared return type is not a bit type.
+        """
+        fn_name = subroutine_def.name.name
+        return_type = subroutine_def.return_type
+        if not isinstance(return_type, qasm3_ast.BitType):
+            raise_qasm3_error(
+                f"Return type mismatch for subroutine '{fn_name}'. Expected "
+                f"{dumps(return_type) if return_type else 'void'} but got bit "
+                "from a measurement",
+                error_node=return_statement,
+                span=return_statement.span,
+            )
+
+        target = qasm3_ast.Identifier(f"__{fn_name}_return_{self._fn_return_count}")
+        self._fn_return_count += 1
+
+        declaration = qasm3_ast.ClassicalDeclaration(
+            type=cast(qasm3_ast.ClassicalType, copy.deepcopy(return_type)),
+            identifier=target,
+            init_expression=None,
+        )
+        # The return statement is only shallow-copied per call, so the measurement node is
+        # shared with the subroutine definition; copy it before rewriting its qubit operand.
+        measurement = qasm3_ast.QuantumMeasurementStatement(
+            measure=copy.deepcopy(return_statement.expression), target=target  # type: ignore
+        )
+        declaration.span = measurement.span = return_statement.span
+
+        statements: list[qasm3_ast.Statement] = list(self._visit_classical_declaration(declaration))
+        statements.extend(self._visit_measurement(measurement))
+
+        return BitValue(0, self._global_creg_size_map[target.name]), statements, target
+
+    def _bit_return_expression(
+        self, expression: qasm3_ast.Expression | None, return_value: Any
+    ) -> qasm3_ast.Expression | None:
+        """Pick the expression a caller substitutes for a bit-returning subroutine call.
+
+        Args:
+            expression (Expression | None): The subroutine's return expression.
+            return_value (Any): The evaluated, type-checked return value.
+
+        Returns:
+            Expression | None: The substitute expression, or ``None`` when the return type
+                is not a bit register and the call therefore leaves no emitted statement.
+        """
+        if not isinstance(return_value, BitValue):
+            return None
+        # A register whose value is only known at run time — measured here, or forwarded
+        # from a nested call — must stay a reference; folding it would emit a stale 0.
+        if (
+            isinstance(expression, qasm3_ast.FunctionCall)
+            and expression.name.name in self._subroutine_defns
+            and self._fn_return_expr is not None
+        ):
+            return self._fn_return_expr
+        if (
+            isinstance(expression, qasm3_ast.Identifier)
+            and expression.name in self._measurement_set
+        ):
+            return expression
+        return qasm3_ast.BitstringLiteral(int(return_value), return_value.width)
+
+    def _evaluate_return_expression(
+        self,
+        subroutine_def: qasm3_ast.SubroutineDefinition,
+        return_statement: qasm3_ast.ReturnStatement,
+    ) -> tuple[Any, list[qasm3_ast.Statement], qasm3_ast.Expression | None]:
+        """Evaluate and type-check a subroutine's return expression.
+
+        Args:
+            subroutine_def (SubroutineDefinition): The subroutine being called.
+            return_statement (ReturnStatement): The return statement to evaluate.
+
+        Returns:
+            tuple[Any, list[Statement], Expression | None]: The compile-time return value,
+                the statements the return expression emitted, and the expression a caller
+                substitutes for the call (``None`` for non-bit return types).
+        """
+        expression = return_statement.expression
+        if isinstance(expression, qasm3_ast.QuantumMeasurement):
+            return self._synthesize_measurement_return(subroutine_def, return_statement)
+
+        return_value, statements = Qasm3ExprEvaluator.evaluate_expression(expression)
+        return_size = None
+        if getattr(subroutine_def.return_type, "size", None) is not None:
+            return_size = Qasm3ExprEvaluator.evaluate_expression(
+                subroutine_def.return_type.size, const_expr=True  # type: ignore[union-attr]
+            )[0]
+        return_value = Qasm3Validator.validate_return_statement(
+            subroutine_def, return_statement, return_value, return_size
+        )
+        return return_value, statements, self._bit_return_expression(expression, return_value)
+
     # pylint: disable=too-many-locals, too-many-statements
     def _visit_function_call(
         self, statement: qasm3_ast.FunctionCall
@@ -2736,6 +2895,7 @@ class QasmVisitor:
 
         return_statement = None
         return_value = None
+        return_expr: qasm3_ast.Expression | None = None
         result: list[qasm3_ast.Statement | qasm3_ast.FunctionCall] = []
         if isinstance(subroutine_def, qasm3_ast.ExternDeclaration):
             self._in_extern_function = True
@@ -2756,13 +2916,12 @@ class QasmVisitor:
                     result.extend(self.visit_statement(copy.deepcopy(function_op)))
 
             if return_statement:
-                return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                    return_statement.expression,
-                )
-                return_value = Qasm3Validator.validate_return_statement(
-                    subroutine_def, return_statement, return_value
+                return_value, stmts, return_expr = self._evaluate_return_expression(
+                    subroutine_def, return_statement
                 )
                 result.extend(stmts)
+
+        self._fn_return_expr = return_expr
 
         # remove qubit transformation map
         self._function_qreg_transform_map.pop()
