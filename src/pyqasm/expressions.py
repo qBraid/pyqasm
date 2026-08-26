@@ -42,13 +42,15 @@ from openqasm3.ast import (
     SizeOf,
     Statement,
     StretchType,
+    UintType,
     UnaryExpression,
 )
 
 from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions
 from pyqasm.elements import BitValue, Variable
-from pyqasm.exceptions import ValidationError, raise_qasm3_error
+from pyqasm.exceptions import FunctionCallError, ValidationError, raise_qasm3_error
 from pyqasm.maps.expressions import (
+    BIT_ROTATION_FUNCTIONS,
     CONSTANTS_MAP,
     FUNCTION_MAP,
     TIME_UNITS_MAP,
@@ -209,6 +211,69 @@ class Qasm3ExprEvaluator:
             return BitValue(result, slice_width)
 
         return Qasm3Analyzer.find_array_element(var.value, validated_indices)
+
+    @classmethod
+    def _as_bit_value(  # type: ignore[return] # pylint: disable=inconsistent-return-statements
+        cls, value, expression
+    ) -> BitValue:
+        """Recover the register width of a ``rotl`` / ``rotr`` operand.
+
+        A rotation is only defined against a declared width, so an operand whose width
+        is unknown (a bare integer literal) is rejected rather than given a guessed one.
+        """
+        if isinstance(value, BitValue):
+            return value
+        if isinstance(value, str):
+            return BitValue(int(value, 2) if value else 0, len(value))
+        argument = expression.arguments[0]
+        if isinstance(argument, Identifier) and isinstance(value, int):
+            var = cls.visitor_obj._scope_manager.get_from_visible_scope(  # type: ignore[union-attr]
+                argument.name
+            )
+            if isinstance(var.base_type, (BitType, UintType)):
+                return BitValue(value, var.base_size)
+        raise_qasm3_error(
+            f"Function '{expression.name.name}' expects a 'bit[n]' or 'uint[n]' "
+            "operand of known width",
+            err_type=FunctionCallError,
+            error_node=expression,
+            span=expression.span,
+        )
+
+    @classmethod
+    def _evaluate_builtin_function(  # pylint: disable=inconsistent-return-statements
+        cls, expression, const_expr, reqd_type
+    ):
+        """Evaluate a call to a built-in constant expression function.
+
+        Reference: https://openqasm.com/language/types.html#built-in-constant-expression-functions
+        """
+        fn_name = expression.name.name
+        function, arity = FUNCTION_MAP[fn_name]
+        if len(expression.arguments) != arity:
+            raise_qasm3_error(
+                f"Function '{fn_name}' expects {arity} argument(s), but "
+                f"{len(expression.arguments)} were given",
+                err_type=FunctionCallError,
+                error_node=expression,
+                span=expression.span,
+            )
+        values = [
+            cls.evaluate_expression(argument, const_expr, reqd_type)[0]
+            for argument in expression.arguments
+        ]
+        if fn_name in BIT_ROTATION_FUNCTIONS:
+            values[0] = cls._as_bit_value(values[0], expression)
+        try:
+            return function(*values)
+        except (TypeError, ValueError) as err:
+            raise_qasm3_error(
+                f"Invalid argument for function '{fn_name}': {err}",
+                err_type=FunctionCallError,
+                error_node=expression,
+                span=expression.span,
+                raised_from=err,
+            )
 
     @classmethod
     # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals,too-many-arguments
@@ -519,11 +584,9 @@ class Qasm3ExprEvaluator:
                 return (None, statements)
 
             if expression.name.name in FUNCTION_MAP:
-                _val, _ = cls.evaluate_expression(
-                    expression.arguments[0], const_expr, reqd_type, validate_only
+                return _check_and_return_value(
+                    cls._evaluate_builtin_function(expression, const_expr, reqd_type)
                 )
-                _val = FUNCTION_MAP[expression.name.name](_val)  # type: ignore
-                return _check_and_return_value(_val)
 
             ret_value, ret_stmts = cls.visitor_obj._visit_function_call(expression)  # type: ignore
             statements.extend(ret_stmts)

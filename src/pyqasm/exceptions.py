@@ -36,6 +36,11 @@ class ValidationError(PyQasmError):
     """Exception raised when a OpenQASM program fails validation."""
 
 
+class FunctionCallError(ValidationError):
+    """Exception raised when a function is called with an unknown name, the wrong
+    number of arguments, or an argument of the wrong type."""
+
+
 class UnrollError(PyQasmError):
     """Exception raised when a OpenQASM program fails unrolling."""
 
@@ -133,5 +138,10 @@ def raise_qasm3_error(
 
     # Extract the latest message from the traceback if raised_from is provided
     if raised_from:
+        if isinstance(raised_from, FunctionCallError):
+            # Statement-level handlers wrap any evaluation failure in a generic message
+            # ("Invalid initialization value for constant 'c'"). Merge the function
+            # diagnostic in so the offending function is still named.
+            message = f"{message}: {raised_from}"
         raise err_type(message) from raised_from
     raise err_type(message)
