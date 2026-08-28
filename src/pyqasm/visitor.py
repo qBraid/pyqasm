@@ -34,6 +34,7 @@ from openqasm3.printer import dumps
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import (
+    INTERNAL_QUANTUM_ARGUMENT,
     INTERNAL_QUBIT_REGISTER,
     PHYSICAL_QUBIT_PREFIX,
     Capture,
@@ -1625,11 +1626,24 @@ class QasmVisitor:
             for transform_map, size_map in zip(
                 reversed(self._function_qreg_transform_map), reversed(self._function_qreg_size_map)
             ):
-                operation.qubits = (
-                    Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
-                        operation, transform_map, size_map
+                try:
+                    operation.qubits = (
+                        Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
+                            operation, transform_map, size_map
+                        )
                     )
-                )
+                except KeyError:
+                    for qubit in operation.qubits:
+                        # Each qubit may be an IndexedIdentifier or an Identifier
+                        if isinstance(qubit, qasm3_ast.IndexedIdentifier):
+                            qubit.name.name += INTERNAL_QUANTUM_ARGUMENT
+                        else:
+                            qubit.name += INTERNAL_QUANTUM_ARGUMENT
+                    operation.qubits = (
+                        Qasm3Transformer.transform_function_qubits(  # type: ignore [assignment]
+                            operation, transform_map, size_map
+                        )
+                    )
 
         operation.qubits = self._get_op_bits(operation, qubits=True)  # type: ignore
 
