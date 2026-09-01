@@ -9,7 +9,9 @@ on:
 
 # Cancel superseded runs for the same PR. `synchronize` fires on every push to an
 # open PR, so without this each push started another full wheel matrix while the
-# previous one kept running to completion. Pushes to main are never cancelled.
+# previous one kept running to completion. A run on main is never cancelled once
+# it starts, but a group holds only one running plus one pending run, so a main
+# run still waiting to start can be dropped by a newer push to main.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
