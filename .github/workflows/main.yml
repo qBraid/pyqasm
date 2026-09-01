@@ -36,7 +36,8 @@ jobs:
           # Reduced set for pull requests. Linux covers every supported Python
           # (it is the cheapest runner); macOS arm64 / 3.11 is retained because
           # the code-coverage job consumes the artifact this entry uploads;
-          # Windows 3.11 is kept as a smoke check for the non-POSIX path.
+          # macOS x86_64 / 3.11 keeps Intel Macs under test; Windows 3.11 is kept
+          # as a smoke check for the non-POSIX path.
           read -r -d '' PR_MATRIX <<'JSON' || true
           {"include":[
             {"os":"ubuntu-latest","python":310,"platform_id":"manylinux_x86_64","manylinux_image":"manylinux_2_28"},
@@ -44,6 +45,7 @@ jobs:
             {"os":"ubuntu-latest","python":312,"platform_id":"manylinux_x86_64","manylinux_image":"manylinux_2_28"},
             {"os":"ubuntu-latest","python":313,"platform_id":"manylinux_x86_64","manylinux_image":"manylinux_2_28"},
             {"os":"ubuntu-latest","python":314,"platform_id":"manylinux_x86_64","manylinux_image":"manylinux_2_28"},
+            {"os":"macos-15-intel","python":311,"platform_id":"macosx_x86_64"},
             {"os":"macos-14","python":311,"platform_id":"macosx_arm64"},
             {"os":"windows-latest","python":311,"platform_id":"win_amd64"}
           ]}
