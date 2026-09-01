@@ -149,6 +149,39 @@ def test_switch_const_int():
     check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "x")
 
 
+def test_switch_no_match_without_default():
+    """Test a switch whose target matches no case and which has no default block.
+
+    The spec does not require a default, so this is valid and must simply contribute
+    no statements. It previously raised ``TypeError: 'NoneType' object is not iterable``.
+    """
+
+    qasm3_switch_program = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+
+    int i = 5;
+    qubit q;
+
+    switch(i) {
+    case 1 {
+        x q;
+    }
+    case 2 {
+        z q;
+    }
+    }
+    h q;
+    """
+
+    result = loads(qasm3_switch_program)
+    result.unroll()
+
+    assert result.num_qubits == 1
+    # Only the gate after the switch survives; neither case body is emitted.
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
+
+
 def test_switch_duplicate_cases():
     """Test that switch raises error if duplicate values are present in case."""
 

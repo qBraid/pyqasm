@@ -190,7 +190,7 @@ class Qasm3ExprEvaluator:
 
     @classmethod
     # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals,too-many-arguments
-    def evaluate_expression(  # type: ignore[return]
+    def evaluate_expression(
         cls,
         expression,
         const_expr: bool = False,

@@ -2917,7 +2917,7 @@ class QasmVisitor:
 
         return []
 
-    def _visit_switch_statement(  # type: ignore[return]
+    def _visit_switch_statement(
         self, statement: qasm3_ast.SwitchStatement
     ) -> list[qasm3_ast.Statement]:
         """Visit a switch statement element.
@@ -3004,9 +3004,10 @@ class QasmVisitor:
                 case_stmts = case[1].statements
                 return _evaluate_case(case_stmts)
 
-        if not case_fulfilled and statement.default:
-            default_stmts = statement.default.statements
-            return _evaluate_case(default_stmts)
+        # Reaching here means no case matched: the loop returns as soon as one does.
+        if statement.default:
+            return _evaluate_case(statement.default.statements)
+        return []
 
     def _resolve_duration_unit(self, time_var: qasm3_ast.Expression) -> qasm3_ast.TimeUnit:
         """Determine the output unit for a duration literal.

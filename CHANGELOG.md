@@ -19,12 +19,14 @@ Types of changes:
 - Added an `include_dir` kwarg to `loads()` and `load()`, naming the directory custom `include` statements resolve against. A program given as a string could not resolve includes at all, and failed later naming the gate rather than the include. Resolution is opt-in: without the kwarg, no files are read. ([#368](https://github.com/qBraid/pyqasm/issues/368))
 
 ### Improved / Modified
+- `raise_qasm3_error` is now annotated `NoReturn`. Every path through it raises, but the `None` return type made each caller look like it could fall through, so eight `# type: ignore[return]` comments and `inconsistent-return-statements` suppressions existed only to silence that. They are gone, and `mypy` and `pylint` now check those functions instead of skipping them.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- Fixed a `switch` whose target matches no case and which declares no `default` crashing with `TypeError: 'NoneType' object is not iterable`. The spec does not require a `default`, so such a switch is valid and now contributes no statements. `_visit_switch_statement` fell off its last branch and returned `None`, which a `# type: ignore[return]` had been hiding.
 - Fixed `pyqasm validate` wrapping its diagnostics at the console width, which split a file path longer than the width across lines mid-token and left it neither copyable nor clickable. The error console now uses `soft_wrap`, keeping one diagnostic per line.
 - Fixed an indirect cycle between gate definitions exhausting the Python stack: `gate a q { b q; }` with `gate b q { a q; }` raised a bare `RecursionError` naming nothing, while the direct case was already reported cleanly. The guard compared the body's gate name against one name, so it saw only a cycle of length one. It now tests membership of the whole expansion chain, and names the path: `Recursive definitions not allowed for gate 'a' (a -> b -> a)`. A gate reached twice down separate paths is a diamond, not a cycle, and still expands. ([#369](https://github.com/qBraid/pyqasm/issues/369))
 - Fixed a nested external custom gate counting the depth of the decomposition it skipped, the shape the [#352](https://github.com/qBraid/pyqasm/issues/352) fix did not reach: `unroll(external_gates=["outer"])` on a gate whose body calls another custom gate emitted one statement but reported `depth() == 13`. The suppression flag was assigned and cleared without save-restore, so the inner gate clobbered the outer gate's state in both directions. It is now saved and restored, and the depth is recorded once, from the outermost external gate. ([#367](https://github.com/qBraid/pyqasm/issues/367))

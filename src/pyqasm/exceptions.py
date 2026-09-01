@@ -19,7 +19,7 @@ Module defining base PyQASM exceptions.
 
 import os
 import sys
-from typing import Optional, Type
+from typing import NoReturn, Optional, Type
 
 from openqasm3.ast import QASMNode, Span
 from openqasm3.parser import QASM3ParsingError
@@ -89,7 +89,7 @@ def raise_qasm3_error(
     error_node: Optional[QASMNode] = None,
     span: Optional[Span] = None,
     raised_from: Optional[Exception] = None,
-) -> None:
+) -> NoReturn:
     """Raises a QASM3 conversion error with optional chaining from another exception.
 
     Args:

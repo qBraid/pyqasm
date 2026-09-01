@@ -290,7 +290,7 @@ class Qasm3Validator:
             )
 
     @staticmethod
-    def validate_return_statement(  # pylint: disable=inconsistent-return-statements
+    def validate_return_statement(
         subroutine_def: SubroutineDefinition,
         return_statement: ReturnStatement,
         return_value: Any,
@@ -317,27 +317,30 @@ class Qasm3Validator:
                     error_node=return_statement,
                     span=return_statement.span,
                 )
-        else:
-            if return_value is None:
-                raise_qasm3_error(
-                    f"Return type mismatch for subroutine '{subroutine_def.name.name}'."
-                    f" Expected {type(subroutine_def.return_type)} but got void",
-                    error_node=return_statement,
-                    span=return_statement.span,
-                )
-            base_size = 1
-            if hasattr(subroutine_def.return_type, "size"):
-                base_size = subroutine_def.return_type.size.value
+            # A void subroutine carries no value back to its caller.
+            return None
 
-            return Qasm3Validator.validate_variable_assignment_value(
-                Variable(
-                    subroutine_def.name.name + "_return",
-                    subroutine_def.return_type,
-                    base_size,
-                    None,
-                    None,
-                    span=return_statement.span,
-                ),
-                return_value,
-                op_node=return_statement,
+        if return_value is None:
+            raise_qasm3_error(
+                f"Return type mismatch for subroutine '{subroutine_def.name.name}'."
+                f" Expected {type(subroutine_def.return_type)} but got void",
+                error_node=return_statement,
+                span=return_statement.span,
             )
+
+        base_size = 1
+        if hasattr(subroutine_def.return_type, "size"):
+            base_size = subroutine_def.return_type.size.value
+
+        return Qasm3Validator.validate_variable_assignment_value(
+            Variable(
+                subroutine_def.name.name + "_return",
+                subroutine_def.return_type,
+                base_size,
+                None,
+                None,
+                span=return_statement.span,
+            ),
+            return_value,
+            op_node=return_statement,
+        )

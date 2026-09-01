@@ -87,7 +87,7 @@ def qasm3_expression_op_map(op_name: str, *args) -> float | int | bool:
         raise ValidationError(f"Unsupported / undeclared QASM operator: {op_name}") from exc
 
 
-# pylint: disable=inconsistent-return-statements,too-many-return-statements
+# pylint: disable=too-many-return-statements
 def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
     """Cast the variable type to the type to match, if possible.
 
@@ -133,6 +133,9 @@ def qasm_variable_type_cast(openqasm_type, var_name, base_size, rhs_value):
         if isinstance(rhs_value, float):
             return complex(rhs_value)
         return rhs_value
+    raise ValidationError(
+        f"Unsupported cast to type '{openqasm_type.__name__}' for variable '{var_name}'"
+    )
 
 
 # IEEE 754 Standard for floats
