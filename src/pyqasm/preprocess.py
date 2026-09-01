@@ -46,7 +46,72 @@ PATTERNS = {
         r'^\s*include\s+"(?:stdgates\.inc|qelib1\.inc)";\s*', re.MULTILINE
     ),
     "include": re.compile(r'^\s*include\s+"([^"]+)";\s*', re.MULTILINE),
+    # OPENQASM 2 only. Captures indent, name, the parenthesised parameter list if any,
+    # and the qubit list: "opaque Rz(lam) q;", "opaque ZZ() q1,q2;", "opaque zz q1,q2;"
+    "opaque": re.compile(
+        r"^([ \t]*)opaque\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\([^)]*\))?\s*([^;{}]*?)\s*;",
+        re.MULTILINE,
+    ),
+    "openqasm2": re.compile(r"^\s*OPENQASM\s+2(?:\.\d+)?;", re.MULTILINE),
+    # a string literal, a `//` line comment, or a `/* */` block comment (unterminated
+    # one included). The string alternative comes first so a `//` inside an include path
+    # is consumed as a string and never mistaken for a comment.
+    "string_or_comment": re.compile(r'"[^"\n]*"|//[^\n]*|/\*.*?(?:\*/|\Z)', re.DOTALL),
 }
+
+
+def _blank_comments(program: str) -> str:
+    """Overwrite `//` and `/* */` comments with spaces.
+
+    Blanked rather than deleted so line and column numbers are unchanged: the parser
+    reports spans against this text, and deleting a comment would shift every position
+    after it.
+
+    Args:
+        program (str): The OpenQASM program text.
+
+    Returns:
+        str: The text with comment characters replaced by spaces.
+    """
+
+    def blank(match: re.Match) -> str:
+        text = match.group()
+        # keep string literals as they are; only comments are blanked
+        return text if text.startswith('"') else re.sub(r"[^\n]", " ", text)
+
+    return PATTERNS["string_or_comment"].sub(blank, program)
+
+
+def rewrite_opaque_declarations(program: str) -> tuple[str, set[str]]:
+    """Rewrite OpenQASM 2 ``opaque`` declarations into gate definitions with empty bodies.
+
+    The ``openqasm3`` parser pyqasm routes qasm2 through has no production for ``opaque``,
+    so this runs before parsing. The empty body carries the gate's name and arity only,
+    which is all an opaque gate has (issue #370). Gated on the qasm2 header, since
+    ``opaque`` is not OpenQASM 3 syntax.
+
+    Comments are blanked first, so a declaration commented out with ``/* */`` is neither
+    rewritten nor recorded. The result goes straight to the parser, which discards
+    comments anyway.
+
+    Args:
+        program (str): The OpenQASM program text.
+
+    Returns:
+        tuple[str, set[str]]: The rewritten program, and the names declared opaque.
+    """
+    code = _blank_comments(program)
+    if not PATTERNS["openqasm2"].search(code):
+        return program, set()
+
+    names: set[str] = set()
+
+    def _replace(match: re.Match) -> str:
+        indent, name, params, qubits = match.groups()
+        names.add(name)
+        return f"{indent}gate {name}{params or ''} {qubits} {{ }}"
+
+    return PATTERNS["opaque"].sub(_replace, code), names
 
 
 def process_include_statements(filename: str, include_dir: str | None = None) -> str:

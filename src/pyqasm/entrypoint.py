@@ -27,7 +27,11 @@ import openqasm3
 from pyqasm.exceptions import ValidationError
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
-from pyqasm.preprocess import process_include_sources, process_include_statements
+from pyqasm.preprocess import (
+    process_include_sources,
+    process_include_statements,
+    rewrite_opaque_declarations,
+)
 
 if TYPE_CHECKING:
     import openqasm3.ast
@@ -165,9 +169,12 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
     """
     _validate_kwargs(kwargs)
     include_dir = kwargs.pop("include_dir", None)
+    opaque_gates: set[str] = set()
     if isinstance(program, str):
         if include_dir is not None:
             program = process_include_sources(program, include_dir)
+        # after include resolution, so an opaque in a vendor include is rewritten too
+        program, opaque_gates = rewrite_opaque_declarations(program)
         try:
             program = openqasm3.parse(program)
         except openqasm3.parser.QASM3ParsingError as err:
@@ -191,6 +198,7 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
     qasm_module = Qasm3Module if program.version.startswith("3") else Qasm2Module
     module = qasm_module("main", program)
+    module._opaque_gates = opaque_gates
     # `is not None`, not truthiness: a falsy value is a caller value, not an omission.
     # An explicit None means "not passed", so defaults like extern_functions={} and
     # frame_in_def_cal=True are never clobbered.
