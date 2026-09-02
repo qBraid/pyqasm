@@ -20,7 +20,13 @@ Module containing unit tests for parsing and unrolling programs that contain loo
 import pytest
 
 from pyqasm.entrypoint import loads
-from pyqasm.exceptions import LoopLimitExceededError, ValidationError
+from pyqasm.exceptions import (
+    BreakSignal,
+    ContinueSignal,
+    LoopControlSignal,
+    LoopLimitExceededError,
+    ValidationError,
+)
 from tests.utils import (
     check_single_qubit_gate_op,
     check_single_qubit_rotation_op,
@@ -357,3 +363,226 @@ def test_for_loop_discrete_set_limit_exceeded():
     result = loads(qasm_str)
     with pytest.raises(LoopLimitExceededError):
         result.unroll(max_loop_iters=10)
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for GitHub issue #386 - break/continue mishandling.
+# ---------------------------------------------------------------------------
+
+
+def test_for_loop_break_direct_body():
+    """`break` in a for body must stop iteration and keep prior gates."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    for int i in [0:2] {
+        h q[i];
+        if (i == 1) {
+            break;
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    # h emitted for i=0 and i=1 before break, none for i=2.
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 1], "h")
+
+
+def test_for_loop_continue_direct_body():
+    """`continue` in a for body must skip remainder and go to next iter."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    for int i in [0:2] {
+        h q[i];
+        if (i == 1) {
+            continue;
+        }
+        x q[i];
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 1, 2], "h")
+    # x only for i=0 and i=2; i=1 was continued past.
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 2], "x")
+
+
+def test_for_loop_break_bare_in_body():
+    """`break` directly in for body (no enclosing if) unrolls to one iter."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    for int i in [0:2] {
+        h q[i];
+        break;
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [0], "h")
+
+
+def test_for_loop_break_two_ifs_deep():
+    """`break` nested two `if` levels deep still preserves prior gates."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[4] q;
+    for int i in [0:3] {
+        h q[i];
+        if (i >= 1) {
+            if (i == 2) {
+                break;
+            }
+            x q[i];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    # h emitted for i=0, 1, 2 then break stops iteration.
+    check_single_qubit_gate_op(result.unrolled_ast, 3, [0, 1, 2], "h")
+    # x only for i=1 (i>=1 and i!=2).
+    check_single_qubit_gate_op(result.unrolled_ast, 1, [1], "x")
+
+
+def test_for_loop_break_in_nested_for():
+    """`break` in an inner for must not affect the outer for."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    for int i in [0:1] {
+        for int j in [0:2] {
+            h q[j];
+            if (j == 1) {
+                break;
+            }
+        }
+        x q[0];
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    # Inner loop emits h q[0], h q[1] each of 2 outer iterations = 4 h ops.
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 1, 0, 1], "h")
+    # Outer loop's post-inner x q[0] runs both outer iterations.
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 0], "x")
+
+
+def test_for_loop_continue_in_nested_for():
+    """`continue` in an inner for must not affect the outer for."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    for int i in [0:1] {
+        for int j in [0:2] {
+            if (j == 1) {
+                continue;
+            }
+            h q[j];
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    # For each outer iter: h q[0], skip j=1, h q[2] = 2 h ops * 2 outer = 4 total.
+    check_single_qubit_gate_op(result.unrolled_ast, 4, [0, 2, 0, 2], "h")
+
+
+def test_break_outside_loop_raises_validation_error():
+    """A bare `break` outside any loop must surface as ValidationError."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    break;
+    """
+    with pytest.raises(ValidationError):
+        loads(qasm_str).validate()
+
+
+def test_continue_outside_loop_raises_validation_error():
+    """A bare `continue` outside any loop must surface as ValidationError."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    continue;
+    """
+    with pytest.raises(ValidationError):
+        loads(qasm_str).validate()
+
+
+@pytest.mark.parametrize("keyword", ["break", "continue"])
+def test_loop_control_in_subroutine_called_from_loop_raises(keyword):
+    """`break`/`continue` are lexical, so a subroutine body is outside the caller's loop."""
+    qasm_str = f"""
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    def escape(qubit qq) {{
+        {keyword};
+    }}
+    for int i in [0:1] {{
+        escape(q[0]);
+    }}
+    """
+    with pytest.raises(ValidationError):
+        loads(qasm_str).validate()
+
+
+def test_for_loop_break_does_not_leak_internal_signal():
+    """`break` in a `for` must not leak internal control-flow exceptions."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    for int i in [0:2] {
+        h q[i];
+        if (i == 1) {
+            break;
+        }
+    }
+    """
+    result = loads(qasm_str)
+    # Neither validate() nor unroll() may surface a LoopControlSignal.
+    for op in (result.validate, result.unroll):
+        try:
+            op()
+        except LoopControlSignal:
+            pytest.fail(f"{op.__name__}() leaked a LoopControlSignal")
+
+
+def test_switch_case_break_propagates_to_enclosing_loop():
+    """`break` inside a `case` body must break the enclosing loop."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    for int i in [0:2] {
+        h q[i];
+        switch (i) {
+            case 1 {
+                break;
+            }
+            default {
+            }
+        }
+    }
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    # h for i=0 and i=1 then break stops.
+    check_single_qubit_gate_op(result.unrolled_ast, 2, [0, 1], "h")
+
+
+def test_break_continue_signal_message_is_readable():
+    """Internal signals must have human-readable messages (not `None`)."""
+    assert "break" in str(BreakSignal())
+    assert "continue" in str(ContinueSignal())

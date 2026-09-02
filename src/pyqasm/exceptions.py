@@ -58,29 +58,50 @@ class LoopLimitExceededError(PyQasmError):
 
 class LoopControlSignal(Exception):
     """Base class for loop control signals like break and continue.
-    This class is used to signal control flow changes within loops during AST traversal."""
 
-    def __init__(self, signal_type: str):
+    Signals a control flow change within a loop during AST traversal.
+    ``partial_result`` carries the statements the interrupted iteration emitted
+    before the signal, so the enclosing loop handler can still emit them.
+    """
+
+    signal_type: str
+    partial_result: list
+
+    def __init__(self, signal_type: str, msg: Optional[str] = None) -> None:
+        """Initialize the signal.
+
+        Args:
+            signal_type: Either ``"break"`` or ``"continue"``.
+            msg: Message for the base ``Exception``. Defaults to ``signal_type``.
+        """
         assert signal_type in ("break", "continue")
         self.signal_type = signal_type
+        self.partial_result = []
+        super().__init__(msg if msg is not None else signal_type)
 
 
 class BreakSignal(LoopControlSignal):
     """Signal to break out of a loop during AST traversal."""
 
-    def __init__(self, msg: Optional[str] = None):
-        if msg is None:
-            msg = "break"
-        super().__init__(msg)
+    def __init__(self, msg: Optional[str] = None) -> None:
+        """Initialize the signal.
+
+        Args:
+            msg: Message for the base ``Exception``. Defaults to ``"break"``.
+        """
+        super().__init__("break", msg)
 
 
 class ContinueSignal(LoopControlSignal):
     """Signal to continue to the next iteration of a loop during AST traversal."""
 
-    def __init__(self, msg: Optional[str] = None):
-        if msg is None:
-            msg = "continue"
-        super().__init__("continue")
+    def __init__(self, msg: Optional[str] = None) -> None:
+        """Initialize the signal.
+
+        Args:
+            msg: Message for the base ``Exception``. Defaults to ``"continue"``.
+        """
+        super().__init__("continue", msg)
 
 
 def raise_qasm3_error(
