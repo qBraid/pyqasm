@@ -17,6 +17,7 @@ Types of changes:
 ### Added
 - Added support for OpenQASM 2 `opaque` declarations, which previously failed at parse time and blocked vendor include files such as Quantinuum's `hqslib1.inc`. An opaque gate is treated as a black box: emitted as written, counted as one layer of depth. `to_qasm3()` rejects such a program. ([#370](https://github.com/qBraid/pyqasm/issues/370))
 - Added an `include_dir` kwarg to `loads()` and `load()`, naming the directory custom `include` statements resolve against. A program given as a string could not resolve includes at all, and failed later naming the gate rather than the include. Resolution is opt-in: without the kwarg, no files are read. ([#368](https://github.com/qBraid/pyqasm/issues/368))
+- Negative indices are now honored across arrays, `bit[n]`, `qubit[n]`, and `let` aliases, including ranges: `myArray[-1]`, `a[-1] = 10`, `h q[-1]`, `bit c = b[-1]`, `let last_three = two[-4:-1]`. An index still outside `[-size, size)` after normalization raises `ValidationError` and names the index as written. ([#391](https://github.com/qBraid/pyqasm/issues/391))
 
 ### Improved / Modified
 
@@ -28,6 +29,7 @@ Types of changes:
 - Fixed `pyqasm validate` wrapping its diagnostics at the console width, which split a file path longer than the width across lines mid-token and left it neither copyable nor clickable. The error console now uses `soft_wrap`, keeping one diagnostic per line.
 - Fixed an indirect cycle between gate definitions exhausting the Python stack: `gate a q { b q; }` with `gate b q { a q; }` raised a bare `RecursionError` naming nothing, while the direct case was already reported cleanly. The guard compared the body's gate name against one name, so it saw only a cycle of length one. It now tests membership of the whole expansion chain, and names the path: `Recursive definitions not allowed for gate 'a' (a -> b -> a)`. A gate reached twice down separate paths is a diamond, not a cycle, and still expands. ([#369](https://github.com/qBraid/pyqasm/issues/369))
 - Fixed a nested external custom gate counting the depth of the decomposition it skipped, the shape the [#352](https://github.com/qBraid/pyqasm/issues/352) fix did not reach: `unroll(external_gates=["outer"])` on a gate whose body calls another custom gate emitted one statement but reported `depth() == 13`. The suppression flag was assigned and cleared without save-restore, so the inner gate clobbered the outer gate's state in both directions. It is now saved and restored, and the depth is recorded once, from the outermost external gate. ([#367](https://github.com/qBraid/pyqasm/issues/367))
+- Fixed `|`, `&`, `^`, `~`, `<<`, `>>` and indexing on `bit[n]` escaping a raw `TypeError`, since the value was stored as a Python `str`. A `bit[n]` now carries its width internally, so these operators evaluate and re-mask to `n` bits, `b[i]` and `b[a:c]` read, and mismatched widths raise a `ValidationError`. The `"1010"` literal form still round-trips through `dumps()`. ([#385](https://github.com/qBraid/pyqasm/issues/385))
 
 ### Dependencies
 

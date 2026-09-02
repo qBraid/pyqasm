@@ -67,6 +67,43 @@ def is_physical_qubit(qubit_name: str) -> bool:
     return qubit_name.startswith(PHYSICAL_QUBIT_PREFIX) and qubit_name[1:].isdigit()
 
 
+class BitValue(int):
+    """Internal representation of a ``bit`` or ``bit[n]`` classical register value.
+
+    A ``BitValue`` is an ``int`` masked to ``width`` bits, plus the ``width`` itself.
+    The width lets bitwise operators enforce the OpenQASM 3 rule that both operands
+    of a binary bitwise op (``|``, ``&``, ``^``) have equal width. Bit 0 of the
+    register is the most-significant bit of the underlying int, matching the
+    ``BitstringLiteral`` convention used by :func:`~pyqasm.dumps` and by
+    ``format(v, f"0{width}b")``.
+
+    ``BitValue`` is immutable (as ``int`` is); write paths that mutate a single bit
+    of a ``bit[n]`` register construct a fresh ``BitValue`` and rebind the variable.
+    """
+
+    # ``int`` uses a variable-length storage layout, so ``__slots__`` is not
+    # permitted on subclasses; the ``width`` attribute lives on the instance
+    # ``__dict__``. Declared here so type checkers see it as a proper attribute.
+    width: int
+
+    def __new__(cls, value: int, width: int) -> "BitValue":
+        if width < 0:
+            raise ValueError(f"BitValue width must be non-negative, got {width}")
+        mask = (1 << width) - 1 if width > 0 else 0
+        obj = int.__new__(cls, int(value) & mask)
+        obj.width = width
+        return obj
+
+    def to_bitstring(self) -> str:
+        """Return the zero-padded, width-`n` binary string for this register."""
+        if self.width == 0:
+            return ""
+        return format(int(self), f"0{self.width}b")
+
+    def __repr__(self) -> str:  # pragma: no cover - diagnostic aid only
+        return f"BitValue({int(self)}, width={self.width})"
+
+
 class InversionOp(Enum):
     """
     Enum for specifying the inversion action of a gate.

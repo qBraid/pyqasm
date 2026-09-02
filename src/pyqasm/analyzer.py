@@ -46,11 +46,131 @@ if TYPE_CHECKING:
     from pyqasm.expressions import Qasm3ExprEvaluator
 
 
+def bits_to_int(value: Any, width: int) -> int:
+    """Convert a ``bit[n]`` value in any legacy form to a masked ``int``.
+
+    Accepts the historical representations (``str`` bitstring, ``numpy.ndarray`` of
+    0/1, plain ``int``/``bool``) and returns a Python ``int`` with only the low
+    ``width`` bits set. Bit 0 of a ``bit[n]`` register is the most-significant bit
+    of the resulting integer.
+
+    Args:
+        value: The bit value to convert. Empty string yields ``0``.
+        width: The register width, in bits. Must be non-negative.
+
+    Returns:
+        int: The width-masked integer representation.
+    """
+    if width <= 0:
+        return 0
+    mask = (1 << width) - 1
+    if isinstance(value, str):
+        if value == "":
+            return 0
+        return int(value, 2) & mask
+    if isinstance(value, np.ndarray):
+        flat = value.flatten()
+        if flat.size == 0:
+            return 0
+        return int("".join(str(int(b)) for b in flat), 2) & mask
+    return int(value) & mask
+
+
+def int_to_bits(value: int, width: int) -> str:
+    """Serialize an integer to a zero-padded, width-`n` bit string.
+
+    Args:
+        value: The integer value; only the low ``width`` bits are kept.
+        width: The register width, in bits. Must be non-negative.
+
+    Returns:
+        str: The zero-padded binary representation. Empty string when ``width == 0``.
+    """
+    if width <= 0:
+        return ""
+    mask = (1 << width) - 1
+    return format(int(value) & mask, f"0{width}b")
+
+
+def slice_positions(start: int, end: int, step: int) -> range:
+    """Return the positions selected by an inclusive OpenQASM range.
+
+    OpenQASM ranges include both endpoints, so the stop bound is pushed one past
+    ``end`` in the direction of travel.
+
+    Args:
+        start: The first position of the range.
+        end: The last position of the range, inclusive.
+        step: The stride; negative for a descending range. Must be non-zero.
+
+    Returns:
+        range: The selected positions, in traversal order.
+    """
+    return range(start, end + (1 if step > 0 else -1), step)
+
+
 class Qasm3Analyzer:
     """Class with utility functions for analyzing QASM3 elements"""
 
     @staticmethod
-    def analyze_classical_indices(
+    def normalize_index(  # pylint: disable=too-many-arguments
+        source_index: int,
+        size: int,
+        var_name: str,
+        index_node: Any,
+        dim_num: Optional[int] = None,
+        qubit: bool = False,
+    ) -> int:
+        """Normalize an index against a register or dimension of size ``size``.
+
+        Applies the OpenQASM 3 rule that a negative index counts from the end:
+        ``-1`` is the last element, ``-size`` is the first. After normalization the
+        index must satisfy ``0 <= idx < size``; otherwise the caller-facing error
+        reports the *source* index as it appears in the program.
+
+        Args:
+            source_index: The index value as evaluated from source (may be negative).
+            size: The size of the register or dimension being indexed.
+            var_name: The register or variable name (used in error messages).
+            index_node: The AST node used for span attribution on error.
+            dim_num: Optional zero-based dimension number for multi-dim arrays; if
+                given, the error message mentions it.
+            qubit: ``True`` for a qubit register (used for message phrasing).
+
+        Returns:
+            int: The normalized non-negative index.
+
+        Raises:
+            ValidationError: If the index is out of the range
+                ``[-size, size - 1]`` after normalization.
+        """
+        idx = source_index + size if source_index < 0 else source_index
+        if 0 <= idx < size:
+            return idx
+        register_kind = "qubit" if qubit else "clbit"
+        span = getattr(index_node, "span", None)
+        if dim_num is not None:
+            message = (
+                f"Index {source_index} out of bounds for dimension {dim_num} "
+                f"of variable '{var_name}'. Expected index in range "
+                f"[-{size}, {size - 1}]"
+            )
+        else:
+            message = (
+                f"Index {source_index} out of range for register of size {size} in "
+                f"{register_kind}"
+            )
+        raise_qasm3_error(
+            message=message,
+            err_type=ValidationError,
+            error_node=index_node,
+            span=span,
+        )
+        # pragma: no cover - raise_qasm3_error never returns
+        raise ValidationError(message)
+
+    @staticmethod
+    def analyze_classical_indices(  # pylint: disable=too-many-locals
         indices: list[Any], var: Variable, expr_evaluator: Qasm3ExprEvaluator
     ) -> list:
         """Validate the indices for a classical variable.
@@ -88,16 +208,6 @@ class Qasm3Analyzer:
                 span=indices[0].span,
             )
 
-        def _validate_index(index, dimension, var_name, index_node, dim_num):
-            if index < 0 or index >= dimension:
-                raise_qasm3_error(
-                    message=f"Index {index} out of bounds for dimension {dim_num} "
-                    f"of variable '{var_name}'. Expected index in range [0, {dimension-1}]",
-                    err_type=ValidationError,
-                    error_node=index_node,
-                    span=index_node.span,
-                )
-
         def _validate_step(start_id, end_id, step, index_node):
             if (step < 0 and start_id < end_id) or (step > 0 and start_id > end_id):
                 direction = "less than" if step < 0 else "greater than"
@@ -121,29 +231,40 @@ class Qasm3Analyzer:
 
             if isinstance(index, RangeDefinition):
                 assert var_dimensions is not None
+                dim_size = var_dimensions[i]
 
-                start_id = 0
                 if index.start is not None:
-                    start_id = expr_evaluator.evaluate_expression(index.start, reqd_type=IntType)[0]
+                    raw_start = expr_evaluator.evaluate_expression(index.start, reqd_type=IntType)[
+                        0
+                    ]
+                    start_id = Qasm3Analyzer.normalize_index(
+                        raw_start, dim_size, var.name, index, dim_num=i
+                    )
+                else:
+                    start_id = 0
 
-                end_id = var_dimensions[i] - 1
                 if index.end is not None:
-                    end_id = expr_evaluator.evaluate_expression(index.end, reqd_type=IntType)[0]
+                    raw_end = expr_evaluator.evaluate_expression(index.end, reqd_type=IntType)[0]
+                    end_id = Qasm3Analyzer.normalize_index(
+                        raw_end, dim_size, var.name, index, dim_num=i
+                    )
+                else:
+                    end_id = dim_size - 1
 
                 step = 1
                 if index.step is not None:
                     step = expr_evaluator.evaluate_expression(index.step, reqd_type=IntType)[0]
 
-                _validate_index(start_id, var_dimensions[i], var.name, index, i)
-                _validate_index(end_id, var_dimensions[i], var.name, index, i)
                 _validate_step(start_id, end_id, step, index)
 
                 indices_list.append((start_id, end_id, step))
 
             if isinstance(index, (Identifier, IntegerLiteral, Expression)):
-                index_value = expr_evaluator.evaluate_expression(index, reqd_type=IntType)[0]
+                raw_value = expr_evaluator.evaluate_expression(index, reqd_type=IntType)[0]
                 curr_dimension = var_dimensions[i]  # type: ignore[index]
-                _validate_index(index_value, curr_dimension, var.name, index, i)
+                index_value = Qasm3Analyzer.normalize_index(
+                    raw_value, curr_dimension, var.name, index, dim_num=i
+                )
 
                 indices_list.append((index_value, index_value, 1))
 

@@ -40,8 +40,8 @@ from openqasm3.ast import (
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import SizeOf, Statement, StretchType, UnaryExpression
 
-from pyqasm.analyzer import Qasm3Analyzer
-from pyqasm.elements import Variable
+from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions
+from pyqasm.elements import BitValue, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.maps.expressions import (
     CONSTANTS_MAP,
@@ -164,7 +164,7 @@ class Qasm3ExprEvaluator:
             )
 
     @classmethod
-    def _get_var_value(cls, var_name, indices, expression):
+    def _get_var_value(cls, var_name, indices, expression):  # pylint: disable=too-many-locals
         """Retrieves the value of a variable.
 
         Args:
@@ -175,18 +175,35 @@ class Qasm3ExprEvaluator:
             var_value: The value of the variable.
         """
 
-        var_value = None
+        var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)
         if isinstance(expression, Identifier):
-            var_value = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name).value
-        else:
-            validated_indices = Qasm3Analyzer.analyze_classical_indices(
-                indices, cls.visitor_obj._scope_manager.get_from_visible_scope(var_name), cls
-            )
-            var_value = Qasm3Analyzer.find_array_element(
-                cls.visitor_obj._scope_manager.get_from_visible_scope(var_name).value,
-                validated_indices,
-            )
-        return var_value
+            return var.value
+
+        validated_indices = Qasm3Analyzer.analyze_classical_indices(indices, var, cls)
+
+        # ``bit`` / ``bit[n]`` values are stored as a width-carrying ``BitValue``
+        # (an ``int``), not an ndarray. Extract the selected bits with shift and
+        # mask so ``b[i]`` yields a single-bit ``int`` and ``b[a:c]`` yields a
+        # ``BitValue`` of width ``c - a + 1`` (spec-inclusive range).
+        if isinstance(var.base_type, BitType):
+            start, end, step = validated_indices[0]
+            width = var.base_size
+            source_int = bits_to_int(var.value, width)
+            if start == end:
+                # Single bit: bit 0 is the most-significant bit of the int, per
+                # the ``format(v, f"0{n}b")`` convention that ``dumps()`` uses.
+                return (source_int >> (width - 1 - start)) & 1
+            # Ranged read — build the sub-bitstring by iterating in the step
+            # order (already validated non-empty by ``analyze_classical_indices``).
+            selected_positions = slice_positions(start, end, step)
+            slice_width = len(selected_positions)
+            result = 0
+            for pos in selected_positions:
+                bit = (source_int >> (width - 1 - pos)) & 1
+                result = (result << 1) | bit
+            return BitValue(result, slice_width)
+
+        return Qasm3Analyzer.find_array_element(var.value, validated_indices)
 
     @classmethod
     # pylint: disable-next=too-many-return-statements,too-many-branches,too-many-statements,too-many-locals,too-many-arguments
@@ -471,9 +488,21 @@ class Qasm3ExprEvaluator:
                 return (None, [])
 
             statements.extend(rhs_statements)
-            return _check_and_return_value(
-                qasm3_expression_op_map(expression.op.name, lhs_value, rhs_value)
-            )
+            try:
+                op_result = qasm3_expression_op_map(expression.op.name, lhs_value, rhs_value)
+            except ValidationError as err:
+                # ``qasm3_expression_op_map`` has no access to the source span
+                # (e.g. it raises for a ``bit[n]`` width mismatch); attach it
+                # here so the caller sees a properly-located error rather than a
+                # bare message.
+                raise_qasm3_error(
+                    str(err),
+                    err_type=ValidationError,
+                    error_node=expression,
+                    span=expression.span,
+                    raised_from=err,
+                )
+            return _check_and_return_value(op_result)
 
         if isinstance(expression, FunctionCall):
             # function will not return a reqd / const type

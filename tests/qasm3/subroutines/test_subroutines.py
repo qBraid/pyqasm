@@ -535,9 +535,9 @@ def test_extern_function_call():
     bit[1] fc = -func1(1.0, 2);
     bit[2] b1 = true;
     extern func2(bit[2], angle) -> complex;
-    const complex d = func2(True, 1.5707963267948966);
-    const complex e = func2(True, 1.5707963267948966) + 2.0; 
-    const complex f = -func2(True, 1.5707963267948966);
+    const complex d = func2("01", 1.5707963267948966);
+    const complex e = func2("01", 1.5707963267948966) + 2.0;
+    const complex f = -func2("01", 1.5707963267948966);
     extern func3(duration, bool) -> int;
     dd = func3(100.0ns, True);
     ee = func3(100.0ns, True) + 2;

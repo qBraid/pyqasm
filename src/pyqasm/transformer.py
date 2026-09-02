@@ -141,26 +141,50 @@ class Qasm3Transformer:
         Returns:
             list[int]: The list of qubit identifiers.
         """
-        start_qid = (
+        # Range endpoints on a qubit register use this function's end-EXCLUSIVE
+        # convention: ``end`` defaults to ``qreg_size`` and is not itself
+        # iterated. A negative endpoint is normalized against the register size
+        # (``-1`` -> ``qreg_size - 1``) and then still treated as exclusive,
+        # matching Python slice semantics.
+        raw_start = (
             0
             if range_def.start is None
             else Qasm3ExprEvaluator.evaluate_expression(range_def.start)[0]
         )
-        end_qid = (
-            qreg_size
-            if range_def.end is None
-            else Qasm3ExprEvaluator.evaluate_expression(range_def.end)[0]
-        )
+        start_qid: int = Qasm3Validator.validate_register_index(
+            raw_start, qreg_size, qubit=is_qubit_reg, op_node=op_node
+        )  # type: ignore[assignment]
+
+        if range_def.end is None:
+            end_qid = qreg_size
+        else:
+            raw_end = Qasm3ExprEvaluator.evaluate_expression(range_def.end)[0]
+            if raw_end < 0:
+                # Negative exclusive end: normalize against register size and use
+                # directly. Reject the empty-slice case ``end == -qreg_size`` up
+                # front only when it would slice past the start; otherwise a
+                # legitimate empty range simply yields no qubits.
+                end_qid = raw_end + qreg_size
+                if end_qid < 0 or end_qid > qreg_size:
+                    raise_qasm3_error(
+                        message=f"Index {raw_end} out of range for register of "
+                        f"size {qreg_size} in "
+                        f"{'qubit' if is_qubit_reg else 'clbit'}",
+                        error_node=op_node,
+                        span=op_node.span if op_node else None,
+                    )
+            else:
+                # Non-negative exclusive end: validate the last element that
+                # WOULD be iterated (``end - 1``), matching the pre-existing
+                # behavior for positive endpoints.
+                last_included = Qasm3Validator.validate_register_index(
+                    raw_end - 1, qreg_size, qubit=is_qubit_reg, op_node=op_node
+                )
+                end_qid = last_included + 1  # type: ignore[operator]
         step = (
             1
             if range_def.step is None
             else Qasm3ExprEvaluator.evaluate_expression(range_def.step)[0]
-        )
-        Qasm3Validator.validate_register_index(
-            start_qid, qreg_size, qubit=is_qubit_reg, op_node=op_node
-        )
-        Qasm3Validator.validate_register_index(
-            end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=op_node
         )
         return list(range(start_qid, end_qid, step))
 
@@ -332,8 +356,12 @@ class Qasm3Transformer:
                         error_node=condition,
                         span=condition.span,
                     )
+                # Evaluate the index expression so ``c[-1]`` (a ``UnaryExpression``
+                # with no ``.value`` attribute) resolves to a concrete ``int``;
+                # the caller then routes it through ``validate_register_index``.
+                index_value = Qasm3ExprEvaluator.evaluate_expression(condition.index[0])[0]
                 return BranchParams(
-                    condition.index[0].value,
+                    index_value,
                     condition.collection.name,
                     BinaryOperator["=="],
                     True,
@@ -412,12 +440,13 @@ class Qasm3Transformer:
                     )
                 target_qubits_size = len(target_qids)
             elif isinstance(
-                target.index[0], (IntegerLiteral, Identifier, BinaryExpression)
-            ):  # "(q[0]); OR (q[i]); OR (q[i+1]);"
-                target_qids = [Qasm3ExprEvaluator.evaluate_expression(target.index[0])[0]]
-                Qasm3Validator.validate_register_index(
-                    target_qids[0], qreg_size_map[target_name], qubit=True, op_node=target
+                target.index[0], (IntegerLiteral, Identifier, BinaryExpression, UnaryExpression)
+            ):  # "(q[0]); OR (q[i]); OR (q[i+1]); OR (q[-1]);"
+                raw_qid = Qasm3ExprEvaluator.evaluate_expression(target.index[0])[0]
+                normalized_qid = Qasm3Validator.validate_register_index(
+                    raw_qid, qreg_size_map[target_name], qubit=True, op_node=target
                 )
+                target_qids = [normalized_qid]
                 target_qubits_size = 1
             elif isinstance(target.index[0], RangeDefinition):  # "(q[0:1:2]);"
                 target_qids = Qasm3Transformer.get_qubits_from_range_definition(
