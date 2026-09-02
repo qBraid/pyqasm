@@ -519,6 +519,24 @@ def test_continue_outside_loop_raises_validation_error():
         loads(qasm_str).validate()
 
 
+@pytest.mark.parametrize("keyword", ["break", "continue"])
+def test_loop_control_in_subroutine_called_from_loop_raises(keyword):
+    """`break`/`continue` are lexical, so a subroutine body is outside the caller's loop."""
+    qasm_str = f"""
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    def escape(qubit qq) {{
+        {keyword};
+    }}
+    for int i in [0:1] {{
+        escape(q[0]);
+    }}
+    """
+    with pytest.raises(ValidationError):
+        loads(qasm_str).validate()
+
+
 def test_for_loop_break_does_not_leak_internal_signal():
     """`break` in a `for` must not leak internal control-flow exceptions."""
     qasm_str = """

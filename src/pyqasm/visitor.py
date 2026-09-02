@@ -2747,40 +2747,47 @@ class QasmVisitor:
         return_statement = None
         return_value = None
         result: list[qasm3_ast.Statement | qasm3_ast.FunctionCall] = []
-        if isinstance(subroutine_def, qasm3_ast.ExternDeclaration):
-            self._in_extern_function = True
-            global_scope = self._scope_manager.get_global_scope()
-            result.append(
-                PulseValidator.validate_and_process_extern_function_call(
-                    statement, global_scope, self._module._device_cycle_time
+        # 'break' and 'continue' are lexically scoped to the loops of this body, so a call
+        # made from inside a loop must not make them legal here. Were a signal to escape,
+        # it would skip the cleanup below and the enclosing loop would pop this scope.
+        outer_loop_depth, self._loop_depth = self._loop_depth, 0
+        try:
+            if isinstance(subroutine_def, qasm3_ast.ExternDeclaration):
+                self._in_extern_function = True
+                global_scope = self._scope_manager.get_global_scope()
+                result.append(
+                    PulseValidator.validate_and_process_extern_function_call(
+                        statement, global_scope, self._module._device_cycle_time
+                    )
                 )
-            )
-        else:
-            for function_op in subroutine_def.body:
-                if isinstance(function_op, qasm3_ast.ReturnStatement):
-                    return_statement = copy.copy(function_op)
-                    break
-                try:
-                    result.extend(self.visit_statement(copy.copy(function_op)))
-                except (TypeError, copy.Error):
-                    result.extend(self.visit_statement(copy.deepcopy(function_op)))
+            else:
+                for function_op in subroutine_def.body:
+                    if isinstance(function_op, qasm3_ast.ReturnStatement):
+                        return_statement = copy.copy(function_op)
+                        break
+                    try:
+                        result.extend(self.visit_statement(copy.copy(function_op)))
+                    except (TypeError, copy.Error):
+                        result.extend(self.visit_statement(copy.deepcopy(function_op)))
 
-            if return_statement:
-                return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
-                    return_statement.expression,
-                )
-                return_value = Qasm3Validator.validate_return_statement(
-                    subroutine_def, return_statement, return_value
-                )
-                result.extend(stmts)
+                if return_statement:
+                    return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
+                        return_statement.expression,
+                    )
+                    return_value = Qasm3Validator.validate_return_statement(
+                        subroutine_def, return_statement, return_value
+                    )
+                    result.extend(stmts)
+        finally:
+            self._loop_depth = outer_loop_depth
 
-        # remove qubit transformation map
-        self._function_qreg_transform_map.pop()
-        self._function_qreg_size_map.pop()
+            # remove qubit transformation map
+            self._function_qreg_transform_map.pop()
+            self._function_qreg_size_map.pop()
 
-        self._scope_manager.restore_context()
-        self._scope_manager.decrement_scope_level()
-        self._scope_manager.pop_scope()
+            self._scope_manager.restore_context()
+            self._scope_manager.decrement_scope_level()
+            self._scope_manager.pop_scope()
 
         if self._check_only and not self._in_extern_function:
             return return_value, []
