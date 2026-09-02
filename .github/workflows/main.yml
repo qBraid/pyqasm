@@ -7,8 +7,20 @@ on:
     branches: ['main']
   workflow_dispatch:
 
+# Cancel superseded runs for the same PR. `synchronize` fires on every push to an
+# open PR, so without this each push started another full wheel matrix while the
+# previous one kept running to completion. A run on main is never cancelled once
+# it starts, but a group holds only one running plus one pending run, so a main
+# run still waiting to start can be dropped by a newer push to main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Reference: https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows
 jobs:
+  # Wheels published to PyPI are built by release.yml / pre-release.yml, which
+  # each carry their own complete 20-entry matrix. This job is CI validation
+  # only, so reducing it for pull requests does not change what ships.
   build_wheels:
     if: github.event.pull_request.draft == false
     runs-on: ${{ matrix.os }}
@@ -18,31 +30,33 @@ jobs:
       fail-fast: false
 
       matrix:
+        os: [windows-latest, ubuntu-latest, macos-15-intel, macos-14]
+
+        # The only per-event switch: pull requests build 3.11, while pushes to
+        # main and manual runs build every supported Python.
+        python: >-
+          ${{ github.event_name == 'pull_request'
+          && fromJSON('[311]')
+          || fromJSON('[310,311,312,313,314]') }}
+
         include:
-          # Windows 64 bit
+          # platform_id / manylinux_image are a function of os, so these entries
+          # decorate the combinations above and add no jobs of their own.
           - os: windows-latest
-            python: 310
             platform_id: win_amd64
-          - os: windows-latest
-            python: 311
-            platform_id: win_amd64
-          - os: windows-latest
-            python: 312
-            platform_id: win_amd64
-          - os: windows-latest
-            python: 313
-            platform_id: win_amd64
-          - os: windows-latest
-            python: 314
-            platform_id: win_amd64
+          - os: ubuntu-latest
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux_2_28
+          - os: macos-15-intel
+            platform_id: macosx_x86_64
+          - os: macos-14
+            platform_id: macosx_arm64
 
-          # Linux 64 bit manylinux_2_28
+          # Linux is the cheapest runner, so keep every Python under test on
+          # pull requests too. On main these match combinations that already
+          # exist and only decorate them.
           - os: ubuntu-latest
             python: 310
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux_2_28
-          - os: ubuntu-latest
-            python: 311
             platform_id: manylinux_x86_64
             manylinux_image: manylinux_2_28
           - os: ubuntu-latest
@@ -57,41 +71,6 @@ jobs:
             python: 314
             platform_id: manylinux_x86_64
             manylinux_image: manylinux_2_28
-
-          # MacOS x86_64
-          - os: macos-15-intel
-            python: 310
-            platform_id: macosx_x86_64
-          - os: macos-15-intel
-            python: 311
-            platform_id: macosx_x86_64
-          - os: macos-15-intel
-            python: 312
-            platform_id: macosx_x86_64
-          - os: macos-15-intel
-            python: 313
-            platform_id: macosx_x86_64
-          - os: macos-15-intel
-            python: 314
-            platform_id: macosx_x86_64
-
-          # MacOS arm64
-          - os: macos-14
-            python: 310
-            platform_id: macosx_arm64
-          - os: macos-14
-            python: 311
-            platform_id: macosx_arm64
-          - os: macos-14
-            python: 312
-            platform_id: macosx_arm64
-          - os: macos-14
-            python: 313
-            platform_id: macosx_arm64
-          - os: macos-14
-            python: 314
-            platform_id: macosx_arm64
-          
 
     steps:
       - name: Checkout PyQASM

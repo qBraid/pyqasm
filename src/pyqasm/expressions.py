@@ -38,12 +38,7 @@ from openqasm3.ast import (
     IntegerLiteral,
 )
 from openqasm3.ast import IntType as Qasm3IntType
-from openqasm3.ast import (
-    SizeOf,
-    Statement,
-    StretchType,
-    UnaryExpression,
-)
+from openqasm3.ast import SizeOf, Statement, StretchType, UnaryExpression
 
 from pyqasm.analyzer import Qasm3Analyzer, bits_to_int, slice_positions
 from pyqasm.elements import BitValue, Variable
