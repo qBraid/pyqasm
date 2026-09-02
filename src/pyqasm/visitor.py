@@ -130,6 +130,9 @@ class QasmVisitor:
         # cycle of any length between gate definitions (issue #369)
         self._gate_expansion_chain: list[str] = []
         self._external_gates: list[str] = [] if external_gates is None else external_gates
+        # opaque gates come from the program itself, so they are read off the module
+        # rather than taken from unroll()'s kwargs (issue #370)
+        self._opaque_gates: set[str] = getattr(module, "_opaque_gates", set())
         self._subroutine_defns: dict[
             str, qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
         ] = {}
@@ -1423,6 +1426,24 @@ class QasmVisitor:
             error_node=statement,
         )
 
+    def _is_black_box_gate(self, gate_name: str) -> bool:
+        """Check whether a gate must be emitted as written instead of being unrolled.
+
+        True for a gate the caller named in ``external_gates``, any gate inside a verbatim
+        box, and one the program declared ``opaque`` (issue #370).
+
+        Args:
+            gate_name (str): The name of the gate being applied.
+
+        Returns:
+            bool: True if the gate is emitted as written.
+        """
+        return (
+            self._in_verbatim_box
+            or gate_name in self._external_gates
+            or gate_name in self._opaque_gates
+        )
+
     def _visit_custom_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
@@ -1523,7 +1544,11 @@ class QasmVisitor:
         # 'or', not '=': a nested gate must stay suppressed inside an enclosing external
         # gate rather than re-enable recording for the body its parent skips (issue #367)
         prev_recording = self._recording_ext_gate_depth
-        is_external = self._in_verbatim_box or gate_name in self._external_gates
+        # 'or', not '=': a nested gate must stay suppressed inside an enclosing external
+        # gate rather than re-enable recording for the body its parent skips (issue #367)
+        prev_recording = self._recording_ext_gate_depth
+        is_external = self._is_black_box_gate(gate_name)
+        self._recording_ext_gate_depth = prev_recording or is_external
         self._recording_ext_gate_depth = prev_recording or is_external
 
         result = []
@@ -1897,7 +1922,7 @@ class QasmVisitor:
             # A phase has no target operands, so it takes no groups.
             visit_gate = partial(self._visit_phase_operation, operation, inverse_value, ctrls)
         else:
-            if self._in_verbatim_box or operation.name.name in self._external_gates:
+            if self._is_black_box_gate(operation.name.name):
                 gate_visitor = self._visit_external_gate_operation
             elif operation.name.name in self._custom_gates:
                 gate_visitor = self._visit_custom_gate_operation  # type: ignore[assignment]
