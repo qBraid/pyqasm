@@ -22,6 +22,17 @@ from enum import Enum
 from typing import Any, Optional
 
 import numpy as np
+from openqasm3.ast import Identifier, IndexedIdentifier
+
+QubitRef = IndexedIdentifier | Identifier
+"""A single resolved qubit: an indexed register element, or a physical qubit ("$n")."""
+
+OperandGroups = list[list[QubitRef]]
+"""Resolved qubits grouped by the source-level operand they came from.
+
+``cx q, r[0]`` with ``qubit[2] q`` groups as ``[[q[0], q[1]], [r[0]]]``. Keeping the
+boundary is what lets broadcasting zip register operands and repeat single-qubit ones.
+"""
 
 INTERNAL_QUBIT_REGISTER = "__PYQASM_QUBITS__"
 """Reserved register that qubits are consolidated onto, and that physical qubits ("$n")

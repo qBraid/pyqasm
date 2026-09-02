@@ -139,7 +139,9 @@ def test_opaque_gate_arity_is_validated():
     """The declared arity is the whole of what an opaque declaration carries, so a call
     that does not match it must be rejected."""
     module = loads(OPAQUE_PROGRAM + "ZZ q[0];\n")
-    with pytest.raises(ValidationError, match="Qubit count mismatch for gate 'ZZ'"):
+    with pytest.raises(
+        ValidationError, match=r"Cannot broadcast operation 'ZZ' onto 1 operand\(s\)"
+    ):
         module.validate()
 
 
