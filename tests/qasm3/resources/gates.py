@@ -394,7 +394,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         "Unsupported / undeclared QASM operation: custom_gate",
         6,
         8,
-        "custom_gate q1[0], q1[1];",  # expanded line
+        "custom_gate q1;",
     ),
     "parameter_mismatch_1": (
         """

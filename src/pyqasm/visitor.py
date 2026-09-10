@@ -196,7 +196,7 @@ class QasmVisitor:
             qasm3_ast.SwitchStatement: self._visit_switch_statement,
             qasm3_ast.SubroutineDefinition: self._visit_subroutine_definition,
             qasm3_ast.ExternDeclaration: self._visit_subroutine_definition,
-            qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
+            qasm3_ast.ExpressionStatement: self._visit_expression_statement,
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.BreakStatement: self._visit_break,
             qasm3_ast.ContinueStatement: self._visit_continue,
@@ -1636,6 +1636,15 @@ class QasmVisitor:
                 self._pulse_gates_qubits_frame_map,
             )
             return stmts  # type: ignore
+
+        if (
+            isinstance(operation, qasm3_ast.QuantumGate)
+            and operation.name.name not in self._custom_gates
+            and not self._is_black_box_gate(operation.name.name)
+        ):
+            # Resolve the operation before its operands so an unknown gate is
+            # reported even when one of its qubits is also undeclared.
+            map_qasm_op_to_callable(operation)
 
         self._in_generic_gate_op_scope += 1
 
@@ -3505,6 +3514,24 @@ class QasmVisitor:
 
         return [include]
 
+    @staticmethod
+    def _visit_expression_statement(
+        statement: qasm3_ast.ExpressionStatement,
+    ) -> list[qasm3_ast.Statement]:
+        """Evaluate an expression statement and discard its value.
+
+        Statements produced while evaluating the expression are retained so
+        that calls to user-defined and external functions keep their effects.
+
+        Args:
+            statement (ExpressionStatement): The expression statement to visit.
+
+        Returns:
+            list[Statement]: Statements produced while evaluating the expression.
+        """
+        _, statements = Qasm3ExprEvaluator.evaluate_expression(statement.expression)
+        return statements
+
     def visit_statement(
         self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
     ) -> list[qasm3_ast.Statement]:
@@ -3527,12 +3554,7 @@ class QasmVisitor:
 
         visitor_function = self._visit_map.get(type(statement))
         if visitor_function:
-            if isinstance(statement, qasm3_ast.ExpressionStatement):
-                # these return a tuple of return value and list of statements
-                _, ret_stmts = visitor_function(statement)  # type: ignore[operator]
-                result.extend(ret_stmts)
-            else:
-                result.extend(visitor_function(statement))  # type: ignore[operator]
+            result.extend(visitor_function(statement))  # type: ignore[operator]
         else:
             raise_qasm3_error(
                 f"Unsupported statement of type {type(statement)}",

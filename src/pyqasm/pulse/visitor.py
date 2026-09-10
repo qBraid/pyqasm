@@ -773,6 +773,40 @@ class OpenPulseVisitor:
 
         return _return_value, [statement]
 
+    def _visit_expression_statement(
+        self, statement: qasm3_ast.ExpressionStatement
+    ) -> list[qasm3_ast.Statement]:
+        """Visit an expression statement in an OpenPulse block.
+
+        OpenPulse functions retain their specialized validation and output.
+        Other expressions use the main visitor's evaluator and discard their
+        value.
+
+        Args:
+            statement (ExpressionStatement): The expression statement to visit.
+
+        Returns:
+            list[Statement]: Statements produced while evaluating the expression.
+        """
+        expression = statement.expression
+        pulse_functions = {
+            *OPENPULSE_FRAME_FUNCTION_MAP,
+            *OPENPULSE_WAVEFORM_FUNCTION_MAP,
+            *OPENPULSE_CAPTURE_FUNCTION_MAP,
+            "get_phase",
+            "get_frequency",
+            "newframe",
+            "play",
+        }
+        if (
+            isinstance(expression, qasm3_ast.FunctionCall)
+            and expression.name.name in pulse_functions
+        ):
+            _, statements = self._visit_function_call(expression)
+            return statements  # type: ignore[return-value]
+        _, statements = Qasm3ExprEvaluator.evaluate_expression(expression)
+        return statements
+
     def visit_statement(
         self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
     ) -> list[qasm3_ast.Statement]:
@@ -789,7 +823,7 @@ class OpenPulseVisitor:
         visit_map = {
             qasm3_ast.QuantumBarrier: self._visit_barrier,
             qasm3_ast.ClassicalDeclaration: self._visit_classical_declaration,
-            qasm3_ast.ExpressionStatement: lambda x: self._visit_function_call(x.expression),
+            qasm3_ast.ExpressionStatement: self._visit_expression_statement,
             qasm3_ast.DelayInstruction: self._qasm_visitor._visit_delay_statement,
             qasm3_ast.ClassicalAssignment: self._visit_classical_assignment,
             qasm3_ast.ConstantDeclaration: self._visit_classical_declaration,
@@ -799,12 +833,7 @@ class OpenPulseVisitor:
         visitor_function = visit_map.get(type(statement))
 
         if visitor_function:
-            if isinstance(statement, qasm3_ast.ExpressionStatement):
-                # these return a tuple of return value and list of statements
-                _, ret_stmts = visitor_function(statement)  # type: ignore[operator]
-                result.extend(ret_stmts)
-            else:
-                result.extend(visitor_function(statement))  # type: ignore[operator]
+            result.extend(visitor_function(statement))  # type: ignore[operator]
         else:
             if isinstance(statement, qasm3_ast.ReturnStatement):
                 if statement.expression:
