@@ -3547,6 +3547,12 @@ class QasmVisitor:
             return True
         if isinstance(final_statement, qasm3_ast.Box):
             return cls._ends_with_end_statement(final_statement.body)
+        if isinstance(final_statement, qasm3_ast.BranchingStatement):
+            return (
+                bool(final_statement.else_block)
+                and cls._ends_with_end_statement(final_statement.if_block)
+                and cls._ends_with_end_statement(final_statement.else_block)
+            )
         return False
 
     def visit_statement(

@@ -180,3 +180,32 @@ def test_runtime_conditional_end_remains_conditional():
         h q[0];
         """
     check_unrolled_qasm(dumps(module), expected)
+
+
+def test_end_in_both_runtime_branches_terminates_program():
+    """Later statements are unreachable when every runtime branch terminates."""
+    module = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        bit[1] c;
+        qubit q;
+        if (c[0]) {
+            h q;
+            end;
+        } else {
+            z q;
+            end;
+        }
+        x q;
+        qubit unreachable;
+        """)
+
+    module.unroll()
+    output = dumps(module)
+
+    assert "h q[0];" in output
+    assert "z q[0];" in output
+    assert output.count("end;") == 2
+    assert "x q[0];" not in output
+    assert "unreachable" not in output
+    assert module.num_qubits == 1
