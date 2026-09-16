@@ -34,6 +34,7 @@ QASM3_HEADER = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\n'
         ("rx(pi / 2 + 1) q[0];", "rx(pi/2 + 1) q[0];"),
         ("rx(pi - 1) q[0];", "rx(pi - 1) q[0];"),
         ("rx(pi / (2 * pi)) q[0];", "rx(pi/(2*pi)) q[0];"),
+        ("rx((pi + 1) / 2) q[0];", "rx((pi + 1)/2) q[0];"),
         ("ctrl @ rx(pi / 2) q[0], q[1];", "ctrl @ rx(pi/2) q[0], q[1];"),
         ("gphase(pi / 2);", "gphase(pi/2);"),
     ],

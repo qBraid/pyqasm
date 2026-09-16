@@ -48,13 +48,24 @@ class Qasm3Printer(Printer):
     match rotation angles textually and only accept the compact spelling.
     """
 
-    def __init__(self, stream: io.TextIOBase, *, compact_gate_arguments: bool = False, **kwargs):
+    def __init__(
+        self, stream: io.TextIOBase, *, compact_gate_arguments: bool = False, **kwargs: Any
+    ) -> None:
+        """Create a printer.
+
+        Args:
+            stream (io.TextIOBase): The stream to write to.
+            compact_gate_arguments (bool): Drop the spaces around '*', '/' and '**' in gate
+                arguments. Defaults to False.
+            **kwargs (Any): Printer options, forwarded to `openqasm3.printer.Printer`.
+        """
         super().__init__(stream, **kwargs)
         self.compact_gate_arguments = compact_gate_arguments
         # true only while a gate call prints, so classical expressions keep their spacing
         self._printing_gate_expr = False
 
     def visit_QuantumGate(self, node: QuantumGate, context: PrinterState) -> None:
+        """Write a gate call, marking its expressions as gate arguments."""
         self._printing_gate_expr = True
         try:
             super().visit_QuantumGate(node, context)
@@ -62,6 +73,7 @@ class Qasm3Printer(Printer):
             self._printing_gate_expr = False
 
     def visit_QuantumPhase(self, node: QuantumPhase, context: PrinterState) -> None:
+        """Write a gphase call, marking its expressions as gate arguments."""
         self._printing_gate_expr = True
         try:
             super().visit_QuantumPhase(node, context)

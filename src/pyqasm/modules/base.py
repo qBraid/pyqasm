@@ -279,6 +279,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
 
     @compact_gate_arguments.setter
     def compact_gate_arguments(self, value: bool) -> None:
+        """Set whether printing drops the spaces around '*', '/' and '**' in gate arguments."""
         self._compact_gate_arguments = value
 
     @property
