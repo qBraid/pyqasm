@@ -17,7 +17,7 @@ Types of changes:
 ### Added
 - Added support for OpenQASM 2 `opaque` declarations, which previously failed at parse time and blocked vendor include files such as Quantinuum's `hqslib1.inc`. An opaque gate is treated as a black box: emitted as written, counted as one layer of depth. `to_qasm3()` rejects such a program. ([#370](https://github.com/qBraid/pyqasm/issues/370))
 - Added an `include_dir` kwarg to `loads()` and `load()`, naming the directory custom `include` statements resolve against. A program given as a string could not resolve includes at all, and failed later naming the gate rather than the include. Resolution is opt-in: without the kwarg, no files are read. ([#368](https://github.com/qBraid/pyqasm/issues/368))
-- Added a `compact_gate_arguments` setting, passed to `loads()` or set on the module, which prints gate arguments without spaces around `*`, `/` and `**`: `rx(pi/2)` instead of `rx(pi / 2)`. Vendors such as Diraq match rotation angles textually and reject the spaced form.
+- Added a `compact_gate_arguments` setting, passed to `loads()` or set on the module, which prints gate arguments without spaces around `*`, `/` and `**`: `rx(pi/2)` instead of `rx(pi / 2)`. Vendors such as Diraq match rotation angles textually and reject the spaced form. ([#427](https://github.com/qBraid/pyqasm/pull/427))
 
 ### Improved / Modified
 
