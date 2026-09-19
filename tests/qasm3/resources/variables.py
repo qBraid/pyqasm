@@ -422,7 +422,7 @@ CASTING_TESTS = {
         bool b = bool(f);
         int i = int(f);
         uint u = uint(f);
-        // angle[8] a = angle[8](f);
+        angle[8] a = angle[8](f);
         """
     ),
     "Bit_test": (
@@ -448,8 +448,7 @@ FAIL_CASTING_TESTS = {
         const float[64] f1 = 2.5;
         const bit[2] b1 = bit[2](f1);
         """,
-        "Cannot cast 'float' to 'BitType'. Invalid assignment of type "
-        "'float' to variable 'f1' of type 'BitType'",
+        "Cannot cast 'float' to 'bit'",
         5,
         8,
         "const bit[2] b1 = bit[2](f1);",

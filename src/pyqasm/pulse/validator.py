@@ -46,10 +46,10 @@ from openqasm3.ast import (
     TimeUnit,
 )
 
-from pyqasm.elements import BitValue
+from pyqasm.elements import AngleValue, BitValue
 from pyqasm.exceptions import raise_qasm3_error
 from pyqasm.expressions import Qasm3ExprEvaluator
-from pyqasm.maps.expressions import CONSTANTS_MAP
+from pyqasm.maps.expressions import cast_to_angle
 
 
 class PulseValidator:
@@ -93,16 +93,13 @@ class PulseValidator:
                         span=statement.span,
                     )
                 angle_type_size = compiler_angle_width
-            angle_bit_string = format(expression.value, f"0{angle_type_size}b")
             # Reference: https://openqasm.com/language/types.html#angles
-            angle_val = (2 * CONSTANTS_MAP["pi"]) * (expression.value / (2**angle_type_size))
+            angle_val = AngleValue.from_bits(expression.value, angle_type_size)
         else:
-            angle_val = init_value % (2 * CONSTANTS_MAP["pi"])
             angle_type_size = compiler_angle_width or base_size
-            bit_string_value = round((2**angle_type_size) * (angle_val / (2 * CONSTANTS_MAP["pi"])))
-            angle_bit_string = format(bit_string_value, f"0{angle_type_size}b")
+            angle_val = cast_to_angle(init_value, angle_type_size)
 
-        return angle_val, angle_bit_string
+        return angle_val, angle_val.to_bitstring()
 
     @staticmethod
     def validate_duration_or_stretch_statements(

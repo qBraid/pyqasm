@@ -17,11 +17,14 @@ Module defining Qasm Converter elements.
 
 """
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
 import numpy as np
+
+TWO_PI = 2 * math.pi
 
 INTERNAL_QUBIT_REGISTER = "__PYQASM_QUBITS__"
 """Reserved register that qubits are consolidated onto, and that physical qubits ("$n")
@@ -102,6 +105,57 @@ class BitValue(int):
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostic aid only
         return f"BitValue({int(self)}, width={self.width})"
+
+
+class AngleValue(float):
+    """Internal representation of an ``angle[n]`` classical value.
+
+    An ``angle[n]`` is a fixed-point number in ``[0, 2*pi)``: the register holds the
+    unsigned integer ``bits``, and the angle it denotes is ``2*pi * bits / 2**n``. See
+    https://openqasm.com/versions/3.1/language/types.html#angles.
+
+    ``AngleValue`` subclasses ``float`` so an angle stays usable anywhere a plain float
+    is (gate arguments, arithmetic, ``float()`` casts) while carrying the ``width`` that
+    narrowing needs. The float itself keeps the *unrounded* angle; quantization to
+    ``width`` bits happens only in :meth:`bits` and :meth:`resize`, so declaring an
+    angle does not perturb the value a gate is called with.
+    """
+
+    # ``float`` uses a fixed C-level layout that forbids ``__slots__`` on subclasses,
+    # so ``width`` lives on the instance ``__dict__``. Declared for type checkers.
+    width: int
+
+    def __new__(cls, value: float, width: int) -> "AngleValue":
+        if width <= 0:
+            raise ValueError(f"AngleValue width must be positive, got {width}")
+        obj = float.__new__(cls, float(value) % TWO_PI)
+        obj.width = width
+        return obj
+
+    @classmethod
+    def from_bits(cls, bits: int, width: int) -> "AngleValue":
+        """Build the angle whose ``uint[width]`` bit pattern is ``bits``."""
+        return cls(TWO_PI * (bits % (1 << width)) / (1 << width), width)
+
+    @property
+    def bits(self) -> int:
+        """The unsigned integer whose ``uint[width]`` bit pattern is this angle."""
+        return round(float(self) / TWO_PI * (1 << self.width)) % (1 << self.width)
+
+    def resize(self, width: int) -> "AngleValue":
+        """Return this angle re-expressed with ``width`` bits of precision.
+
+        Narrowing truncates the low-order bits, which the spec names as the
+        hardware-friendly of its two permitted behaviours. Widening keeps the value
+        as-is, which is exactly a left shift of the fixed-point integer.
+        """
+        if width >= self.width:
+            return AngleValue(float(self), width)
+        return AngleValue.from_bits(self.bits >> (self.width - width), width)
+
+    def to_bitstring(self) -> str:
+        """Return the zero-padded, width-`n` binary string for this angle."""
+        return format(self.bits, f"0{self.width}b")
 
 
 class InversionOp(Enum):

@@ -18,6 +18,7 @@ Types of changes:
 - Added support for OpenQASM 2 `opaque` declarations, which previously failed at parse time and blocked vendor include files such as Quantinuum's `hqslib1.inc`. An opaque gate is treated as a black box: emitted as written, counted as one layer of depth. `to_qasm3()` rejects such a program. ([#370](https://github.com/qBraid/pyqasm/issues/370))
 - Added an `include_dir` kwarg to `loads()` and `load()`, naming the directory custom `include` statements resolve against. A program given as a string could not resolve includes at all, and failed later naming the gate rather than the include. Resolution is opt-in: without the kwarg, no files are read. ([#368](https://github.com/qBraid/pyqasm/issues/368))
 - Negative indices are now honored across arrays, `bit[n]`, `qubit[n]`, and `let` aliases, including ranges: `myArray[-1]`, `a[-1] = 10`, `h q[-1]`, `bit c = b[-1]`, `let last_three = two[-4:-1]`. An index still outside `[-size, size)` after normalization raises `ValidationError` and names the index as written. ([#391](https://github.com/qBraid/pyqasm/issues/391))
+- `angle(x)` and `angle[n](x)` now cast from `float` and `angle`, narrowing by truncating low-order bits, and `int[n](b)`/`uint[n](b)` reinterpret a `bit[n]` register. An unsupported cast now raises `ValidationError` naming both types, replacing `Invalid initialization value`. ([#399](https://github.com/qBraid/pyqasm/issues/399))
 
 ### Improved / Modified
 
