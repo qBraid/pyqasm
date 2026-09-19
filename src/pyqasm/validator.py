@@ -33,6 +33,7 @@ from openqasm3.ast import (
     ReturnStatement,
     SubroutineDefinition,
 )
+from openqasm3.printer import dumps
 
 from pyqasm.elements import Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
@@ -323,6 +324,7 @@ class Qasm3Validator:
         subroutine_def: SubroutineDefinition,
         return_statement: ReturnStatement,
         return_value: Any,
+        return_size: Optional[int] = None,
     ):
         """Validate the return type of a function.
 
@@ -330,6 +332,8 @@ class Qasm3Validator:
             subroutine_def (SubroutineDefinition): The subroutine definition.
             return_statement (ReturnStatement): The return statement.
             return_value (Any): The return value.
+            return_size (Optional[int]): The evaluated width of the declared return type,
+                or ``None`` for a type that carries no width (``bit``, ``bool``).
 
         Raises:
             ValidationError: If the return type is invalid.
@@ -354,19 +358,25 @@ class Qasm3Validator:
                     error_node=return_statement,
                     span=return_statement.span,
                 )
-            base_size = 1
-            if hasattr(subroutine_def.return_type, "size"):
-                base_size = subroutine_def.return_type.size.value
-
-            return Qasm3Validator.validate_variable_assignment_value(
-                Variable(
-                    subroutine_def.name.name + "_return",
-                    subroutine_def.return_type,
-                    base_size,
-                    None,
-                    None,
+            try:
+                return Qasm3Validator.validate_variable_assignment_value(
+                    Variable(
+                        subroutine_def.name.name + "_return",
+                        subroutine_def.return_type,
+                        1 if return_size is None else return_size,
+                        None,
+                        None,
+                        span=return_statement.span,
+                    ),
+                    return_value,
+                    op_node=return_statement,
+                )
+            except ValidationError as err:
+                raise_qasm3_error(
+                    f"Return type mismatch for subroutine '{subroutine_def.name.name}'. "
+                    f"Expected {dumps(subroutine_def.return_type)} but got "
+                    f"{type(return_value).__name__}",
+                    error_node=return_statement,
                     span=return_statement.span,
-                ),
-                return_value,
-                op_node=return_statement,
-            )
+                    raised_from=err,
+                )
