@@ -21,6 +21,7 @@ import pytest
 
 from pyqasm.elements import BasisSet
 from pyqasm.entrypoint import dumps, loads
+from pyqasm.exceptions import RebaseError
 from tests.utils import check_single_qubit_gate_op, check_unrolled_qasm
 
 
@@ -163,6 +164,102 @@ def test_rebase_clifford_t(input_gates, decomposed_gates):
     bit[2] c;
     {decomposed_gates}
     c[0] = measure q[0];
+    """
+
+    result = loads(qasm)
+    result.rebase(BasisSet.CLIFFORD_T)
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+@pytest.mark.parametrize(
+    "input_gate, decomposed_gates",
+    [
+        ("rz(pi/4) q[0];", "t q[0];"),
+        ("rz(-pi/4) q[0];", "tdg q[0];"),
+        ("rz(pi/2) q[0];", "s q[0];"),
+        ("rz(9*pi/4) q[0];", "t q[0];"),
+        (
+            "rx(pi/4) q[0];",
+            """
+            h q[0];
+            t q[0];
+            h q[0];
+            """,
+        ),
+        (
+            "ry(-pi/4) q[0];",
+            """
+            sdg q[0];
+            h q[0];
+            tdg q[0];
+            h q[0];
+            s q[0];
+            """,
+        ),
+        ("rx(0) q[0];", ""),
+    ],
+)
+def test_rebase_clifford_t_exact_rotations(input_gate, decomposed_gates):
+    """Exact pi/4 rotations are preserved when rebasing to Clifford+T."""
+    qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    {input_gate}
+    c[0] = measure q[0];
+    """
+
+    expected_qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    {decomposed_gates}
+    c[0] = measure q[0];
+    """
+
+    result = loads(qasm)
+    result.rebase(BasisSet.CLIFFORD_T)
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+@pytest.mark.parametrize("gate_name", ["rx", "ry", "rz"])
+def test_rebase_clifford_t_rejects_inexact_rotations(gate_name):
+    """Rotations outside the exact basis fail instead of disappearing."""
+    qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    {gate_name}(pi/3) q[0];
+    """
+
+    with pytest.raises(
+        RebaseError,
+        match=rf"Gate '{gate_name}'.*cannot be represented exactly",
+    ):
+        loads(qasm).rebase(BasisSet.CLIFFORD_T)
+
+
+def test_rebase_clifford_t_rotation_in_branch():
+    """Exact rotations inside conditional blocks are decomposed too."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    if (c[0] == true) {
+        ry(-pi/4) q[0];
+    }
+    """
+
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    if (c[0] == true) {
+        sdg q[0];
+        h q[0];
+        tdg q[0];
+        h q[0];
+        s q[0];
+    }
     """
 
     result = loads(qasm)
