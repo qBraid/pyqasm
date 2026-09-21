@@ -183,7 +183,6 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
     Args:
         name (str): Name of the module.
         program (Program): The original openqasm3 program.
-        statements (list[Statement]): list of openqasm3 Statements.
     """
 
     def __init__(self, name: str, program: Program):
@@ -201,6 +200,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._validated_program = False
         self._unrolled_ast = Program(statements=[])
         self._external_gates: list[str] = []
+        # declared `opaque` in the source, so unroll() never flushes these
+        self._opaque_gates: set[str] = set()
         self._decompose_native_gates: Optional[bool] = None
         self._device_qubits: Optional[int] = None
         self._consolidate_qubits: Optional[bool] = False

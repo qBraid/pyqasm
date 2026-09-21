@@ -23,10 +23,6 @@ set -x
 # current working directory
 TARGET_PATH="${1:-$(pwd)}"
 
-# Reset the uncommitted changes which may have been made
-git reset --hard HEAD
-git clean -xdf
-
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 
 # Create a temporary dir, XXXXX will be replaced by a random string
