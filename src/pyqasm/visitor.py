@@ -2559,7 +2559,7 @@ class QasmVisitor:
             # not runtime errors, we can break here
             if self._check_only:
                 return []
-            if self._ends_with_end_statement(iteration_statements):
+            if iteration_statements and Qasm3Analyzer.terminates_program(iteration_statements[-1]):
                 break
         return result
 
@@ -2725,7 +2725,9 @@ class QasmVisitor:
                 except (TypeError, copy.Error):
                     function_statements = self.visit_statement(copy.deepcopy(function_op))
                 result.extend(function_statements)
-                if self._ends_with_end_statement(function_statements):
+                if function_statements and Qasm3Analyzer.terminates_program(
+                    function_statements[-1]
+                ):
                     break
 
             if return_statement:
@@ -2801,7 +2803,7 @@ class QasmVisitor:
             self._scope_manager.pop_scope()
             self._scope_manager.restore_context()
 
-            if self._ends_with_end_statement(loop_statements):
+            if loop_statements and Qasm3Analyzer.terminates_program(loop_statements[-1]):
                 break
 
             loop_counter += 1
@@ -2982,7 +2984,7 @@ class QasmVisitor:
                 Qasm3Validator.validate_statement_type(SWITCH_BLACKLIST_STMTS, stmt, "switch")
                 case_statements = self.visit_statement(stmt)
                 result.extend(case_statements)
-                if self._ends_with_end_statement(case_statements):
+                if case_statements and Qasm3Analyzer.terminates_program(case_statements[-1]):
                     break
 
             self._scope_manager.pop_scope()
@@ -3536,25 +3538,6 @@ class QasmVisitor:
             return []
         return [statement]
 
-    @classmethod
-    def _ends_with_end_statement(cls, statements: Sequence[qasm3_ast.Statement]) -> bool:
-        """Return whether a statement sequence ends with unconditional termination."""
-        if not statements:
-            return False
-
-        final_statement = statements[-1]
-        if isinstance(final_statement, qasm3_ast.EndStatement):
-            return True
-        if isinstance(final_statement, qasm3_ast.Box):
-            return cls._ends_with_end_statement(final_statement.body)
-        if isinstance(final_statement, qasm3_ast.BranchingStatement):
-            return (
-                bool(final_statement.else_block)
-                and cls._ends_with_end_statement(final_statement.if_block)
-                and cls._ends_with_end_statement(final_statement.else_block)
-            )
-        return False
-
     def visit_statement(
         self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
     ) -> list[qasm3_ast.Statement]:
@@ -3606,7 +3589,7 @@ class QasmVisitor:
         for stmt in stmt_list:
             statements = self.visit_statement(stmt)
             result.extend(statements)
-            if self._ends_with_end_statement(statements):
+            if statements and Qasm3Analyzer.terminates_program(statements[-1]):
                 break
         return result
 

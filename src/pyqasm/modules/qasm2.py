@@ -21,11 +21,10 @@ from copy import deepcopy
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
-from openqasm3.printer import dumps
 
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.modules.base import QasmModule, QasmVisitor
-from pyqasm.modules.qasm3 import Qasm3Module
+from pyqasm.modules.qasm3 import Qasm3Module, dumps
 
 # the QASM 2.0 <qop> production: a gate application, a measurement or a reset.
 # only these may be the body of an 'if'.
@@ -125,7 +124,9 @@ class Qasm2Module(QasmModule):
         """Convert the qasm AST to a string."""
         # set the version to 2.0
         qasm_ast.version = "2.0"
-        raw_qasm = dumps(qasm_ast, old_measurement=True)
+        raw_qasm = dumps(
+            qasm_ast, old_measurement=True, compact_gate_arguments=self._compact_gate_arguments
+        )
         return self._format_declarations(raw_qasm)
 
     def to_qasm3(self, as_str: bool = False) -> str | Qasm3Module:
@@ -156,7 +157,11 @@ class Qasm2Module(QasmModule):
                 stmt.filename = "stdgates.inc"
                 break
         qasm_program.version = "3.0"
-        return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
+        if as_str:
+            return dumps(qasm_program, compact_gate_arguments=self._compact_gate_arguments)
+        module = Qasm3Module(self._name, qasm_program)
+        module.compact_gate_arguments = self._compact_gate_arguments
+        return module
 
     def finalize(self, statements: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
         """Apply the QASM 2 transformations the finalized statement list needs.

@@ -25,7 +25,10 @@ from typing import TYPE_CHECKING, Any, Optional
 import numpy as np
 from openqasm3.ast import (
     BinaryExpression,
+    Box,
+    BranchingStatement,
     DiscreteSet,
+    EndStatement,
     Expression,
     Identifier,
     IndexedIdentifier,
@@ -36,6 +39,7 @@ from openqasm3.ast import (
     QuantumMeasurementStatement,
     RangeDefinition,
     Span,
+    Statement,
     UnaryExpression,
 )
 
@@ -48,6 +52,29 @@ if TYPE_CHECKING:
 
 class Qasm3Analyzer:
     """Class with utility functions for analyzing QASM3 elements"""
+
+    @classmethod
+    def terminates_program(cls, statement: Statement) -> bool:
+        """Check whether a statement always reaches an ``end`` statement.
+
+        Args:
+            statement (Statement): The final statement in a visited block.
+
+        Returns:
+            bool: Whether the statement terminates every path through it.
+        """
+        if isinstance(statement, EndStatement):
+            return True
+        if isinstance(statement, Box):
+            return bool(statement.body) and cls.terminates_program(statement.body[-1])
+        if isinstance(statement, BranchingStatement):
+            return (
+                bool(statement.if_block)
+                and bool(statement.else_block)
+                and cls.terminates_program(statement.if_block[-1])
+                and cls.terminates_program(statement.else_block[-1])
+            )
+        return False
 
     @staticmethod
     def analyze_classical_indices(

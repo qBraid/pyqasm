@@ -19,6 +19,14 @@ import pytest
 from pyqasm.entrypoint import dumps, loads
 from tests.utils import check_unrolled_qasm
 
+H_THEN_END = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    h q[0];
+    end;
+    """
+
 
 def test_end_stops_global_unrolling_and_bookkeeping():
     """Statements after a global ``end`` are unreachable."""
@@ -35,20 +43,13 @@ def test_end_stops_global_unrolling_and_bookkeeping():
     module.validate()
     module.unroll()
 
-    expected = """
-        OPENQASM 3.0;
-        include "stdgates.inc";
-        qubit[1] q;
-        h q[0];
-        end;
-        """
-    check_unrolled_qasm(dumps(module), expected)
+    check_unrolled_qasm(dumps(module), H_THEN_END)
     assert module.num_qubits == 1
     assert module.depth() == 1
 
     round_tripped = loads(dumps(module))
     round_tripped.unroll()
-    check_unrolled_qasm(dumps(round_tripped), expected)
+    check_unrolled_qasm(dumps(round_tripped), H_THEN_END)
 
 
 @pytest.mark.parametrize(
@@ -71,12 +72,7 @@ def test_end_propagates_from_static_control_flow(control_flow):
         """)
 
     module.unroll()
-    output = dumps(module)
-
-    assert output.count("h q[0];") == 1
-    assert output.count("end;") == 1
-    assert "x q[0];" not in output
-    assert output.rstrip().endswith("end;")
+    check_unrolled_qasm(dumps(module), H_THEN_END)
 
 
 def test_end_stops_while_loop_and_program():
@@ -95,11 +91,7 @@ def test_end_stops_while_loop_and_program():
         """)
 
     module.unroll(max_loop_iters=2)
-    output = dumps(module)
-
-    assert output.count("h q[0];") == 1
-    assert output.count("end;") == 1
-    assert "x q[0];" not in output
+    check_unrolled_qasm(dumps(module), H_THEN_END)
 
 
 def test_end_propagates_from_inlined_subroutine():
@@ -118,11 +110,7 @@ def test_end_propagates_from_inlined_subroutine():
         """)
 
     module.unroll()
-    output = dumps(module)
-
-    assert output.count("h q[0];") == 1
-    assert output.count("end;") == 1
-    assert "x q[0];" not in output
+    check_unrolled_qasm(dumps(module), H_THEN_END)
 
 
 def test_end_propagates_from_box():
@@ -201,11 +189,19 @@ def test_end_in_both_runtime_branches_terminates_program():
         """)
 
     module.unroll()
-    output = dumps(module)
 
-    assert "h q[0];" in output
-    assert "z q[0];" in output
-    assert output.count("end;") == 2
-    assert "x q[0];" not in output
-    assert "unreachable" not in output
+    expected = """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        bit[1] c;
+        qubit[1] q;
+        if (c[0] == true) {
+          h q[0];
+          end;
+        } else {
+          z q[0];
+          end;
+        }
+        """
+    check_unrolled_qasm(dumps(module), expected)
     assert module.num_qubits == 1
