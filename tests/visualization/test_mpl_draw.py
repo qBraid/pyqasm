@@ -226,7 +226,7 @@ def test_draw_misc_ops_2():
     measure q -> c;
     """
     fig = mpl_draw(qasm3)
-    return fig
+    assert fig is not None
 
 
 def test_draw_raises_unsupported_format_error():
