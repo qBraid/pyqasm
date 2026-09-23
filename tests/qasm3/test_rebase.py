@@ -17,12 +17,18 @@ Module containing unit tests for rebasing programms
 
 """
 
+import numpy as np
 import pytest
 
 from pyqasm.elements import BasisSet
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import RebaseError
-from tests.utils import check_single_qubit_gate_op, check_unrolled_qasm
+from tests.utils import (
+    assert_unitary_equal,
+    check_single_qubit_gate_op,
+    check_unrolled_qasm,
+    unitary_from_unrolled_ast,
+)
 
 
 @pytest.mark.parametrize(
@@ -177,6 +183,8 @@ def test_rebase_clifford_t(input_gates, decomposed_gates):
         ("rz(pi/4) q[0];", "t q[0];"),
         ("rz(-pi/4) q[0];", "tdg q[0];"),
         ("rz(pi/2) q[0];", "s q[0];"),
+        ("rz(3*pi/4) q[0];", "s q[0];\nt q[0];"),
+        ("rz(5*pi/4) q[0];", "sdg q[0];\ntdg q[0];"),
         ("rz(9*pi/4) q[0];", "t q[0];"),
         (
             "rx(pi/4) q[0];",
@@ -220,6 +228,31 @@ def test_rebase_clifford_t_exact_rotations(input_gate, decomposed_gates):
     result = loads(qasm)
     result.rebase(BasisSet.CLIFFORD_T)
     check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+@pytest.mark.parametrize(
+    "gate_name, pauli",
+    [
+        ("rx", np.array([[0, 1], [1, 0]], dtype=complex)),
+        ("ry", np.array([[0, -1j], [1j, 0]], dtype=complex)),
+        ("rz", np.diag([1, -1]).astype(complex)),
+    ],
+)
+@pytest.mark.parametrize("quarter_turns", range(8))
+def test_rebase_clifford_t_rotation_unitary(gate_name: str, pauli: np.ndarray, quarter_turns: int):
+    """Every exact quarter turn has the expected unitary up to global phase."""
+    qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    {gate_name}({quarter_turns}*pi/4) q[0];
+    """
+
+    result = loads(qasm)
+    result.rebase(BasisSet.CLIFFORD_T)
+
+    angle = quarter_turns * np.pi / 4
+    expected = np.cos(angle / 2) * np.eye(2) - 1j * np.sin(angle / 2) * pauli
+    assert_unitary_equal(unitary_from_unrolled_ast(result.unrolled_ast, 1), expected)
 
 
 @pytest.mark.parametrize("gate_name", ["rx", "ry", "rz"])
