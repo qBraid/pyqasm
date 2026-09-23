@@ -45,6 +45,7 @@ _LOADS_KWARG_ATTRS = {
     "frame_in_def_cal": "_frame_in_def_cal",
     "frame_limit_per_port": "_frame_limit_per_port",
     "play_in_cal_block": "_play_in_cal",
+    "compact_gate_arguments": "_compact_gate_arguments",
 }
 
 # kwargs consumed by the entrypoint itself rather than stored on the module
@@ -144,6 +145,10 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
             - **frame_limit_per_port** (int): The maximum number of frames per port.
 
             - **play_in_cal_block** (bool): Whether to allow play in defcal.
+
+            - **compact_gate_arguments** (bool): Print gate arguments without spaces around
+              '*', '/' and '**': ``rx(pi/2)`` instead of ``rx(pi / 2)``. Defaults to False.
+              Also settable later through ``module.compact_gate_arguments``.
 
             - **include_dir** (str): Directory holding the program's custom include files.
               A program given as a string has no filesystem location of its own, so this
