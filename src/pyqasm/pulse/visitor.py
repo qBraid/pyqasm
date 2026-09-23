@@ -793,6 +793,7 @@ class OpenPulseVisitor:
             *OPENPULSE_FRAME_FUNCTION_MAP,
             *OPENPULSE_WAVEFORM_FUNCTION_MAP,
             *OPENPULSE_CAPTURE_FUNCTION_MAP,
+            # Keep these names in sync with the special cases in _visit_function_call.
             "get_phase",
             "get_frequency",
             "newframe",

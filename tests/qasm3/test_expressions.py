@@ -119,8 +119,12 @@ def test_incorrect_expressions(caplog):
         "sin(1.0);",
     ],
 )
-def test_expression_statements_are_evaluated_and_discarded(expression):
-    """Pure expression statements are valid but do not emit operations."""
+def test_expression_statements_are_evaluated_and_discarded(expression: str):
+    """Pure expression statements are valid but do not emit operations.
+
+    Args:
+        expression (str): The expression statement to evaluate.
+    """
     module = loads(f"""
         OPENQASM 3.0;
         include "stdgates.inc";
@@ -160,8 +164,12 @@ def test_subroutine_expression_statement_retains_operations():
 
 
 @pytest.mark.parametrize("operation", ["validate", "unroll"])
-def test_unknown_expression_statement_call_raises_validation_error(operation):
-    """Unknown calls in expression statements use the public error type."""
+def test_unknown_expression_statement_call_raises_validation_error(operation: str):
+    """Unknown calls in expression statements use the public error type.
+
+    Args:
+        operation (str): The module method to call.
+    """
     module = loads("OPENQASM 3.0; unknown();")
 
     with pytest.raises(ValidationError, match="Undefined subroutine 'unknown'"):
@@ -183,8 +191,16 @@ def test_unknown_expression_statement_call_raises_validation_error(operation):
     ],
 )
 @pytest.mark.parametrize("operation", ["validate", "unroll"])
-def test_unknown_gate_reports_its_name_before_checking_operands(source, error, operation):
-    """Unknown gate names are reported even when an operand is undeclared."""
+def test_unknown_gate_reports_its_name_before_checking_operands(
+    source: str, error: str, operation: str
+):
+    """Unknown gate names are reported even when an operand is undeclared.
+
+    Args:
+        source (str): The OpenQASM program to validate or unroll.
+        error (str): The expected error message.
+        operation (str): The module method to call.
+    """
     module = loads(source)
 
     with pytest.raises(ValidationError, match=error):
