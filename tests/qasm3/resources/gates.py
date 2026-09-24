@@ -245,6 +245,8 @@ already_tested_double_op = [
     "yy",
     "zz",
     "csx",
+    "cs",
+    "csdg",
     "pswap",
     "cp",
     "cp00",
