@@ -30,6 +30,7 @@ Types of changes:
 - Fixed Clifford+T rebasing for exact `rx`, `ry`, and `rz` rotations at multiples of π/4. These gates now decompose instead of disappearing, while angles outside the exact basis raise `RebaseError` instead of producing an incorrect result. ([#428](https://github.com/qBraid/pyqasm/issues/428))
 
 ### Dependencies
+- Bumped `actions/checkout` from 4.4.0 to 7.0.1. ([#423](https://github.com/qBraid/pyqasm/pull/423))
 
 ### Other
 - Trimmed the wheel matrix on pull requests, and added a concurrency guard that cancels superseded runs. Every push to an open pull request used to start another full 20-job matrix while the previous one ran to completion. Pull requests now build Linux on every supported Python, plus macOS arm64, macOS x86_64 and Windows on 3.11, cutting macOS jobs from 10 to 2. Pushes to `main` and manual runs still build all 20 combinations, and published wheels are unaffected. ([#419](https://github.com/qBraid/pyqasm/pull/419))
