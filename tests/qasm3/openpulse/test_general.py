@@ -17,10 +17,53 @@ Module containing unit tests for the general errors.
 
 """
 
+import openqasm3.ast as qasm3_ast
 import pytest
 
 from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
+
+
+@pytest.mark.parametrize("expression", ["1 + 2;", "i;", "sin(1.0);"])
+def test_pure_expression_statements_are_discarded(expression: str):
+    """Pure expressions in calibration blocks do not emit statements.
+
+    Args:
+        expression (str): The expression statement to evaluate.
+    """
+    module = loads(f"""
+        OPENQASM 3.0;
+        defcalgrammar "openpulse";
+        cal {{
+            int i = 1;
+            {expression}
+        }}
+        """)
+
+    module.validate()
+    module.unroll()
+
+    calibration = next(
+        statement
+        for statement in module.unrolled_ast.statements
+        if isinstance(statement, qasm3_ast.CalibrationStatement)
+    )
+    assert [line.strip() for line in calibration.body.splitlines() if line.strip()] == [
+        "int i = 1;"
+    ]
+
+
+@pytest.mark.parametrize("operation", ["validate", "unroll"])
+def test_unknown_expression_statement_call_raises_validation_error(operation: str):
+    """Unknown calls in calibration blocks use the public error type.
+
+    Args:
+        operation (str): The module method to call.
+    """
+    module = loads('OPENQASM 3.0; defcalgrammar "openpulse"; cal { unknown(); }')
+
+    with pytest.raises(ValidationError, match="Undefined subroutine 'unknown'"):
+        getattr(module, operation)()
 
 
 @pytest.mark.parametrize(
