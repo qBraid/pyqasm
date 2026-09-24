@@ -21,6 +21,7 @@ Types of changes:
 - Added a `compact_gate_arguments` setting, passed to `loads()` or set on the module, which prints gate arguments without spaces around `*`, `/` and `**`: `rx(pi/2)` instead of `rx(pi / 2)`. Vendors such as Diraq match rotation angles textually and reject the spaced form. ([#427](https://github.com/qBraid/pyqasm/pull/427))
 
 ### Improved / Modified
+- Reduced the length of `visitor.py` by removing the `_handle_function_init_expression` function and adding the `check_only_return_empty` decorator for functions which can be given simple boiler-plate logic for the `self._check_only` parameter. ([#348](https://github.com/qBraid/pyqasm/pull/348))
 
 ### Deprecated
 
