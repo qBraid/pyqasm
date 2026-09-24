@@ -27,6 +27,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed Clifford+T rebasing for exact `rx`, `ry`, and `rz` rotations at multiples of π/4. These gates now decompose instead of disappearing, while angles outside the exact basis raise `RebaseError` instead of producing an incorrect result. ([#428](https://github.com/qBraid/pyqasm/issues/428))
 
 ### Dependencies
 
