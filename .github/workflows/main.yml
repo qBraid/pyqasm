@@ -103,7 +103,7 @@ jobs:
       # Used for code coverage later
       - name: Upload built package
         if: ${{ matrix.os == 'macos-14' && matrix.python == 311 }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
