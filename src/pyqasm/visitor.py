@@ -200,6 +200,7 @@ class QasmVisitor:
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.BreakStatement: self._visit_break,
             qasm3_ast.ContinueStatement: self._visit_continue,
+            qasm3_ast.EndStatement: self._visit_end_statement,
             qasm3_ast.DelayInstruction: self._visit_delay_statement,
             qasm3_ast.Box: self._visit_box_statement,
             qasm3_ast.Pragma: self._visit_pragma,
@@ -2545,9 +2546,10 @@ class QasmVisitor:
 
             if statement_block != statement.block:
                 statement_block = copy.deepcopy(statement.block)
-                result.extend(self.visit_basic_block(statement_block))
+                iteration_statements = self.visit_basic_block(statement_block)
             else:
-                result.extend(self.visit_basic_block(statement.block))
+                iteration_statements = self.visit_basic_block(statement.block)
+            result.extend(iteration_statements)
 
             # scope not persistent between loop iterations
             self._scope_manager.pop_scope()
@@ -2557,6 +2559,8 @@ class QasmVisitor:
             # not runtime errors, we can break here
             if self._check_only:
                 return []
+            if iteration_statements and Qasm3Analyzer.terminates_program(iteration_statements[-1]):
+                break
         return result
 
     def _visit_subroutine_definition(
@@ -2717,9 +2721,14 @@ class QasmVisitor:
                     return_statement = copy.copy(function_op)
                     break
                 try:
-                    result.extend(self.visit_statement(copy.copy(function_op)))
+                    function_statements = self.visit_statement(copy.copy(function_op))
                 except (TypeError, copy.Error):
-                    result.extend(self.visit_statement(copy.deepcopy(function_op)))
+                    function_statements = self.visit_statement(copy.deepcopy(function_op))
+                result.extend(function_statements)
+                if function_statements and Qasm3Analyzer.terminates_program(
+                    function_statements[-1]
+                ):
+                    break
 
             if return_statement:
                 return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
@@ -2779,8 +2788,10 @@ class QasmVisitor:
             self._scope_manager.push_context(Context.BLOCK)
             self._scope_manager.push_scope({})
 
+            loop_statements = []
             try:
-                result.extend(self.visit_basic_block(statement.block))
+                loop_statements = self.visit_basic_block(statement.block)
+                result.extend(loop_statements)
             except LoopControlSignal as lcs:
                 self._scope_manager.pop_scope()
                 self._scope_manager.restore_context()
@@ -2791,6 +2802,9 @@ class QasmVisitor:
 
             self._scope_manager.pop_scope()
             self._scope_manager.restore_context()
+
+            if loop_statements and Qasm3Analyzer.terminates_program(loop_statements[-1]):
+                break
 
             loop_counter += 1
             if loop_counter >= max_iterations:
@@ -2968,7 +2982,10 @@ class QasmVisitor:
             result = []
             for stmt in statements:
                 Qasm3Validator.validate_statement_type(SWITCH_BLACKLIST_STMTS, stmt, "switch")
-                result.extend(self.visit_statement(stmt))
+                case_statements = self.visit_statement(stmt)
+                result.extend(case_statements)
+                if case_statements and Qasm3Analyzer.terminates_program(case_statements[-1]):
+                    break
 
             self._scope_manager.pop_scope()
             self._scope_manager.restore_context()
@@ -3505,6 +3522,22 @@ class QasmVisitor:
 
         return [include]
 
+    def _visit_end_statement(
+        self, statement: qasm3_ast.EndStatement
+    ) -> list[qasm3_ast.EndStatement]:
+        """Visit a statement that terminates the program.
+
+        Args:
+            statement (EndStatement): The terminating statement to visit.
+
+        Returns:
+            list[EndStatement]: The statement in a list, or an empty list if
+                self._check_only is True.
+        """
+        if self._check_only:
+            return []
+        return [statement]
+
     def visit_statement(
         self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
     ) -> list[qasm3_ast.Statement]:
@@ -3554,7 +3587,10 @@ class QasmVisitor:
         """
         result = []
         for stmt in stmt_list:
-            result.extend(self.visit_statement(stmt))
+            statements = self.visit_statement(stmt)
+            result.extend(statements)
+            if statements and Qasm3Analyzer.terminates_program(statements[-1]):
+                break
         return result
 
     def finalize(self, unrolled_stmts: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
