@@ -21,7 +21,7 @@ import pytest
 
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
-from tests.utils import check_unrolled_qasm
+from tests.utils import check_measure_op, check_unrolled_qasm
 
 
 # Test measurement operations in different ways
@@ -165,6 +165,93 @@ def test_remove_measurement_inside_box_and_branch():
     module.remove_measurements()
     # the box held nothing but the measurement, and an empty box is not a valid program
     check_unrolled_qasm(dumps(module), expected_qasm)
+
+
+def test_has_and_remove_measurements_inside_loop_before_unroll():
+    """Measurements inside a for/while loop must be visible before unroll() (issue #354)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    for int i in [0:1] { c[i] = measure q[i]; }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    bit[2] c;
+    """
+    module = loads(qasm3_string)
+    assert module.has_measurements() is True
+    module.unroll()
+    check_measure_op(module.unrolled_ast, 2, [(("q", 0), ("c", 0)), (("q", 1), ("c", 1))])
+
+    module = loads(qasm3_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+    check_measure_op(module.unrolled_ast, 0, [])
+
+    while_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    int i = 0;
+    while (i < 1) { c[0] = measure q[0]; i += 1; }
+    """
+    expected_while_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    """
+    module = loads(while_string)
+    assert module.has_measurements() is True
+    module.unroll()
+    check_measure_op(module.unrolled_ast, 1, [(("q", 0), ("c", 0))])
+
+    module = loads(while_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_while_qasm)
+    check_measure_op(module.unrolled_ast, 0, [])
+
+
+def test_has_and_remove_measurements_inside_switch_before_unroll():
+    """Measurements inside a switch case must be visible before unroll() (issue #354)."""
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    const int i = 1;
+    qubit[1] q;
+    bit[1] c;
+    switch(i) {
+    case 1 {
+        c[0] = measure q[0];
+    }
+    default {
+        x q;
+    }
+    }
+    """
+    expected_qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    bit[1] c;
+    """
+    module = loads(qasm3_string)
+    assert module.has_measurements() is True
+    module.unroll()
+    check_measure_op(module.unrolled_ast, 1, [(("q", 0), ("c", 0))])
+
+    module = loads(qasm3_string)
+    module.remove_measurements()
+    assert module.has_measurements() is False
+    module.unroll()
+    check_unrolled_qasm(dumps(module), expected_qasm)
+    check_measure_op(module.unrolled_ast, 0, [])
 
 
 def test_remove_measurement_not_in_place_leaves_the_original_alone():

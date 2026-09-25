@@ -228,6 +228,13 @@ def _assert_no_shared_operand_nodes(module):
         "c4x q[0], q[1], q[2], q[3], q[4];",
         "ecr q[0], q[1];",
         "inv @ crz(0.5) q[1], q[2];",
+        "negctrl @ x q[0], q[1];",
+        "negctrl(2) @ x q[0], q[1], q[2];",
+        # each of these reaches the negctrl expansion through a different
+        # operand shape or repeats it, so each is a distinct way to regress
+        "negctrl @ x q[{0, 1}], q[2];",
+        "pow(2) @ negctrl @ x q[0], q[1];",
+        "ctrl @ negctrl @ x q[0], q[1], q[2];",
     ],
 )
 def test_unroll_emits_fresh_operand_nodes(operation):
@@ -242,6 +249,89 @@ def test_unroll_emits_fresh_operand_nodes(operation):
     module = loads(qasm3_str)
     module.unroll()
     _assert_no_shared_operand_nodes(module)
+
+
+def test_reverse_qubit_order_negctrl():
+    """Test reverse_qubit_order on a negctrl gate whose leading and trailing x
+    statements previously were the same object (issue #350)"""
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    negctrl @ x q[0], q[1];
+    """
+
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    x q[2];
+    cx q[2], q[1];
+    x q[2];
+    """
+
+    module = loads(qasm3_str)
+    module.unroll()
+    module.reverse_qubit_order()
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def test_remove_idle_qubits_negctrl():
+    """Test remove_idle_qubits on a negctrl gate whose leading and trailing x
+    statements previously were the same object (issue #350).
+
+    This path survived the aliasing only via the ``visited_node_ids`` guard in
+    ``_remap_qubits``, so it is pinned here to keep that incidental rescue from
+    being the only thing standing between a refactor and the crash.
+    """
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    negctrl @ x q[0], q[1];
+    """
+
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    x q[0];
+    cx q[0], q[1];
+    x q[0];
+    """
+
+    module = loads(qasm3_str)
+    module.unroll()
+    module.remove_idle_qubits()
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
+
+
+def test_consolidate_qubits_negctrl():
+    """Test unroll(consolidate_qubits=True) on a negctrl gate whose leading and
+    trailing x statements previously were the same object (issue #350).
+
+    Consolidation rewrote the shared operand once, then met the already-renamed
+    node again and raised ``KeyError: '__PYQASM_QUBITS__'``.
+    """
+    qasm3_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    negctrl @ x q[0], q[1];
+    """
+
+    expected_qasm3_str = """
+    OPENQASM 3.0;
+    qubit[3] __PYQASM_QUBITS__;
+    include "stdgates.inc";
+    x __PYQASM_QUBITS__[0];
+    cx __PYQASM_QUBITS__[0], __PYQASM_QUBITS__[1];
+    x __PYQASM_QUBITS__[0];
+    """
+
+    module = loads(qasm3_str)
+    module.unroll(consolidate_qubits=True)
+    check_unrolled_qasm(dumps(module), expected_qasm3_str)
 
 
 @pytest.mark.parametrize(

@@ -19,7 +19,7 @@ Module containing unit tests for what OpenQASM 2.0 allows as a conditional body
 
 import pytest
 
-from pyqasm.entrypoint import loads
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
 
 QASM2_PREAMBLE = """OPENQASM 2.0;
@@ -64,15 +64,30 @@ def test_conditional_non_qop_rejected(operation, keyword):
         module.validate()
 
 
-def test_conditional_global_phase_reports_global_phase():
-    """Test that the QuantumPhase unrolling introduces for rzz/rxx is reported as global
-    phase rather than as an AST class name. Reachable only by re-filtering an already
-    unrolled body, which remove_idle_qubits/reverse_qubit_order do (issue #351)."""
+def test_conditional_rzz_survives_refiltering():
+    """Test that transformations which re-filter an already unrolled body no longer
+    trip over the rzz global phase: it is dropped for a QASM 2 target (issue #351)"""
     module = loads(QASM2_PREAMBLE + "if(m==1) rzz(0.3) q[0], q[1];\n")
     module.unroll()
     module.reverse_qubit_order()
+    module.remove_idle_qubits()
+
+
+def test_conditional_user_gphase_rejected():
+    """Test that a gphase the user wrote in a conditional body is still rejected. Only
+    unroll-emitted phases are dropped; this branch keeps its own diagnostic (issue #351)"""
+    module = loads(QASM2_PREAMBLE + "if(m==1) gphase(0.3);\n")
     with pytest.raises(ValidationError, match="Global phase is not representable in QASM 2.0"):
-        module.remove_idle_qubits()
+        module.validate()
+
+
+def test_conditional_emptied_by_phase_drop_is_removed():
+    """Test that a conditional whose body was nothing but global phase is dropped rather
+    than emitted bodiless: QASM 2 has no form for an 'if' without a qop (issue #351)"""
+    module = loads(QASM2_PREAMBLE + "gate ph(t) a { gphase(t); }\nif(m==1) ph(0.3) q[1];\n")
+    module.unroll()
+    assert "if" not in dumps(module)
+    loads(dumps(module)).validate()
 
 
 @pytest.mark.parametrize(

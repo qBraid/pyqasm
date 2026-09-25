@@ -16,6 +16,8 @@
 Definition of the Decomposer class
 """
 
+import math
+
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
@@ -55,19 +57,59 @@ class Decomposer:
                 decomposition_rules, statement, gate_name
             )
         elif gate_name in {"rx", "ry", "rz"}:
-            # Approximate parameterized gates using Solovay-Kitaev
-            # Example -
-            # approx_gates = solovay_kitaev_algo(
-            #     gate_name, statement.arguments[0].value, accuracy=0.01
-            # )
-            # return approx_gates
-            pass
+            processed_gates_list = cls._get_clifford_t_rotation(statement, gate_name)
         else:
             # Raise an error if the gate is not supported in the target basis set
             error = f"Gate '{gate_name}' is not supported in the '{target_basis_set} set'."
             raise RebaseError(error)
 
         return processed_gates_list
+
+    @classmethod
+    def _get_clifford_t_rotation(cls, statement, gate_name):
+        """Return an exact Clifford+T decomposition for a rotation gate.
+
+        Args:
+            statement: The rotation gate statement to decompose.
+            gate_name: The rotation gate name.
+
+        Returns:
+            list: The exact Clifford+T gate sequence.
+
+        Raises:
+            RebaseError: If the rotation is not an integer multiple of pi/4.
+        """
+        angle = statement.arguments[0].value
+        quarter_turns = angle / (math.pi / 4)
+        rounded_quarter_turns = round(quarter_turns)
+
+        if not math.isclose(quarter_turns, rounded_quarter_turns, rel_tol=0.0, abs_tol=1e-10):
+            raise RebaseError(
+                f"Gate '{gate_name}' with angle {angle} cannot be represented exactly in the "
+                "Clifford+T basis."
+            )
+
+        normalized_turns = rounded_quarter_turns % 8
+        if normalized_turns == 0:
+            return []
+
+        if normalized_turns <= 4:
+            phase_gates = ["s"] * (normalized_turns // 2)
+            phase_gates += ["t"] * (normalized_turns % 2)
+        else:
+            inverse_turns = 8 - normalized_turns
+            phase_gates = ["sdg"] * (inverse_turns // 2)
+            phase_gates += ["tdg"] * (inverse_turns % 2)
+
+        if gate_name == "rx":
+            gate_sequence = ["h", *phase_gates, "h"]
+        elif gate_name == "ry":
+            gate_sequence = ["sdg", "h", *phase_gates, "h", "s"]
+        else:
+            gate_sequence = phase_gates
+
+        rules = {gate_name: [{"gate": gate} for gate in gate_sequence]}
+        return cls._get_decomposed_gates(rules, statement, gate_name)
 
     @classmethod
     def process_branching_statement(cls, branching_statement, target_basis_set):
