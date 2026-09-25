@@ -46,7 +46,7 @@ def test_alias():
     let myqreg1 = q[1];
     let myqreg2 = q[1:];
     let myqreg3 = q[:4];
-    let myqreg4 = q[1:4];
+    let myqreg4 = q[1:3];
     let myqreg5 = q[1:2:4];
     let myqreg6 = q[{0, 1}];
 
@@ -90,6 +90,13 @@ def test_alias_update():
     assert result.num_qubits == 4
     assert result.num_clbits == 0
     check_single_qubit_gate_op(result.unrolled_ast, 1, [3], "x")
+
+
+def test_alias_range_includes_end() -> None:
+    """An alias retains the last qubit named by its range."""
+    module = loads('OPENQASM 3.0; include "stdgates.inc"; qubit[3] q; let pair = q[0:1]; h pair;')
+    module.unroll()
+    check_single_qubit_gate_op(module.unrolled_ast, 2, [0, 1], "h")
 
 
 def test_valid_alias_redefinition():

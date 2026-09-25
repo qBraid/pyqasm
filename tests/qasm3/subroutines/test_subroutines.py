@@ -426,7 +426,7 @@ def test_subroutine_keyword_naming(keyword, caplog):
     assert f"def {keyword}" in caplog.text
 
 
-@pytest.mark.parametrize("qubit_params", ["q", "q[:2]", "q[{0, 1}]"])
+@pytest.mark.parametrize("qubit_params", ["q", "q[:1]", "q[{0, 1}]"])
 def test_qubit_size_arg_mismatch(qubit_params, caplog):
     """Test that passing a qubit of different size raises error."""
     qasm_str = (

@@ -287,7 +287,7 @@ def test_global_phase_qubits_retained():
        h a;
     }
     qubit[23] q2;
-    custom q2[0:3];
+    custom q2[0:2];
     """
 
     qasm3_expected = """

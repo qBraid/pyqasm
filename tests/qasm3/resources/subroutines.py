@@ -284,12 +284,12 @@ SUBROUTINE_INCORRECT_TESTS = {
             return;
         }
         qubit[4] q;
-        my_function(q[0:3], q[2]);
+        my_function(q[0:2], q[2]);
         """,
         r"Duplicate qubit argument for register 'q' in function call for 'my_function'",
         10,
         8,
-        "my_function(q[0:3], q[2])",
+        "my_function(q[0:2], q[2])",
     ),
     "undefined_variable_in_actual_arg_1": (
         """
