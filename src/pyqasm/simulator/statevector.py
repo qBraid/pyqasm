@@ -31,6 +31,7 @@ from openqasm3.ast import (
     BinaryOperator,
     BranchingStatement,
     ClassicalDeclaration,
+    EndStatement,
     FloatLiteral,
     Identifier,
     Include,
@@ -540,6 +541,10 @@ def _preprocess(program, num_qubits):
             # which the simulator cannot honor (checked below).
             measured = True
             continue
+        if isinstance(statement, EndStatement):
+            # `end;` halts the program. Unrolling already drops what follows an
+            # unconditional one, and a conditional one sits inside an `if`, refused below.
+            break
         if isinstance(statement, QuantumReset):
             raise NotImplementedError("'reset' is not supported by the statevector simulator.")
         if isinstance(statement, BranchingStatement):

@@ -278,6 +278,26 @@ def test_empty_circuit_returns_ground_state():
     assert sum(result.measurement_counts.values()) == 5
 
 
+def test_end_statement_halts_the_program():
+    """Nothing after ``end;`` acts on the state: the second ``x`` would flip the result."""
+    qasm = (
+        'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[1] q;\nbit[1] c;\n'
+        "x q[0];\nc[0] = measure q[0];\nend;\nx q[0];\n"
+    )
+    result = Simulator(seed=7).run(qasm, shots=50)
+    assert result.measurement_counts == {"1": 50}
+
+
+def test_end_statement_inside_a_branch_is_refused():
+    """A conditional ``end;`` depends on a measurement, which the simulator cannot honor."""
+    qasm = (
+        'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[1] q;\nbit[1] c;\n'
+        "h q[0];\nc[0] = measure q[0];\nif (c[0]) { end; }\nx q[0];\n"
+    )
+    with pytest.raises(NotImplementedError, match="Classical control flow"):
+        Simulator(seed=7).run(qasm, shots=10)
+
+
 def test_shots_sampling_is_seed_deterministic():
     qasm = 'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[2] q;\nh q[0];\ncx q[0], q[1];\n'
     first = Simulator(seed=7).run(qasm, shots=128).measurement_counts
