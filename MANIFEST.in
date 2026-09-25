@@ -2,4 +2,8 @@ include README.md
 recursive-include src/pyqasm *.py *.pyx
 include src/pyqasm/py.typed
 
+# Never ship Cython-generated C: sdists compile from .pyx (Cython is a build
+# requirement), and stale generated C must not mask the .pyx sources.
+global-exclude *.c
+
 exclude tests/*

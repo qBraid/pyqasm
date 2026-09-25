@@ -192,6 +192,7 @@ Resources
    :hidden:
 
    api/pyqasm
+   api/pyqasm.simulator
 
 .. toctree::
    :caption: ALGOS API Reference

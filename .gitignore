@@ -8,6 +8,7 @@ __pycache__/
 
 # Cython build files
 src/pyqasm/accelerate/linalg.c
+src/pyqasm/accelerate/sv_sim.c
 
 # Distribution / packaging
 .Python
