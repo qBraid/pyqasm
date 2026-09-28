@@ -27,6 +27,7 @@ Types of changes:
 - Fixed qubit register ranges dropping their final qubit during unrolling. Endpoints are now inclusive for gates, aliases, barriers, and measurements. Code using an exclusive upper bound must lower it by one, for example `q[0:1]` instead of `q[0:2]` to select two qubits. ([#432](https://github.com/qBraid/pyqasm/issues/432))
 - Fixed `cs` and `csdg` from `stdgates.inc` being rejected during unrolling. They now decompose to controlled phase shifts. ([#439](https://github.com/qBraid/pyqasm/issues/439))
 - Fixed Clifford+T rebasing for exact `rx`, `ry`, and `rz` rotations at multiples of π/4. These gates now decompose instead of disappearing, while angles outside the exact basis raise `RebaseError` instead of producing an incorrect result. ([#428](https://github.com/qBraid/pyqasm/issues/428))
+- Fixed a bare expression statement raising an `AttributeError` that escaped the public API. The expression-statement handler assumed every expression was a function call and dereferenced `.name`, so a statement such as `a * b;` (used throughout the spec's classical types examples) crashed with `'BinaryExpression' object has no attribute 'name'`. Such statements have no effect and are now rejected with a `ValidationError` reading `Expression statement has no effect`, carrying the source span. ([#388](https://github.com/qBraid/pyqasm/issues/388))
 
 ### Dependencies
 
