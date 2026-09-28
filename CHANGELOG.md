@@ -32,6 +32,7 @@ Types of changes:
 ### Dependencies
 
 ### Other
+- Added a `notify-docs` job to the release workflow. When a release reaches PyPI it sends a `package-released` event to `qBraid/docs`, which opens a pull request bumping its `versions.json` so this release's documentation moves from Latest into Stable. The job reads the published version from PyPI rather than the release tag, runs with `continue-on-error`, and skips when `DOCS_DISPATCH_TOKEN` is absent, so it can never fail or block a release. ([#443](https://github.com/qBraid/pyqasm/pull/443))
 - Trimmed the wheel matrix on pull requests, and added a concurrency guard that cancels superseded runs. Every push to an open pull request used to start another full 20-job matrix while the previous one ran to completion. Pull requests now build Linux on every supported Python, plus macOS arm64, macOS x86_64 and Windows on 3.11, cutting macOS jobs from 10 to 2. Pushes to `main` and manual runs still build all 20 combinations, and published wheels are unaffected. ([#419](https://github.com/qBraid/pyqasm/pull/419))
 - Raised the isort floor to 9.0.0 in `tox.ini` and the `lint` extra. Both allowed isort 6, which CI never installed, and the two versions demand opposite formatting of a wrapped import that fits on one line. `tox -e format-check` therefore passed locally and failed in CI. ([#419](https://github.com/qBraid/pyqasm/pull/419))
 
