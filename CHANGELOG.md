@@ -31,6 +31,7 @@ Types of changes:
 ### Dependencies
 
 ### Other
+- Added a `notify-docs` job to the release workflow. When a release reaches PyPI it sends a `package-released` event to `qBraid/docs`, which opens a pull request bumping its `versions.json` so this release's documentation moves from Latest into Stable. The job reads the published version from PyPI rather than the release tag, runs with `continue-on-error`, and skips when `DOCS_DISPATCH_TOKEN` is absent, so it can never fail or block a release. ([#443](https://github.com/qBraid/pyqasm/pull/443))
 
 ## Past Release Notes
 
