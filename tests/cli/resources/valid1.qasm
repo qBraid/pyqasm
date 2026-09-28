@@ -38,7 +38,7 @@ qubit[4] q;
 bit[4] c;
 
 // Create a Bell state using the alias
-create_bell_state(q[0:2]);
+create_bell_state(q[0:1]);
 
 measure q[0:1] -> c[0:1];
 

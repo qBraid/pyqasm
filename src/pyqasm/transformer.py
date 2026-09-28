@@ -132,7 +132,7 @@ class Qasm3Transformer:
         is_qubit_reg: bool,
         op_node: Optional[QASMNode] = None,
     ) -> list[int]:
-        """Get the qubits from a range definition.
+        """Get the qubits from a range definition with an inclusive endpoint.
         Args:
             range_def (RangeDefinition): The range definition to get qubits from.
             qreg_size (int): The size of the register.
@@ -147,7 +147,7 @@ class Qasm3Transformer:
             else Qasm3ExprEvaluator.evaluate_expression(range_def.start)[0]
         )
         end_qid = (
-            qreg_size
+            qreg_size - 1
             if range_def.end is None
             else Qasm3ExprEvaluator.evaluate_expression(range_def.end)[0]
         )
@@ -160,9 +160,9 @@ class Qasm3Transformer:
             start_qid, qreg_size, qubit=is_qubit_reg, op_node=op_node
         )
         Qasm3Validator.validate_register_index(
-            end_qid - 1, qreg_size, qubit=is_qubit_reg, op_node=op_node
+            end_qid, qreg_size, qubit=is_qubit_reg, op_node=op_node
         )
-        return list(range(start_qid, end_qid, step))
+        return list(range(start_qid, end_qid + (1 if step > 0 else -1), step))
 
     @staticmethod
     def transform_gate_qubits(

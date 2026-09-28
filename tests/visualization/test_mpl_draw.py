@@ -156,9 +156,9 @@ def test_draw_barriers():
 
     ax = fig.axes[0]
     # Barriers are drawn as Rectangle patches (one per qubit line per barrier)
-    # and dashed vlines (added to collections). 4 barriers touching 2+2+2+2=8 lines total.
+    # and dashed vlines (added to collections). 4 barriers touching 2+3+2+2=9 lines total.
     barrier_patches = [p for p in ax.patches if isinstance(p, Rectangle)]
-    assert len(barrier_patches) == 8
+    assert len(barrier_patches) == 9
     assert len(ax.collections) > 0
 
 
