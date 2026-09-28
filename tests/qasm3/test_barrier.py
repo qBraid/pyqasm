@@ -50,7 +50,7 @@ def test_barrier():
     qubit[1] q3;
     barrier q1[0], q1[1], q2[0], q2[1], q2[2], q3[0];
     barrier q1[0], q1[1], q2[0], q2[1], q2[2], q3[0];
-    barrier q1[0], q1[1], q2[0], q2[1], q3[0];
+    barrier q1[0], q1[1], q2[0], q2[1], q2[2], q3[0];
     """
     module = loads(qasm_str)
     module.unroll()
@@ -244,7 +244,7 @@ def test_unroll_barrier():
 
     // barriers
     barrier q1, q2, q3;
-    barrier q2[:3];
+    barrier q2[:2];
     barrier q3[0];
     """
     expected_qasm = """OPENQASM 3.0;
@@ -253,7 +253,7 @@ def test_unroll_barrier():
     qubit[3] q2;
     qubit[1] q3;
     barrier q1, q2, q3;
-    barrier q2[:3];
+    barrier q2[:2];
     barrier q3[0];
     """
     module = loads(qasm_str)
@@ -293,7 +293,7 @@ def test_incorrect_barrier(caplog):
     """
 
     with pytest.raises(
-        ValidationError, match="Index 3 out of range for register of size 2 in qubit"
+        ValidationError, match="Index 4 out of range for register of size 2 in qubit"
     ):
         with caplog.at_level("ERROR"):
             loads(out_of_bounds).validate()
