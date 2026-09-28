@@ -29,6 +29,7 @@ Types of changes:
 - Fixed Clifford+T rebasing for exact `rx`, `ry`, and `rz` rotations at multiples of π/4. These gates now decompose instead of disappearing, while angles outside the exact basis raise `RebaseError` instead of producing an incorrect result. ([#428](https://github.com/qBraid/pyqasm/issues/428))
 
 ### Dependencies
+- Bumped `actions/checkout` from 4.4.0 to 7.0.1. ([#423](https://github.com/qBraid/pyqasm/pull/423))
 
 ### Other
 - Added a `notify-docs` job to the release workflow. When a release reaches PyPI it sends a `package-released` event to `qBraid/docs`, which opens a pull request bumping its `versions.json` so this release's documentation moves from Latest into Stable. The job reads the published version from PyPI rather than the release tag, runs with `continue-on-error`, and skips when `DOCS_DISPATCH_TOKEN` is absent, so it can never fail or block a release. ([#443](https://github.com/qBraid/pyqasm/pull/443))

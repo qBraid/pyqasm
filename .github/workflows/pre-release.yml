@@ -89,7 +89,7 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Install Python
         uses: actions/setup-python@v7
@@ -126,7 +126,7 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Install Python
         uses: actions/setup-python@v7
@@ -163,7 +163,7 @@ jobs:
 
     steps:
       - name: Checkout Pyqasm
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
     
       - name: Download artifacts 
         uses: actions/download-artifact@v8
