@@ -15,6 +15,26 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added a statevector simulator as a new `pyqasm.simulator` subpackage, backed by a Cython/OpenMP-capable kernel (`pyqasm.accelerate.sv_sim`). `Simulator.run()` accepts an OpenQASM 3 string or an already-unrolled `QasmModule` and returns a `SimulatorResult` carrying the final statevector, outcome probabilities, and sampled measurement counts, all indexed little-endian to match qiskit. Ships with cross-validation tests against qiskit (`test-sim` extra), an optional `simulation` extra (numba-accelerated preprocessing helpers), and a `benchmarks/` suite. ([#316](https://github.com/qBraid/pyqasm/pull/316))
+
+  ```python
+  from pyqasm.simulator import Simulator
+
+  program = """
+  OPENQASM 3.0;
+  include "stdgates.inc";
+  qubit[2] q;
+  bit[2] c;
+  h q[0];
+  cx q[0], q[1];
+  c = measure q;
+  """
+
+  result = Simulator(seed=42).run(program, shots=1000)
+
+  print(result.measurement_counts)  # Counter({'00': 503, '11': 497})
+  print(result.final_statevector)   # [0.70710678+0.j 0.+0.j 0.+0.j 0.70710678+0.j]
+  ```
 - Added support for OpenQASM 3 `end;` statements. Unrolling stops after an unconditional `end;` in global or nested scopes and keeps `end;` inside runtime-dependent branches. ([#396](https://github.com/qBraid/pyqasm/issues/396))
 
 ### Improved / Modified
