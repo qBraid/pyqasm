@@ -25,6 +25,7 @@ from openqasm3.ast import (
     BinaryExpression,
     BinaryOperator,
     BooleanLiteral,
+    BranchingStatement,
     DiscreteSet,
     Expression,
     FloatLiteral,
@@ -315,8 +316,7 @@ class Qasm3Transformer:
                 condition.lhs.index[0].value,
                 condition.lhs.collection.name,
                 condition.op,
-                # evaluate to bool
-                Qasm3ExprEvaluator.evaluate_expression(condition.rhs)[0] != 0,
+                Qasm3ExprEvaluator.evaluate_expression(condition.rhs)[0],
             )
         if isinstance(condition, IndexExpression):
             if isinstance(condition.index, DiscreteSet):
@@ -340,6 +340,71 @@ class Qasm3Transformer:
                 )  # eg. if(c[0])
         # default case
         return BranchParams(None, "", None, None)
+
+    @staticmethod
+    def unroll_register_comparison(  # pylint: disable=too-many-arguments, too-many-locals
+        reg_name: str,
+        bit_indices: Sequence[int],
+        op: BinaryOperator,
+        value: int,
+        if_block: list[Statement],
+        else_block: list[Statement],
+    ) -> list[Statement]:
+        """Rewrite the comparison ``reg op value`` as nested single-bit branches.
+
+        ``bit_indices`` lists the bits of ``reg`` from least to most significant, as in
+        OpenQASM where ``c[0]`` is the LSB of ``c``. Bits are tested MSB-first. A
+        comparison that holds for every (or no) value of the register is folded into
+        ``if_block`` (or ``else_block``) without emitting a branch.
+
+        Args:
+            reg_name (str): The classical register being compared.
+            bit_indices (Sequence[int]): The register bits, least significant first.
+            op (BinaryOperator): One of ``==``, ``>=``, ``<=``, ``>``, ``<``.
+            value (int): The integer the register is compared against.
+            if_block (list[Statement]): Statements to run when the comparison holds.
+            else_block (list[Statement]): Statements to run when it does not.
+
+        Returns:
+            list[Statement]: The statements to emit in place of the branch.
+        """
+        eq, ge, le = BinaryOperator["=="], BinaryOperator[">="], BinaryOperator["<="]
+        if op == BinaryOperator[">"]:
+            op, value = ge, value + 1
+        elif op == BinaryOperator["<"]:
+            op, value = le, value - 1
+
+        max_value = (1 << len(bit_indices)) - 1
+        if (op == ge and value <= 0) or (op == le and value >= max_value):
+            return deepcopy(if_block)
+        if not 0 <= value <= max_value:
+            return deepcopy(else_block)
+
+        # built from the LSB outwards; ``block`` decides the comparison on the bits
+        # below ``pos`` once every bit above them has matched ``value``
+        block = if_block
+        for pos, bit in enumerate(bit_indices):
+            low_mask = (1 << (pos + 1)) - 1
+            if (op == ge and value & low_mask == 0) or (op == le and value & low_mask == low_mask):
+                block = if_block
+                continue
+            bit_set = bool(value >> pos & 1)
+            # first differing bit from the MSB decides the order of reg and value
+            mismatch = else_block if op == eq or (op == ge) == bit_set else if_block
+            block = [
+                BranchingStatement(
+                    condition=BinaryExpression(
+                        op=eq,
+                        lhs=IndexExpression(
+                            collection=Identifier(name=reg_name), index=[IntegerLiteral(bit)]
+                        ),
+                        rhs=BooleanLiteral(bit_set),
+                    ),
+                    if_block=deepcopy(block),
+                    else_block=deepcopy(mismatch),
+                )
+            ]
+        return deepcopy(block)
 
     @classmethod
     def transform_function_qubits(

@@ -27,6 +27,7 @@ Types of changes:
 - Fixed qubit register ranges dropping their final qubit during unrolling. Endpoints are now inclusive for gates, aliases, barriers, and measurements. Code using an exclusive upper bound must lower it by one, for example `q[0:1]` instead of `q[0:2]` to select two qubits. ([#432](https://github.com/qBraid/pyqasm/issues/432))
 - Fixed `cs` and `csdg` from `stdgates.inc` being rejected during unrolling. They now decompose to controlled phase shifts. ([#439](https://github.com/qBraid/pyqasm/issues/439))
 - Fixed Clifford+T rebasing for exact `rx`, `ry`, and `rz` rotations at multiples of π/4. These gates now decompose instead of disappearing, while angles outside the exact basis raise `RebaseError` instead of producing an incorrect result. ([#428](https://github.com/qBraid/pyqasm/issues/428))
+- Fixed `unroll()` reading `c[0]` as the most significant bit of a classical register condition, so `if (c == 2)` ran its body when `c` was 1. `>=`, `<=`, `>`, `<`, out-of-range values, and single-bit conditions such as `c[0] < 1` now unroll correctly too. ([#444](https://github.com/qBraid/pyqasm/pull/444))
 
 ### Dependencies
 
