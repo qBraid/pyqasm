@@ -91,10 +91,10 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -122,10 +122,10 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -148,10 +148,13 @@ jobs:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      id-token: write  # mint the OIDC token PyPI trusted publishing verifies
+      contents: read  # actions/checkout
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
     
       - name: Download artifacts 
         uses: actions/download-artifact@v8
@@ -165,6 +168,24 @@ jobs:
 
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  notify-docs:
+    name: Tell qBraid/docs about the release
+    # Bumps versions.json in qBraid/docs so docs for this release move into the
+    # Stable docs. Never fails the release.
+    needs: pypi-publish
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions: {}  # GITHUB_TOKEN is unused: gh authenticates with DOCS_DISPATCH_TOKEN
+    steps:
+      - name: Send package-released event
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+          PKG: pyqasm
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "DOCS_DISPATCH_TOKEN is not set; skipping"; exit 0; fi
+          sleep 60 # PyPI's JSON API can trail the upload briefly
+          VERSION=$(curl -fsSL "https://pypi.org/pypi/${PKG}/json" | jq -r .info.version)
+          echo "Notifying qBraid/docs: ${PKG} ${VERSION}"
+          gh api repos/qBraid/docs/dispatches -f event_type=package-released \
+            -f "client_payload[package]=${PKG}" -f "client_payload[version]=${VERSION}"

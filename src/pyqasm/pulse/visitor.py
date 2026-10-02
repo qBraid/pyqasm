@@ -25,7 +25,7 @@ from typing import Any, Optional, Sequence
 
 import openqasm3.ast as qasm3_ast
 
-from pyqasm.elements import Capture, Frame, Variable, Waveform
+from pyqasm.elements import Capture, Frame, Variable, Waveform, is_physical_qubit
 from pyqasm.exceptions import (
     raise_qasm3_error,
 )
@@ -385,9 +385,7 @@ class OpenPulseVisitor:
         """
         if barrier.qubits:
             for qubit in barrier.qubits:
-                if isinstance(qubit, qasm3_ast.Identifier) and not (
-                    qubit.name.startswith("$") and qubit.name[1:].isdigit()
-                ):
+                if isinstance(qubit, qasm3_ast.Identifier) and not is_physical_qubit(qubit.name):
                     frame = self._openpulse_scope_manager.get_from_global_scope(qubit.name)
                     if frame is None:
                         raise_qasm3_error(

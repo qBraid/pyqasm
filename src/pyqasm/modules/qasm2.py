@@ -23,11 +23,11 @@ from typing import Sequence
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
-from openqasm3.printer import Printer, PrinterState, dumps
+from openqasm3.printer import PrinterState
 
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.modules.base import QasmModule, QasmVisitor
-from pyqasm.modules.qasm3 import Qasm3Module
+from pyqasm.modules.qasm3 import Qasm3Module, Qasm3Printer, dumps
 
 # the QASM 2.0 <qop> production: a gate application, a measurement or a reset.
 # only these may be the body of an 'if'.
@@ -49,7 +49,7 @@ _NON_QOP_KEYWORDS = {
 def _qasm3_repr(node: qasm3_ast.QASMNode) -> str:
     """Render a node with the stock QASM 3 printer, for use in error messages."""
     out = io.StringIO()
-    Printer(out).visit(node)
+    Qasm3Printer(out).visit(node)
     return out.getvalue().strip()
 
 
@@ -319,7 +319,7 @@ def _writes_to_register(statement: qasm3_ast.Statement, reg_name: str) -> bool:
     return False
 
 
-class Qasm2Printer(Printer):
+class Qasm2Printer(Qasm3Printer):
     """``openqasm3`` printer that emits OpenQASM 2.0 branching syntax.
 
     OpenQASM 2.0 has no braced blocks: a conditional is ``if (creg == int) <statement>``
@@ -411,12 +411,11 @@ class Qasm2Module(QasmModule):
                 self._filter_branch_body(inner_stmt)
                 continue
             if isinstance(inner_stmt, qasm3_ast.QuantumPhase):
-                # not something the user wrote: rzz/rxx decompose to a global phase, so this
-                # is only reachable by re-filtering an already-unrolled body (see issue #351)
+                # unroll-emitted phases are dropped in accept() (issue #351), so only a
+                # user-written gphase reaches this
                 raise_qasm3_error(
                     "Global phase is not representable in QASM 2.0, so it cannot appear in "
-                    "a conditional body; it is introduced by unrolling gates such as 'rzz' "
-                    "and 'rxx'",
+                    "a conditional body",
                     error_node=inner_stmt,
                     span=inner_stmt.span,
                 )
@@ -472,6 +471,7 @@ class Qasm2Module(QasmModule):
         Qasm2Printer(
             stream,
             old_measurement=True,
+            compact_gate_arguments=self._compact_gate_arguments,
             creg_sizes=_creg_sizes(qasm_ast.statements),
             qreg_sizes=_qreg_sizes(qasm_ast.statements),
         ).visit(qasm_ast)
@@ -484,9 +484,20 @@ class Qasm2Module(QasmModule):
             as_str (bool): Flag to indicate if the conversion should be to a string
                 or to a Qasm3Module object. Default is False.
 
+        Raises:
+            ValidationError: If the program declares an `opaque` gate. OpenQASM 3 removed
+                `opaque` and has no equivalent, so there is no correct translation.
+
         Returns:
             str | Qasm3Module: The module in openqasm3 format.
         """
+        if self._opaque_gates:
+            # OpenQASM 3 removed `opaque` from the language
+            raise ValidationError(
+                "Cannot convert to OpenQASM 3: the program declares the opaque gate(s) "
+                f"{', '.join(sorted(self._opaque_gates))}. OpenQASM 3 removed 'opaque' and "
+                "has no equivalent for a gate with no decomposition."
+            )
         qasm_program = deepcopy(self._original_program)
         # replace the include with stdgates.inc
         for stmt in qasm_program.statements:
@@ -494,7 +505,51 @@ class Qasm2Module(QasmModule):
                 stmt.filename = "stdgates.inc"
                 break
         qasm_program.version = "3.0"
-        return dumps(qasm_program) if as_str else Qasm3Module(self._name, qasm_program)
+        if as_str:
+            return dumps(qasm_program, compact_gate_arguments=self._compact_gate_arguments)
+        module = Qasm3Module(self._name, qasm_program)
+        module.compact_gate_arguments = self._compact_gate_arguments
+        return module
+
+    def finalize(self, statements: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
+        """Apply the QASM 2 transformations the finalized statement list needs.
+
+        Args:
+            statements (list[Statement]): The finalized statements.
+
+        Returns:
+            list[Statement]: The statements to store as the unrolled AST.
+        """
+        return self._drop_global_phase(statements)
+
+    def _drop_global_phase(
+        self, statements: list[qasm3_ast.Statement]
+    ) -> list[qasm3_ast.Statement]:
+        """Remove QuantumPhase statements the unroller emitted (e.g. from the rzz/rxx
+        decompositions), descending into conditional bodies. OpenQASM 2 has no
+        global-phase syntax, and a global phase is unobservable, so dropping it is
+        semantically safe (issue #351)."""
+        filtered = []
+        for stmt in statements:
+            if isinstance(stmt, qasm3_ast.QuantumPhase):
+                # a controlled phase is relative, not global, and is observable; the
+                # visitor rewrites those to 'p' gates, so none should reach here
+                if stmt.modifiers:
+                    raise_qasm3_error(
+                        "Modified global phase cannot be dropped for a QASM 2 target",
+                        error_node=stmt,
+                        span=stmt.span,
+                    )
+                continue
+            if isinstance(stmt, qasm3_ast.BranchingStatement):
+                stmt.if_block = self._drop_global_phase(stmt.if_block)
+                stmt.else_block = self._drop_global_phase(stmt.else_block)
+                if not stmt.if_block and not stmt.else_block:
+                    # the body was nothing but global phase, and QASM 2 has no
+                    # form for a conditional without a qop
+                    continue
+            filtered.append(stmt)
+        return filtered
 
     def accept(self, visitor: QasmVisitor) -> None:
         """Accept a visitor for the module.
@@ -506,4 +561,4 @@ class Qasm2Module(QasmModule):
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self.unrolled_ast.statements = final_stmt_list  # type: ignore[assignment]
+        self.unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]

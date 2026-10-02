@@ -55,7 +55,10 @@ def validate_qasm(src_paths: list[str], skip_files: Optional[list[str]] = None) 
 
     failed_files: list[tuple[str, Exception]] = []
 
-    console = Console()
+    # soft_wrap keeps each diagnostic on one line. Rich otherwise wraps at the
+    # console width and breaks mid-token, so a file path longer than the width is
+    # split across lines and stops being copyable or clickable in a terminal.
+    console = Console(soft_wrap=True)
 
     def validate_qasm_file(file_path: str) -> None:
         with open(file_path, "r", encoding="utf-8") as f:

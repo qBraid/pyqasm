@@ -47,6 +47,26 @@ def is_internal_qubit_register(qubit_name: str) -> bool:
     )
 
 
+PHYSICAL_QUBIT_PREFIX = "$"
+"""Prefix marking a physical qubit: an absolute hardware index that belongs to no
+declared register."""
+
+
+def is_physical_qubit(qubit_name: str) -> bool:
+    """Check whether an identifier refers to a physical qubit ("$0", "$12").
+
+    The index must be a non-negative integer, so neither the bare prefix nor a name
+    such as "$foo" is a physical qubit.
+
+    Args:
+        qubit_name (str): The identifier name to check.
+
+    Returns:
+        bool: True if the identifier refers to a physical qubit.
+    """
+    return qubit_name.startswith(PHYSICAL_QUBIT_PREFIX) and qubit_name[1:].isdigit()
+
+
 class InversionOp(Enum):
     """
     Enum for specifying the inversion action of a gate.

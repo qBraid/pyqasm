@@ -221,6 +221,23 @@ def test_verbatim_custom_gate_counts_once_towards_depth():
     assert module.depth() == 1
 
 
+def test_verbatim_basic_gate_counts_once_towards_depth():
+    """A decomposable stdgates gate inside a verbatim box is emitted as written,
+    so its depth is that of one gate, not of the skipped decomposition (issue #352)."""
+    qasm_str = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    #pragma braket verbatim
+    box {
+      crz(0.5) q[0], q[1];
+    }
+    """
+    module = loads(qasm_str)
+    module.unroll()
+    assert module.depth() == 1
+
+
 def test_verbatim_marker_does_not_escape_a_box():
     """A pragma at the end of a box body must not mark the next box verbatim.
 

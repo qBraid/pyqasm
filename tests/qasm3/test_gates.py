@@ -287,7 +287,7 @@ def test_global_phase_qubits_retained():
        h a;
     }
     qubit[23] q2;
-    custom q2[0:3];
+    custom q2[0:2];
     """
 
     qasm3_expected = """
@@ -874,6 +874,63 @@ def test_incorrect_custom_ops(test_name, caplog):
 
     assert f"Error at line {line_num}, column {col_num}" in caplog.text
     assert line in caplog.text
+
+
+def test_shared_gate_definition_is_not_recursion():
+    """A gate reached twice down separate paths is a diamond, not a cycle. Testing the
+    expansion chain rather than a set of every gate seen is what keeps this from being
+    reported as recursion (issue #369)."""
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+
+    gate gate_d p{ x p; }
+    gate gate_b p{ gate_d p; }
+    gate gate_c p{ gate_d p; }
+    gate gate_a p{ gate_b p; gate_c p; }
+
+    qubit[1] q1;
+    gate_a q1;
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+    check_single_qubit_gate_op(module.unrolled_ast, 2, [0, 0], "x")
+    assert module.depth() == 2
+
+
+def test_repeated_gate_call_in_one_body_is_not_recursion():
+    """The same gate called twice in a single body must expand twice, not raise:
+    the chain entry is popped when the first expansion returns (issue #369)."""
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+
+    gate gate_b p{ x p; }
+    gate gate_a p{ gate_b p; gate_b p; }
+
+    qubit[1] q1;
+    gate_a q1;
+    """
+    module = loads(qasm3_string)
+    module.unroll()
+    check_single_qubit_gate_op(module.unrolled_ast, 2, [0, 0], "x")
+
+
+def test_indirect_recursion_does_not_exhaust_the_stack():
+    """The reported symptom was a bare RecursionError, so pin that the error is a
+    ValidationError and never a RecursionError (issue #369)."""
+    qasm3_string = """
+    OPENQASM 3;
+    include "stdgates.inc";
+
+    gate gate_a p{ gate_b p; }
+    gate gate_b p{ gate_a p; }
+
+    qubit[1] q1;
+    gate_a q1;
+    """
+    with pytest.raises(ValidationError, match="Recursive definitions not allowed"):
+        loads(qasm3_string).validate()
 
 
 @pytest.mark.parametrize("test_name", SINGLE_QUBIT_GATE_INCORRECT_TESTS.keys())

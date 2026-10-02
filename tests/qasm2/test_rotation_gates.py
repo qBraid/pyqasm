@@ -18,8 +18,37 @@ rotations in qasm2 format.
 
 """
 
+from pyqasm.elements import BasisSet
 from pyqasm.entrypoint import dumps, loads
 from tests.utils import check_unrolled_qasm
+
+
+def test_rebase_clifford_t_exact_rotation():
+    """Test rebasing an exact rotation to the Clifford+T basis."""
+    qasm_in = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[1];
+creg c[1];
+ry(-pi/4) q[0];
+measure q[0] -> c[0];
+"""
+    expected_out = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[1];
+creg c[1];
+sdg q[0];
+h q[0];
+tdg q[0];
+h q[0];
+s q[0];
+measure q[0] -> c[0];
+"""
+
+    result = loads(qasm_in)
+    result.rebase(BasisSet.CLIFFORD_T)
+    check_unrolled_qasm(dumps(result), expected_out)
 
 
 def test_convert_qasm_one_param():
