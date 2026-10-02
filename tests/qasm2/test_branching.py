@@ -287,3 +287,17 @@ def test_else_is_reported_before_a_problem_inside_it():
     """
     with pytest.raises(ValidationError, match="'else' blocks are not supported"):
         loads(qasm2_string).validate()
+
+
+def test_branch_body_keeps_compact_gate_arguments():
+    """Test that a conditional body is written by the same printer as the rest of the
+    program, so the module's compact_gate_arguments setting reaches it"""
+    qasm2_string = """OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[1];
+    creg m[1];
+    measure q[0] -> m[0];
+    if(m==1) rx(pi/2) q[0];
+    """
+    unrolled = dumps(loads(qasm2_string, compact_gate_arguments=True))
+    assert "if (m == 1) rx(pi/2) q[0];" in unrolled
