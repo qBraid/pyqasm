@@ -184,6 +184,8 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
             program = openqasm3.parse(program)
         except openqasm3.parser.QASM3ParsingError as err:
             raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
+        except AttributeError as err:
+            raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
     elif include_dir is not None:
