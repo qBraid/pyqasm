@@ -31,6 +31,7 @@ Types of changes:
 - Fixed `unroll()` reading `c[0]` as the most significant bit of a classical register condition, so `if (c == 2)` ran its body when `c` was 1. `>=`, `<=`, `>`, `<`, out-of-range values, and single-bit conditions such as `c[0] < 1` now unroll correctly too, and `!=` is now supported. ([#444](https://github.com/qBraid/pyqasm/pull/444))
 
 ### Dependencies
+- Bumped `codecov/codecov-action` from 7.0.0 to 7.1.1. ([#430](https://github.com/qBraid/pyqasm/pull/430))
 
 ### Other
 - Added a `notify-docs` job to the release workflow. When a release reaches PyPI it sends a `package-released` event to `qBraid/docs`, which opens a pull request bumping its `versions.json` so this release's documentation moves from Latest into Stable. The job reads the published version from PyPI rather than the release tag, runs with `continue-on-error`, and skips when `DOCS_DISPATCH_TOKEN` is absent, so it can never fail or block a release. ([#443](https://github.com/qBraid/pyqasm/pull/443))
