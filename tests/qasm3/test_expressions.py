@@ -17,6 +17,7 @@ Module containing unit tests for expressions.
 
 """
 
+import openqasm3.ast as qasm3_ast
 import pytest
 
 from pyqasm.entrypoint import loads
@@ -105,3 +106,102 @@ def test_incorrect_expressions(caplog):
             loads("OPENQASM 3; qubit q; int x; rx(x) q;").validate()
     assert "Error at line 1" in caplog.text
     assert "x" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "1;",
+        "value;",
+        "value + 2;",
+        "-value;",
+        "values[0];",
+        "sin(1.0);",
+    ],
+)
+def test_expression_statements_are_evaluated_and_discarded(expression: str):
+    """Pure expression statements are valid but do not emit operations.
+
+    Args:
+        expression (str): The expression statement to evaluate.
+    """
+    module = loads(f"""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        int value = 1;
+        array[int[32], 2] values = {{1, 2}};
+        qubit q;
+        {expression}
+        x q;
+        """)
+
+    module.validate()
+    module.unroll()
+
+    assert not any(
+        isinstance(statement, qasm3_ast.ExpressionStatement)
+        for statement in module.unrolled_ast.statements
+    )
+    check_single_qubit_gate_op(module.unrolled_ast, 1, [0], "x")
+
+
+def test_subroutine_expression_statement_retains_operations():
+    """Statements produced by evaluating a subroutine call are retained."""
+    module = loads("""
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        def apply_x(qubit target) {
+            x target;
+        }
+        qubit q;
+        apply_x(q);
+        """)
+
+    module.validate()
+    module.unroll()
+
+    check_single_qubit_gate_op(module.unrolled_ast, 1, [0], "x")
+
+
+@pytest.mark.parametrize("operation", ["validate", "unroll"])
+def test_unknown_expression_statement_call_raises_validation_error(operation: str):
+    """Unknown calls in expression statements use the public error type.
+
+    Args:
+        operation (str): The module method to call.
+    """
+    module = loads("OPENQASM 3.0; unknown();")
+
+    with pytest.raises(ValidationError, match="Undefined subroutine 'unknown'"):
+        getattr(module, operation)()
+
+
+@pytest.mark.parametrize(
+    "source,error",
+    [
+        ("OPENQASM 3.0; unknown;", "Undefined identifier 'unknown'"),
+        (
+            "OPENQASM 3.0; unknown missing_qubit;",
+            "Unsupported / undeclared QASM operation: unknown",
+        ),
+        (
+            "OPENQASM 3.0; qubit q; unknown q;",
+            "Unsupported / undeclared QASM operation: unknown",
+        ),
+    ],
+)
+@pytest.mark.parametrize("operation", ["validate", "unroll"])
+def test_unknown_gate_reports_its_name_before_checking_operands(
+    source: str, error: str, operation: str
+):
+    """Unknown gate names are reported even when an operand is undeclared.
+
+    Args:
+        source (str): The OpenQASM program to validate or unroll.
+        error (str): The expected error message.
+        operation (str): The module method to call.
+    """
+    module = loads(source)
+
+    with pytest.raises(ValidationError, match=error):
+        getattr(module, operation)()
