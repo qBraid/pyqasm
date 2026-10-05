@@ -40,7 +40,7 @@ def test_measure():
     c1 = measure q1;
     measure q1 -> c1;
     c2[0] = measure q3[0];
-    measure q1[:1] -> c1[1];
+    measure q1[:1] -> c1[0:1];
     measure q2[{0, 1}] -> c1[{1, 0}];
 
     """
@@ -57,7 +57,8 @@ def test_measure():
     c1[0] = measure q1[0]; 
     c1[1] = measure q1[1]; 
     c2[0] = measure q3[0]; 
-    c1[1] = measure q1[0]; 
+    c1[0] = measure q1[0];
+    c1[1] = measure q1[1];
     c1[1] = measure q2[0]; 
     c1[0] = measure q2[1]; 
     """
@@ -81,7 +82,7 @@ def test_has_measurements():
     c1 = measure q1;
     measure q1 -> c1;
     c2[0] = measure q3[0];
-    measure q1[:1] -> c1[1];
+    measure q1[:1] -> c1[0:1];
     measure q2[{0, 1}] -> c1[{1, 0}];
 
     """
@@ -112,7 +113,7 @@ def test_remove_measurement():
     c1 = measure q1;
     measure q1 -> c1;
     c2[0] = measure q3[0];
-    measure q1[:1] -> c1[1];
+    measure q1[:1] -> c1[0:1];
     measure q2[{0, 1}] -> c1[{1, 0}];
 
     """
@@ -283,7 +284,7 @@ def test_init_measure():
     qubit[4] e;
     bit c = measure a;
     bit[2] d = measure b;
-    bit[2] f = measure e[:2];
+    bit[2] f = measure e[:1];
     bit[2] g = measure e[{2, 3}];
     """
 
