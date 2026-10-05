@@ -28,7 +28,7 @@ Types of changes:
 - Fixed `cs` and `csdg` from `stdgates.inc` being rejected during unrolling. They now decompose to controlled phase shifts. ([#439](https://github.com/qBraid/pyqasm/issues/439))
 - Fixed Clifford+T rebasing for exact `rx`, `ry`, and `rz` rotations at multiples of π/4. These gates now decompose instead of disappearing, while angles outside the exact basis raise `RebaseError` instead of producing an incorrect result. ([#428](https://github.com/qBraid/pyqasm/issues/428))
 - Fixed the OpenQASM 2 serializer emitting OpenQASM 3 syntax for classical conditionals. `if(m==1) x q[1];` was written as a braced block and, after `unroll()`, as a per-bit `if (m[0] == true)` chain, which QASM 2 parsers such as pytket and Qiskit reject. Conditionals are now emitted as `if (creg == int) <statement>`, and `validate()` rejects branch shapes QASM 2 cannot express. ([#337](https://github.com/qBraid/pyqasm/issues/337))
-- Fixed `unroll()` reading `c[0]` as the most significant bit of a classical register condition, so `if (c == 2)` ran its body when `c` was 1. `>=`, `<=`, `>`, `<`, out-of-range values, and single-bit conditions such as `c[0] < 1` now unroll correctly too. ([#444](https://github.com/qBraid/pyqasm/pull/444))
+- Fixed `unroll()` reading `c[0]` as the most significant bit of a classical register condition, so `if (c == 2)` ran its body when `c` was 1. `>=`, `<=`, `>`, `<`, out-of-range values, and single-bit conditions such as `c[0] < 1` now unroll correctly too, and `!=` is now supported. ([#444](https://github.com/qBraid/pyqasm/pull/444))
 
 ### Dependencies
 

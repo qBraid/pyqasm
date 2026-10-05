@@ -275,22 +275,23 @@ def test_register_equality_bits(width, value):
     assert _branch_bits(branch[-1:]) == {i: bool(value >> i & 1) for i in range(width)}
 
 
-def _runs_body(statements, register_value):
-    """Whether ``x q[0]`` executes when the 1-qubit program's register holds ``register_value``."""
+def _executed_gate(statements, register_value):
+    """The gate the 1-qubit program runs when its register holds ``register_value``."""
     for statement in statements:
         if isinstance(statement, qasm3_ast.QuantumGate):
-            return True
+            return statement.name.name
         if isinstance(statement, qasm3_ast.BranchingStatement):
             condition = statement.condition
             bit = register_value >> condition.lhs.index[0].value & 1
             taken = statement.if_block if bit == condition.rhs.value else statement.else_block
-            if _runs_body(taken, register_value):
-                return True
-    return False
+            gate = _executed_gate(taken, register_value)
+            if gate:
+                return gate
+    return None
 
 
 @pytest.mark.parametrize("width", [1, 2, 3])
-@pytest.mark.parametrize("op", ["==", ">=", "<=", ">", "<"])
+@pytest.mark.parametrize("op", ["==", "!=", ">=", "<=", ">", "<"])
 def test_register_condition_matches_integer_comparison(width, op):
     """Every unrolled comparison, including out-of-range values, agrees with integer comparison."""
     for value in range(-1, 2**width + 1):
@@ -300,14 +301,16 @@ def test_register_condition_matches_integer_comparison(width, op):
         bit[{width}] c;
         if (c {op} {value}) {{
             x q[0];
+        }} else {{
+            h q[0];
         }}
         """
         result = loads(qasm)
         result.unroll()
         for register_value in range(2**width):
-            expected = eval(f"{register_value} {op} {value}")  # pylint: disable=eval-used
-            assert (
-                _runs_body(result.unrolled_ast.statements, register_value) == expected
+            holds = eval(f"{register_value} {op} {value}")  # pylint: disable=eval-used
+            assert _executed_gate(result.unrolled_ast.statements, register_value) == (
+                "x" if holds else "h"
             ), f"c {op} {value} with c = {register_value}"
 
 
@@ -316,6 +319,7 @@ def test_register_condition_matches_integer_comparison(width, op):
     [
         ("c[1] == 1", "if (c[1] == true) {\n    x q[0];\n    }"),
         ("c[1] < 1", "if (c[1] == false) {\n    x q[0];\n    }"),
+        ("c[1] != 1", "if (c[1] == false) {\n    x q[0];\n    }"),
         ("c[1] > 0", "if (c[1] == true) {\n    x q[0];\n    }"),
         ("c[1] >= 0", "x q[0];"),
         ("c[1] == 2", ""),
@@ -391,7 +395,7 @@ def test_single_bit_condition(condition, expected_body):
                 cx q;
             }
             """,
-            r"Only {==, >=, <=, >, <} supported in branching condition with classical register",
+            r"Only {==, !=, >=, <=, >, <} supported in branching condition with classical register",
             8,
             15,
             "c[0] >> 1",

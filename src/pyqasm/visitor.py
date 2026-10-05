@@ -91,6 +91,7 @@ logger.propagate = False
 # comparisons the unroller accepts between a classical bit and an integer
 BRANCH_COMPARISONS: dict[str, Callable[[Any, Any], bool]] = {
     "==": operator.eq,
+    "!=": operator.ne,
     ">=": operator.ge,
     "<=": operator.le,
     ">": operator.gt,
@@ -2426,14 +2427,18 @@ class QasmVisitor:
                     )
             else:
                 # unroll multi-bit branch
-                assert isinstance(rhs_value, int) and op in [
-                    qasm3_ast.BinaryOperator[o] for o in ["==", ">=", "<=", ">", "<"]
-                ]
+                assert isinstance(rhs_value, int)
+                assert op is not None and op.name in BRANCH_COMPARISONS
                 size = self._global_creg_size_map[reg_name]
                 # getting cregs for depth counting
                 self._is_branch_clbits.update((reg_name, i) for i in range(size))
                 unrolled = Qasm3Transformer.unroll_register_comparison(
-                    reg_name, range(size), op, rhs_value, if_block, else_block  # type: ignore[arg-type]
+                    reg_name,
+                    range(size),
+                    op,  # type: ignore[arg-type]
+                    rhs_value,
+                    if_block,
+                    else_block,
                 )
                 result.extend(self.visit_basic_block(unrolled))  # type: ignore[arg-type]
         else:

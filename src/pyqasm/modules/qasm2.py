@@ -283,8 +283,8 @@ def _flatten_branch(
                 f"{size}-bit register (bits {missing} are unconstrained); QASM 2.0 can only "
                 "compare a classical register against an integer"
             )
-        # unrolling ravels the comparison value MSB-first, so invert that ordering here
-        reg_value = sum(1 << (size - 1 - index) for index, set_ in bit_values.items() if set_)
+        # c[0] is the least significant bit of c
+        reg_value = sum(1 << index for index, set_ in bit_values.items() if set_)
 
     assert reg_value is not None
 

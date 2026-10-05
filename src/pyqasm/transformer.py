@@ -293,9 +293,9 @@ class Qasm3Transformer:
                 False,
             )
         if isinstance(condition, BinaryExpression):
-            if condition.op not in [BinaryOperator[o] for o in ["==", ">=", "<=", ">", "<"]]:
+            if condition.op not in [BinaryOperator[o] for o in ["==", "!=", ">=", "<=", ">", "<"]]:
                 raise_qasm3_error(
-                    message="Only {==, >=, <=, >, <} supported in branching condition "
+                    message="Only {==, !=, >=, <=, >, <} supported in branching condition "
                     "with classical register",
                     error_node=condition,
                     span=condition.span,
@@ -360,7 +360,7 @@ class Qasm3Transformer:
         Args:
             reg_name (str): The classical register being compared.
             bit_indices (Sequence[int]): The register bits, least significant first.
-            op (BinaryOperator): One of ``==``, ``>=``, ``<=``, ``>``, ``<``.
+            op (BinaryOperator): One of ``==``, ``!=``, ``>=``, ``<=``, ``>``, ``<``.
             value (int): The integer the register is compared against.
             if_block (list[Statement]): Statements to run when the comparison holds.
             else_block (list[Statement]): Statements to run when it does not.
@@ -369,6 +369,10 @@ class Qasm3Transformer:
             list[Statement]: The statements to emit in place of the branch.
         """
         eq, ge, le = BinaryOperator["=="], BinaryOperator[">="], BinaryOperator["<="]
+        if op == BinaryOperator["!="]:
+            return Qasm3Transformer.unroll_register_comparison(
+                reg_name, bit_indices, eq, value, else_block, if_block
+            )
         if op == BinaryOperator[">"]:
             op, value = ge, value + 1
         elif op == BinaryOperator["<"]:
