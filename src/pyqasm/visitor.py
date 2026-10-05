@@ -21,6 +21,7 @@ Module defining Qasm Visitor.
 
 import copy
 import logging
+import operator
 import re
 import sys
 from collections import OrderedDict, deque
@@ -87,6 +88,17 @@ logger = logging.getLogger(__name__)
 logger.propagate = False
 
 
+# comparisons the unroller accepts between a classical bit and an integer
+BRANCH_COMPARISONS: dict[str, Callable[[Any, Any], bool]] = {
+    "==": operator.eq,
+    "!=": operator.ne,
+    ">=": operator.ge,
+    "<=": operator.le,
+    ">": operator.gt,
+    "<": operator.lt,
+}
+
+
 # pylint: disable-next=too-many-instance-attributes
 class QasmVisitor:
     """A visitor for basic OpenQASM program elements.
@@ -128,6 +140,9 @@ class QasmVisitor:
         # cycle of any length between gate definitions (issue #369)
         self._gate_expansion_chain: list[str] = []
         self._external_gates: list[str] = [] if external_gates is None else external_gates
+        # opaque gates come from the program itself, so they are read off the module
+        # rather than taken from unroll()'s kwargs (issue #370)
+        self._opaque_gates: set[str] = getattr(module, "_opaque_gates", set())
         self._subroutine_defns: dict[
             str, qasm3_ast.SubroutineDefinition | qasm3_ast.ExternDeclaration
         ] = {}
@@ -197,6 +212,7 @@ class QasmVisitor:
             qasm3_ast.IODeclaration: lambda x: [],
             qasm3_ast.BreakStatement: self._visit_break,
             qasm3_ast.ContinueStatement: self._visit_continue,
+            qasm3_ast.EndStatement: self._visit_end_statement,
             qasm3_ast.DelayInstruction: self._visit_delay_statement,
             qasm3_ast.Box: self._visit_box_statement,
             qasm3_ast.Pragma: self._visit_pragma,
@@ -1287,6 +1303,24 @@ class QasmVisitor:
             error_node=statement,
         )
 
+    def _is_black_box_gate(self, gate_name: str) -> bool:
+        """Check whether a gate must be emitted as written instead of being unrolled.
+
+        True for a gate the caller named in ``external_gates``, any gate inside a verbatim
+        box, and one the program declared ``opaque`` (issue #370).
+
+        Args:
+            gate_name (str): The name of the gate being applied.
+
+        Returns:
+            bool: True if the gate is emitted as written.
+        """
+        return (
+            self._in_verbatim_box
+            or gate_name in self._external_gates
+            or gate_name in self._opaque_gates
+        )
+
     def _visit_custom_gate_operation(
         self,
         operation: qasm3_ast.QuantumGate,
@@ -1344,7 +1378,11 @@ class QasmVisitor:
         # 'or', not '=': a nested gate must stay suppressed inside an enclosing external
         # gate rather than re-enable recording for the body its parent skips (issue #367)
         prev_recording = self._recording_ext_gate_depth
-        is_external = self._in_verbatim_box or gate_name in self._external_gates
+        # 'or', not '=': a nested gate must stay suppressed inside an enclosing external
+        # gate rather than re-enable recording for the body its parent skips (issue #367)
+        prev_recording = self._recording_ext_gate_depth
+        is_external = self._is_black_box_gate(gate_name)
+        self._recording_ext_gate_depth = prev_recording or is_external
         self._recording_ext_gate_depth = prev_recording or is_external
 
         result = []
@@ -1703,7 +1741,7 @@ class QasmVisitor:
         for _ in range(power_value):
             if isinstance(operation, qasm3_ast.QuantumPhase):
                 result.extend(self._visit_phase_operation(operation, inverse_value, ctrls))
-            elif self._in_verbatim_box or operation.name.name in self._external_gates:
+            elif self._is_black_box_gate(operation.name.name):
                 result.extend(self._visit_external_gate_operation(operation, inverse_value, ctrls))
             elif operation.name.name in self._custom_gates:
                 result.extend(self._visit_custom_gate_operation(operation, inverse_value, ctrls))
@@ -2351,7 +2389,7 @@ class QasmVisitor:
                     span=statement.span,
                 )
 
-            assert isinstance(rhs_value, (bool, int))
+            assert isinstance(rhs_value, (bool, int, float))
 
             if_block = self.visit_basic_block(statement.if_block)
             else_block = self.visit_basic_block(statement.else_block)
@@ -2365,72 +2403,44 @@ class QasmVisitor:
                 # getting creg for depth counting
                 self._is_branch_clbits.add((reg_name, reg_idx))
 
-                new_if_block = qasm3_ast.BranchingStatement(
-                    condition=qasm3_ast.BinaryExpression(
-                        op=qasm3_ast.BinaryOperator["=="],
-                        lhs=qasm3_ast.IndexExpression(
-                            collection=qasm3_ast.Identifier(name=reg_name),
-                            index=[qasm3_ast.IntegerLiteral(reg_idx)],
-                        ),
-                        rhs=(
-                            qasm3_ast.BooleanLiteral(rhs_value)
-                            if isinstance(rhs_value, bool)
-                            else qasm3_ast.IntegerLiteral(rhs_value)
-                        ),
-                    ),
-                    if_block=if_block,
-                    else_block=else_block,
-                )
-                result.append(new_if_block)
+                # a bit compares as the integer 0 or 1, so keep only the bit values
+                # that satisfy the condition
+                if op == qasm3_ast.UnaryOperator["!"]:
+                    satisfying = [0]
+                else:
+                    compare = BRANCH_COMPARISONS[op.name]  # type: ignore[union-attr]
+                    satisfying = [bit for bit in (0, 1) if compare(bit, rhs_value)]
+                if len(satisfying) == 2:
+                    result.extend(if_block)
+                elif not satisfying:
+                    result.extend(else_block)
+                else:
+                    result.extend(
+                        Qasm3Transformer.unroll_register_comparison(
+                            reg_name,
+                            [reg_idx],
+                            qasm3_ast.BinaryOperator["=="],
+                            satisfying[0],
+                            if_block,
+                            else_block,
+                        )
+                    )
             else:
                 # unroll multi-bit branch
-                assert isinstance(rhs_value, int) and op in [
-                    qasm3_ast.BinaryOperator[o] for o in ["==", ">=", "<=", ">", "<"]
-                ]
-
-                if op == qasm3_ast.BinaryOperator[">"]:
-                    op = qasm3_ast.BinaryOperator[">="]
-                    rhs_value += 1
-                elif op == qasm3_ast.BinaryOperator["<"]:
-                    op = qasm3_ast.BinaryOperator["<="]
-                    rhs_value -= 1
-
+                assert isinstance(rhs_value, int)
+                assert op is not None and op.name in BRANCH_COMPARISONS
                 size = self._global_creg_size_map[reg_name]
                 # getting cregs for depth counting
                 self._is_branch_clbits.update((reg_name, i) for i in range(size))
-                rhs_value_str = bin(int(rhs_value))[2:].zfill(size)
-                else_block = self.visit_basic_block(statement.else_block)
-
-                def ravel(bit_ind):
-                    """Unravel if statement from MSB to LSB"""
-                    r = rhs_value_str[bit_ind] == "1"
-                    if (op == qasm3_ast.BinaryOperator[">="] and not r) or (
-                        op == qasm3_ast.BinaryOperator["<="] and r
-                    ):
-                        # skip if bit condition is irrelevant.
-                        # ex. if op is >= and r = 0, both values reg[i]={0,1} satisfy the condition
-                        return if_block if bit_ind == len(rhs_value_str) - 1 else ravel(bit_ind + 1)
-
-                    return [
-                        qasm3_ast.BranchingStatement(
-                            condition=qasm3_ast.BinaryExpression(
-                                op=qasm3_ast.BinaryOperator["=="],
-                                lhs=qasm3_ast.IndexExpression(
-                                    collection=qasm3_ast.Identifier(name=reg_name),
-                                    index=[qasm3_ast.IntegerLiteral(bit_ind)],
-                                ),
-                                rhs=qasm3_ast.BooleanLiteral(r),
-                            ),
-                            if_block=(
-                                if_block
-                                if bit_ind == len(rhs_value_str) - 1
-                                else ravel(bit_ind + 1)
-                            ),
-                            else_block=else_block,
-                        )
-                    ]
-
-                result.extend(self.visit_basic_block(ravel(0)))  # type: ignore[arg-type]
+                unrolled = Qasm3Transformer.unroll_register_comparison(
+                    reg_name,
+                    range(size),
+                    op,  # type: ignore[arg-type]
+                    rhs_value,
+                    if_block,
+                    else_block,
+                )
+                result.extend(self.visit_basic_block(unrolled))  # type: ignore[arg-type]
         else:
             # here we can unroll the block depending on the condition
             positive_branching = Qasm3ExprEvaluator.evaluate_expression(condition)[0] != 0
@@ -2520,9 +2530,10 @@ class QasmVisitor:
 
             if statement_block != statement.block:
                 statement_block = copy.deepcopy(statement.block)
-                result.extend(self.visit_basic_block(statement_block))
+                iteration_statements = self.visit_basic_block(statement_block)
             else:
-                result.extend(self.visit_basic_block(statement.block))
+                iteration_statements = self.visit_basic_block(statement.block)
+            result.extend(iteration_statements)
 
             # scope not persistent between loop iterations
             self._scope_manager.pop_scope()
@@ -2532,6 +2543,8 @@ class QasmVisitor:
             # not runtime errors, we can break here
             if self._check_only:
                 return []
+            if iteration_statements and Qasm3Analyzer.terminates_program(iteration_statements[-1]):
+                break
         return result
 
     def _visit_subroutine_definition(
@@ -2692,9 +2705,14 @@ class QasmVisitor:
                     return_statement = copy.copy(function_op)
                     break
                 try:
-                    result.extend(self.visit_statement(copy.copy(function_op)))
+                    function_statements = self.visit_statement(copy.copy(function_op))
                 except (TypeError, copy.Error):
-                    result.extend(self.visit_statement(copy.deepcopy(function_op)))
+                    function_statements = self.visit_statement(copy.deepcopy(function_op))
+                result.extend(function_statements)
+                if function_statements and Qasm3Analyzer.terminates_program(
+                    function_statements[-1]
+                ):
+                    break
 
             if return_statement:
                 return_value, stmts = Qasm3ExprEvaluator.evaluate_expression(
@@ -2754,8 +2772,10 @@ class QasmVisitor:
             self._scope_manager.push_context(Context.BLOCK)
             self._scope_manager.push_scope({})
 
+            loop_statements = []
             try:
-                result.extend(self.visit_basic_block(statement.block))
+                loop_statements = self.visit_basic_block(statement.block)
+                result.extend(loop_statements)
             except LoopControlSignal as lcs:
                 self._scope_manager.pop_scope()
                 self._scope_manager.restore_context()
@@ -2766,6 +2786,9 @@ class QasmVisitor:
 
             self._scope_manager.pop_scope()
             self._scope_manager.restore_context()
+
+            if loop_statements and Qasm3Analyzer.terminates_program(loop_statements[-1]):
+                break
 
             loop_counter += 1
             if loop_counter >= max_iterations:
@@ -2943,7 +2966,10 @@ class QasmVisitor:
             result = []
             for stmt in statements:
                 Qasm3Validator.validate_statement_type(SWITCH_BLACKLIST_STMTS, stmt, "switch")
-                result.extend(self.visit_statement(stmt))
+                case_statements = self.visit_statement(stmt)
+                result.extend(case_statements)
+                if case_statements and Qasm3Analyzer.terminates_program(case_statements[-1]):
+                    break
 
             self._scope_manager.pop_scope()
             self._scope_manager.restore_context()
@@ -3480,6 +3506,22 @@ class QasmVisitor:
 
         return [include]
 
+    def _visit_end_statement(
+        self, statement: qasm3_ast.EndStatement
+    ) -> list[qasm3_ast.EndStatement]:
+        """Visit a statement that terminates the program.
+
+        Args:
+            statement (EndStatement): The terminating statement to visit.
+
+        Returns:
+            list[EndStatement]: The statement in a list, or an empty list if
+                self._check_only is True.
+        """
+        if self._check_only:
+            return []
+        return [statement]
+
     def visit_statement(
         self, statement: qasm3_ast.Statement | qasm3_ast.Pragma
     ) -> list[qasm3_ast.Statement]:
@@ -3529,7 +3571,10 @@ class QasmVisitor:
         """
         result = []
         for stmt in stmt_list:
-            result.extend(self.visit_statement(stmt))
+            statements = self.visit_statement(stmt)
+            result.extend(statements)
+            if statements and Qasm3Analyzer.terminates_program(statements[-1]):
+                break
         return result
 
     def finalize(self, unrolled_stmts: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
