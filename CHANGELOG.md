@@ -18,6 +18,7 @@ Types of changes:
 - Added support for OpenQASM 3 `end;` statements. Unrolling stops after an unconditional `end;` in global or nested scopes and keeps `end;` inside runtime-dependent branches. ([#396](https://github.com/qBraid/pyqasm/issues/396))
 
 ### Improved / Modified
+- Reduced the length of `visitor.py` by removing the `_handle_function_init_expression` function and adding the `check_only_return_empty` decorator for functions which can be given simple boiler-plate logic for the `self._check_only` parameter. ([#348](https://github.com/qBraid/pyqasm/pull/348))
 
 ### Deprecated
 
