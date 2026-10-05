@@ -2710,11 +2710,10 @@ class QasmVisitor:
         if isinstance(subroutine_def, qasm3_ast.ExternDeclaration):
             self._in_extern_function = True
             global_scope = self._scope_manager.get_global_scope()
-            result.append(
-                PulseValidator.validate_and_process_extern_function_call(
-                    statement, global_scope, self._module._device_cycle_time
-                )
+            extern_call = PulseValidator.validate_and_process_extern_function_call(
+                statement, global_scope, self._module._device_cycle_time
             )
+            result.append(qasm3_ast.ExpressionStatement(expression=extern_call))
         else:
             for function_op in subroutine_def.body:
                 if isinstance(function_op, qasm3_ast.ReturnStatement):
