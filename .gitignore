@@ -134,6 +134,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.asv/
+
+# Downloaded benchmark files (cached by tests/benchmarks/qasm/benchmark_downloader.py)
+tests/benchmarks/qasm/*.qasm
+!tests/benchmarks/qasm/neutral_atom_gate.qasm
 
 # Spyder project settings
 .spyderproject
