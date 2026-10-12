@@ -182,7 +182,8 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         program, opaque_gates = rewrite_opaque_declarations(program)
         try:
             program = openqasm3.parse(program)
-        except openqasm3.parser.QASM3ParsingError as err:
+        except (openqasm3.parser.QASM3ParsingError, AttributeError) as err:
+            # openqasm3 can raise AttributeError on empty/whitespace-only input
             raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
