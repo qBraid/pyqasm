@@ -25,6 +25,7 @@ Types of changes:
 ### Fixed
 
 ### Dependencies
+- Bumped `github/codeql-action/upload-sarif` from 3.37.8 to 4.38.1. ([#431](https://github.com/qBraid/pyqasm/pull/431))
 
 ### Other
 
