@@ -17,6 +17,7 @@ Types of changes:
 ### Added
 
 ### Improved / Modified
+- Reduced the length of `visitor.py` by removing the `_handle_function_init_expression` function and adding the `check_only_return_empty` decorator for functions which can be given simple boiler-plate logic for the `self._check_only` parameter. ([#348](https://github.com/qBraid/pyqasm/pull/348))
 
 ### Deprecated
 
