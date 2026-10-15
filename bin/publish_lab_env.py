@@ -57,9 +57,12 @@ VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 SLUG_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
 # Matches "pyqasm (v1.3.0)" and the older "pyqasm 1.3.0", in any case.
 ENV_NAME_PATTERN = re.compile(r"pyqasm \(?v?([0-9]+\.[0-9]+\.[0-9]+)\)?", re.IGNORECASE)
-# Besides pyqasm with every extra it declares on PyPI. Only pyqasm is pinned.
-# The venv starts empty, and Lab needs ipykernel in it to start the kernel.
-EXTRA_PACKAGES = ["ipykernel", "matplotlib"]
+# pyqasm extras for developing pyqasm itself. They add about 50 packages (pytest,
+# pylint, mypy, sphinx, ...) that a Lab user never runs. Every other extra is installed.
+DEV_EXTRAS = {"test", "lint", "docs"}
+# Besides pyqasm. Only pyqasm is pinned. The venv starts empty, and Lab needs
+# ipykernel in it to start the kernel.
+EXTRA_PACKAGES = ["ipykernel"]
 
 
 class Settings:  # pylint: disable=too-few-public-methods,too-many-instance-attributes
@@ -143,8 +146,9 @@ def pypi_metadata(version: str) -> dict[str, Any]:
 
 
 def pyqasm_requirement(version: str) -> str:
-    """Return the pinned pyqasm requirement with every extra the release declares."""
-    extras = sorted(pypi_metadata(version)["info"].get("provides_extra") or [])
+    """Return the pinned pyqasm requirement with every user-facing extra the release declares."""
+    declared = pypi_metadata(version)["info"].get("provides_extra") or []
+    extras = sorted(set(declared) - DEV_EXTRAS)
     return f"pyqasm[{','.join(extras)}]=={version}" if extras else f"pyqasm=={version}"
 
 
