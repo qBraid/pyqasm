@@ -2,11 +2,12 @@ name: Publish qBraid Lab environment
 
 # Builds a Lab environment for a released pyqasm version and publishes it on
 # qBraid. Each target maps to a GitHub Environment, env-publish-staging or
-# env-publish-prod, that holds:
+# env-publish-production, that holds:
 #   secret   QBRAID_API_KEY    platform-admin API key issued by that server
 #   variable QBRAID_API_URL    e.g. https://api-v2-staging.qbraid.com/api/v1
 #   variable QBRAID_ENV_GROUP  group slug for pyqasm (required when stop_after is publish)
 #   variable QBRAID_ENV_LOGO   logo provider name (optional; default qbraid)
+# The steps live in bin/publish_lab_env.py and bin/lab_env_smoke_test.py.
 
 on:
   workflow_dispatch:
@@ -17,17 +18,12 @@ on:
         type: choice
         options:
           - staging
-          - prod
+          - production
         default: staging
       version:
-        description: "pyqasm version, already released on PyPI (e.g. 1.3.0)"
+        description: "pyqasm version, already released on PyPI (x.y.z)"
         required: true
         type: string
-      extras:
-        description: "pyqasm extras to install"
-        required: false
-        type: string
-        default: "cli,visualization,pulse"
       stop_after:
         description: "Last step to run (publish = approve and set as the group's latest)"
         required: true
@@ -67,43 +63,15 @@ jobs:
     env:
       QBRAID_API_KEY: ${{ secrets.QBRAID_API_KEY }}
       QBRAID_API_URL: ${{ vars.QBRAID_API_URL }}
+      QBRAID_CONFIG_FILE: /tmp/no-qbraidrc  # keep any qbraidrc from overriding the key and URL
       QBRAID_CLI_SHOW_PROGRESS: "false"
       COLUMNS: "200"
       GROUP: ${{ vars.QBRAID_ENV_GROUP }}
-      LOGO: ${{ vars.QBRAID_ENV_LOGO || 'qbraid' }}
+      LOGO: ${{ vars.QBRAID_ENV_LOGO }}
       VERSION: ${{ inputs.version }}
-      EXTRAS: ${{ inputs.extras }}
       STOP_AFTER: ${{ inputs.stop_after }}
       ALLOW_EXISTING: ${{ inputs.allow_existing }}
     steps:
-      - name: Check inputs and configuration
-        run: |
-          set -euo pipefail
-          if [ -z "$QBRAID_API_KEY" ] || [ -z "$QBRAID_API_URL" ]; then
-            echo "::error::Set secret QBRAID_API_KEY and variable QBRAID_API_URL on environment env-publish-${{ inputs.target }}."
-            exit 1
-          fi
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::version must look like 1.3.0, got '$VERSION'."
-            exit 1
-          fi
-          if ! [[ "$EXTRAS" =~ ^[a-z0-9_,-]*$ ]]; then
-            echo "::error::extras must be a comma-separated list of extra names."
-            exit 1
-          fi
-          if [ "$STOP_AFTER" = "publish" ] && [ -z "$GROUP" ]; then
-            echo "::error::stop_after=publish needs variable QBRAID_ENV_GROUP on environment env-publish-${{ inputs.target }}."
-            exit 1
-          fi
-          if ! curl -fsS -o /dev/null "https://pypi.org/pypi/pyqasm/${VERSION}/json"; then
-            echo "::error::pyqasm ${VERSION} is not on PyPI."
-            exit 1
-          fi
-          # Keep any qbraidrc out of the way, so the key and URL above are what qbraid uses.
-          echo "QBRAID_CONFIG_FILE=${RUNNER_TEMP}/no-qbraidrc" >> "$GITHUB_ENV"
-          echo "ENV_NAME=pyqasm ${VERSION}" >> "$GITHUB_ENV"
-          echo "KERNEL_NAME=Python 3 [pyqasm ${VERSION}]" >> "$GITHUB_ENV"
-
       - name: Checkout PyQASM
         uses: actions/checkout@v7.0.1
 
@@ -116,95 +84,33 @@ jobs:
         run: python -m pip install "qbraid-cli[envs]==${QBRAID_CLI_VERSION}"
 
       - name: Preflight
-        run: |
-          set -euo pipefail
-          args=(--name "$ENV_NAME" --group "$GROUP")
-          if [ "$ALLOW_EXISTING" = "true" ]; then args+=(--allow-existing); fi
-          python bin/publish_lab_env.py preflight "${args[@]}"
+        run: python bin/publish_lab_env.py preflight
 
       - name: Create the environment
-        run: |
-          set -euo pipefail
-          PKG="pyqasm"
-          if [ -n "$EXTRAS" ]; then PKG="pyqasm[${EXTRAS}]"; fi
-          REQS="${RUNNER_TEMP}/pyqasm-requirements.txt"
-          printf '%s\n' "${PKG}==${VERSION}" ipykernel > "$REQS"
-          qbraid envs create \
-            --name "$ENV_NAME" \
-            --description "pyqasm ${VERSION}: parse, validate and unroll OpenQASM 2 and 3 programs." \
-            --requirements "$REQS" \
-            --kernel-name "$KERNEL_NAME" \
-            --logo "$LOGO" \
-            --tags "pyqasm,openqasm,qasm3,py${LAB_PYTHON//./}" \
-            --yes 2>&1 | tee "${RUNNER_TEMP}/create.log"
-          # `qbraid envs create` exits 0 when pip fails or the logo does not resolve.
-          if grep -q "Some packages could not be installed" "${RUNNER_TEMP}/create.log"; then
-            echo "::error::pip failed inside the environment; see the log above."
-            exit 1
-          fi
-          if grep -q "Could not resolve logo" "${RUNNER_TEMP}/create.log"; then
-            echo "::error::Logo '${LOGO}' did not resolve. Fix QBRAID_ENV_LOGO; the logo cannot be changed after creation."
-            exit 1
-          fi
-
-      - name: Locate the environment
-        id: locate
-        run: python bin/publish_lab_env.py locate --name "$ENV_NAME"
+        id: create
+        run: python bin/publish_lab_env.py create
 
       - name: Smoke test the environment
         env:
-          ENV_PYTHON: ${{ steps.locate.outputs.python }}
-        run: |
-          set -euo pipefail
-          "$ENV_PYTHON" - <<'EOF'
-          import os
-          import platform
-          import sys
-
-          import pyqasm
-
-          expected = os.environ["VERSION"]
-          if pyqasm.__version__ != expected:
-              sys.exit(f"pyqasm {pyqasm.__version__} installed, expected {expected}")
-          module = pyqasm.loads(
-              'OPENQASM 3.0; include "stdgates.inc"; qubit[2] q; h q[0]; cx q[0], q[1];'
-          )
-          module.unroll()
-          module.validate()
-          print(pyqasm.dumps(module))
-          print(f"pyqasm {pyqasm.__version__} on Python {platform.python_version()}, {platform.machine()}")
-          EOF
-          "$ENV_PYTHON" -c "import ipykernel"
+          ENV_PYTHON: ${{ steps.create.outputs.python }}
+        run: '"$ENV_PYTHON" bin/lab_env_smoke_test.py "$VERSION"'
 
       - name: Upload
         id: upload
         env:
-          ENV_ID: ${{ steps.locate.outputs.env_id }}
+          ENV_ID: ${{ steps.create.outputs.env_id }}
         run: python bin/publish_lab_env.py upload --env-id "$ENV_ID"
 
       - name: Request, review, approve and set as latest
         if: inputs.stop_after != 'upload'
         env:
           SLUG: ${{ steps.upload.outputs.slug }}
-        run: python bin/publish_lab_env.py publish --slug "$SLUG" --group "$GROUP" --stop-after "$STOP_AFTER"
+        run: python bin/publish_lab_env.py publish --slug "$SLUG"
 
       - name: Summary
         if: always()
         env:
+          ENV_ID: ${{ steps.create.outputs.env_id }}
           SLUG: ${{ steps.upload.outputs.slug }}
-          ENV_ID: ${{ steps.locate.outputs.env_id }}
-          TARGET: ${{ inputs.target }}
-        run: |
-          {
-            echo "### pyqasm ${VERSION} Lab environment on ${TARGET}"
-            echo ""
-            echo "| | |"
-            echo "|---|---|"
-            echo "| Name | ${ENV_NAME:-} |"
-            echo "| Kernel display name | ${KERNEL_NAME:-} |"
-            echo "| Local env_id | ${ENV_ID:-not created} |"
-            echo "| Slug | ${SLUG:-not uploaded} |"
-            echo "| Group | ${GROUP:-none} |"
-            echo "| Requested last step | ${STOP_AFTER} |"
-            echo "| Job status | ${{ job.status }} |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          STATUS: ${{ job.status }}
+        run: python bin/publish_lab_env.py summary --env-id "$ENV_ID" --slug "$SLUG" --status "$STATUS"
