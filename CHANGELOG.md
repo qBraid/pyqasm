@@ -23,6 +23,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures. ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437))
 
 ### Dependencies
 

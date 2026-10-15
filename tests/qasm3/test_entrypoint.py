@@ -74,3 +74,17 @@ def test_incorrect_module_unroll_raises_error():
     with pytest.raises(ValidationError):
         module = loads("OPENQASM 3.0;\n qubit q; h q[2]")
         module.unroll()
+
+
+def test_loads_empty_string_raises_validation_error():
+    """Empty / whitespace-only input must raise ValidationError, not AttributeError."""
+    for program in ("", "   ", "\n\t"):
+        with pytest.raises(ValidationError, match="Failed to parse OpenQASM string"):
+            loads(program)
+
+
+def test_loads_header_only_module_ok():
+    """A header-only OpenQASM 3 program (no statements) remains valid."""
+    module = loads("OPENQASM 3.0;\n")
+    assert module.num_qubits == 0
+    assert module.num_clbits == 0
