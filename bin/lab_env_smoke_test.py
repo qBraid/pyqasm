@@ -23,9 +23,17 @@ Usage:
 import platform
 import sys
 
-import ipykernel  # pylint: disable=unused-import # noqa: F401 - Lab needs it to start the kernel
+# Lab needs ipykernel to start the kernel. The rest come from the installed extras.
+# pylint: disable=unused-import
+import ipykernel  # noqa: F401
+import matplotlib  # noqa: F401
+import openpulse  # noqa: F401
+import tabulate  # noqa: F401
+import typer  # noqa: F401
 
 import pyqasm
+
+# pylint: enable=unused-import
 
 PROGRAM = """
 OPENQASM 3.0;
@@ -46,6 +54,10 @@ def main() -> None:
     module.unroll()
     module.validate()
     print(pyqasm.dumps(module))
+
+    # The visualization extra: draw the circuit without a display.
+    matplotlib.use("Agg")
+    pyqasm.draw(module, output="mpl")
     print(f"pyqasm {pyqasm.__version__}, Python {platform.python_version()}, {platform.machine()}")
 
 

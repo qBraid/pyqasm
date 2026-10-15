@@ -15,7 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
-- Added the `Publish qBraid Lab environment` workflow (`publish-lab-env.yml`), run by hand for a released version. It builds a `pyqasm==<version>` environment on an Ubuntu 22.04 runner with Python 3.12 and smoke tests it. Then it uploads, requests, reviews and approves it on qBraid staging or production, and sets it as the pyqasm group's latest. Each target reads its API key and URL from the `env-publish-staging` or `env-publish-production` GitHub Environment. The steps live in `bin/publish_lab_env.py` and `bin/lab_env_smoke_test.py` ([#455](https://github.com/qBraid/pyqasm/pull/455)).
+- Added the `Publish qBraid Lab environment` workflow (`publish-lab-env.yml`), run by hand for a released version. It builds an environment with pyqasm and every extra it declares on Ubuntu 22.04 with Python 3.12, and smoke tests it. Then it uploads and approves it on qBraid staging or production, and adds it to the configured group as its latest. A failed run can resume from its slug. Each target reads its API key and URL from the `env-publish-staging` or `env-publish-production` GitHub Environment. The steps live in `bin/publish_lab_env.py` and `bin/lab_env_smoke_test.py` ([#455](https://github.com/qBraid/pyqasm/pull/455)).
 
 ### Improved / Modified
 
