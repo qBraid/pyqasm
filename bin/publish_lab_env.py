@@ -55,7 +55,8 @@ PUBLISH_STEPS = ("upload", "approve", "publish")
 PAGE_SIZE = 100
 VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 SLUG_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
-ENV_NAME_PATTERN = re.compile(r"pyqasm ([0-9]+\.[0-9]+\.[0-9]+)")
+# Matches "pyqasm (v1.3.0)" and the older "pyqasm 1.3.0", in any case.
+ENV_NAME_PATTERN = re.compile(r"pyqasm \(?v?([0-9]+\.[0-9]+\.[0-9]+)\)?", re.IGNORECASE)
 # Besides pyqasm with every extra it declares on PyPI. Only pyqasm is pinned.
 # The venv starts empty, and Lab needs ipykernel in it to start the kernel.
 EXTRA_PACKAGES = ["ipykernel", "matplotlib"]
@@ -72,8 +73,8 @@ class Settings:  # pylint: disable=too-few-public-methods,too-many-instance-attr
         self.allow_existing = os.getenv("ALLOW_EXISTING", "").lower() == "true"
         self.set_latest = os.getenv("SET_LATEST", "true").lower() != "false"
         self.slug = os.getenv("SLUG") or None
-        self.name = f"pyqasm {self.version}"
-        self.kernel_name = f"Python 3 [pyqasm {self.version}]"
+        self.name = f"pyqasm (v{self.version})"
+        self.kernel_name = f"Python 3 [pyqasm v{self.version}]"
 
 
 def set_output(key: str, value: str) -> None:
