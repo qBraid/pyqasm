@@ -6,7 +6,8 @@ name: Publish qBraid Lab environment
 #   secret   QBRAID_API_KEY    platform-admin API key issued by that server
 #   variable QBRAID_API_URL    e.g. https://api-v2-staging.qbraid.com/api/v1
 #   variable QBRAID_ENV_GROUP  group slug for pyqasm (required when stop_after is publish)
-#   variable QBRAID_ENV_LOGO   logo provider name (optional; default qbraid)
+#   variable QBRAID_ENV_LOGO_URL  https URL of a PNG logo (optional; overrides the
+#                                 pyqasm light and dark logos in bin/publish_lab_env.py)
 # The steps live in bin/publish_lab_env.py and bin/lab_env_smoke_test.py.
 # The run approves directly, without a publish request. That skips the per-plan
 # publish quota and the email a request sends every platform admin.
@@ -80,7 +81,7 @@ jobs:
       QBRAID_CLI_SHOW_PROGRESS: "false"
       COLUMNS: "200"
       GROUP: ${{ vars.QBRAID_ENV_GROUP }}
-      LOGO: ${{ vars.QBRAID_ENV_LOGO }}
+      LOGO_URL: ${{ vars.QBRAID_ENV_LOGO_URL }}
       VERSION: ${{ inputs.version }}
       STOP_AFTER: ${{ inputs.stop_after }}
       ALLOW_EXISTING: ${{ inputs.allow_existing }}
@@ -109,7 +110,7 @@ jobs:
         id: create
         if: inputs.slug == ''
         env:
-          QBRAID_API_KEY: ${{ secrets.QBRAID_API_KEY }}  # the CLI resolves the logo and owner
+          QBRAID_API_KEY: ${{ secrets.QBRAID_API_KEY }}  # the CLI resolves the owner
         run: python bin/publish_lab_env.py create
 
       - name: Smoke test the environment

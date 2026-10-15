@@ -20,7 +20,7 @@ Each subcommand is one workflow step. Settings come from environment variables:
     QBRAID_API_KEY, QBRAID_API_URL   read by qbraid-core
     VERSION                          pyqasm version to publish, x.y.z
     GROUP                            environment group slug (needed for the publish step)
-    LOGO                             logo provider name (default: qbraid)
+    LOGO_URL                         https URL of a PNG logo; overrides both default logos
     STOP_AFTER                       upload | approve | publish (default: publish)
     ALLOW_EXISTING                   "true" to allow a duplicate environment name
     SET_LATEST                       "false" to add to the group without changing its latest
@@ -55,10 +55,18 @@ PUBLISH_STEPS = ("upload", "approve", "publish")
 PAGE_SIZE = 100
 VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 SLUG_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
-ENV_NAME_PATTERN = re.compile(r"pyqasm ([0-9]+\.[0-9]+\.[0-9]+)")
-# Besides pyqasm with every extra it declares on PyPI. Only pyqasm is pinned.
-# The venv starts empty, and Lab needs ipykernel in it to start the kernel.
-EXTRA_PACKAGES = ["ipykernel", "matplotlib"]
+# Matches "pyqasm (v1.3.0)" and the older "pyqasm 1.3.0", in any case.
+ENV_NAME_PATTERN = re.compile(r"pyqasm \(?v?([0-9]+\.[0-9]+\.[0-9]+)\)?", re.IGNORECASE)
+# pyqasm extras for developing pyqasm itself. They add about 50 packages (pytest,
+# pylint, mypy, sphinx, ...) that a Lab user never runs. Every other extra is installed.
+DEV_EXTRAS = {"test", "lint", "docs"}
+# Besides pyqasm. Only pyqasm is pinned. The venv starts empty, and Lab needs
+# ipykernel in it to start the kernel.
+EXTRA_PACKAGES = ["ipykernel"]
+# Default catalog logos. Lab also downloads the light one as the kernel icon, saved as PNG.
+LOGO_BASE_URL = "https://storage.googleapis.com/qbraid-static-assets/qbraid-docs/logos"
+LOGO_LIGHT_URL = f"{LOGO_BASE_URL}/pyqasm-light-no-text.png"
+LOGO_DARK_URL = f"{LOGO_BASE_URL}/pyqasm-dark-no-text.png"
 
 
 class Settings:  # pylint: disable=too-few-public-methods,too-many-instance-attributes
@@ -67,13 +75,14 @@ class Settings:  # pylint: disable=too-few-public-methods,too-many-instance-attr
     def __init__(self) -> None:
         self.version = os.getenv("VERSION", "")
         self.group = os.getenv("GROUP") or None
-        self.logo = os.getenv("LOGO") or "qbraid"
+        logo_url = os.getenv("LOGO_URL")
+        self.logo = {"light": logo_url or LOGO_LIGHT_URL, "dark": logo_url or LOGO_DARK_URL}
         self.stop_after = os.getenv("STOP_AFTER") or "publish"
         self.allow_existing = os.getenv("ALLOW_EXISTING", "").lower() == "true"
         self.set_latest = os.getenv("SET_LATEST", "true").lower() != "false"
         self.slug = os.getenv("SLUG") or None
-        self.name = f"pyqasm {self.version}"
-        self.kernel_name = f"Python 3 [pyqasm {self.version}]"
+        self.name = f"pyqasm (v{self.version})"
+        self.kernel_name = f"Python 3 [pyqasm v{self.version}]"
 
 
 def set_output(key: str, value: str) -> None:
@@ -142,8 +151,9 @@ def pypi_metadata(version: str) -> dict[str, Any]:
 
 
 def pyqasm_requirement(version: str) -> str:
-    """Return the pinned pyqasm requirement with every extra the release declares."""
-    extras = sorted(pypi_metadata(version)["info"].get("provides_extra") or [])
+    """Return the pinned pyqasm requirement with every user-facing extra the release declares."""
+    declared = pypi_metadata(version)["info"].get("provides_extra") or []
+    extras = sorted(set(declared) - DEV_EXTRAS)
     return f"pyqasm[{','.join(extras)}]=={version}" if extras else f"pyqasm=={version}"
 
 
@@ -153,6 +163,9 @@ def check_settings(settings: Settings) -> None:
         sys.exit("Set secret QBRAID_API_KEY and variable QBRAID_API_URL on the GitHub Environment.")
     if not VERSION_PATTERN.fullmatch(settings.version):
         sys.exit(f"version must look like x.y.z, got '{settings.version}'.")
+    for url in set(settings.logo.values()):
+        if not url.startswith("https://"):
+            sys.exit(f"LOGO_URL must be an https URL, got '{url}'.")
     if settings.slug and not SLUG_PATTERN.fullmatch(settings.slug):
         sys.exit(f"slug may hold only letters, digits, '_' and '-', got '{settings.slug}'.")
     if settings.stop_after not in PUBLISH_STEPS:
@@ -160,6 +173,18 @@ def check_settings(settings: Settings) -> None:
     if settings.stop_after == "publish" and not settings.group:
         sys.exit("The publish step needs a group. Set QBRAID_ENV_GROUP, or stop after approve.")
     print(f"Will install {pyqasm_requirement(settings.version)} and {', '.join(EXTRA_PACKAGES)}.")
+
+
+def check_logo_url(url: str) -> None:
+    """Exit unless the URL serves a PNG image. Lab saves kernel logos as PNG files."""
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:  # nosec B310 - https only
+            content_type = response.headers.get("Content-Type", "")
+    except urllib.error.URLError as err:
+        sys.exit(f"Could not fetch logo {url}: {err}")
+    if content_type.split(";")[0].strip() != "image/png":
+        sys.exit(f"Logo {url} must serve image/png, got '{content_type}'.")
+    print(f"Logo {url} serves {content_type}.")
 
 
 def preflight(settings: Settings) -> None:
@@ -186,11 +211,8 @@ def preflight(settings: Settings) -> None:
         print(f"Resuming '{settings.slug}' ({settings.name}).")
         return
 
-    # `qbraid envs create` only warns on an unknown logo, and the logo cannot change later.
-    try:
-        client.resolve_logos(settings.logo)
-    except Exception as err:  # pylint: disable=broad-exception-caught
-        sys.exit(f"Logo '{settings.logo}' did not resolve: {err}")
+    for url in sorted(set(settings.logo.values())):
+        check_logo_url(url)
 
     if settings.name in visible_env_names(client):
         if not settings.allow_existing:
@@ -206,6 +228,7 @@ def create(settings: Settings) -> None:
     """Create the environment with the qBraid CLI, then install pyqasm into it."""
     # pylint: disable=import-outside-toplevel
     from qbraid_core.services.environments import pip_install
+    from qbraid_core.services.environments.kernels import download_kernel_logo
     from qbraid_core.services.environments.registry import EnvironmentRegistryManager
 
     # pylint: enable=import-outside-toplevel
@@ -221,8 +244,6 @@ def create(settings: Settings) -> None:
             f"pyqasm {settings.version}: parse, validate and unroll OpenQASM 2 and 3 programs.",
             "--kernel-name",
             settings.kernel_name,
-            "--logo",
-            settings.logo,
             "--tags",
             f"pyqasm,openqasm,qasm3,py{sys.version_info.major}{sys.version_info.minor}",
             "--yes",
@@ -230,10 +251,24 @@ def create(settings: Settings) -> None:
         check=True,
     )
 
-    found = EnvironmentRegistryManager().find_by_name(settings.name)
+    registry = EnvironmentRegistryManager()
+    found = registry.find_by_name(settings.name)
     if found is None:
         sys.exit(f"No local environment named '{settings.name}' after create.")
     env_id, entry = found
+
+    # Upload sends the registry's logo URLs to the API, and Lab downloads the
+    # kernel icon from the API's light logo on install. The local kernel icon is set too.
+    registry.update_environment(env_id, logo_url=settings.logo)
+    kernels_dir = entry.path / "kernels"
+    for kernel_dir in kernels_dir.iterdir() if kernels_dir.is_dir() else []:
+        if not kernel_dir.is_dir():
+            continue
+        if not download_kernel_logo(settings.logo["light"], kernel_dir):
+            sys.exit(f"Could not download the kernel logo from {settings.logo['light']}.")
+        # create copies the Python logo-svg.svg, and JupyterLab shows it ahead of the PNGs.
+        (kernel_dir / "logo-svg.svg").unlink(missing_ok=True)
+    print(f"Logo set to {settings.logo}.")
 
     packages = [pyqasm_requirement(settings.version), *EXTRA_PACKAGES]
     print(f"Installing {', '.join(packages)} into {env_id}")
@@ -246,13 +281,21 @@ def create(settings: Settings) -> None:
     set_output("python", str(entry.path / "pyenv" / "bin" / "python"))
 
 
-def upload(env_id: str) -> None:
+def upload(settings: Settings, env_id: str) -> None:
     """Upload a local environment by env_id and output its new cloud slug."""
-    result = asyncio.run(env_client().upload_environment(env_id))
+    client = env_client()
+    result = asyncio.run(client.upload_environment(env_id))
     slug = result.get("slug")
     if not slug:
         sys.exit(f"Upload returned no slug: {result}")
     set_output("slug", slug)
+
+    logo = client.get_environment_by_slug(slug).get("logo") or {}
+    if {key: logo.get(key) for key in settings.logo} != settings.logo:
+        print(f"Logo after upload is {logo}; setting it to {settings.logo}.")
+        client.update_environment(
+            slug, logoLight=settings.logo["light"], logoDark=settings.logo["dark"]
+        )
 
 
 def review_status(client: Any, slug: str) -> str:
@@ -359,7 +402,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     elif args.command == "create":
         create(settings)
     elif args.command == "upload":
-        upload(args.env_id)
+        upload(settings, args.env_id)
     elif args.command == "publish":
         publish(settings, args.slug)
     else:
