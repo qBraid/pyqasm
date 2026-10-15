@@ -262,8 +262,12 @@ def create(settings: Settings) -> None:
     registry.update_environment(env_id, logo_url=settings.logo)
     kernels_dir = entry.path / "kernels"
     for kernel_dir in kernels_dir.iterdir() if kernels_dir.is_dir() else []:
-        if kernel_dir.is_dir() and not download_kernel_logo(settings.logo["light"], kernel_dir):
+        if not kernel_dir.is_dir():
+            continue
+        if not download_kernel_logo(settings.logo["light"], kernel_dir):
             sys.exit(f"Could not download the kernel logo from {settings.logo['light']}.")
+        # create copies the Python logo-svg.svg, and JupyterLab shows it ahead of the PNGs.
+        (kernel_dir / "logo-svg.svg").unlink(missing_ok=True)
     print(f"Logo set to {settings.logo}.")
 
     packages = [pyqasm_requirement(settings.version), *EXTRA_PACKAGES]
