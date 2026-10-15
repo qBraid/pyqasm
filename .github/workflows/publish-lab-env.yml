@@ -58,16 +58,17 @@ concurrency:
 permissions: {}
 
 env:
-  # The venv ships to Lab as built. Lab relinks it to its own Python of the same
-  # minor version, so the OS, architecture and Python here must match Lab.
-  LAB_PYTHON: "3.12"
+  # The venv ships to Lab as built, linked to the Python that created it. Lab runs
+  # Ubuntu 24.04 x86_64 with the system Python 3.12.3 at /usr/bin/python3.12, the
+  # same as the ubuntu-24.04 runner, so the link works in Lab unchanged.
+  LAB_PYTHON: /usr/bin/python3.12
   QBRAID_CLI_VERSION: "0.16.10"
   QBRAID_CORE_VERSION: "0.6.27"  # does the upload path rewriting and the publish calls
 
 jobs:
   publish:
     name: Build and publish on ${{ inputs.target }}
-    runs-on: ubuntu-22.04  # Lab runs Ubuntu 22.04 x86_64; newer runners can pick wheels Lab's glibc cannot load
+    runs-on: ubuntu-24.04  # match Lab's OS and glibc (2.39)
     environment: env-publish-${{ inputs.target }}
     timeout-minutes: 45
     permissions:
@@ -90,10 +91,8 @@ jobs:
       - name: Checkout PyQASM
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: ${{ env.LAB_PYTHON }}
+      - name: Use the system Python in a tool venv
+        run: '"$LAB_PYTHON" -m venv "$RUNNER_TEMP/tools" && echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"'
 
       - name: Install the qBraid CLI
         run: >-
