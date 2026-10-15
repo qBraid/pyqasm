@@ -19,6 +19,8 @@ Top-level entrypoint functions for pyqasm.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 from typing import TYPE_CHECKING
 
@@ -181,10 +183,15 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         # after include resolution, so an opaque in a vendor include is rewritten too
         program, opaque_gates = rewrite_opaque_declarations(program)
         try:
-            program = openqasm3.parse(program)
+            # openqasm3 writes ANTLR diagnostics to stderr and often raises
+            # QASM3ParsingError with an empty message; capture stderr for callers.
+            stderr_buf = io.StringIO()
+            with contextlib.redirect_stderr(stderr_buf):
+                program = openqasm3.parse(program)
         except (openqasm3.parser.QASM3ParsingError, AttributeError) as err:
             # openqasm3 can raise AttributeError on empty/whitespace-only input
-            raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
+            detail = str(err).strip() or stderr_buf.getvalue().strip()
+            raise ValidationError(f"Failed to parse OpenQASM string: {detail}") from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
     elif include_dir is not None:
