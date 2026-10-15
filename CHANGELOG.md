@@ -18,7 +18,7 @@ Types of changes:
 - Added the `Publish qBraid Lab environment` workflow (`publish-lab-env.yml`), run by hand for a released version. It builds an environment with pyqasm and every extra it declares on an Ubuntu 24.04 runner with the system Python 3.12, which matches Lab, and smoke tests it. Then it uploads and approves it on qBraid staging or production, and adds it to the configured group as its latest. A failed run can resume from its slug. Each target reads its API key and URL from the `env-publish-staging` or `env-publish-production` GitHub Environment. The steps live in `bin/publish_lab_env.py` and `bin/lab_env_smoke_test.py` ([#455](https://github.com/qBraid/pyqasm/pull/455)).
 
 ### Improved / Modified
-- Named the Lab environments that `publish-lab-env.yml` builds `pyqasm (vX.Y.Z)`, with kernel `Python 3 [pyqasm vX.Y.Z]`, to match the existing pyqasm environments. The rule that keeps a backport from becoming the group's latest reads both this and the older `pyqasm X.Y.Z` name.
+- Named the Lab environments that `publish-lab-env.yml` builds `pyqasm (vX.Y.Z)`, with kernel `Python 3 [pyqasm vX.Y.Z]`, to match the existing pyqasm environments. The rule that keeps a backport from becoming the group's latest reads both this and the older `pyqasm X.Y.Z` name ([#456](https://github.com/qBraid/pyqasm/pull/456)).
 
 ### Deprecated
 
