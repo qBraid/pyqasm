@@ -53,7 +53,8 @@ def test_incorrect_module_loading_file():
 
 def test_incorrect_module_loading_program():
     with pytest.raises(
-        TypeError, match="Input quantum program must be of type 'str' or 'openqasm3.ast.Program'."
+        TypeError,
+        match="Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.",
     ):
         loads(1)
 
@@ -68,6 +69,18 @@ def test_incorrect_module_dump():
 def test_incorrect_qasm_version():
     with pytest.raises(ValidationError, match=r"Unsupported OpenQASM version"):
         loads("OPENQASM 4.0;\n qubit q;")
+
+
+def test_loads_parse_error_includes_antlr_diagnostic():
+    """Parse failures should surface the ANTLR diagnostic in ValidationError."""
+    bad = "OPENQASM 3.0;\nqubit q;\nrx(pi / 2 q;\n"
+    with pytest.raises(ValidationError, match=r"no viable alternative|Failed to parse") as exc_info:
+        loads(bad)
+    msg = str(exc_info.value)
+    assert "Failed to parse OpenQASM string:" in msg
+    # must not be an empty reason after the colon
+    assert msg.rstrip() != "Failed to parse OpenQASM string:"
+    assert len(msg.split(":", 1)[-1].strip()) > 0
 
 
 def test_incorrect_module_unroll_raises_error():

@@ -24,6 +24,7 @@ Types of changes:
 
 ### Fixed
 - Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures. ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437))
+- Fixed parse failures producing `ValidationError` with an empty message. ANTLR diagnostics written to stderr are now included in the exception text. ([#452](https://github.com/qBraid/pyqasm/pull/452), [#436](https://github.com/qBraid/pyqasm/issues/436))
 
 ### Dependencies
 
