@@ -7,6 +7,7 @@ name: Publish qBraid Lab environment
 #   variable QBRAID_API_URL    e.g. https://api-v2-staging.qbraid.com/api/v1
 #   variable QBRAID_ENV_GROUP  group slug for pyqasm (required when stop_after is publish)
 #   variable QBRAID_ENV_LOGO   logo provider name (optional; default qbraid)
+#   variable QBRAID_ENV_LOGO_URL  https URL of a PNG logo (optional; overrides QBRAID_ENV_LOGO)
 # The steps live in bin/publish_lab_env.py and bin/lab_env_smoke_test.py.
 # The run approves directly, without a publish request. That skips the per-plan
 # publish quota and the email a request sends every platform admin.
@@ -81,6 +82,7 @@ jobs:
       COLUMNS: "200"
       GROUP: ${{ vars.QBRAID_ENV_GROUP }}
       LOGO: ${{ vars.QBRAID_ENV_LOGO }}
+      LOGO_URL: ${{ vars.QBRAID_ENV_LOGO_URL }}
       VERSION: ${{ inputs.version }}
       STOP_AFTER: ${{ inputs.stop_after }}
       ALLOW_EXISTING: ${{ inputs.allow_existing }}
