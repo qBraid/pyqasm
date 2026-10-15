@@ -15,7 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
-- Added the `Publish qBraid Lab environment` workflow (`publish-lab-env.yml`), run by hand for a released version. It builds a pyqasm environment on an Ubuntu 22.04 runner with Python 3.12, then uploads, requests, reviews and approves it on qBraid staging or production. Last, it adds the environment to the pyqasm group as the latest. Each target reads its API key and URL from the `env-publish-staging` or `env-publish-prod` GitHub Environment. `bin/publish_lab_env.py` drives the qBraid calls.
+- Added the `Publish qBraid Lab environment` workflow (`publish-lab-env.yml`), run by hand for a released version. It builds a pyqasm environment on an Ubuntu 22.04 runner with Python 3.12, then uploads, requests, reviews and approves it on qBraid staging or production. Last, it adds the environment to the pyqasm group as the latest. Each target reads its API key and URL from the `env-publish-staging` or `env-publish-prod` GitHub Environment. `bin/publish_lab_env.py` drives the qBraid calls ([#455](https://github.com/qBraid/pyqasm/pull/455)).
 
 ### Improved / Modified
 
