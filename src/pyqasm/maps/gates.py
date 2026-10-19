@@ -1284,6 +1284,8 @@ REV_CTRL_GATE_MAP = {
     "cu": "u",
     "cswap": "swap",
     "ccx": "cx",
+    "c3x": "ccx",
+    "c4x": "c3x",
 }
 
 CTRL_GATE_MAP = {
