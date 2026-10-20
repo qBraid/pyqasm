@@ -626,17 +626,14 @@ def test_negctrl_chain_on_multi_controlled_x():
 @pytest.mark.parametrize(
     "body, num_qubits",
     [
-        # c4x has no controlled form (c5x is not defined), so a further control
-        # cannot be resolved and must raise rather than silently mis-decompose.
+        # There is no c5x, so these go through the recursive multi-controlled X.
         ("ctrl @ c4x q[0], q[1], q[2], q[3], q[4], q[5];", 6),
         ("ctrl(5) @ x q[0], q[1], q[2], q[3], q[4], q[5];", 6),
     ],
 )
-def test_too_many_controls_raises(body, num_qubits):
-    """Control chains requiring an undefined gate raise a clear ValidationError."""
-    header = f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
-    with pytest.raises(ValidationError, match="controlled QASM operation"):
-        loads(header + body).unroll()
+def test_controls_beyond_c4x_realise_mcx(body, num_qubits):
+    """Control chains past c4x decompose to the exact MCX unitary."""
+    assert_unitary_equal(_unrolled_unitary(body, num_qubits), mcx_unitary(num_qubits))
 
 
 def test_inverse_of_unsupported_four_qubit_gate_raises():

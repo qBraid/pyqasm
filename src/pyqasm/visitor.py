@@ -1575,7 +1575,7 @@ class QasmVisitor:
                         )
                     ],
                     name=qasm3_ast.Identifier("p"),
-                    qubits=ctrls[0:1],  # type: ignore
+                    qubits=ctrls[-1:],  # type: ignore
                     arguments=[operation.argument],
                 ),  # type: ignore
                 inverse,
