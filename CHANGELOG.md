@@ -24,6 +24,8 @@ Types of changes:
 
 ### Fixed
 
+-   Fix missing semicolon for bare `extern` function calls (not assigned to a variable). Closes [#438](https://github.com/qBraid/pyqasm/issues/438).
+
 ### Dependencies
 
 ### Other
