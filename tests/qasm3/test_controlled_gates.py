@@ -229,3 +229,14 @@ def test_ctrl_unsupported_multi_qubit_gate_raises():
     )
     with pytest.raises(ValidationError, match="Unsupported controlled QASM operation: iswap"):
         module.unroll()
+
+
+@pytest.mark.parametrize("gate, num_qubits", [("ctrl(11) @ x", 12), ("ctrl(7) @ c4x", 12)])
+def test_ctrl_too_many_controls_raises(gate, num_qubits):
+    """Control counts past MAX_DECOMPOSED_CTRLS are rejected instead of unrolled."""
+    module = loads(
+        f'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
+        f"{gate} {_operands(num_qubits)};"
+    )
+    with pytest.raises(ValidationError, match="with 11 controls"):
+        module.unroll()

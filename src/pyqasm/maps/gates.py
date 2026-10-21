@@ -1389,6 +1389,11 @@ CTRL_BASE_GATE_MAP = {
 }
 
 
+# The ancilla-free decomposition triples in size with each control past four; ten controls
+# already unroll to ~7e5 gates.
+MAX_DECOMPOSED_CTRLS = 10
+
+
 def _mcx_gate(ctrls: list[IndexedIdentifier], target: IndexedIdentifier) -> list[QuantumGate]:
     """Implements an X gate controlled on any number of qubits, without relative phase."""
     if len(ctrls) == 1:
@@ -1479,6 +1484,11 @@ def _decomposed_ctrl_op(op_name: str, ctrl_count: int) -> tuple[Callable, int] |
     """
     base, implicit_ctrls = CTRL_BASE_GATE_MAP.get(op_name, (op_name, 0))
     num_ctrls = ctrl_count + implicit_ctrls
+    if num_ctrls > MAX_DECOMPOSED_CTRLS:
+        raise ValidationError(
+            f"Unsupported controlled QASM operation: {op_name} with {num_ctrls} controls "
+            f"(at most {MAX_DECOMPOSED_CTRLS} are supported)"
+        )
     if base == "swap":
         return (lambda *qubits: _mc_swap_gate(list(qubits[:-2]), *qubits[-2:])), num_ctrls + 2
     if base not in ONE_QUBIT_U_FORM_MAP:
