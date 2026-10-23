@@ -24,7 +24,7 @@ from openqasm3 import ast, parse
 
 from pyqasm.entrypoint import loads
 from pyqasm.maps.gates import CTRL_GATE_MAP, REV_CTRL_GATE_MAP
-from pyqasm.printer import _mpl_draw_gate, draw, mpl_draw
+from pyqasm.visualization import _mpl_draw_gate, draw, mpl_draw
 
 pytest.importorskip("matplotlib", reason="Matplotlib not installed.")
 
