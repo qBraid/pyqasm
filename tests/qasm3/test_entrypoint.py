@@ -20,9 +20,10 @@ Module containing unit tests for entrypoint functions.
 import os
 
 import pytest
+from openqasm3.parser import QASM3ParsingError
 
 from pyqasm.entrypoint import dump, dumps, load, loads
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import ValidationError, describe_parse_error
 from tests.utils import check_unrolled_qasm
 
 QASM_RESOURCES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "qasm")
@@ -81,6 +82,29 @@ def test_loads_empty_string_raises_validation_error():
     for program in ("", "   ", "\n\t"):
         with pytest.raises(ValidationError, match="Failed to parse OpenQASM string"):
             loads(program)
+
+
+@pytest.mark.parametrize(
+    "program, reason",
+    [
+        ("OPENQASM 3.0;\nqubit q;\nbox { x q; };\n", "syntax error near ';' at line 3, column 13"),
+        (
+            "OPENQASM 3.0;\nqubit q;\nh q",
+            "syntax error: unexpected end of program at line 3, column 4",
+        ),
+        ("OPENQASM 3.0;\nqubit q;\n# comment\n", "L3:C0: token recognition error at: '# '"),
+    ],
+)
+def test_loads_parse_error_names_location(program, reason):
+    """A syntax error names the offending token and its position instead of an empty reason."""
+    with pytest.raises(ValidationError) as excinfo:
+        loads(program)
+    assert str(excinfo.value) == f"Failed to parse OpenQASM string: {reason}"
+
+
+def test_describe_parse_error_without_token():
+    """An empty parse error with no ANTLR cause still gets a non-empty reason."""
+    assert describe_parse_error(QASM3ParsingError()) == "invalid OpenQASM syntax"
 
 
 def test_loads_header_only_module_ok():
