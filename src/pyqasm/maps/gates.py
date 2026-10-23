@@ -1297,7 +1297,6 @@ CTRL_GATE_MAP = {
     "rz": "crz",
     "p": "cp",
     "h": "ch",
-    "u": "cu",
     "swap": "cswap",
     "cx": "ccx",
     "ccx": "c3x",
@@ -1313,6 +1312,194 @@ CTRL_OP_ALIAS_MAP = {
     "toffoli": "ccx",
     "ccnot": "ccx",
 }
+
+
+_PI = CONSTANTS_MAP["pi"]
+
+# Each single-qubit gate as ``(theta, phi, lam, gamma)`` with gate = e^{i*gamma} U(theta, phi, lam),
+# matching the matrices the gates unroll to (x is Pauli X, as in Qiskit). ``ctrl @`` turns gamma
+# into a relative phase, so it must be exact, not just up to global phase.
+ONE_QUBIT_U_FORM_MAP: dict[str, Callable[..., tuple[float, float, float, float]]] = {
+    "id": lambda: (0, 0, 0, 0),
+    "x": lambda: (_PI, 0, _PI, 0),
+    "y": lambda: (_PI, _PI / 2, _PI / 2, 0),
+    "z": lambda: (0, 0, _PI, 0),
+    "h": lambda: (_PI / 2, 0, _PI, 0),
+    "s": lambda: (0, 0, _PI / 2, 0),
+    "sdg": lambda: (0, 0, -_PI / 2, 0),
+    "t": lambda: (0, 0, _PI / 4, 0),
+    "tdg": lambda: (0, 0, -_PI / 4, 0),
+    "sx": lambda: (_PI / 2, -_PI / 2, _PI / 2, _PI / 4),
+    "sxdg": lambda: (_PI / 2, _PI / 2, -_PI / 2, -_PI / 4),
+    "rx": lambda theta: (theta, -_PI / 2, _PI / 2, 0),
+    "ry": lambda theta: (theta, 0, 0, 0),
+    "rz": lambda theta: (0, 0, theta, -theta / 2),
+    "p": lambda lam: (0, 0, lam, 0),
+    # gamma is only passed when ``cu`` is lowered to ``ctrl @ U``
+    "U": lambda theta, phi, lam, gamma=0: (theta, phi, lam, gamma),
+    "u2": lambda phi, lam: (_PI / 2, phi, lam, 0),
+    "prx": lambda theta, phi: (theta, phi - _PI / 2, _PI / 2 - phi, 0),
+    "gpi": lambda phi: (_PI, phi, _PI - phi, 0),
+    "gpi2": lambda phi: (_PI / 2, phi - _PI / 2, _PI / 2 - phi, 0),
+}
+for _alias, _name in {
+    "not": "x",
+    "si": "sdg",
+    "ti": "tdg",
+    "v": "sx",
+    "vi": "sxdg",
+    "phaseshift": "p",
+    "u1": "p",
+    "U1": "p",
+    "u": "U",
+    "u3": "U",
+    "U3": "U",
+    "U2": "u2",
+}.items():
+    ONE_QUBIT_U_FORM_MAP[_alias] = ONE_QUBIT_U_FORM_MAP[_name]
+
+# Standard gates that are ``ctrl(n) @`` of a single-qubit gate or swap, as (base gate, n).
+CTRL_BASE_GATE_MAP = {
+    "cx": ("x", 1),
+    "CX": ("x", 1),
+    "cnot": ("x", 1),
+    "cy": ("y", 1),
+    "cz": ("z", 1),
+    "ch": ("h", 1),
+    "cs": ("s", 1),
+    "csdg": ("sdg", 1),
+    "csx": ("sx", 1),
+    "cv": ("sx", 1),
+    "crx": ("rx", 1),
+    "cry": ("ry", 1),
+    "crz": ("rz", 1),
+    "cp": ("p", 1),
+    "cphaseshift": ("p", 1),
+    "cu1": ("p", 1),
+    "cu3": ("U", 1),
+    "cu": ("U", 1),
+    "ccx": ("x", 2),
+    "toffoli": ("x", 2),
+    "ccnot": ("x", 2),
+    "c3x": ("x", 3),
+    "c4x": ("x", 4),
+    "c3sx": ("sx", 3),
+    "c3sqrtx": ("sx", 3),
+    "cswap": ("swap", 1),
+}
+
+
+# The ancilla-free decomposition triples in size with each control past four; ten controls
+# already unroll to ~7e5 gates.
+MAX_DECOMPOSED_CTRLS = 10
+
+
+def _mcx_gate(ctrls: list[IndexedIdentifier], target: IndexedIdentifier) -> list[QuantumGate]:
+    """Implements an X gate controlled on any number of qubits, without relative phase."""
+    if len(ctrls) == 1:
+        return two_qubit_gate_op("cx", ctrls[0], target)
+    if len(ctrls) <= 4:
+        mcx_gates: dict[int, Callable] = {2: ccx_gate_op, 3: c3x_gate, 4: c4x_gate}
+        return mcx_gates[len(ctrls)](*ctrls, target)
+    result = one_qubit_gate_op("h", target)
+    result.extend(_mc_phase_gate(_PI, ctrls, target))
+    result.extend(one_qubit_gate_op("h", target))
+    return result
+
+
+def _mc_phase_gate(
+    lam: float, ctrls: list[IndexedIdentifier], target: IndexedIdentifier
+) -> list[QuantumGate]:
+    """Implements a phase gate controlled on any number of qubits.
+
+    Recurses on the last control with half-angle controlled phases (Barenco et al. 1995,
+    Lemma 7.5), so it needs no ancillas.
+    """
+    if not ctrls:
+        return phaseshift_gate(lam, target)
+    if len(ctrls) == 1:
+        return cphaseshift_gate(lam, ctrls[0], target)
+    *rest, last = ctrls
+    result = cphaseshift_gate(lam / 2, last, target)
+    result.extend(_mcx_gate(rest, last))
+    result.extend(cphaseshift_gate(-lam / 2, last, target))
+    result.extend(_mcx_gate(rest, last))
+    result.extend(_mc_phase_gate(lam / 2, rest, target))
+    return result
+
+
+# pylint: disable-next=too-many-arguments
+def _mc_one_qubit_gate(
+    theta: float,
+    phi: float,
+    lam: float,
+    gamma: float,
+    ctrls: list[IndexedIdentifier],
+    target: IndexedIdentifier,
+) -> list[QuantumGate]:
+    """Implements e^{i*gamma} U(theta, phi, lam) controlled on one or more qubits.
+
+    Diagonal gates become a controlled phase; others use the ABC construction around two
+    multi-controlled X gates (Nielsen & Chuang, Corollary 4.2). The gate's overall phase is
+    applied as a phase on the last control, conditioned on the rest.
+    """
+    *rest, last = ctrls
+    result: list[QuantumGate] = []
+    if theta == 0:
+        alpha = gamma
+        if phi + lam:
+            result.extend(_mc_phase_gate(phi + lam, ctrls, target))
+    else:
+        alpha = gamma + (phi + lam) / 2
+
+        def rot(name: str, angle: float) -> list[QuantumGate]:
+            return one_qubit_rotation_op(name, angle, target) if angle else []
+
+        result.extend(rot("rz", (lam - phi) / 2))
+        result.extend(_mcx_gate(ctrls, target))
+        result.extend(rot("rz", -(phi + lam) / 2) + rot("ry", -theta / 2))
+        result.extend(_mcx_gate(ctrls, target))
+        result.extend(rot("ry", theta / 2) + rot("rz", phi))
+    if alpha:
+        result.extend(_mc_phase_gate(alpha, rest, last))
+    return result
+
+
+def _mc_swap_gate(
+    ctrls: list[IndexedIdentifier], qubit0: IndexedIdentifier, qubit1: IndexedIdentifier
+) -> list[QuantumGate]:
+    """Implements a swap gate controlled on any number of qubits."""
+    result = two_qubit_gate_op("cx", qubit1, qubit0)
+    result.extend(_mcx_gate([*ctrls, qubit0], qubit1))
+    result.extend(two_qubit_gate_op("cx", qubit1, qubit0))
+    return result
+
+
+def _decomposed_ctrl_op(op_name: str, ctrl_count: int) -> tuple[Callable, int] | None:
+    """Build ``ctrl(ctrl_count) @ op_name`` from its single-qubit (or swap) base gate.
+
+    Returns:
+        tuple | None: The callable (gate parameters, then qubits) and its total qubit count,
+        or None if the gate does not reduce to a supported base gate.
+    """
+    base, implicit_ctrls = CTRL_BASE_GATE_MAP.get(op_name, (op_name, 0))
+    num_ctrls = ctrl_count + implicit_ctrls
+    if num_ctrls > MAX_DECOMPOSED_CTRLS:
+        raise ValidationError(
+            f"Unsupported controlled QASM operation: {op_name} with {num_ctrls} controls "
+            f"(at most {MAX_DECOMPOSED_CTRLS} are supported)"
+        )
+    if base == "swap":
+        return (lambda *qubits: _mc_swap_gate(list(qubits[:-2]), *qubits[-2:])), num_ctrls + 2
+    if base not in ONE_QUBIT_U_FORM_MAP:
+        return None
+    u_form, num_qubits = ONE_QUBIT_U_FORM_MAP[base], num_ctrls + 1
+
+    def gate(*args) -> list[QuantumGate]:
+        params, qubits = args[:-num_qubits], args[-num_qubits:]
+        return _mc_one_qubit_gate(*u_form(*params), list(qubits[:-1]), qubits[-1])
+
+    return gate, num_qubits
 
 
 def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
@@ -1343,7 +1530,9 @@ def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
         if ctrl_op_name in FIVE_QUBIT_OP_MAP:
             return FIVE_QUBIT_OP_MAP[ctrl_op_name], 5
 
-    # TODO: decompose controls if not built in
+    decomposed = _decomposed_ctrl_op(op_name, ctrl_count)
+    if decomposed is not None:
+        return decomposed
     raise ValidationError(
         f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controls"
     )
