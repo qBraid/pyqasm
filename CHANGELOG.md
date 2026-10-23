@@ -32,6 +32,8 @@ Types of changes:
 - Fixed the matplotlib printer's controlled-gate lookup for `c3x` and `c4x` ([#458](https://github.com/qBraid/pyqasm/pull/458), [#322](https://github.com/qBraid/pyqasm/issues/322)).
 - Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures. ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437))
 
+-   Fix missing semicolon for bare `extern` function calls (not assigned to a variable). Closes [#438](https://github.com/qBraid/pyqasm/issues/438).
+
 ### Dependencies
 
 ### Other

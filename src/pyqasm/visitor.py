@@ -3531,7 +3531,16 @@ class QasmVisitor:
             list[Statement]: Statements produced while evaluating the expression.
         """
         _, statements = Qasm3ExprEvaluator.evaluate_expression(statement.expression)
-        return statements
+        # A bare function call used as a statement must be emitted as an expression
+        # statement so that the generated OpenQASM 3 is terminated with a semicolon.
+        return [
+            (
+                qasm3_ast.ExpressionStatement(expression=stmt)
+                if isinstance(stmt, qasm3_ast.FunctionCall)
+                else stmt
+            )
+            for stmt in statements
+        ]
 
     def _visit_end_statement(
         self, statement: qasm3_ast.EndStatement
