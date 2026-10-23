@@ -28,6 +28,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- `unroll()` now broadcasts a gate over register operands element by element, as the spec defines. `cx a, b` on two registers became `cx a[0], a[1]; cx b[0], b[1];` instead of `cx a[0], b[0]; cx a[1], b[1];`, and slices, aliases, subroutine register arguments and `ctrl @` did the same. A register beside single-qubit operands (`cx q, r[0]`) now repeats the single qubit instead of raising, and register operands of different lengths raise `ValidationError` ([#462](https://github.com/qBraid/pyqasm/pull/462), [#384](https://github.com/qBraid/pyqasm/issues/384)).
 - `loads()` syntax errors now name the offending token, line and column, e.g. `Failed to parse OpenQASM string: syntax error near ';' at line 3, column 13`. Before, the reason after the colon was empty ([#460](https://github.com/qBraid/pyqasm/pull/460)).
 - Fixed the matplotlib printer's controlled-gate lookup for `c3x` and `c4x` ([#458](https://github.com/qBraid/pyqasm/pull/458), [#322](https://github.com/qBraid/pyqasm/issues/322)).
 - Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures. ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437))
