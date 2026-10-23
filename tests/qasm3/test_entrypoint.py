@@ -22,8 +22,8 @@ import os
 import pytest
 from openqasm3.parser import QASM3ParsingError
 
-from pyqasm.entrypoint import _describe_parse_error, dump, dumps, load, loads
-from pyqasm.exceptions import ValidationError
+from pyqasm.entrypoint import dump, dumps, load, loads
+from pyqasm.exceptions import ValidationError, describe_parse_error
 from tests.utils import check_unrolled_qasm
 
 QASM_RESOURCES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "qasm")
@@ -104,7 +104,7 @@ def test_loads_parse_error_names_location(program, reason):
 
 def test_describe_parse_error_without_token():
     """An empty parse error with no ANTLR cause still gets a non-empty reason."""
-    assert _describe_parse_error(QASM3ParsingError()) == "invalid OpenQASM syntax"
+    assert describe_parse_error(QASM3ParsingError()) == "invalid OpenQASM syntax"
 
 
 def test_loads_header_only_module_ok():

@@ -135,3 +135,24 @@ def raise_qasm3_error(
     if raised_from:
         raise err_type(message) from raised_from
     raise err_type(message)
+
+
+def describe_parse_error(err: Exception) -> str:
+    """Describe an ``openqasm3`` parse failure, recovering the location it leaves out.
+
+    ``openqasm3.parse`` raises ``QASM3ParsingError()`` with no message for syntax errors and
+    keeps the offending ANTLR token on the chained ``ParseCancellationException``. Columns
+    are reported 1-based, as editors show them.
+    """
+    message = str(err)
+    if message:
+        return message
+    cause = err.__cause__
+    recognition = cause.args[0] if cause is not None and cause.args else None
+    token = getattr(recognition, "offendingToken", None)
+    if token is None:
+        return "invalid OpenQASM syntax"
+    where = f"at line {token.line}, column {token.column + 1}"
+    if token.text == "<EOF>":
+        return f"syntax error: unexpected end of program {where}"
+    return f"syntax error near '{token.text}' {where}"

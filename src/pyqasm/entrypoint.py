@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 import openqasm3
 
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import ValidationError, describe_parse_error
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
 from pyqasm.preprocess import (
@@ -90,27 +90,6 @@ def _validate_kwargs(kwargs: dict, func: str = "loads") -> None:
             raise TypeError(f"{func}() kwarg '{name}' must be a number, got {type(value).__name__}")
         if value <= 0:
             raise ValueError(f"{func}() kwarg '{name}' must be positive, got {value!r}")
-
-
-def _describe_parse_error(err: Exception) -> str:
-    """Describe an ``openqasm3`` parse failure, recovering the location it leaves out.
-
-    ``openqasm3.parse`` raises ``QASM3ParsingError()`` with no message for syntax errors and
-    keeps the offending ANTLR token on the chained ``ParseCancellationException``. Columns
-    are reported 1-based, as editors show them.
-    """
-    message = str(err)
-    if message:
-        return message
-    cause = err.__cause__
-    recognition = cause.args[0] if cause is not None and cause.args else None
-    token = getattr(recognition, "offendingToken", None)
-    if token is None:
-        return "invalid OpenQASM syntax"
-    where = f"at line {token.line}, column {token.column + 1}"
-    if token.text == "<EOF>":
-        return f"syntax error: unexpected end of program {where}"
-    return f"syntax error near '{token.text}' {where}"
 
 
 def load(filename: str, **kwargs) -> QasmModule:
@@ -206,7 +185,7 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         except (openqasm3.parser.QASM3ParsingError, AttributeError) as err:
             # openqasm3 can raise AttributeError on empty/whitespace-only input
             raise ValidationError(
-                f"Failed to parse OpenQASM string: {_describe_parse_error(err)}"
+                f"Failed to parse OpenQASM string: {describe_parse_error(err)}"
             ) from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
