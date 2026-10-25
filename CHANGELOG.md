@@ -28,6 +28,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed a `duration` initialized from arithmetic on a `stretch` operand, such as `duration b = a + s;` or `2 * s`, raising a bare `TypeError: unsupported operand type(s) for +: 'float' and 'NoneType'`. A `stretch` has no value until scheduling, so it now raises a `ValidationError` naming the variable ([#417](https://github.com/qBraid/pyqasm/pull/417), [#389](https://github.com/qBraid/pyqasm/issues/389)).
 - Fixed `rebase` failing on `ccx`, `id`, and the `p` gates produced by unrolling `c3x` for the `ROTATIONAL_CX` / `CLIFFORD_T` basis sets ([#468](https://github.com/qBraid/pyqasm/pull/468), [#467](https://github.com/qBraid/pyqasm/issues/467)).
 - `loads()` syntax errors now name the offending token, line and column, e.g. `Failed to parse OpenQASM string: syntax error near ';' at line 3, column 13`. Before, the reason after the colon was empty ([#460](https://github.com/qBraid/pyqasm/pull/460)).
 - Fixed the matplotlib printer's controlled-gate lookup for `c3x` and `c4x` ([#458](https://github.com/qBraid/pyqasm/pull/458), [#322](https://github.com/qBraid/pyqasm/issues/322)).
