@@ -33,8 +33,7 @@ source "$TEMP_ENV_DIR/bin/activate"
 
 # Install the necessary packages for building sdist
 # NOTE: project deps are not reqd as we are just making a source distribution
-python -m pip install --upgrade pip
-python -m pip install twine build tomli
+python -m pip install --require-hashes -r "$PROJECT_ROOT/.github/requirements/sdist.txt"
 
 python $PROJECT_ROOT/bin/write_version_file.py
 

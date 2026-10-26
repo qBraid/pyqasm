@@ -18,7 +18,7 @@ set -e
 
 echo "Running build_wheels.sh"
 
-python -m pip install cibuildwheel
+python -m pip install --require-hashes -r "$(dirname "$0")/../../.github/requirements/cibuildwheel.txt"
 python -m cibuildwheel --output-dir dist
 build_exit_code=$?
 

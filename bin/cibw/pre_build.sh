@@ -31,18 +31,15 @@ project=$1
 git reset --hard HEAD 
 git clean -xdf
 
-# Upgrade pip
-python -m pip install --upgrade pip
-
 # Install required packages
-pip install setuptools wheel cython tomli
+python -m pip install --require-hashes -r "$project/.github/requirements/pre-build.txt"
 
 # Test if we are running the build for pre-release version
 if [[ ${PRE_RELEASE_BUILD:-false} == "true" ]]; then
     echo "Running pre-release changes"
 
     # Install required packages
-    python -m pip install -U toml-cli qbraid-core
+    python -m pip install --require-hashes -r "$project/.github/requirements/pre-release.txt"
     deps_exit_code=$?
 
     if [ $deps_exit_code -ne 0 ]; then
