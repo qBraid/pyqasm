@@ -95,12 +95,12 @@ def test_unrolled_barrier_with_range():
     qubit[4] q;
     qubit[2] q2;
     barrier q[0:2];
-    barrier q2[0:2];
+    barrier q2[0:1];
     """
     expected_qasm = """OPENQASM 3.0;
     qubit[6] __PYQASM_QUBITS__;
     include "stdgates.inc";
-    barrier __PYQASM_QUBITS__[0], __PYQASM_QUBITS__[1];
+    barrier __PYQASM_QUBITS__[0], __PYQASM_QUBITS__[1], __PYQASM_QUBITS__[2];
     barrier __PYQASM_QUBITS__[4], __PYQASM_QUBITS__[5];
     """
     result = loads(qasm, device_qubits=6)
@@ -116,7 +116,7 @@ def test_measurement():
     bit[3] c;
     measure q2 -> c;
     c[0] = measure q[0];
-    c = measure q[:3];
+    c = measure q[:2];
     c = measure q2;
     measure q2[1] -> c[2];
     """

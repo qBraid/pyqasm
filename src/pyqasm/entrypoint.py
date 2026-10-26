@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 import openqasm3
 
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import ValidationError, describe_parse_error
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
 from pyqasm.preprocess import (
@@ -45,6 +45,7 @@ _LOADS_KWARG_ATTRS = {
     "frame_in_def_cal": "_frame_in_def_cal",
     "frame_limit_per_port": "_frame_limit_per_port",
     "play_in_cal_block": "_play_in_cal",
+    "compact_gate_arguments": "_compact_gate_arguments",
 }
 
 # kwargs consumed by the entrypoint itself rather than stored on the module
@@ -145,6 +146,10 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
 
             - **play_in_cal_block** (bool): Whether to allow play in defcal.
 
+            - **compact_gate_arguments** (bool): Print gate arguments without spaces around
+              '*', '/' and '**': ``rx(pi/2)`` instead of ``rx(pi / 2)``. Defaults to False.
+              Also settable later through ``module.compact_gate_arguments``.
+
             - **include_dir** (str): Directory holding the program's custom include files.
               A program given as a string has no filesystem location of its own, so this
               is the only way to resolve its includes. Omit it and custom includes are
@@ -177,8 +182,11 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         program, opaque_gates = rewrite_opaque_declarations(program)
         try:
             program = openqasm3.parse(program)
-        except openqasm3.parser.QASM3ParsingError as err:
-            raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
+        except (openqasm3.parser.QASM3ParsingError, AttributeError) as err:
+            # openqasm3 can raise AttributeError on empty/whitespace-only input
+            raise ValidationError(
+                f"Failed to parse OpenQASM string: {describe_parse_error(err)}"
+            ) from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
     elif include_dir is not None:

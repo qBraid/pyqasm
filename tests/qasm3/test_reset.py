@@ -53,6 +53,7 @@ def test_reset_operations():
     reset q3[2];
     reset q3[0];
     reset q3[1];
+    reset q3[2];
     """
 
     result = loads(qasm3_string)

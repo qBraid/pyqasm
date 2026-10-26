@@ -212,6 +212,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._frame_in_def_cal: Optional[bool] = True
         self._frame_limit_per_port: Optional[int] = None
         self._play_in_cal: Optional[bool] = True
+        self._compact_gate_arguments: bool = False
 
     @property
     def name(self) -> str:
@@ -266,6 +267,20 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         """
         self._classical_registers[reg_name] = num_clbits
         self._num_clbits += num_clbits
+
+    @property
+    def compact_gate_arguments(self) -> bool:
+        """Whether printing drops the spaces around '*', '/' and '**' in gate arguments.
+
+        When true, the module prints ``rx(pi/2)`` instead of ``rx(pi / 2)``. Some vendors
+        (e.g. Diraq) match rotation angles textually and only accept the compact spelling.
+        """
+        return self._compact_gate_arguments
+
+    @compact_gate_arguments.setter
+    def compact_gate_arguments(self, value: bool) -> None:
+        """Set whether printing drops the spaces around '*', '/' and '**' in gate arguments."""
+        self._compact_gate_arguments = value
 
     @property
     def original_program(self) -> Program:

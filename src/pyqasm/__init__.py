@@ -65,7 +65,7 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover
 from .entrypoint import dump, dumps, load, loads
 from .exceptions import LoopLimitExceededError, PyQasmError, QasmParsingError, ValidationError
 from .modules import Qasm2Module, Qasm3Module, QasmModule
-from .printer import draw
+from .visualization import draw
 
 __all__ = [
     "PyQasmError",

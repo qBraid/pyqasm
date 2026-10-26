@@ -91,7 +91,7 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Install Python
         uses: actions/setup-python@v7
@@ -111,7 +111,7 @@ jobs:
         run: bash bin/cibw/build_wheels.sh
 
       - name: Upload built wheels
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
           path: dist/*.whl
@@ -122,7 +122,7 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Install Python
         uses: actions/setup-python@v7
@@ -138,7 +138,7 @@ jobs:
         run: bash bin/test_sdist.sh
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with: 
           name: package-sdist
           path: dist/*.tar.gz
@@ -154,7 +154,7 @@ jobs:
 
     steps:
       - name: Checkout PyQASM
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
     
       - name: Download artifacts 
         uses: actions/download-artifact@v8
@@ -168,3 +168,24 @@ jobs:
 
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  notify-docs:
+    name: Tell qBraid/docs about the release
+    # Bumps versions.json in qBraid/docs so docs for this release move into the
+    # Stable docs. Never fails the release.
+    needs: pypi-publish
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions: {}  # GITHUB_TOKEN is unused: gh authenticates with DOCS_DISPATCH_TOKEN
+    steps:
+      - name: Send package-released event
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+          PKG: pyqasm
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "DOCS_DISPATCH_TOKEN is not set; skipping"; exit 0; fi
+          sleep 60 # PyPI's JSON API can trail the upload briefly
+          VERSION=$(curl -fsSL "https://pypi.org/pypi/${PKG}/json" | jq -r .info.version)
+          echo "Notifying qBraid/docs: ${PKG} ${VERSION}"
+          gh api repos/qBraid/docs/dispatches -f event_type=package-released \
+            -f "client_payload[package]=${PKG}" -f "client_payload[version]=${VERSION}"

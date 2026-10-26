@@ -1033,6 +1033,12 @@ TWO_QUBIT_OP_MAP = {
     "CX": lambda qubit_id1, qubit_id2: two_qubit_gate_op("cx", qubit_id1, qubit_id2),
     "cnot": lambda qubit_id1, qubit_id2: two_qubit_gate_op("cx", qubit_id1, qubit_id2),
     "cz": lambda qubit_id1, qubit_id2: two_qubit_gate_op("cz", qubit_id1, qubit_id2),
+    "cs": lambda qubit_id1, qubit_id2: cphaseshift_gate(
+        CONSTANTS_MAP["pi"] / 2, qubit_id1, qubit_id2
+    ),
+    "csdg": lambda qubit_id1, qubit_id2: cphaseshift_gate(
+        -CONSTANTS_MAP["pi"] / 2, qubit_id1, qubit_id2
+    ),
     "swap": lambda qubit_id1, qubit_id2: two_qubit_gate_op("swap", qubit_id1, qubit_id2),
     "cv": csx_gate,
     "cy": cy_gate,
@@ -1278,6 +1284,8 @@ REV_CTRL_GATE_MAP = {
     "cu": "u",
     "cswap": "swap",
     "ccx": "cx",
+    "c3x": "ccx",
+    "c4x": "c3x",
 }
 
 CTRL_GATE_MAP = {

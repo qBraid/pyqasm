@@ -67,7 +67,7 @@ def _generate_one_qubit_fixture(gate_name: str):
         qubit[2] q;
         {gate_name} q;
         {gate_name} q[0];
-        {gate_name} q[0:2];
+        {gate_name} q[0:1];
         """
         return qasm3_string
 
@@ -245,6 +245,8 @@ already_tested_double_op = [
     "yy",
     "zz",
     "csx",
+    "cs",
+    "csdg",
     "pswap",
     "cp",
     "cp00",
@@ -394,7 +396,7 @@ CUSTOM_GATE_INCORRECT_TESTS = {
         "Unsupported / undeclared QASM operation: custom_gate",
         6,
         8,
-        "custom_gate q1[0], q1[1];",  # expanded line
+        "custom_gate q1;",
     ),
     "parameter_mismatch_1": (
         """
