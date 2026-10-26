@@ -25,6 +25,7 @@ Types of changes:
 ### Fixed
 
 ### Dependencies
+- Bumped `actions/upload-artifact` from 4.6.2 to 7.0.2 in `scorecard.yml`, and pinned the other workflows to 7.0.2 instead of the `v7` major tag. ([#453](https://github.com/qBraid/pyqasm/pull/453))
 
 ### Other
 
