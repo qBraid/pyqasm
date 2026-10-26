@@ -20,9 +20,11 @@ import os
 import unittest.mock
 
 import pytest
+from openqasm3 import ast, parse
 
 from pyqasm.entrypoint import loads
-from pyqasm.printer import draw, mpl_draw
+from pyqasm.maps.gates import CTRL_GATE_MAP, REV_CTRL_GATE_MAP
+from pyqasm.visualization import _mpl_draw_gate, draw, mpl_draw
 
 pytest.importorskip("matplotlib", reason="Matplotlib not installed.")
 
@@ -57,6 +59,33 @@ def test_draw_qasm3_simple():
     circ = loads(qasm)
     fig = mpl_draw(circ)
     _check_fig(circ, fig)
+
+
+def test_reverse_control_gate_map_matches_control_gate_map():
+    """Every controlled gate maps back to the gate it controls."""
+    assert REV_CTRL_GATE_MAP == {controlled: base for base, controlled in CTRL_GATE_MAP.items()}
+
+
+@pytest.mark.parametrize("gate_name,num_controls", [("c3x", 3), ("c4x", 4)])
+def test_draw_multi_controlled_x(gate_name, num_controls):
+    """Draw c3x and c4x circuits and their intact gates through the printer."""
+    import matplotlib.pyplot as plt  # pylint: disable=import-outside-toplevel
+
+    qubits = ", ".join(f"q[{i}]" for i in range(num_controls + 1))
+    qasm = f"OPENQASM 3.0; qubit[{num_controls + 1}] q; {gate_name} {qubits};"
+    fig = mpl_draw(qasm)
+    _check_fig(None, fig)
+
+    # mpl_draw unrolls the circuit, so exercise its gate renderer with the original gate too.
+    gate = next(stmt for stmt in parse(qasm).statements if isinstance(stmt, ast.QuantumGate))
+    fig, ax = plt.subplots()
+    try:
+        _mpl_draw_gate(gate, [], list(range(num_controls + 1)), ax, 0)
+        assert gate.name.name == "x"
+        assert len(ax.lines) == num_controls
+        assert [label.get_text() for label in ax.texts] == ["X"]
+    finally:
+        plt.close(fig)
 
 
 def test_draw_qasm3_pragma():

@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 import openqasm3
 
-from pyqasm.exceptions import ValidationError
+from pyqasm.exceptions import ValidationError, describe_parse_error
 from pyqasm.maps import SUPPORTED_QASM_VERSIONS
 from pyqasm.modules import Qasm2Module, Qasm3Module, QasmModule
 from pyqasm.preprocess import (
@@ -182,8 +182,11 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         program, opaque_gates = rewrite_opaque_declarations(program)
         try:
             program = openqasm3.parse(program)
-        except openqasm3.parser.QASM3ParsingError as err:
-            raise ValidationError(f"Failed to parse OpenQASM string: {err}") from err
+        except (openqasm3.parser.QASM3ParsingError, AttributeError) as err:
+            # openqasm3 can raise AttributeError on empty/whitespace-only input
+            raise ValidationError(
+                f"Failed to parse OpenQASM string: {describe_parse_error(err)}"
+            ) from err
     elif not isinstance(program, openqasm3.ast.Program):
         raise TypeError("Input quantum program must be of type 'str' or 'openqasm3.ast.Program'.")
     elif include_dir is not None:
