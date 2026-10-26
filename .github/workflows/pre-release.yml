@@ -3,6 +3,9 @@ name: Pre-release to PyPI
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build_wheels:
     runs-on: ${{ matrix.os }}

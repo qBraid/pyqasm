@@ -16,6 +16,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 # Reference: https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows
 jobs:
   # Wheels published to PyPI are built by release.yml / pre-release.yml, which

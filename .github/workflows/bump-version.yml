@@ -13,6 +13,8 @@ on:
           - patch
         default: 'patch'
 
+permissions: {}
+
 jobs:
   bump-version:
     runs-on: ubuntu-latest
