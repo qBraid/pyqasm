@@ -38,6 +38,7 @@ Types of changes:
 - Bumped `ossf/scorecard-action` from 2.4.4 to 2.5.0. ([#457](https://github.com/qBraid/pyqasm/pull/457))
 
 ### Other
+- Hardened the GitHub Actions workflows for the OpenSSF Scorecard and CodeQL alerts. Every action is pinned to a commit SHA. Every workflow declares least-privilege `GITHUB_TOKEN` permissions. Workflow tools install from hash-locked files in `.github/requirements/`. A grouped weekly Dependabot PR updates them. The `pr-compliance.yml` job no longer checks out the repository ([#463](https://github.com/qBraid/pyqasm/pull/463)).
 
 ## Past Release Notes
 
