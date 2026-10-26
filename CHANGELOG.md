@@ -33,6 +33,7 @@ Types of changes:
 - Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures. ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437))
 
 ### Dependencies
+- Bumped `ossf/scorecard-action` from 2.4.4 to 2.5.0. ([#457](https://github.com/qBraid/pyqasm/pull/457))
 
 ### Other
 
