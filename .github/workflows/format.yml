@@ -22,8 +22,7 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install tox>=4.2.0
+          python3 -m pip install --require-hashes -r .github/requirements/tox.txt
       - name: Check isort, black, mypy, pylint, headers
         run: |
           tox -e format-check
