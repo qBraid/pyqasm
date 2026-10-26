@@ -1,0 +1,3 @@
+# qbraid-core does the upload path rewriting and the publish calls.
+qbraid-cli[envs]==0.16.10
+qbraid-core[environments]==0.6.27
