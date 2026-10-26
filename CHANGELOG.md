@@ -38,6 +38,7 @@ Types of changes:
 - Bumped `ossf/scorecard-action` from 2.4.4 to 2.5.0. ([#457](https://github.com/qBraid/pyqasm/pull/457))
 
 ### Other
+- `lab-env-tools.in` sets minimum versions for qbraid-cli and qbraid-core instead of exact ones, so Dependabot's weekly `uv` update can raise them together. Its exact pins made that update fail. `lab-env-tools.txt` still installs qbraid-cli 0.16.10 and qbraid-core 0.6.27 ([#465](https://github.com/qBraid/pyqasm/pull/465)).
 - Hardened the GitHub Actions workflows for the OpenSSF Scorecard and CodeQL alerts. Every action is pinned to a commit SHA. Every workflow declares least-privilege `GITHUB_TOKEN` permissions. Workflow tools install from hash-locked files in `.github/requirements/`. A grouped weekly Dependabot PR updates them. The `pr-compliance.yml` job no longer checks out the repository ([#463](https://github.com/qBraid/pyqasm/pull/463)).
 
 ## Past Release Notes
