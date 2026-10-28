@@ -29,13 +29,20 @@ Types of changes:
 
 ### Fixed
 - `unroll()` now broadcasts a gate over register operands element by element, as the spec defines. `cx a, b` on two registers became `cx a[0], a[1]; cx b[0], b[1];` instead of `cx a[0], b[0]; cx a[1], b[1];`, and slices, aliases, subroutine register arguments and `ctrl @` did the same. A register beside single-qubit operands (`cx q, r[0]`) now repeats the single qubit instead of raising, and register operands of different lengths raise `ValidationError` ([#462](https://github.com/qBraid/pyqasm/pull/462), [#384](https://github.com/qBraid/pyqasm/issues/384)).
+- Fixed `rebase` failing on `ccx`, `id`, and the `p` gates produced by unrolling `c3x` for the `ROTATIONAL_CX` / `CLIFFORD_T` basis sets ([#468](https://github.com/qBraid/pyqasm/pull/468), [#467](https://github.com/qBraid/pyqasm/issues/467)).
 - `loads()` syntax errors now name the offending token, line and column, e.g. `Failed to parse OpenQASM string: syntax error near ';' at line 3, column 13`. Before, the reason after the colon was empty ([#460](https://github.com/qBraid/pyqasm/pull/460)).
 - Fixed the matplotlib printer's controlled-gate lookup for `c3x` and `c4x` ([#458](https://github.com/qBraid/pyqasm/pull/458), [#322](https://github.com/qBraid/pyqasm/issues/322)).
 - Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures. ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437))
 
 ### Dependencies
+- Bumped `github/codeql-action/upload-sarif` from 3.37.8 to 4.38.1. ([#431](https://github.com/qBraid/pyqasm/pull/431))
+- Bumped `actions/upload-artifact` from 4.6.2 to 7.0.2 in `scorecard.yml`, and pinned the other workflows to 7.0.2 instead of the `v7` major tag. ([#453](https://github.com/qBraid/pyqasm/pull/453))
+- Bumped `ossf/scorecard-action` from 2.4.4 to 2.5.0. ([#457](https://github.com/qBraid/pyqasm/pull/457))
 
 ### Other
+- The wheel and sdist build scripts in `bin/` install their tools from hash-locked files in `.github/requirements/`, which pin the versions CI used before. This clears the last six Scorecard Pinned-Dependencies alerts on the scripts ([#466](https://github.com/qBraid/pyqasm/pull/466)).
+- `lab-env-tools.in` sets minimum versions for qbraid-cli and qbraid-core instead of exact ones, so Dependabot's weekly `uv` update can raise them together. Its exact pins made that update fail. `lab-env-tools.txt` still installs qbraid-cli 0.16.10 and qbraid-core 0.6.27 ([#465](https://github.com/qBraid/pyqasm/pull/465)).
+- Hardened the GitHub Actions workflows for the OpenSSF Scorecard and CodeQL alerts. Every action is pinned to a commit SHA. Every workflow declares least-privilege `GITHUB_TOKEN` permissions. Workflow tools install from hash-locked files in `.github/requirements/`. A grouped weekly Dependabot PR updates them. The `pr-compliance.yml` job no longer checks out the repository ([#463](https://github.com/qBraid/pyqasm/pull/463)).
 
 ## Past Release Notes
 
