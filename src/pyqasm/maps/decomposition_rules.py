@@ -25,8 +25,9 @@ from pyqasm.maps.expressions import CONSTANTS_MAP
 class AppliedQubit(Enum):
     """Enum to represent the qubits that are involved in the decomposition of a gate."""
 
-    QUBIT1 = 0  # Control qubit
-    QUBIT2 = 1  # Target qubit
+    QUBIT1 = 0
+    QUBIT2 = 1
+    QUBIT3 = 2
 
 
 # Decomposition rules for the gates in the basis sets.
@@ -37,12 +38,13 @@ class AppliedQubit(Enum):
 #     - gate: The name of the gate to be applied.
 #     - param: The parameter of the gate.
 #     - target_bit: The target qubit of the gate.
-#                   This key is only used for decomposition of gates that operate on two qubits.
+#                   This key is only used for decomposition of multi-qubit gates.
 #     - controll_bit: The control qubit of the gate.
-#                   This key is only used for gates that operate on two qubits.
+#                   This key is only used for multi-qubit gates.
 #
 DECOMPOSITION_RULES = {
     BasisSet.ROTATIONAL_CX: {
+        "id": [],
         "x": [{"gate": "rx", "param": CONSTANTS_MAP["pi"]}],
         "y": [{"gate": "ry", "param": CONSTANTS_MAP["pi"]}],
         "z": [{"gate": "rz", "param": CONSTANTS_MAP["pi"]}],
@@ -67,8 +69,28 @@ DECOMPOSITION_RULES = {
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT1},
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
         ],
+        "ccx": [
+            {"gate": "ry", "param": CONSTANTS_MAP["pi"] / 2, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "rx", "param": CONSTANTS_MAP["pi"], "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "rz", "param": -CONSTANTS_MAP["pi"] / 4, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "rz", "param": CONSTANTS_MAP["pi"] / 4, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "rz", "param": -CONSTANTS_MAP["pi"] / 4, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "rz", "param": CONSTANTS_MAP["pi"] / 4, "target_bit": AppliedQubit.QUBIT2},
+            {"gate": "rz", "param": CONSTANTS_MAP["pi"] / 4, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "ry", "param": CONSTANTS_MAP["pi"] / 2, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "rx", "param": CONSTANTS_MAP["pi"], "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
+            {"gate": "rz", "param": CONSTANTS_MAP["pi"] / 4, "target_bit": AppliedQubit.QUBIT1},
+            {"gate": "rz", "param": -CONSTANTS_MAP["pi"] / 4, "target_bit": AppliedQubit.QUBIT2},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
+        ],
     },
     BasisSet.CLIFFORD_T: {
+        "id": [],
         "x": [{"gate": "h"}, {"gate": "s"}, {"gate": "s"}, {"gate": "h"}],
         "y": [
             {"gate": "s"},
@@ -96,6 +118,23 @@ DECOMPOSITION_RULES = {
         "swap": [
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT1},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
+        ],
+        "ccx": [
+            {"gate": "h", "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "tdg", "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "t", "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT2, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "tdg", "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "t", "target_bit": AppliedQubit.QUBIT2},
+            {"gate": "t", "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "h", "target_bit": AppliedQubit.QUBIT3},
+            {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
+            {"gate": "t", "target_bit": AppliedQubit.QUBIT1},
+            {"gate": "tdg", "target_bit": AppliedQubit.QUBIT2},
             {"gate": "cx", "controll_bit": AppliedQubit.QUBIT1, "target_bit": AppliedQubit.QUBIT2},
         ],
     },
