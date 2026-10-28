@@ -636,18 +636,6 @@ def test_controls_beyond_c4x_realise_mcx(body, num_qubits):
     assert_unitary_equal(_unrolled_unitary(body, num_qubits), mcx_unitary(num_qubits))
 
 
-def test_inverse_of_unsupported_four_qubit_gate_raises():
-    """c3sx has no inverse decomposition; inv @ c3sx must fail loudly, not silently."""
-    qasm3_string = """
-    OPENQASM 3;
-    include "stdgates.inc";
-    qubit[4] q;
-    inv @ c3sx q[0], q[1], q[2], q[3];
-    """
-    with pytest.raises(ValidationError, match="Unsupported / undeclared QASM operation"):
-        loads(qasm3_string).unroll()
-
-
 def test_negctrl_gate_modifier():
     qasm3_string = """
     OPENQASM 3.0;

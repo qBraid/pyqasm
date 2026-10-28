@@ -67,6 +67,7 @@ from pyqasm.maps.expressions import (
 from pyqasm.maps.gates import (
     fresh_qubits,
     map_qasm_ctrl_op_to_callable,
+    map_qasm_inv_ctrl_op_to_callable,
     map_qasm_inv_op_to_callable,
     map_qasm_op_num_params,
     map_qasm_op_to_callable,
@@ -1218,7 +1219,14 @@ class QasmVisitor:
         if ctrls is None:
             ctrls = []
 
-        if not inverse:
+        inverse_ctrl_op = (
+            map_qasm_inv_ctrl_op_to_callable(operation.name.name, len(ctrls)) if inverse else None
+        )
+        if inverse_ctrl_op is not None:
+            qasm_func, op_qubit_total_count = inverse_ctrl_op
+            op_qubit_count = op_qubit_total_count - len(ctrls)
+            inverse = False
+        elif not inverse:
             if len(ctrls) > 0:
                 qasm_func, op_qubit_total_count = map_qasm_ctrl_op_to_callable(
                     operation.name.name, len(ctrls)

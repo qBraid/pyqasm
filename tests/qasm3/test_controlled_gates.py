@@ -158,6 +158,7 @@ def test_ctrl_beyond_four_controls(gate):
         ("swap", 2, _SWAP),
         ("cswap", 1, _controlled(_SWAP, 1)),
         ("c3sx", 1, _controlled(_SX, 3)),
+        ("c4x", 1, _controlled(_X, 4)),
     ],
 )
 def test_ctrl_controlled_standard_gate_is_exact(gate, num_ctrls, matrix):
@@ -213,6 +214,37 @@ def test_ctrl_combined_with_other_modifiers(body, matrix):
     assert_unitary_equal(_unrolled_unitary(body, 2), matrix)
 
 
+_CU = np.exp(1.1j) * _u(*ANGLES[:3])
+
+
+@pytest.mark.parametrize(
+    "body, num_qubits, matrix",
+    [
+        ("inv @ ctrl(2) @ U(0.3, 0.5, 0.7)", 3, _controlled(_u(*ANGLES[:3]).conj().T, 2)),
+        ("pow(-1) @ ctrl(2) @ U(0.3, 0.5, 0.7)", 3, _controlled(_u(*ANGLES[:3]).conj().T, 2)),
+        ("inv @ ctrl @ U(0.3, 0.5, 0.7)", 2, _controlled(_u(*ANGLES[:3]).conj().T, 1)),
+        ("inv @ ctrl(3) @ u2(0.5, 0.7)", 4, _controlled(_u(np.pi / 2, 0.5, 0.7).conj().T, 3)),
+        ("inv @ ctrl(2) @ cs", 4, _controlled(_p(-np.pi / 2), 3)),
+        ("inv @ cs", 2, _controlled(_p(-np.pi / 2), 1)),
+        ("inv @ crx(0.3)", 2, _controlled(_rx(-0.3), 1)),
+        ("inv @ cu(0.3, 0.5, 0.7, 1.1)", 2, _controlled(_CU.conj().T, 1)),
+        ("inv @ ctrl @ cu(0.3, 0.5, 0.7, 1.1)", 3, _controlled(_CU.conj().T, 2)),
+        ("inv @ ctrl(2) @ sx", 3, _controlled(_SX.conj().T, 2)),
+        ("inv @ c3sx", 4, _controlled(_SX.conj().T, 3)),
+        ("inv @ ctrl(2) @ rz(0.3)", 3, _controlled(np.diag([np.exp(0.15j), np.exp(-0.15j)]), 2)),
+    ],
+)
+def test_inv_ctrl_is_exact(body, num_qubits, matrix):
+    """inv over a controlled gate keeps the relative phase between control states."""
+    assert_unitary_equal(_unrolled_unitary(f"{body} {_operands(num_qubits)};", num_qubits), matrix)
+
+
+def test_inv_ctrl_custom_gate_built_from_u():
+    """Qiskit exports controlled gates as custom gates built from U; inv must stay exact."""
+    body = "gate mu a { U(0.3, 0.5, 0.7) a; }\ninv @ ctrl(2) @ mu q[0], q[1], q[2];"
+    assert_unitary_equal(_unrolled_unitary(body, 3), _controlled(_u(*ANGLES[:3]).conj().T, 2))
+
+
 def test_negctrl_one_qubit_gate():
     """negctrl @ tdg applies the gate when the control is |0>."""
     x_on_ctrl = np.kron(np.eye(2), _X)
@@ -222,12 +254,19 @@ def test_negctrl_one_qubit_gate():
     )
 
 
-def test_ctrl_unsupported_multi_qubit_gate_raises():
-    """Gates that do not reduce to a single-qubit or swap base are still rejected."""
+@pytest.mark.parametrize("num_ctrls", [1, 11])
+def test_ctrl_unsupported_multi_qubit_gate_raises(num_ctrls):
+    """Gates that do not reduce to a single-qubit or swap base are still rejected, without
+    blaming the control count."""
+    num_qubits = num_ctrls + 2
     module = loads(
-        'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[3] q;\nctrl @ iswap q[0], q[1], q[2];'
+        f'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
+        f"ctrl({num_ctrls}) @ iswap {_operands(num_qubits)};"
     )
-    with pytest.raises(ValidationError, match="Unsupported controlled QASM operation: iswap"):
+    with pytest.raises(
+        ValidationError,
+        match=rf"Unsupported controlled QASM operation: iswap with {num_ctrls} controls$",
+    ):
         module.unroll()
 
 

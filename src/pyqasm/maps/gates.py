@@ -1475,14 +1475,18 @@ def _mc_swap_gate(
     return result
 
 
-def _decomposed_ctrl_op(op_name: str, ctrl_count: int) -> tuple[Callable, int] | None:
-    """Build ``ctrl(ctrl_count) @ op_name`` from its single-qubit (or swap) base gate.
+def _decomposed_ctrl_op(
+    op_name: str, ctrl_count: int, inverse: bool = False
+) -> tuple[Callable, int] | None:
+    """Build ``ctrl(ctrl_count) @ op_name`` (or its inverse) from its single-qubit or swap base.
 
     Returns:
         tuple | None: The callable (gate parameters, then qubits) and its total qubit count,
         or None if the gate does not reduce to a supported base gate.
     """
     base, implicit_ctrls = CTRL_BASE_GATE_MAP.get(op_name, (op_name, 0))
+    if base != "swap" and base not in ONE_QUBIT_U_FORM_MAP:
+        return None
     num_ctrls = ctrl_count + implicit_ctrls
     if num_ctrls > MAX_DECOMPOSED_CTRLS:
         raise ValidationError(
@@ -1491,15 +1495,36 @@ def _decomposed_ctrl_op(op_name: str, ctrl_count: int) -> tuple[Callable, int] |
         )
     if base == "swap":
         return (lambda *qubits: _mc_swap_gate(list(qubits[:-2]), *qubits[-2:])), num_ctrls + 2
-    if base not in ONE_QUBIT_U_FORM_MAP:
-        return None
     u_form, num_qubits = ONE_QUBIT_U_FORM_MAP[base], num_ctrls + 1
 
     def gate(*args) -> list[QuantumGate]:
         params, qubits = args[:-num_qubits], args[-num_qubits:]
-        return _mc_one_qubit_gate(*u_form(*params), list(qubits[:-1]), qubits[-1])
+        theta, phi, lam, gamma = u_form(*params)
+        if inverse:
+            # (e^{i*gamma} U(theta, phi, lam))^dagger = e^{-i*gamma} U(-theta, -lam, -phi)
+            theta, phi, lam, gamma = -theta, -lam, -phi, -gamma
+        return _mc_one_qubit_gate(theta, phi, lam, gamma, list(qubits[:-1]), qubits[-1])
 
     return gate, num_qubits
+
+
+def map_qasm_inv_ctrl_op_to_callable(op_name: str, ctrl_count: int) -> tuple[Callable, int] | None:
+    """Map ``inv @ ctrl(ctrl_count) @ op_name`` to a callable, when inverting piecewise is wrong.
+
+    Inverting a gate's decomposition and then controlling each piece turns any global phase
+    of the pieces into a relative phase, and two-qubit controlled gates are not inverted at
+    all on that path. Returns None for the gates where it is exact (self-inverse bases,
+    and ``s``/``t``/``rx``/``ry``/``rz`` without implicit controls), so their output keeps
+    its current form.
+    """
+    base, implicit_ctrls = CTRL_BASE_GATE_MAP.get(op_name, (op_name, 0))
+    if base in SELF_INVERTING_ONE_QUBIT_OP_SET or base == "swap":
+        return None
+    if not implicit_ctrls and (
+        ctrl_count == 0 or base in ST_GATE_INV_MAP or base in ROTATION_INVERSION_ONE_QUBIT_OP_MAP
+    ):
+        return None
+    return _decomposed_ctrl_op(op_name, ctrl_count, inverse=True)
 
 
 def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
