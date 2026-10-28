@@ -16,13 +16,15 @@
 Definition of the Decomposer class
 """
 
+import copy
 import math
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import BranchingStatement, QuantumGate
 
+from pyqasm.elements import BasisSet
 from pyqasm.exceptions import RebaseError
-from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES, AppliedQubit
+from pyqasm.maps.decomposition_rules import DECOMPOSITION_RULES
 from pyqasm.maps.gates import BASIS_GATE_MAP, fresh_qubits
 
 
@@ -56,7 +58,18 @@ class Decomposer:
             processed_gates_list = cls._get_decomposed_gates(
                 decomposition_rules, statement, gate_name
             )
-        elif gate_name in {"rx", "ry", "rz"}:
+        elif gate_name == "p" and target_basis_set == BasisSet.ROTATIONAL_CX:
+            # p(theta) = exp(i*theta/2) * rz(theta), so it is rz(theta) up to a global phase
+            processed_gates_list = [
+                qasm3_ast.QuantumGate(
+                    modifiers=[],
+                    name=qasm3_ast.Identifier(name="rz"),
+                    arguments=copy.deepcopy(statement.arguments),
+                    qubits=fresh_qubits(*statement.qubits),
+                )
+            ]
+        elif gate_name in {"rx", "ry", "rz", "p"}:
+            # p is handled like rz here (equal up to a global phase)
             processed_gates_list = cls._get_clifford_t_rotation(statement, gate_name)
         else:
             # Raise an error if the gate is not supported in the target basis set
@@ -196,14 +209,7 @@ class Decomposer:
             list: The ordered qubits to be used for the gate operation.
         """
         if "controll_bit" in rule:
-            if rule["controll_bit"] == AppliedQubit.QUBIT1:
-                qubits = [qubits[0], qubits[1]]
-            else:
-                qubits = [qubits[1], qubits[0]]
-
+            qubits = [qubits[rule["controll_bit"].value], qubits[rule["target_bit"].value]]
         elif "target_bit" in rule:
-            if rule["target_bit"] == AppliedQubit.QUBIT1:
-                qubits = [qubits[0]]
-            else:
-                qubits = [qubits[1]]
+            qubits = [qubits[rule["target_bit"].value]]
         return qubits
