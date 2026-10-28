@@ -1611,8 +1611,9 @@ class QasmVisitor:
         """Split a gate applied to register operands into one operand list per index.
 
         OpenQASM 3 broadcasting pairs register operands element by element and repeats
-        single-qubit operands, so ``cx a, b`` is ``cx a[0], b[0]; cx a[1], b[1];``. An operand
-        that names several qubits (a register, alias, slice or set) is a register operand.
+        single-qubit operands, so ``cx a, b`` is ``cx a[0], b[0]; cx a[1], b[1];``. A slice or
+        set is a register operand even when it names one qubit; a bare name is one when it
+        names several (see ``_is_register_operand``).
         This applies only when there is one operand per gate qubit; with fewer, a register
         still fills several operands (``cx q2`` is ``cx q2[0], q2[1]``), as before.
 
@@ -1621,16 +1622,22 @@ class QasmVisitor:
             None to leave the operation as is.
 
         Raises:
-            ValidationError: If the register operands have different lengths.
+            ValidationError: If a register operand is empty or the register operands have
+                different lengths.
         """
         if (
             not isinstance(operation, qasm3_ast.QuantumGate)
             or len(operation.qubits) < 2
             or self._scope_manager.in_gate_scope()
-            or len(operation.qubits) != self._gate_qubit_count(operation)
         ):
             return None
         function_sizes = self._function_qreg_size_map[-1] if self._function_qreg_size_map else None
+        forms = [self._is_register_operand(operand) for operand in operation.qubits]
+        # checked before anything is resolved, so plain ``cx q[0], q[1]`` stays cheap
+        if not any(forms) and None not in forms:
+            return None
+        if len(operation.qubits) != self._gate_qubit_count(operation):
+            return None
         # resolve the whole operation first so an invalid operand is reported against it
         self._get_op_bits(operation, qubits=True, function_qubit_sizes=function_sizes)
         resolved = []
@@ -1640,9 +1647,18 @@ class QasmVisitor:
             resolved.append(
                 self._get_op_bits(single, qubits=True, function_qubit_sizes=function_sizes)
             )
-        lengths = {len(bits) for bits in resolved if len(bits) > 1}
-        if not lengths:
+        is_register = [
+            len(bits) > 1 if form is None else form for form, bits in zip(forms, resolved)
+        ]
+        if not any(is_register):
             return None
+        if any(not bits for bits in resolved):
+            raise_qasm3_error(
+                f"Cannot broadcast '{operation.name.name}' over an empty operand",
+                error_node=operation,
+                span=operation.span,
+            )
+        lengths = {len(bits) for bits, reg in zip(resolved, is_register) if reg}
         if len(lengths) > 1:
             raise_qasm3_error(
                 f"Cannot broadcast '{operation.name.name}' over registers of different lengths "
@@ -1651,19 +1667,38 @@ class QasmVisitor:
                 span=operation.span,
             )
         size = lengths.pop()
-        return [[bits[i] if len(bits) > 1 else bits[0] for bits in resolved] for i in range(size)]
+        return [
+            [bits[i] if reg else bits[0] for bits, reg in zip(resolved, is_register)]
+            for i in range(size)
+        ]
+
+    @staticmethod
+    def _is_register_operand(
+        operand: qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier,
+    ) -> Optional[bool]:
+        """Whether a gate operand is written as a register rather than a single qubit.
+
+        Returns None for a bare register or alias name, which the caller judges by resolved
+        length. So ``qubit[1] r`` is repeated like a single qubit: the visitor rewrites
+        ``qubit x`` to ``qubit[1] x`` in place, so the two cannot be told apart later.
+        """
+        if isinstance(operand, qasm3_ast.IndexedIdentifier):
+            last = operand.indices[-1]
+            return isinstance(last, qasm3_ast.DiscreteSet) or any(
+                isinstance(index, qasm3_ast.RangeDefinition) for index in last
+            )
+        return False if operand.name.startswith(PHYSICAL_QUBIT_PREFIX) else None
 
     def _gate_qubit_count(self, operation: qasm3_ast.QuantumGate) -> Optional[int]:
         """The number of qubits one application of ``operation`` takes, controls included.
 
-        Returns None when it cannot be known up front (an opaque gate, or a non-constant
-        modifier argument), which leaves broadcasting to the existing path.
+        Returns None when it cannot be known up front (a non-constant modifier argument),
+        which leaves broadcasting to the existing path. An ``opaque`` gate is a custom gate
+        with an empty body by now, so it broadcasts like one.
         """
         name = operation.name.name
         if name in self._custom_gates:
             count = len(self._custom_gates[name].qubits)
-        elif name in self._opaque_gates:
-            return None
         else:
             try:
                 _, count = map_qasm_op_to_callable(operation)

@@ -92,3 +92,42 @@ def test_broadcast_register_length_mismatch_raises():
     qasm3_string = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] a;\nqubit[3] b;\ncx a, b;\n'
     with pytest.raises(ValidationError, match="different lengths"):
         loads(qasm3_string).unroll()
+
+
+def _cx_lines(qasm_string):
+    module = loads(qasm_string)
+    module.unroll()
+    return [line for line in dumps(module).splitlines() if line.startswith("cx")]
+
+
+def test_broadcast_qasm2_registers():
+    """OpenQASM 2 pairs register operands the same way."""
+    qasm2_string = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nqreg r[2];\ncx q, r;\n'
+    assert _cx_lines(qasm2_string) == ["cx q[0], r[0];", "cx q[1], r[1];"]
+
+
+def test_broadcast_duplicate_qubit_raises():
+    """Broadcasting a register against itself pairs each qubit with itself."""
+    qasm3_string = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\ncx q, q;\n'
+    with pytest.raises(ValidationError, match="Duplicate qubit"):
+        loads(qasm3_string).unroll()
+
+
+def test_broadcast_length_one_slice_is_a_register():
+    """A slice naming one qubit is still a register operand, so its length must match."""
+    qasm3_string = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[3] q;\ncx q[0:1], q[2:2];\n'
+    with pytest.raises(ValidationError, match=r"different lengths \[1, 2\]"):
+        loads(qasm3_string).unroll()
+
+
+def test_broadcast_empty_operand_raises():
+    """An empty slice is reported as a QASM error, not an IndexError."""
+    qasm3_string = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[4] q;\ncx q[0:1], q[3:2];\n'
+    with pytest.raises(ValidationError, match="empty operand"):
+        loads(qasm3_string).unroll()
+
+
+def test_broadcast_single_qubit_repeats():
+    """A single qubit beside a register is repeated for each register element."""
+    qasm3_string = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit x;\nqubit[2] q;\ncx x, q;\n'
+    assert _cx_lines(qasm3_string) == ["cx x[0], q[0];", "cx x[0], q[1];"]
