@@ -18,15 +18,18 @@ Module containing unit tests for rebasing programms
 """
 
 import numpy as np
+import openqasm3.ast as qasm3_ast
 import pytest
 
 from pyqasm.elements import BasisSet
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import RebaseError
+from pyqasm.maps.gates import BASIS_GATE_MAP
 from tests.utils import (
     assert_unitary_equal,
     check_single_qubit_gate_op,
     check_unrolled_qasm,
+    mcx_unitary,
     unitary_from_unrolled_ast,
 )
 
@@ -479,3 +482,61 @@ def test_rebase_qasm_module_methods():
     result.reverse_qubit_order()
     print(dumps(result))
     check_unrolled_qasm(dumps(result), expected_reverse_qubit_order_qasm)
+
+
+def _gate_names(module) -> list[str]:
+    """Return the names of all QuantumGate statements in the module's unrolled AST."""
+    return [
+        stmt.name.name
+        for stmt in module.unrolled_ast.statements
+        if isinstance(stmt, qasm3_ast.QuantumGate)
+    ]
+
+
+@pytest.mark.parametrize("basis", [BasisSet.ROTATIONAL_CX, BasisSet.CLIFFORD_T])
+@pytest.mark.parametrize(
+    "ccx_stmt, target",
+    [
+        ("ccx q[0], q[1], q[2];", None),
+        ("ccx q[2], q[0], q[1];", 1),
+    ],
+)
+def test_rebase_ccx(basis, ccx_stmt, target):
+    """Rebasing ccx emits only basis gates and preserves the Toffoli unitary."""
+    qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[3] q;
+    {ccx_stmt}
+    """
+    result = loads(qasm).rebase(basis)
+    gates = _gate_names(result)
+    assert gates and set(gates).issubset(BASIS_GATE_MAP[basis])
+    assert_unitary_equal(
+        unitary_from_unrolled_ast(result.unrolled_ast, 3),
+        mcx_unitary(3, target=target),
+    )
+
+
+@pytest.mark.parametrize("basis", [BasisSet.ROTATIONAL_CX, BasisSet.CLIFFORD_T])
+def test_rebase_id(basis):
+    """Rebasing id succeeds and emits no gate statements."""
+    qasm = """OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    id q[0];
+    """
+    result = loads(qasm).rebase(basis)
+    assert not _gate_names(result)
+
+
+def test_rebase_qasm2_c3x_rotational_cx():
+    """Rebasing QASM 2 c3x to ROTATIONAL_CX emits only basis gates with matching unitary."""
+    qasm = """OPENQASM 2.0;
+    include "qelib1.inc";
+    qreg q[4];
+    c3x q[0], q[1], q[2], q[3];
+    """
+    result = loads(qasm).rebase(BasisSet.ROTATIONAL_CX)
+    gates = _gate_names(result)
+    assert gates and set(gates).issubset(BASIS_GATE_MAP[BasisSet.ROTATIONAL_CX])
+    assert_unitary_equal(unitary_from_unrolled_ast(result.unrolled_ast, 4), mcx_unitary(4))
