@@ -519,6 +519,64 @@ def test_stretch_type_error(qasm_code, error_message, error_span, caplog):
 
 
 @pytest.mark.parametrize(
+    "qasm_code,stretch_var,error_span",
+    [
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch s;
+            duration a = 300ns;
+            duration b = a + s;
+            """,
+            "s",
+            r"Error at line 6, column 25",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch s;
+            duration b = 2 * s;
+            """,
+            "s",
+            r"Error at line 5, column 25",
+        ),
+        (
+            """
+            OPENQASM 3.0;
+            include "stdgates.inc";
+            stretch s;
+            duration a = 300ns;
+            duration b = a + 2 * s;
+            """,
+            "s",
+            r"Error at line 6, column 29",
+        ),
+    ],
+)
+def test_stretch_arithmetic_not_supported(qasm_code, stretch_var, error_span, caplog):
+    with pytest.raises(ValidationError) as err:
+        with caplog.at_level("ERROR"):
+            loads(qasm_code).validate()
+    cause = err.value.__cause__
+    assert cause is not None
+    assert f"Arithmetic on 'stretch' operand '{stretch_var}' is not yet supported" in str(cause)
+    assert error_span in caplog.text
+
+
+def test_const_stretch_arithmetic():
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    const stretch s = 100ns;
+    duration a = 300ns;
+    duration b = a + 2 * s;
+    """
+    loads(qasm3_string).validate()
+
+
+@pytest.mark.parametrize(
     "qasm_code,error_message,error_span",
     [
         (

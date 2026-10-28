@@ -471,6 +471,19 @@ class Qasm3ExprEvaluator:
                 return (None, [])
 
             statements.extend(rhs_statements)
+            for operand in (expression.lhs, expression.rhs):
+                if not isinstance(operand, Identifier):
+                    continue
+                assert cls.visitor_obj
+                var = cls.visitor_obj._scope_manager.get_from_visible_scope(operand.name)
+                # const stretch declarations carry a value, so only reject unresolved ones
+                if Qasm3Validator.validate_variable_type(var, StretchType) and var.value is None:
+                    raise_qasm3_error(
+                        f"Arithmetic on 'stretch' operand '{operand.name}' is not yet supported",
+                        err_type=ValidationError,
+                        error_node=expression,
+                        span=expression.span,
+                    )
             return _check_and_return_value(
                 qasm3_expression_op_map(expression.op.name, lhs_value, rhs_value)
             )
