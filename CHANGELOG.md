@@ -28,6 +28,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Decompose `p`, `phaseshift`, and `u1` (`U1`) gates into a single `rz(theta)` rotation instead of `h; rx(theta); h` ([#470](https://github.com/qBraid/pyqasm/pull/470), [#469](https://github.com/qBraid/pyqasm/issues/469)).
 - Fixed `rebase` failing on `ccx`, `id`, and the `p` gates produced by unrolling `c3x` for the `ROTATIONAL_CX` / `CLIFFORD_T` basis sets ([#468](https://github.com/qBraid/pyqasm/pull/468), [#467](https://github.com/qBraid/pyqasm/issues/467)).
 - `loads()` syntax errors now name the offending token, line and column, e.g. `Failed to parse OpenQASM string: syntax error near ';' at line 3, column 13`. Before, the reason after the colon was empty ([#460](https://github.com/qBraid/pyqasm/pull/460)).
 - Fixed the matplotlib printer's controlled-gate lookup for `c3x` and `c4x` ([#458](https://github.com/qBraid/pyqasm/pull/458), [#322](https://github.com/qBraid/pyqasm/issues/322)).

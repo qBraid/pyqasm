@@ -234,6 +234,34 @@ def test_rebase_clifford_t_exact_rotations(input_gate, decomposed_gates):
 
 
 @pytest.mark.parametrize(
+    "input_gate, decomposed_gates",
+    [
+        ("p(pi/4) q[0];", "t q[0];"),
+        ("p(pi/2) q[0];", "s q[0];"),
+        ("phaseshift(pi/4) q[0];", "t q[0];"),
+        ("u1(pi/2) q[0];", "s q[0];"),
+    ],
+)
+def test_rebase_clifford_t_phaseshift(input_gate, decomposed_gates):
+    """Phase-shift gates rebase directly to single Clifford+T phase gates."""
+    qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    {input_gate}
+    """
+
+    expected_qasm = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    {decomposed_gates}
+    """
+
+    result = loads(qasm)
+    result.rebase(BasisSet.CLIFFORD_T)
+    check_unrolled_qasm(dumps(result), expected_qasm)
+
+
+@pytest.mark.parametrize(
     "gate_name, pauli",
     [
         ("rx", np.array([[0, 1], [1, 0]], dtype=complex)),
