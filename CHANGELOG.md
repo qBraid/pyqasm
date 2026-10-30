@@ -34,6 +34,8 @@ Types of changes:
 - Fixed the matplotlib printer's controlled-gate lookup for `c3x` and `c4x` ([#458](https://github.com/qBraid/pyqasm/pull/458), [#322](https://github.com/qBraid/pyqasm/issues/322)).
 - Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures. ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437))
 
+-   Fix missing semicolon for bare `extern` function calls (not assigned to a variable). Closes [#438](https://github.com/qBraid/pyqasm/issues/438).
+
 ### Dependencies
 - Bumped `github/codeql-action/upload-sarif` from 3.37.8 to 4.38.1. ([#431](https://github.com/qBraid/pyqasm/pull/431))
 - Bumped `actions/upload-artifact` from 4.6.2 to 7.0.2 in `scorecard.yml`, and pinned the other workflows to 7.0.2 instead of the `v7` major tag. ([#453](https://github.com/qBraid/pyqasm/pull/453))
