@@ -28,6 +28,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- Fixed `ctrl @` on standard gates with no dedicated controlled form, which raised `Unsupported controlled QASM operation`. `ctrl(n) @` now works for up to 10 controls on every single-qubit standard gate (including `s`, `sdg`, `t`, `tdg`, `sx`, `sxdg`, `id`, `U`/`u3`, `u2`, `prx`, `gpi`, `gpi2`), on gates that are themselves controlled single-qubit gates or swap (such as `cs`, `csx`, `cu`, `cz`, `cswap`, `c4x`), and on `gphase` with two or more controls. It also fixes `ctrl @ u`, which raised a `TypeError`, and `inv @` over controlled gates, which gave the wrong relative phase for `U`/`u2`/`cu` and left `cs`/`crx`/`cu` uninverted ([#459](https://github.com/qBraid/pyqasm/pull/459), [#252](https://github.com/qBraid/pyqasm/issues/252)).
 - Decompose `p`, `phaseshift`, and `u1` (`U1`) gates into a single `rz(theta)` rotation instead of `h; rx(theta); h` ([#470](https://github.com/qBraid/pyqasm/pull/470), [#469](https://github.com/qBraid/pyqasm/issues/469)).
 - Fixed `rebase` failing on `ccx`, `id`, and the `p` gates produced by unrolling `c3x` for the `ROTATIONAL_CX` / `CLIFFORD_T` basis sets ([#468](https://github.com/qBraid/pyqasm/pull/468), [#467](https://github.com/qBraid/pyqasm/issues/467)).
 - `loads()` syntax errors now name the offending token, line and column, e.g. `Failed to parse OpenQASM string: syntax error near ';' at line 3, column 13`. Before, the reason after the colon was empty ([#460](https://github.com/qBraid/pyqasm/pull/460)).
