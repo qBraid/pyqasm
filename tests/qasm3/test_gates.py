@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=too-many-lines
+
 """
 Module containing unit tests for unrolling quantum gates.
 
@@ -966,3 +968,79 @@ def test_physical_qubit_duplicate_detection():
     """
     with pytest.raises(ValidationError, match=r"Duplicate qubit"):
         loads(qasm_input).validate()
+
+
+@pytest.mark.parametrize("gate_name", ["p", "phaseshift", "u1"])
+def test_phaseshift_gates_unroll_to_rz(gate_name):
+    """p, phaseshift, and u1 unroll to a single rz(theta) gate with matching unitary."""
+    theta = 0.7
+    qasm3_string = f"""
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    {gate_name}({theta}) q[0];
+    """
+    expected_qasm = f"""
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[1] q;
+    rz({theta}) q[0];
+    """
+    result = loads(qasm3_string)
+    result.unroll()
+    check_unrolled_qasm(dumps(result), expected_qasm)
+    assert_unitary_equal(
+        unitary_from_unrolled_ast(result.unrolled_ast, 1),
+        np.diag([1.0, np.exp(1j * theta)]),
+    )
+
+
+_CSX_UNITARY = np.array(
+    [
+        [1, 0, 0, 0],
+        [0, 0.5 * (1 + 1j), 0, 0.5 * (1 - 1j)],
+        [0, 0, 1, 0],
+        [0, 0.5 * (1 - 1j), 0, 0.5 * (1 + 1j)],
+    ],
+    dtype=complex,
+)
+
+_RCCX_UNITARY = np.array(
+    [
+        [1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, -1j],
+        [0, 0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, -1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 1j, 0, 0, 0, 0],
+    ],
+    dtype=complex,
+)
+
+
+@pytest.mark.parametrize(
+    "body, num_qubits, expected_num_gates, expected_unitary",
+    [
+        ("csx q[0], q[1];", 2, 15, _CSX_UNITARY),
+        ("rccx q[0], q[1], q[2];", 3, 17, _RCCX_UNITARY),
+    ],
+)
+def test_csx_and_rccx_decomposition_unitary(body, num_qubits, expected_num_gates, expected_unitary):
+    """csx and rccx decompose via single-rz phaseshift_gate and preserve their unitary."""
+    header = f'OPENQASM 3;\ninclude "stdgates.inc";\nqubit[{num_qubits}] q;\n'
+    module = loads(header + body)
+    module.unroll()
+
+    assert_unitary_equal(
+        unitary_from_unrolled_ast(module.unrolled_ast, num_qubits),
+        expected_unitary,
+    )
+    gate_names = [
+        stmt.name.name
+        for stmt in module.unrolled_ast.statements
+        if isinstance(stmt, qasm3_ast.QuantumGate)
+    ]
+    assert "h" not in gate_names
+    assert len(gate_names) == expected_num_gates

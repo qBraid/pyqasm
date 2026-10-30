@@ -490,12 +490,7 @@ def check_u3_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
 
 
 def _check_phase_shift_gate_op(unrolled_ast, num_gates, qubit_list, param_list):
-    num_h_gates = 2 * num_gates
-    h_qubit_list = [qubit for qubit in qubit_list for _ in range(2)]
-    num_rx_gates = 1 * num_gates
-
-    check_single_qubit_gate_op(unrolled_ast, num_h_gates, h_qubit_list, "h")
-    check_single_qubit_rotation_op(unrolled_ast, num_rx_gates, qubit_list, param_list, "rx")
+    check_single_qubit_rotation_op(unrolled_ast, num_gates, qubit_list, param_list, "rz")
 
 
 def check_measure_op(unrolled_ast, num_ops, meas_pairs):
