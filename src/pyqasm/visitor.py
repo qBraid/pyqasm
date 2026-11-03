@@ -1605,6 +1605,53 @@ class QasmVisitor:
 
         return [operation]
 
+    def _broadcast_operands(
+        self, operation: qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase
+    ) -> Optional[list[list[qasm3_ast.IndexedIdentifier | qasm3_ast.Identifier]]]:
+        """Split a gate applied to register operands into one operand list per index.
+
+        OpenQASM 3 broadcasting pairs register operands element by element and repeats
+        single-qubit operands, so ``cx a, b`` is ``cx a[0], b[0]; cx a[1], b[1];``. A slice or
+        set is a register operand even when it names one qubit; a bare name is one when it
+        names several (see ``Qasm3Validator.is_register_operand``).
+        This applies only when there is one operand per gate qubit; with fewer, a register
+        still fills several operands (``cx q2`` is ``cx q2[0], q2[1]``), as before.
+
+        Returns:
+            The operands of each gate application, still in the operation's own naming, or
+            None to leave the operation as is.
+
+        Raises:
+            ValidationError: If a register operand is empty or the register operands have
+                different lengths.
+        """
+        if (
+            not isinstance(operation, qasm3_ast.QuantumGate)
+            or len(operation.qubits) < 2
+            or self._scope_manager.in_gate_scope()
+        ):
+            return None
+        function_sizes = self._function_qreg_size_map[-1] if self._function_qreg_size_map else None
+        forms = [Qasm3Validator.is_register_operand(operand) for operand in operation.qubits]
+        # checked before anything is resolved, so plain ``cx q[0], q[1]`` stays cheap
+        if not any(forms) and None not in forms:
+            return None
+        gate_qubit_count = Qasm3Analyzer.gate_qubit_count(
+            operation, self._custom_gates, Qasm3ExprEvaluator
+        )
+        if len(operation.qubits) != gate_qubit_count:
+            return None
+        # resolve the whole operation first so an invalid operand is reported against it
+        self._get_op_bits(operation, qubits=True, function_qubit_sizes=function_sizes)
+        resolved = []
+        for operand in operation.qubits:
+            single = copy.copy(operation)
+            single.qubits = [operand]
+            resolved.append(
+                self._get_op_bits(single, qubits=True, function_qubit_sizes=function_sizes)
+            )
+        return Qasm3Transformer.broadcast_operands(operation, resolved, forms)
+
     def _visit_generic_gate_operation(  # pylint: disable=too-many-branches, too-many-statements
         self,
         operation: qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase,
@@ -1658,6 +1705,16 @@ class QasmVisitor:
             # Resolve the operation before its operands so an unknown gate is
             # reported even when one of its qubits is also undeclared.
             map_qasm_op_to_callable(operation)
+
+        broadcast = self._broadcast_operands(operation)
+        if broadcast is not None:
+            applications: list[qasm3_ast.QuantumGate | qasm3_ast.QuantumPhase] = []
+            for qubits in broadcast:
+                single = copy.copy(operation)
+                single.qubits = qubits  # type: ignore[assignment]
+                single.modifiers = list(operation.modifiers)
+                applications.extend(self._visit_generic_gate_operation(single, ctrls))
+            return applications
 
         self._in_generic_gate_op_scope += 1
 

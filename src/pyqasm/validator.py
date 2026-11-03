@@ -23,18 +23,22 @@ import numpy as np
 from openqasm3.ast import (
     ArrayType,
     ClassicalDeclaration,
+    DiscreteSet,
     FloatType,
+    Identifier,
+    IndexedIdentifier,
 )
 from openqasm3.ast import IntType as Qasm3IntType
 from openqasm3.ast import (
     QASMNode,
     QuantumGate,
     QuantumGateDefinition,
+    RangeDefinition,
     ReturnStatement,
     SubroutineDefinition,
 )
 
-from pyqasm.elements import Variable
+from pyqasm.elements import PHYSICAL_QUBIT_PREFIX, Variable
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.maps.expressions import LIMITS_MAP, VARIABLE_TYPE_MAP, qasm_variable_type_cast
 
@@ -288,6 +292,21 @@ class Qasm3Validator:
                 error_node=operation,
                 span=operation.span,
             )
+
+    @staticmethod
+    def is_register_operand(operand: IndexedIdentifier | Identifier) -> Optional[bool]:
+        """Whether a gate operand is written as a register rather than a single qubit.
+
+        Returns None for a bare register or alias name, which the caller judges by resolved
+        length. So ``qubit[1] r`` is repeated like a single qubit: the visitor rewrites
+        ``qubit x`` to ``qubit[1] x`` in place, so the two cannot be told apart later.
+        """
+        if isinstance(operand, IndexedIdentifier):
+            last = operand.indices[-1]
+            return isinstance(last, DiscreteSet) or any(
+                isinstance(index, RangeDefinition) for index in last
+            )
+        return False if operand.name.startswith(PHYSICAL_QUBIT_PREFIX) else None
 
     @staticmethod
     def validate_return_statement(  # pylint: disable=inconsistent-return-statements
