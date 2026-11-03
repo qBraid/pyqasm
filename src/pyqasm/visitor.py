@@ -1650,30 +1650,7 @@ class QasmVisitor:
             resolved.append(
                 self._get_op_bits(single, qubits=True, function_qubit_sizes=function_sizes)
             )
-        is_register = [
-            len(bits) > 1 if form is None else form for form, bits in zip(forms, resolved)
-        ]
-        if not any(is_register):
-            return None
-        if any(not bits for bits in resolved):
-            raise_qasm3_error(
-                f"Cannot broadcast '{operation.name.name}' over an empty operand",
-                error_node=operation,
-                span=operation.span,
-            )
-        lengths = {len(bits) for bits, reg in zip(resolved, is_register) if reg}
-        if len(lengths) > 1:
-            raise_qasm3_error(
-                f"Cannot broadcast '{operation.name.name}' over registers of different lengths "
-                f"{sorted(lengths)}",
-                error_node=operation,
-                span=operation.span,
-            )
-        size = lengths.pop()
-        return [
-            [bits[i] if reg else bits[0] for bits, reg in zip(resolved, is_register)]
-            for i in range(size)
-        ]
+        return Qasm3Transformer.broadcast_operands(operation, resolved, forms)
 
     def _visit_generic_gate_operation(  # pylint: disable=too-many-branches, too-many-statements
         self,
