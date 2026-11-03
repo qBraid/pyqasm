@@ -72,6 +72,7 @@ _FIXED_ONE_QUBIT = {
     "sdg": _phase(-np.pi / 2),
     "t": _phase(np.pi / 4),
     "tdg": _phase(-np.pi / 4),
+    "sx": np.array([[1 + 1j, 1 - 1j], [1 - 1j, 1 + 1j]], dtype=complex) / 2,
 }
 _PARAM_ONE_QUBIT = {"p": _phase, "phaseshift": _phase, "rz": _rz, "rx": _rx, "ry": _ry}
 _PARAM_TWO_QUBIT = {"cp": _phase, "cphaseshift": _phase, "crz": _rz, "crx": _rx, "cry": _ry}
@@ -137,6 +138,8 @@ def unitary_from_unrolled_ast(unrolled_ast, num_qubits):
             gate = _embed_controlled(
                 _FIXED_TWO_QUBIT_TARGET[name], qubits[0], qubits[1], num_qubits
             )
+        elif name == "ccx":
+            gate = mcx_unitary(num_qubits, target=qubits[2], controls=qubits[:2])
         elif name in _PARAM_TWO_QUBIT:
             gate = _embed_controlled(
                 _PARAM_TWO_QUBIT[name](args[0]), qubits[0], qubits[1], num_qubits
@@ -147,13 +150,16 @@ def unitary_from_unrolled_ast(unrolled_ast, num_qubits):
     return unitary
 
 
-def mcx_unitary(num_qubits, target=None):
-    """Reference multi-controlled-X: controls = all qubits except ``target``."""
+def mcx_unitary(num_qubits, target=None, controls=None):
+    """Reference multi-controlled-X: controls default to all qubits except ``target``."""
     if target is None:
         target = num_qubits - 1
     dim = 2**num_qubits
     target_bit = 1 << target
-    control_mask = (dim - 1) ^ target_bit
+    if controls is None:
+        control_mask = (dim - 1) ^ target_bit
+    else:
+        control_mask = sum(1 << control for control in controls)
     unitary = np.zeros((dim, dim), dtype=complex)
     for basis in range(dim):
         dest = basis ^ target_bit if (basis & control_mask) == control_mask else basis

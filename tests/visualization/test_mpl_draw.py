@@ -63,7 +63,9 @@ def test_draw_qasm3_simple():
 
 def test_reverse_control_gate_map_matches_control_gate_map():
     """Every controlled gate maps back to the gate it controls."""
-    assert REV_CTRL_GATE_MAP == {controlled: base for base, controlled in CTRL_GATE_MAP.items()}
+    # cu takes an extra phase parameter, so ctrl @ u is decomposed instead of mapped to cu
+    expected = {controlled: base for base, controlled in CTRL_GATE_MAP.items()} | {"cu": "u"}
+    assert REV_CTRL_GATE_MAP == expected
 
 
 @pytest.mark.parametrize("gate_name,num_controls", [("c3x", 3), ("c4x", 4)])
