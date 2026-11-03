@@ -18,9 +18,37 @@ rotations in qasm2 format.
 
 """
 
+import numpy as np
+import pytest
+
 from pyqasm.elements import BasisSet
 from pyqasm.entrypoint import dumps, loads
-from tests.utils import check_unrolled_qasm
+from tests.utils import assert_unitary_equal, check_unrolled_qasm, unitary_from_unrolled_ast
+
+
+@pytest.mark.parametrize("gate_name", ["p", "u1"])
+def test_phaseshift_gates_unroll_to_rz_qasm2(gate_name):
+    """Test that p and u1 in OpenQASM 2 unroll to a single rz gate."""
+    theta = 0.5
+    qasm_in = f"""
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[1];
+{gate_name}({theta}) q[0];
+"""
+    expected_out = f"""
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[1];
+rz({theta}) q[0];
+"""
+    result = loads(qasm_in)
+    result.unroll()
+    check_unrolled_qasm(dumps(result), expected_out)
+    assert_unitary_equal(
+        unitary_from_unrolled_ast(result.unrolled_ast, 1),
+        np.diag([1.0, np.exp(1j * theta)]),
+    )
 
 
 def test_rebase_clifford_t_exact_rotation():

@@ -670,7 +670,7 @@ custom_rccx q[0], q[1], q1[0];
 
 @pytest.mark.parametrize(
     ["input_qasm_str", "before_decompose", "after_decompose"],
-    [(QASM3_DECOMPOSE_GATE_DEPTH, 2, 25), (QASM3_DECOMPOSE_CUSTOM_GATE_DEPTH, 2, 25)],
+    [(QASM3_DECOMPOSE_GATE_DEPTH, 2, 21), (QASM3_DECOMPOSE_CUSTOM_GATE_DEPTH, 2, 21)],
 )
 def test_gate_depth_decomposable_gates(input_qasm_str, before_decompose, after_decompose):
     result = loads(input_qasm_str)

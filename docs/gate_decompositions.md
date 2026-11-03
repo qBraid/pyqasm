@@ -113,20 +113,20 @@ q_1: ┤ X ├┤ Rz(π) ├┤ X ├
      └───┘└───────┘└───┘
 ```
 
-## [Phaseshift Gate](../src/pyqasm/maps/gates.py#L249)
+## [Phaseshift Gate](../src/pyqasm/maps/gates.py#L300)
 
-The phaseshift gate is implemented as a decomposition of other gates using the following qiskit decomposition:
+The phaseshift gate is implemented as a single `rz` rotation (equivalent up to a global phase) using the following qiskit decomposition:
 
 ```python
 In [10]: q = QuantumCircuit(1)
 In [11]: q.p(theta,0)
-In [12]: new_qc = transpile(q, basis_gates=['rx','h'])
+In [12]: new_qc = transpile(q, basis_gates=['rz'])
 In [13]: print(new_qc)
 Out[13]: 
-
-   ┌───┐┌───────────┐┌───┐
-q: ┤ H ├┤ Rx(theta) ├┤ H ├
-   └───┘└───────────┘└───┘
+global phase: theta/2
+   ┌───────────┐
+q: ┤ Rz(theta) ├
+   └───────────┘
 ```
 
 ## [CSWAP Gate](../src/pyqasm/maps/gates.py#L264)

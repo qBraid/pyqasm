@@ -299,17 +299,13 @@ def zz_gate(
 
 def phaseshift_gate(theta: int | float, qubit: IndexedIdentifier) -> list[QuantumGate]:
     """
-    Implements the phase shift gate as a decomposition of other gates.
+    Implements the phase shift gate as a single RZ rotation (equivalent up to a global phase).
 
     Reference :
     See https://github.com/qBraid/pyqasm/tree/main/docs/gate_decompositions.md#phaseshift-gate
     for decomposition details
     """
-    result: list[QuantumGate] = []
-    result.extend(one_qubit_gate_op("h", qubit))
-    result.extend(one_qubit_rotation_op("rx", theta, qubit))
-    result.extend(one_qubit_gate_op("h", qubit))
-    return result
+    return one_qubit_rotation_op("rz", theta, qubit)
 
 
 def cswap_gate(
