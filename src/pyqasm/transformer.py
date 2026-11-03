@@ -410,6 +410,52 @@ class Qasm3Transformer:
             ]
         return deepcopy(block)
 
+    @staticmethod
+    def broadcast_operands(
+        operation: QuantumGate,
+        resolved: list[list[IndexedIdentifier | Identifier]],
+        forms: list[Optional[bool]],
+    ) -> Optional[list[list[IndexedIdentifier | Identifier]]]:
+        """Pair resolved register operands element by element and repeat single qubits.
+
+        Args:
+            operation: The gate being broadcast, used for error messages.
+            resolved: The qubits each operand resolves to, in operand order.
+            forms: For each operand, ``Qasm3Validator.is_register_operand``. None means the
+                operand is a register when it resolves to more than one qubit.
+
+        Returns:
+            The operands of each gate application, or None if no operand is a register.
+
+        Raises:
+            ValidationError: If a register operand is empty or the register operands have
+                different lengths.
+        """
+        is_register = [
+            len(bits) > 1 if form is None else form for form, bits in zip(forms, resolved)
+        ]
+        if not any(is_register):
+            return None
+        if any(not bits for bits in resolved):
+            raise_qasm3_error(
+                f"Cannot broadcast '{operation.name.name}' over an empty operand",
+                error_node=operation,
+                span=operation.span,
+            )
+        lengths = {len(bits) for bits, reg in zip(resolved, is_register) if reg}
+        if len(lengths) > 1:
+            raise_qasm3_error(
+                f"Cannot broadcast '{operation.name.name}' over registers of different lengths "
+                f"{sorted(lengths)}",
+                error_node=operation,
+                span=operation.span,
+            )
+        size = lengths.pop()
+        return [
+            [bits[i] if reg else bits[0] for bits, reg in zip(resolved, is_register)]
+            for i in range(size)
+        ]
+
     @classmethod
     def transform_function_qubits(
         cls,
