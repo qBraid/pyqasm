@@ -30,12 +30,14 @@ from openqasm3.ast import (
     DiscreteSet,
     EndStatement,
     Expression,
+    GateModifierName,
     Identifier,
     IndexedIdentifier,
     IndexExpression,
     IntegerLiteral,
     IntType,
     QuantumGate,
+    QuantumGateDefinition,
     QuantumMeasurementStatement,
     RangeDefinition,
     Span,
@@ -44,6 +46,7 @@ from openqasm3.ast import (
 )
 
 from pyqasm.exceptions import QasmParsingError, ValidationError, raise_qasm3_error
+from pyqasm.maps.gates import map_qasm_op_to_callable
 
 if TYPE_CHECKING:
     from pyqasm.elements import Variable
@@ -339,6 +342,42 @@ class Qasm3Analyzer:
                 error_node=gate,
                 span=span,
             )
+
+    @staticmethod
+    def gate_qubit_count(
+        operation: QuantumGate,
+        custom_gates: dict[str, QuantumGateDefinition],
+        expr_evaluator: type[Qasm3ExprEvaluator],
+    ) -> Optional[int]:
+        """The number of qubits one application of ``operation`` takes, controls included.
+
+        Returns None when it cannot be known up front (a non-constant modifier argument),
+        which leaves broadcasting to the existing path. An ``opaque`` gate is a custom gate
+        with an empty body by now, so it broadcasts like one.
+        """
+        name = operation.name.name
+        if name in custom_gates:
+            count = len(custom_gates[name].qubits)
+        else:
+            try:
+                _, count = map_qasm_op_to_callable(operation)
+            except ValidationError:
+                return None
+        for modifier in operation.modifiers:
+            if modifier.modifier in (GateModifierName.ctrl, GateModifierName.negctrl):
+                if modifier.argument is None:
+                    count += 1
+                    continue
+                try:
+                    controls = expr_evaluator.evaluate_expression(
+                        modifier.argument, const_expr=True
+                    )[0]
+                except ValidationError:
+                    return None
+                if not isinstance(controls, int):
+                    return None
+                count += controls
+        return count
 
     @staticmethod
     def condition_depends_on_measurement(condition: Expression, measurement_set: set[str]) -> bool:
