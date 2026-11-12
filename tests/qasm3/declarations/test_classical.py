@@ -530,7 +530,7 @@ def test_stretch_type_error(qasm_code, error_message, error_span, caplog):
             duration b = a + s;
             """,
             "s",
-            r"Error at line 6, column 25",
+            r"Error at line 6, column 29",
         ),
         (
             """
@@ -540,7 +540,7 @@ def test_stretch_type_error(qasm_code, error_message, error_span, caplog):
             duration b = 2 * s;
             """,
             "s",
-            r"Error at line 5, column 25",
+            r"Error at line 5, column 29",
         ),
         (
             """
@@ -551,7 +551,7 @@ def test_stretch_type_error(qasm_code, error_message, error_span, caplog):
             duration b = a + 2 * s;
             """,
             "s",
-            r"Error at line 6, column 29",
+            r"Error at line 6, column 33",
         ),
     ],
 )
