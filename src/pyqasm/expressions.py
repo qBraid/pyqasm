@@ -143,21 +143,33 @@ class Qasm3ExprEvaluator:
             )
 
     @classmethod
-    def _check_var_initialized(cls, var_name, var_value, expression):
+    def _check_var_initialized(cls, var_name, var_value, expression, in_binary_expr=False):
         """Checks if a variable is initialized and raises an error if it is not.
 
         Args:
             var_name (str): The name of the variable.
             var_value: The value of the variable.
             expression: The expression where the variable is used.
+            in_binary_expr (bool): Whether the variable is an operand of a binary expression.
         Raises:
-            ValidationError: If the variable is uninitialized.
+            ValidationError: If the variable is uninitialized, or if it is a 'stretch'
+                without a value used as an operand of a binary expression.
         """
 
         var = cls.visitor_obj._scope_manager.get_from_visible_scope(var_name)
-        if not isinstance(var.base_type, StretchType) and var_value is None:
+        if var_value is not None:
+            return
+        if not isinstance(var.base_type, StretchType):
             raise_qasm3_error(
                 f"Uninitialized variable '{var_name}' in expression",
+                err_type=ValidationError,
+                error_node=expression,
+                span=expression.span,
+            )
+        # const stretch declarations carry a value, so only unresolved ones reach here
+        if in_binary_expr:
+            raise_qasm3_error(
+                f"Arithmetic on 'stretch' operand '{var_name}' is not yet supported",
                 err_type=ValidationError,
                 error_node=expression,
                 span=expression.span,
@@ -197,6 +209,7 @@ class Qasm3ExprEvaluator:
         reqd_type=None,
         validate_only: bool = False,
         dt=None,
+        in_binary_expr: bool = False,
     ) -> tuple:
         """Evaluate an expression. Scalar types are assigned by value.
 
@@ -206,6 +219,8 @@ class Qasm3ExprEvaluator:
             reqd_type (Any): The required type of the expression. Defaults to None.
             validate_only (bool): Whether to validate the expression only. Defaults to False.
             dt (float): The time step of the compiler. Defaults to None.
+            in_binary_expr (bool): Whether the expression is an operand of a binary
+                expression. Defaults to False.
 
         Returns:
             tuple[Any, list[Statement]] : The result of the evaluation.
@@ -227,7 +242,9 @@ class Qasm3ExprEvaluator:
             cls._check_var_constant(var_name, const_expr, expression)
             cls._check_var_type(var_name, reqd_type, expression)
             var_value = cls._get_var_value(var_name, indices, expression)
-            Qasm3ExprEvaluator._check_var_initialized(var_name, var_value, expression)
+            Qasm3ExprEvaluator._check_var_initialized(
+                var_name, var_value, expression, in_binary_expr
+            )
             return _check_and_return_value(var_value)
 
         def _check_type_size(expression, var_name, var_format, base_type):
@@ -450,7 +467,7 @@ class Qasm3ExprEvaluator:
                 return (None, statements)
 
             lhs_value, lhs_statements = cls.evaluate_expression(
-                expression.lhs, const_expr, reqd_type
+                expression.lhs, const_expr, reqd_type, in_binary_expr=True
             )
             # Handle external function replacement for lhs
             lhs_extern_function = False
@@ -460,7 +477,7 @@ class Qasm3ExprEvaluator:
             statements.extend(lhs_statements)
 
             rhs_value, rhs_statements = cls.evaluate_expression(
-                expression.rhs, const_expr, reqd_type
+                expression.rhs, const_expr, reqd_type, in_binary_expr=True
             )
             # Handle external function replacement for rhs
             rhs_extern_function = False
