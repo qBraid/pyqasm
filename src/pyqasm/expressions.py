@@ -38,7 +38,7 @@ from openqasm3.ast import (
     IntegerLiteral,
 )
 from openqasm3.ast import IntType as Qasm3IntType
-from openqasm3.ast import SizeOf, Statement, StretchType, UnaryExpression
+from openqasm3.ast import SizeOf, Statement, StretchType, UintType, UnaryExpression
 
 from pyqasm.analyzer import Qasm3Analyzer
 from pyqasm.elements import Variable
@@ -141,6 +141,25 @@ class Qasm3ExprEvaluator:
                 error_node=expression,
                 span=expression.span,
             )
+
+    @classmethod
+    def _is_integer_typed(cls, expression) -> bool:
+        """Whether an expression is built only from declared int or uint variables."""
+        if isinstance(expression, Identifier):
+            assert cls.visitor_obj
+            var = cls.visitor_obj._scope_manager.get_from_visible_scope(expression.name)
+            return (
+                var is not None
+                and not var.dims
+                and isinstance(var.base_type, (Qasm3IntType, UintType))
+            )
+        if isinstance(expression, UnaryExpression):
+            return expression.op.name == "-" and cls._is_integer_typed(expression.expression)
+        if isinstance(expression, BinaryExpression):
+            return expression.op.name in ("+", "-", "*", "/", "%") and all(
+                cls._is_integer_typed(operand) for operand in (expression.lhs, expression.rhs)
+            )
+        return False
 
     @classmethod
     def _check_var_initialized(cls, var_name, var_value, expression):
@@ -471,6 +490,12 @@ class Qasm3ExprEvaluator:
                 return (None, [])
 
             statements.extend(rhs_statements)
+            if expression.op.name == "/" and cls._is_integer_typed(expression):
+                # int / int is integer division, truncated toward zero as in C99
+                quotient = abs(lhs_value) // abs(rhs_value)
+                return _check_and_return_value(
+                    quotient if (lhs_value < 0) == (rhs_value < 0) else -quotient
+                )
             return _check_and_return_value(
                 qasm3_expression_op_map(expression.op.name, lhs_value, rhs_value)
             )
