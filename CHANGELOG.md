@@ -29,6 +29,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- `/` between two `int` or `uint` variables is now integer division, truncated toward zero, as the spec defines (`b / a; // 1`). This also changes angles: with `int[32] a = 2; int[32] b = 3;`, `rx(b / a)` is now `rx(1)`, was `rx(1.5)` ([#474](https://github.com/qBraid/pyqasm/pull/474)).
 - `unroll()` now broadcasts a gate over register operands element by element, as the spec defines. `cx a, b` on two registers became `cx a[0], a[1]; cx b[0], b[1];` instead of `cx a[0], b[0]; cx a[1], b[1];`, and slices, aliases, subroutine register arguments and `ctrl @` did the same. A register beside single-qubit operands (`cx q, r[0]`) now repeats the single qubit instead of raising, and register operands of different lengths raise `ValidationError` ([#462](https://github.com/qBraid/pyqasm/pull/462), [#384](https://github.com/qBraid/pyqasm/issues/384)).
 - Decompose `p`, `phaseshift`, and `u1` (`U1`) gates into a single `rz(theta)` rotation instead of `h; rx(theta); h` ([#470](https://github.com/qBraid/pyqasm/pull/470), [#469](https://github.com/qBraid/pyqasm/issues/469)).
 - Fixed `rebase` failing on `ccx`, `id`, and the `p` gates produced by unrolling `c3x` for the `ROTATIONAL_CX` / `CLIFFORD_T` basis sets ([#468](https://github.com/qBraid/pyqasm/pull/468), [#467](https://github.com/qBraid/pyqasm/issues/467)).

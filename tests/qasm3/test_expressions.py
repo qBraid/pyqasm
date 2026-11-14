@@ -20,9 +20,14 @@ Module containing unit tests for expressions.
 import openqasm3.ast as qasm3_ast
 import pytest
 
-from pyqasm.entrypoint import loads
+from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
-from tests.utils import check_measure_op, check_single_qubit_gate_op, check_single_qubit_rotation_op
+from tests.utils import (
+    check_measure_op,
+    check_single_qubit_gate_op,
+    check_single_qubit_rotation_op,
+    check_unrolled_qasm,
+)
 
 
 def test_correct_expressions():
@@ -205,3 +210,41 @@ def test_unknown_gate_reports_its_name_before_checking_operands(
 
     with pytest.raises(ValidationError, match=error):
         getattr(module, operation)()
+
+
+@pytest.mark.parametrize(
+    "statements, expected",
+    [
+        ("if (b / a == 1) x q[0];\nif (b / a == 1.5) x q[1];", "x q[0];"),
+        ("x q[b / a];", "x q[1];"),
+        ("rx(b / a) q[0];", "rx(1) q[0];"),
+        ("int[32] n = -3;\nif (n / a == -1) x q[0];", "x q[0];"),
+        ("int[32] m = -2;\nif (b / m == -1) x q[0];", "x q[0];"),
+        ("uint[8] u = 7;\nuint[8] w = 2;\nrx(u / w) q[0];", "rx(3) q[0];"),
+        ("const int[32] k = 7;\nconst int[32] m = 2;\nrx(k / m) q[0];", "rx(3) q[0];"),
+        ("for int i in [3:3] { rx(i / a) q[0]; }", "rx(1) q[0];"),
+        ("ry(pi * (b / a)) q[0];", "ry(3.141592653589793) q[0];"),
+        # literals, gate parameters and other types keep true division
+        ("rx(1 / 2) q[0];", "rx(0.5) q[0];"),
+        ("rx(b / 2) q[0];", "rx(1.5) q[0];"),
+        ("rx(3 / a) q[0];", "rx(1.5) q[0];"),
+        ("gate g(t) r { rx(t / 2) r; }\ng(3) q[0];", "rx(1.5) q[0];"),
+        ("gate g(t) r { rx(t / 2) r; }\nint[32] n = 3;\ng(n) q[0];", "rx(1.5) q[0];"),
+        ("ry(3.0 / a) q[0];", "ry(1.5) q[0];"),
+        ("duration d = 1001ns;\nduration h = d / a;\ndelay[h] q[0];", "delay[500.5ns] q[0];"),
+    ],
+)
+def test_integer_division_of_int_variables(statements, expected):
+    """int and uint variables divide as integers; other operands keep true division."""
+    qasm_str = f"""OPENQASM 3.0;
+    include "stdgates.inc";
+    qubit[2] q;
+    int[32] a = 2;
+    int[32] b = 3;
+    {statements}
+    """
+    result = loads(qasm_str)
+    result.unroll()
+    check_unrolled_qasm(
+        dumps(result), f'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\n{expected}'
+    )
