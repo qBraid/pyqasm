@@ -189,7 +189,7 @@ class QasmVisitor:
             class_obj.set_visitor_obj(self)
 
     def _construct_visit_map(self):
-        return {
+        visit_map = {
             qasm3_ast.Include: self._visit_include,  # No operation
             qasm3_ast.QuantumMeasurementStatement: self._visit_measurement,
             qasm3_ast.QuantumReset: self._visit_reset,
@@ -220,6 +220,67 @@ class QasmVisitor:
             qasm3_ast.CalibrationStatement: self._visit_calibration_statement,
             qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
         }
+        # openqasm3 1.0.2 parses `nop` as its own statement, older versions as a gate call
+        if hasattr(qasm3_ast, "QuantumNop"):
+            visit_map[qasm3_ast.QuantumNop] = self._visit_nop
+        return visit_map
+
+    @staticmethod
+    def _nop_as_gate_calls(statement: Any) -> list[qasm3_ast.QuantumGate]:
+        """Turn a ``nop`` statement into one ``nop`` gate call per operand.
+
+        This is the form older openqasm3 versions parse, so the operands are validated and
+        broadcast like any gate operand and the unrolled program is unchanged. A ``nop``
+        with no operands has no effect and gives no call.
+
+        Args:
+            statement (QuantumNop): The nop statement.
+
+        Returns:
+            list[QuantumGate]: One ``nop`` gate call per operand.
+        """
+        calls = []
+        for operand in statement.operands:
+            gate = qasm3_ast.QuantumGate(
+                modifiers=[], name=qasm3_ast.Identifier("nop"), arguments=[], qubits=[operand]
+            )
+            gate.span = statement.span
+            calls.append(gate)
+        return calls
+
+    def _expand_nop_statements(self, statements: list) -> list:
+        """Replace each ``nop`` statement in a gate body by its ``nop`` gate calls.
+
+        Args:
+            statements (list[Statement]): The statements of a gate body.
+
+        Returns:
+            list[Statement]: The same statements with each ``nop`` statement expanded.
+        """
+        if hasattr(qasm3_ast, "QuantumNop"):
+            expanded = []
+            for statement in statements:
+                if isinstance(statement, qasm3_ast.QuantumNop):
+                    expanded.extend(self._nop_as_gate_calls(statement))
+                else:
+                    expanded.append(statement)
+            return expanded
+        return statements
+
+    def _visit_nop(self, statement: Any) -> list[qasm3_ast.Statement]:
+        """Visit a ``nop`` statement as one ``nop`` gate call per operand.
+
+        Args:
+            statement (QuantumNop): The nop statement to visit.
+
+        Returns:
+            list[Statement]: One ``nop`` gate per operand qubit, or an empty list if
+                self._check_only is True.
+        """
+        result: list[qasm3_ast.Statement] = []
+        for gate in self._nop_as_gate_calls(statement):
+            result.extend(self._visit_generic_gate_operation(gate))
+        return result
 
     def _visit_quantum_register(
         self, register: qasm3_ast.QubitDeclaration
@@ -326,7 +387,7 @@ class QasmVisitor:
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
             if qubits:
-                bit_list = [operation.measure.qubit]
+                bit_list = [cast(qasm3_ast.QuantumMeasurement, operation.measure).qubit]
             else:
                 assert operation.target is not None
                 bit_list = [operation.target]
@@ -638,7 +699,15 @@ class QasmVisitor:
         """
         logger.debug("Visiting measurement statement '%s'", str(statement))
 
-        source = statement.measure.qubit
+        if not isinstance(statement.measure, qasm3_ast.QuantumMeasurement):
+            # openqasm3 1.0.2 parses calls such as `measure_iq $0` into QuantumCallExpression
+            raise_qasm3_error(
+                "Only 'measure' is supported as a measurement, not a call to a defcal",
+                error_node=statement,
+                span=statement.span,
+            )
+        measurement = cast(qasm3_ast.QuantumMeasurement, statement.measure)
+        source = measurement.qubit
         target = statement.target
         if isinstance(source, qasm3_ast.Identifier):
             is_pulse_gate = False
@@ -647,7 +716,7 @@ class QasmVisitor:
                     # OpenPulse program: rename to the internal virtual register used by the
                     # pulse visitor, and validate the index is in range.
                     is_pulse_gate = True
-                    statement.measure.qubit.name = f"{INTERNAL_QUBIT_REGISTER}[{source.name[1:]}]"
+                    measurement.qubit.name = f"{INTERNAL_QUBIT_REGISTER}[{source.name[1:]}]"
                     if (
                         self._total_pulse_qubits <= 0
                         and sum(self._global_qreg_size_map.values()) == 0
@@ -663,7 +732,7 @@ class QasmVisitor:
                     self._register_physical_qubit(source.name)
             elif is_internal_qubit_register(source.name):
                 is_pulse_gate = True
-                statement.measure.qubit.name = source.name
+                measurement.qubit.name = source.name
                 if self._total_pulse_qubits <= 0 and sum(self._global_qreg_size_map.values()) == 0:
                     raise_qasm3_error(
                         "Invalid no of qubits in pulse level measurement",
@@ -1365,7 +1434,7 @@ class QasmVisitor:
             for formal_arg, actual_arg in zip(gate_definition.arguments, operation.arguments)
         }
 
-        gate_definition_ops = copy.deepcopy(gate_definition.body)
+        gate_definition_ops = self._expand_nop_statements(copy.deepcopy(gate_definition.body))
         if inverse:
             gate_definition_ops.reverse()
 

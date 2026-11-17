@@ -22,6 +22,7 @@ import pytest
 
 from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
+from tests.utils import xfail_on_cal_assignment_bug
 
 
 @pytest.mark.parametrize("expression", ["1 + 2;", "i;", "sin(1.0);"])
@@ -150,7 +151,7 @@ def test_unknown_expression_statement_call_raises_validation_error(operation: st
             r"Frequency argument 'ph1' must be a FloatType with same size in frame 'frame1'",
             r"Error at line 8, column 15",
         ),
-        (
+        pytest.param(
             """
             OPENQASM 3.0;
             defcalgrammar "openpulse";
@@ -163,6 +164,7 @@ def test_unknown_expression_statement_call_raises_validation_error(operation: st
             """,
             r"Variable 'freq' is constant, cannot be reassigned",
             r"Error at line 9, column 15",
+            marks=xfail_on_cal_assignment_bug,
         ),
         (
             """
@@ -197,7 +199,7 @@ def test_unknown_expression_statement_call_raises_validation_error(operation: st
             r"Frame 'frame2' not found in openpulse scope",
             r"Error at line 9, column 15",
         ),
-        (
+        pytest.param(
             """
             OPENQASM 3.0;
             defcalgrammar "openpulse";
@@ -208,8 +210,9 @@ def test_unknown_expression_statement_call_raises_validation_error(operation: st
             """,
             r"Invalid return type 'IntType' for function 'gaussian'",
             r"Error at line 7, column 15",
+            marks=xfail_on_cal_assignment_bug,
         ),
-        (
+        pytest.param(
             """
             OPENQASM 3.0;
             defcalgrammar "openpulse";
@@ -227,6 +230,7 @@ def test_unknown_expression_statement_call_raises_validation_error(operation: st
             """,
             r"Invalid return type 'IntType' for function 'newframe'",
             r"Error at line 14, column 15",
+            marks=xfail_on_cal_assignment_bug,
         ),
         (
             """
