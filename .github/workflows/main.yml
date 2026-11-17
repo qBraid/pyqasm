@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-15-intel, macos-14]
+        os: [windows-latest, ubuntu-latest, macos-15-intel, macos-15]
 
         # The only per-event switch: pull requests build 3.11, while pushes to
         # main and manual runs build every supported Python.
@@ -52,7 +52,7 @@ jobs:
             manylinux_image: manylinux_2_28
           - os: macos-15-intel
             platform_id: macosx_x86_64
-          - os: macos-14
+          - os: macos-15
             platform_id: macosx_arm64
 
           # Linux is the cheapest runner, so keep every Python under test on
@@ -105,7 +105,7 @@ jobs:
 
       # Used for code coverage later
       - name: Upload built package
-        if: ${{ matrix.os == 'macos-14' && matrix.python == 311 }}
+        if: ${{ matrix.os == 'macos-15' && matrix.python == 311 }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-wheel-cp${{ matrix.python }}-${{ matrix.os }}
@@ -142,7 +142,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             python: 311
             platform_id: macosx_arm64
     steps:
