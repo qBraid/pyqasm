@@ -22,7 +22,7 @@ import pytest
 
 from pyqasm.entrypoint import loads
 from pyqasm.exceptions import ValidationError
-from tests.utils import xfail_on_cal_assignment_bug
+from tests.utils import openpulse_parses_cal_assignments, xfail_on_cal_assignment_bug
 
 
 @pytest.mark.parametrize("expression", ["1 + 2;", "i;", "sin(1.0);"])
@@ -427,3 +427,17 @@ def test_frame_collision_error(qasm_code, error_message, error_span, caplog):
             loads(qasm_code).unroll()
     assert error_message in str(err.value)
     assert error_span in caplog.text
+
+
+@pytest.mark.parametrize(
+    "block",
+    ["cal {\n    int a = 1;\n    a = 2;\n}", "defcal g $0 {\n    int a = 1;\n    a = 2;\n}"],
+)
+def test_cal_assignment_grammar_mismatch_names_the_cause(block):
+    """openpulse 1.0.1 with openqasm3 1.0.2 fails on assignments with a ValidationError."""
+    module = loads(f'OPENQASM 3.0;\ndefcalgrammar "openpulse";\nqubit[1] q;\n{block}\n')
+    if openpulse_parses_cal_assignments():
+        module.validate()
+    else:
+        with pytest.raises(ValidationError, match=r"openpulse 1\.0\.1 with openqasm3 1\.0\.2"):
+            module.validate()

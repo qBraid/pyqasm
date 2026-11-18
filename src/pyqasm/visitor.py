@@ -98,6 +98,12 @@ BRANCH_COMPARISONS: dict[str, Callable[[Any, Any], bool]] = {
     "<": operator.lt,
 }
 
+_OPENPULSE_GRAMMAR_MISMATCH = (
+    "Failed to parse OpenPulse string: openpulse failed inside the openqasm3 parser. "
+    "openpulse 1.0.1 with openqasm3 1.0.2 is a known cause "
+    "(openqasm/openpulse-python#42); install openqasm3 1.0.1 or a fixed openpulse."
+)
+
 
 # pylint: disable-next=too-many-instance-attributes
 class QasmVisitor:
@@ -3417,6 +3423,9 @@ class QasmVisitor:
                 str(err),
             )
             raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
+        except AttributeError as err:
+            # openpulse <= 1.0.1 bundles an older qasm3 grammar than openqasm3 1.0.2 parses with
+            raise ValidationError(_OPENPULSE_GRAMMAR_MISMATCH) from err
 
         result = []
         if len(self._global_qreg_size_map) > 1:
@@ -3567,6 +3576,9 @@ class QasmVisitor:
                 str(err),
             )
             raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
+        except AttributeError as err:
+            # openpulse <= 1.0.1 bundles an older qasm3 grammar than openqasm3 1.0.2 parses with
+            raise ValidationError(_OPENPULSE_GRAMMAR_MISMATCH) from err
 
         result = []
         calibration_stmts: list[qasm3_ast.Statement] = block_body.body

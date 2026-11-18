@@ -21,6 +21,7 @@ import numpy as np
 import openqasm3.ast as qasm3_ast
 import pytest
 
+from pyqasm.exceptions import ValidationError
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
 CONTROLLED_ROTATION_TEST_ANGLE = 0.5
@@ -587,7 +588,7 @@ def check_custom_qasm_gate_op_with_external_gates(unrolled_ast, test_type):
         raise ValueError(f"Unknown test type {test_type}")
 
 
-def _openpulse_parses_cal_assignments() -> bool:
+def openpulse_parses_cal_assignments() -> bool:
     """Whether the installed openpulse can parse an assignment inside a cal block."""
     try:
         from openpulse.parser import parse_openpulse  # pylint: disable=import-outside-toplevel
@@ -601,10 +602,10 @@ def _openpulse_parses_cal_assignments() -> bool:
 
 
 # openpulse 1.0.1 has an older copy of the qasm3 grammar than openqasm3 1.0.2 parses with
-# (openqasm/openpulse#42), so every assignment in a cal block raises AttributeError.
+# (openqasm/openpulse#42), so every assignment in a cal block fails with a ValidationError.
 xfail_on_cal_assignment_bug = pytest.mark.xfail(
-    not _openpulse_parses_cal_assignments(),
+    not openpulse_parses_cal_assignments(),
     reason="openpulse 1.0.1 cannot parse assignments in cal blocks with openqasm3 1.0.2",
-    raises=AttributeError,
+    raises=(ValidationError, AssertionError),
     strict=True,
 )
