@@ -21,6 +21,7 @@ from copy import deepcopy
 from typing import Any, NamedTuple, Optional, Sequence, cast
 
 import numpy as np
+import openqasm3.ast as qasm3_ast
 from openqasm3.ast import (
     BinaryExpression,
     BinaryOperator,
@@ -455,6 +456,47 @@ class Qasm3Transformer:
             [bits[i] if reg else bits[0] for bits, reg in zip(resolved, is_register)]
             for i in range(size)
         ]
+
+    @staticmethod
+    def nop_as_gate_calls(statement: Any) -> list[QuantumGate]:
+        """Turn a ``nop`` statement into one ``nop`` gate call per operand.
+
+        This is the form older openqasm3 versions parse, so the operands are validated and
+        broadcast like any gate operand and the unrolled program is unchanged. A ``nop``
+        with no operands has no effect and gives no call.
+
+        Args:
+            statement (QuantumNop): The nop statement.
+
+        Returns:
+            list[QuantumGate]: One ``nop`` gate call per operand.
+        """
+        calls = []
+        for operand in statement.operands:
+            gate = QuantumGate(modifiers=[], name=Identifier("nop"), arguments=[], qubits=[operand])
+            gate.span = statement.span
+            calls.append(gate)
+        return calls
+
+    @staticmethod
+    def expand_nop_statements(statements: list) -> list:
+        """Replace each ``nop`` statement in a gate body by its ``nop`` gate calls.
+
+        Args:
+            statements (list[Statement]): The statements of a gate body.
+
+        Returns:
+            list[Statement]: The same statements with each ``nop`` statement expanded.
+        """
+        if hasattr(qasm3_ast, "QuantumNop"):
+            expanded = []
+            for statement in statements:
+                if isinstance(statement, qasm3_ast.QuantumNop):
+                    expanded.extend(Qasm3Transformer.nop_as_gate_calls(statement))
+                else:
+                    expanded.append(statement)
+            return expanded
+        return statements
 
     @classmethod
     def transform_function_qubits(

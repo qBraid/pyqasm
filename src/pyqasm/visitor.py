@@ -231,48 +231,6 @@ class QasmVisitor:
             visit_map[qasm3_ast.QuantumNop] = self._visit_nop
         return visit_map
 
-    @staticmethod
-    def _nop_as_gate_calls(statement: Any) -> list[qasm3_ast.QuantumGate]:
-        """Turn a ``nop`` statement into one ``nop`` gate call per operand.
-
-        This is the form older openqasm3 versions parse, so the operands are validated and
-        broadcast like any gate operand and the unrolled program is unchanged. A ``nop``
-        with no operands has no effect and gives no call.
-
-        Args:
-            statement (QuantumNop): The nop statement.
-
-        Returns:
-            list[QuantumGate]: One ``nop`` gate call per operand.
-        """
-        calls = []
-        for operand in statement.operands:
-            gate = qasm3_ast.QuantumGate(
-                modifiers=[], name=qasm3_ast.Identifier("nop"), arguments=[], qubits=[operand]
-            )
-            gate.span = statement.span
-            calls.append(gate)
-        return calls
-
-    def _expand_nop_statements(self, statements: list) -> list:
-        """Replace each ``nop`` statement in a gate body by its ``nop`` gate calls.
-
-        Args:
-            statements (list[Statement]): The statements of a gate body.
-
-        Returns:
-            list[Statement]: The same statements with each ``nop`` statement expanded.
-        """
-        if hasattr(qasm3_ast, "QuantumNop"):
-            expanded = []
-            for statement in statements:
-                if isinstance(statement, qasm3_ast.QuantumNop):
-                    expanded.extend(self._nop_as_gate_calls(statement))
-                else:
-                    expanded.append(statement)
-            return expanded
-        return statements
-
     def _visit_nop(self, statement: Any) -> list[qasm3_ast.Statement]:
         """Visit a ``nop`` statement as one ``nop`` gate call per operand.
 
@@ -284,7 +242,7 @@ class QasmVisitor:
                 self._check_only is True.
         """
         result: list[qasm3_ast.Statement] = []
-        for gate in self._nop_as_gate_calls(statement):
+        for gate in Qasm3Transformer.nop_as_gate_calls(statement):
             result.extend(self._visit_generic_gate_operation(gate))
         return result
 
@@ -1440,7 +1398,9 @@ class QasmVisitor:
             for formal_arg, actual_arg in zip(gate_definition.arguments, operation.arguments)
         }
 
-        gate_definition_ops = self._expand_nop_statements(copy.deepcopy(gate_definition.body))
+        gate_definition_ops = Qasm3Transformer.expand_nop_statements(
+            copy.deepcopy(gate_definition.body)
+        )
         if inverse:
             gate_definition_ops.reverse()
 
