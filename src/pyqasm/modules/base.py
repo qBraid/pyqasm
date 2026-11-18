@@ -213,6 +213,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._frame_limit_per_port: Optional[int] = None
         self._play_in_cal: Optional[bool] = True
         self._compact_gate_arguments: bool = False
+        # OpenQASM 2 has no integer type, so its integer literals divide as reals
+        self._real_literal_division: bool = False
 
     @property
     def name(self) -> str:

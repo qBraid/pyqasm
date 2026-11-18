@@ -148,7 +148,7 @@ class Qasm3ExprEvaluator:
         if isinstance(expression, IntegerLiteral):
             # OpenQASM 2 has no integer type: every classical expression is real
             assert cls.visitor_obj
-            return cls.visitor_obj._module.original_program.version != "2.0"
+            return not cls.visitor_obj._module._real_literal_division
         if isinstance(expression, Identifier):
             assert cls.visitor_obj
             var = cls.visitor_obj._scope_manager.get_from_visible_scope(expression.name)
