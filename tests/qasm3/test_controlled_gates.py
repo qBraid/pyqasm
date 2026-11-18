@@ -232,6 +232,7 @@ _CU = np.exp(1.1j) * _u(*ANGLES[:3])
         ("inv @ ctrl(2) @ sx", 3, _controlled(_SX.conj().T, 2)),
         ("inv @ c3sx", 4, _controlled(_SX.conj().T, 3)),
         ("inv @ ctrl(2) @ rz(0.3)", 3, _controlled(np.diag([np.exp(0.15j), np.exp(-0.15j)]), 2)),
+        ("inv @ ctrl @ c4x", 6, _controlled(_X, 5)),
     ],
 )
 def test_inv_ctrl_is_exact(body, num_qubits, matrix):
@@ -267,6 +268,14 @@ def test_ctrl_unsupported_multi_qubit_gate_raises(num_ctrls):
         ValidationError,
         match=rf"Unsupported controlled QASM operation: iswap with {num_ctrls} controls$",
     ):
+        module.unroll()
+
+
+@pytest.mark.parametrize("gate", ["inv @ ctrl(2) @ iswap", "inv @ ctrl @ rccx"])
+def test_inv_ctrl_without_u_form_raises(gate):
+    """inv @ ctrl @ g is rejected wherever ctrl @ g is, not built from controlled inverse pieces."""
+    module = loads(f'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[4] q;\n{gate} {_operands(4)};')
+    with pytest.raises(ValidationError, match=r"^Unsupported controlled QASM operation: "):
         module.unroll()
 
 

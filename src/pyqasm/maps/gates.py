@@ -1508,19 +1508,28 @@ def map_qasm_inv_ctrl_op_to_callable(op_name: str, ctrl_count: int) -> tuple[Cal
     """Map ``inv @ ctrl(ctrl_count) @ op_name`` to a callable, when inverting piecewise is wrong.
 
     Inverting a gate's decomposition and then controlling each piece turns any global phase
-    of the pieces into a relative phase, and two-qubit controlled gates are not inverted at
-    all on that path. Returns None for the gates where it is exact (self-inverse bases,
-    and ``s``/``t``/``rx``/``ry``/``rz`` without implicit controls), so their output keeps
-    its current form.
+    of the pieces into a relative phase, so that path is never used for a controlled gate
+    without a U-form base. A self-inverse base maps to ``ctrl(ctrl_count) @ op_name``; any
+    other gate with no U-form base raises, so ``inv @ ctrl @ g`` is supported exactly when
+    ``ctrl @ g`` is. Returns None where the piecewise path is exact (no modifier controls,
+    or ``s``/``t``/``rx``/``ry``/``rz`` without implicit controls).
+
+    Raises:
+        ValidationError: If ``ctrl_count`` > 0 and ``op_name`` has no U-form base.
     """
     base, implicit_ctrls = CTRL_BASE_GATE_MAP.get(op_name, (op_name, 0))
     if base in SELF_INVERTING_ONE_QUBIT_OP_SET or base == "swap":
-        return None
+        return map_qasm_ctrl_op_to_callable(op_name, ctrl_count) if ctrl_count else None
     if not implicit_ctrls and (
         ctrl_count == 0 or base in ST_GATE_INV_MAP or base in ROTATION_INVERSION_ONE_QUBIT_OP_MAP
     ):
         return None
-    return _decomposed_ctrl_op(op_name, ctrl_count, inverse=True)
+    decomposed = _decomposed_ctrl_op(op_name, ctrl_count, inverse=True)
+    if decomposed is None and ctrl_count:
+        raise ValidationError(
+            f"Unsupported controlled QASM operation: {op_name} with {ctrl_count} controls"
+        )
+    return decomposed
 
 
 def map_qasm_ctrl_op_to_callable(op_name: str, ctrl_count: int):
