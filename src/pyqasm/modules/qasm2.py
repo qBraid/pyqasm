@@ -22,11 +22,43 @@ from copy import deepcopy
 
 import openqasm3.ast as qasm3_ast
 from openqasm3.ast import Include, Program
+from openqasm3.visitor import QASMTransformer
 
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.modules.base import QasmModule, QasmVisitor
 from pyqasm.modules.qasm3 import Qasm3Module, dumps
 from pyqasm.printer import Qasm2Printer, validate_branch
+
+
+def _int_literal_arithmetic(expression) -> bool:
+    """Whether an expression combines only integer literals with + - * / %."""
+    if isinstance(expression, qasm3_ast.IntegerLiteral):
+        return True
+    if isinstance(expression, qasm3_ast.UnaryExpression):
+        return expression.op.name == "-" and _int_literal_arithmetic(expression.expression)
+    if isinstance(expression, qasm3_ast.BinaryExpression):
+        return expression.op.name in ("+", "-", "*", "/", "%") and all(
+            _int_literal_arithmetic(operand) for operand in (expression.lhs, expression.rhs)
+        )
+    return False
+
+
+class _RealDivision(QASMTransformer[bool]):
+    """Turn the integer literals of a literal-only division into floats, so that OpenQASM 3
+    keeps the real division OpenQASM 2 gives it (``1/2`` becomes ``1.0 / 2.0``)."""
+
+    def visit_BinaryExpression(self, node, context=False):  # pylint: disable=invalid-name
+        """Mark the operands of a division between integer literals."""
+        in_division = context or (node.op.name == "/" and _int_literal_arithmetic(node))
+        return self.generic_visit(node, in_division)
+
+    def visit_IntegerLiteral(self, node, context=False):  # pylint: disable=invalid-name
+        """Replace an integer literal inside a marked division with a float literal."""
+        if not context:
+            return node
+        literal = qasm3_ast.FloatLiteral(float(node.value))
+        literal.span = node.span
+        return literal
 
 
 class Qasm2Module(QasmModule):
@@ -171,6 +203,7 @@ class Qasm2Module(QasmModule):
                 stmt.filename = "stdgates.inc"
                 break
         qasm_program.version = "3.0"
+        _RealDivision().visit(qasm_program)
         if as_str:
             return dumps(qasm_program, compact_gate_arguments=self._compact_gate_arguments)
         module = Qasm3Module(self._name, qasm_program)

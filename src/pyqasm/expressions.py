@@ -144,7 +144,11 @@ class Qasm3ExprEvaluator:
 
     @classmethod
     def _is_integer_typed(cls, expression) -> bool:
-        """Whether an expression is built only from declared int or uint variables."""
+        """Whether an expression is built only from integer literals and int or uint variables."""
+        if isinstance(expression, IntegerLiteral):
+            # OpenQASM 2 has no integer type: every classical expression is real
+            assert cls.visitor_obj
+            return cls.visitor_obj._module.original_program.version != "2.0"
         if isinstance(expression, Identifier):
             assert cls.visitor_obj
             var = cls.visitor_obj._scope_manager.get_from_visible_scope(expression.name)

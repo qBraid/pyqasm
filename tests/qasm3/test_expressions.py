@@ -224,10 +224,11 @@ def test_unknown_gate_reports_its_name_before_checking_operands(
         ("const int[32] k = 7;\nconst int[32] m = 2;\nrx(k / m) q[0];", "rx(3) q[0];"),
         ("for int i in [3:3] { rx(i / a) q[0]; }", "rx(1) q[0];"),
         ("ry(pi * (b / a)) q[0];", "ry(3.141592653589793) q[0];"),
-        # literals, gate parameters and other types keep true division
-        ("rx(1 / 2) q[0];", "rx(0.5) q[0];"),
-        ("rx(b / 2) q[0];", "rx(1.5) q[0];"),
-        ("rx(3 / a) q[0];", "rx(1.5) q[0];"),
+        ("rx(1 / 2) q[0];", "rx(0) q[0];"),
+        ("rx(b / 2) q[0];", "rx(1) q[0];"),
+        ("rx(3 / a) q[0];", "rx(1) q[0];"),
+        ("rx(3 / 4 * pi) q[0];", "rx(0.0) q[0];"),
+        # gate parameters are angles and other types keep true division
         ("gate g(t) r { rx(t / 2) r; }\ng(3) q[0];", "rx(1.5) q[0];"),
         ("gate g(t) r { rx(t / 2) r; }\nint[32] n = 3;\ng(n) q[0];", "rx(1.5) q[0];"),
         ("ry(3.0 / a) q[0];", "ry(1.5) q[0];"),
@@ -235,7 +236,8 @@ def test_unknown_gate_reports_its_name_before_checking_operands(
     ],
 )
 def test_integer_division_of_int_variables(statements, expected):
-    """int and uint variables divide as integers; other operands keep true division."""
+    """Integer literals and int and uint variables divide as integers; other operands keep true
+    division."""
     qasm_str = f"""OPENQASM 3.0;
     include "stdgates.inc";
     qubit[2] q;
@@ -248,3 +250,13 @@ def test_integer_division_of_int_variables(statements, expected):
     check_unrolled_qasm(
         dumps(result), f'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\n{expected}'
     )
+
+
+@pytest.mark.parametrize("to_qasm3", [False, True])
+def test_openqasm2_division_stays_real(to_qasm3):
+    """OpenQASM 2 has no integer type, so 1/2 stays 0.5, also after to_qasm3()."""
+    module = loads('OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[1];\nrx(1/2) q[0];\n')
+    if to_qasm3:
+        module = module.to_qasm3()
+    module.unroll()
+    assert "rx(0.5) q[0];" in dumps(module)
