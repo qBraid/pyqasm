@@ -260,3 +260,16 @@ def test_openqasm2_division_stays_real(to_qasm3):
         module = module.to_qasm3()
     module.unroll()
     assert "rx(0.5) q[0];" in dumps(module)
+
+
+def test_to_qasm3_writes_literal_division_as_real():
+    """The OpenQASM 3 text of an OpenQASM 2 program keeps 1/2 real when it is loaded again."""
+    module = loads(
+        'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[1];\nrx(1/2) q[0];\nrz(pi/2) q[0];\n'
+    )
+    text = module.to_qasm3(as_str=True)
+    assert "rx(1.0 / 2.0) q[0];" in text and "rz(pi / 2) q[0];" in text
+    assert dumps(module.to_qasm3()) == text
+    reloaded = loads(text)
+    reloaded.unroll()
+    assert "rx(0.5) q[0];" in dumps(reloaded)

@@ -23,11 +23,13 @@ from openqasm3 import properties
 from openqasm3.ast import (
     BinaryExpression,
     BinaryOperator,
+    IntegerLiteral,
     Pragma,
     Program,
     QASMNode,
     QuantumGate,
     QuantumPhase,
+    UnaryExpression,
 )
 from openqasm3.printer import Printer, PrinterState
 
@@ -36,8 +38,21 @@ from pyqasm.modules.base import QasmModule, QasmVisitor
 _COMPACT_OPERATORS = frozenset({BinaryOperator["*"], BinaryOperator["/"], BinaryOperator["**"]})
 
 
+def _int_literal_arithmetic(expression: QASMNode) -> bool:
+    """Whether an expression combines only integer literals with + - * / % **."""
+    if isinstance(expression, IntegerLiteral):
+        return True
+    if isinstance(expression, UnaryExpression):
+        return expression.op.name == "-" and _int_literal_arithmetic(expression.expression)
+    if isinstance(expression, BinaryExpression):
+        return expression.op.name in ("+", "-", "*", "/", "%", "**") and all(
+            _int_literal_arithmetic(operand) for operand in (expression.lhs, expression.rhs)
+        )
+    return False
+
+
 class Qasm3Printer(Printer):
-    """OpenQASM 3 printer with two changes to the upstream printer.
+    """OpenQASM 3 printer with three changes to the upstream printer.
 
     Pragmas are written in their '#pragma' form. The upstream printer emits the bare
     'pragma' keyword. Both forms parse, but tools consuming the output (e.g. Amazon
@@ -46,10 +61,19 @@ class Qasm3Printer(Printer):
     With ``compact_gate_arguments``, gate arguments are written without spaces around
     '*', '/' and '**': ``rx(pi/2)`` instead of ``rx(pi / 2)``. Some vendors (e.g. Diraq)
     match rotation angles textually and only accept the compact spelling.
+
+    With ``real_literal_division``, a division between integer literals is written with
+    float literals: ``rx(1.0 / 2.0)`` instead of ``rx(1 / 2)``. A program converted from
+    OpenQASM 2, which has no integer type, keeps its real division this way.
     """
 
     def __init__(
-        self, stream: io.TextIOBase, *, compact_gate_arguments: bool = False, **kwargs: Any
+        self,
+        stream: io.TextIOBase,
+        *,
+        compact_gate_arguments: bool = False,
+        real_literal_division: bool = False,
+        **kwargs: Any,
     ) -> None:
         """Create a printer.
 
@@ -57,12 +81,17 @@ class Qasm3Printer(Printer):
             stream (io.TextIOBase): The stream to write to.
             compact_gate_arguments (bool): Drop the spaces around '*', '/' and '**' in gate
                 arguments. Defaults to False.
+            real_literal_division (bool): Write the integer literals of a division between
+                integer literals as floats. Defaults to False.
             **kwargs (Any): Printer options, forwarded to `openqasm3.printer.Printer`.
         """
         super().__init__(stream, **kwargs)
         self.compact_gate_arguments = compact_gate_arguments
         # true only while a gate call prints, so classical expressions keep their spacing
         self._printing_gate_expr = False
+        self.real_literal_division = real_literal_division
+        # true only while a division between integer literals prints
+        self._printing_real_division = False
 
     def visit_QuantumGate(self, node: QuantumGate, context: PrinterState) -> None:
         """Write a gate call, marking its expressions as gate arguments."""
@@ -85,6 +114,18 @@ class Qasm3Printer(Printer):
 
         Mirrors the upstream method, which hardcodes the spaces around the operator.
         """
+        if (
+            self.real_literal_division
+            and not self._printing_real_division
+            and node.op.name == "/"
+            and _int_literal_arithmetic(node)
+        ):
+            self._printing_real_division = True
+            try:
+                self.visit_BinaryExpression(node, context)
+            finally:
+                self._printing_real_division = False
+            return
         our_precedence = properties.precedence(node)
         # All AST nodes that are built into BinaryExpression are currently left associative.
         if properties.precedence(node.lhs) < our_precedence:
@@ -105,6 +146,13 @@ class Qasm3Printer(Printer):
             self.stream.write(")")
         else:
             self.visit(node.rhs, context)
+
+    def visit_IntegerLiteral(self, node: IntegerLiteral, context: PrinterState) -> None:
+        """Write an integer literal, as a float inside a division that stays real."""
+        if self._printing_real_division:
+            self.stream.write(str(float(node.value)))
+        else:
+            super().visit_IntegerLiteral(node, context)
 
     def visit_Pragma(self, node: Pragma, context: PrinterState) -> None:
         """Write a pragma node, keeping the '#' that the upstream printer drops.
@@ -151,7 +199,11 @@ class Qasm3Module(QasmModule):
         """Convert the qasm AST to a string."""
         # set the version to 3.0
         qasm_ast.version = "3.0"
-        return dumps(qasm_ast, compact_gate_arguments=self._compact_gate_arguments)
+        return dumps(
+            qasm_ast,
+            compact_gate_arguments=self._compact_gate_arguments,
+            real_literal_division=self._real_literal_division,
+        )
 
     def accept(self, visitor: QasmVisitor) -> None:
         """Accept a visitor for the module.

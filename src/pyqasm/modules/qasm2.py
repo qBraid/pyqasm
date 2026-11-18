@@ -173,7 +173,11 @@ class Qasm2Module(QasmModule):
                 break
         qasm_program.version = "3.0"
         if as_str:
-            return dumps(qasm_program, compact_gate_arguments=self._compact_gate_arguments)
+            return dumps(
+                qasm_program,
+                compact_gate_arguments=self._compact_gate_arguments,
+                real_literal_division=True,
+            )
         module = Qasm3Module(self._name, qasm_program)
         module.compact_gate_arguments = self._compact_gate_arguments
         # the program is still OpenQASM 2 arithmetic under an OpenQASM 3 header
