@@ -23,6 +23,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- `inv @` and `pow(-n) @` now unroll to the exact inverse of every standard gate. Before, they gave a wrong circuit for `cp00`, `cp01`, `cp10` and their `cphaseshift` aliases, `iswap`, `ms`, `pswap`, `ryy`, `yy`, `xy` and `xx_plus_yy`, and raised on `sx`, `sxdg`, `p`, `u`, `prx`, `gpi`, `gpi2`, `not`, `si`, `ti`, `v`, `vi`, `u1`, `phaseshift`, `rxx`, `rzz`, `xx`, `zz`, `inv @ ctrl @ gphase(...)` and a `gphase` inside an inverted controlled custom gate. `inv @` on `ecr`, `cswap`, `c3x`, `c4x` and `rccx` now emits the reversed decomposition, which is still exact, but its text and its depth next to other gates can differ ([#492](https://github.com/qBraid/pyqasm/pull/492), [#473](https://github.com/qBraid/pyqasm/issues/473), [#476](https://github.com/qBraid/pyqasm/issues/476)).
 - `publish-lab-env.yml` files a publish request before it approves the environment. Since qBraid/qbraid-api#1334 the server approves only an environment with an open request, so every run failed at approve with `Environment must have status REQUESTED or PENDING to publish`. The request counts toward the API key owner's publish quota and notifies the platform admins ([#491](https://github.com/qBraid/pyqasm/pull/491), [#490](https://github.com/qBraid/pyqasm/issues/490)).
 
 ### Dependencies

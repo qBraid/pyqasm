@@ -67,15 +67,6 @@ def is_physical_qubit(qubit_name: str) -> bool:
     return qubit_name.startswith(PHYSICAL_QUBIT_PREFIX) and qubit_name[1:].isdigit()
 
 
-class InversionOp(Enum):
-    """
-    Enum for specifying the inversion action of a gate.
-    """
-
-    NO_OP = 1
-    INVERT_ROTATION = 2
-
-
 class Context(Enum):
     """
     Enum for the different contexts in Qasm.

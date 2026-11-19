@@ -41,7 +41,6 @@ from pyqasm.elements import (
     ClbitDepthNode,
     Context,
     Frame,
-    InversionOp,
     QubitDepthNode,
     Variable,
     Waveform,
@@ -1227,11 +1226,9 @@ class QasmVisitor:
         Args:
             operation (QuantumGate): The gate operation to visit.
             inverse (bool): Whether the operation is an inverse operation. Defaults to False.
-                    If inverse is True, we apply check for different cases in the
-                    map_qasm_inv_op_to_callable method.
-                    Only rotation and S / T gates are affected by this inversion. For S/T
-                    gates we map them to Sdg / Tdg and vice versa.
-                    For rotation gates, we map to the same gates but invert the rotation angles.
+                    If True, the gate's decomposition is emitted reversed with each
+                    gate inverted, unless ``map_qasm_inv_ctrl_op_to_callable`` builds
+                    the inverse exactly from the gate's U-form.
 
         Returns:
             list[QuantumGate]: The list of gates after unrolling,
@@ -1242,7 +1239,6 @@ class QasmVisitor:
 
         """
         logger.debug("Visiting basic gate operation '%s'", str(operation))
-        inverse_action = None
         if ctrls is None:
             ctrls = []
 
@@ -1262,17 +1258,12 @@ class QasmVisitor:
             else:
                 qasm_func, op_qubit_count = map_qasm_op_to_callable(operation)
         else:
-            # in basic gates, inverse action only affects the rotation gates
-            qasm_func, op_qubit_count, inverse_action = map_qasm_inv_op_to_callable(
-                operation.name.name
-            )
+            qasm_func, op_qubit_count = map_qasm_inv_op_to_callable(operation)
         op_parameters = []
         actual_num_params = map_qasm_op_num_params(operation.name.name)
 
         if len(operation.arguments) > 0:  # parametric gate
             op_parameters = self._get_op_parameters(operation)
-            if inverse_action == InversionOp.INVERT_ROTATION:
-                op_parameters = [-1 * param for param in op_parameters]
 
         if len(op_parameters) != actual_num_params:
             raise_qasm3_error(
@@ -1282,22 +1273,20 @@ class QasmVisitor:
                 span=operation.span,
             )
 
-        result = []
+        result: list[qasm3_ast.QuantumGate] = []
         unrolled_targets = self._unroll_multiple_target_qubits(operation, op_qubit_count)
         unrolled_gate_function = partial(qasm_func, *op_parameters)
 
         if inverse:
-            # for convenience, we recur and handle the ctrl @'s to the unrolled no inverse case
-            # instead of trying to map the inverted callable to a ctrl'd version
-            result.extend(
-                [
-                    g2
-                    for g in self._broadcast_gate_operation(
-                        unrolled_gate_function, unrolled_targets, None
-                    )
-                    for g2 in self._visit_basic_gate_operation(g, False, ctrls)
-                ]
-            )
+            # the pieces are already inverted; re-visit each so the ctrl @'s apply to it
+            for piece in self._broadcast_gate_operation(
+                unrolled_gate_function, unrolled_targets, None
+            ):
+                if isinstance(piece, qasm3_ast.QuantumPhase):
+                    # only gates without ctrl @'s emit gphase here; the result type omits it
+                    result.append(piece)  # type: ignore[arg-type]
+                else:
+                    result.extend(self._visit_basic_gate_operation(piece, False, ctrls))
         else:
             result.extend(
                 self._broadcast_gate_operation(unrolled_gate_function, unrolled_targets, ctrls)

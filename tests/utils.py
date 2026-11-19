@@ -75,7 +75,10 @@ _FIXED_ONE_QUBIT = {
     "t": _phase(np.pi / 4),
     "tdg": _phase(-np.pi / 4),
     "sx": np.array([[1 + 1j, 1 - 1j], [1 - 1j, 1 + 1j]], dtype=complex) / 2,
+    "sxdg": np.array([[1 - 1j, 1 + 1j], [1 + 1j, 1 - 1j]], dtype=complex) / 2,
+    "nop": _I2,
 }
+_SWAP = np.eye(4, dtype=complex)[[0, 2, 1, 3]]
 _PARAM_ONE_QUBIT = {"p": _phase, "phaseshift": _phase, "rz": _rz, "rx": _rx, "ry": _ry}
 _PARAM_TWO_QUBIT = {"cp": _phase, "cphaseshift": _phase, "crz": _rz, "crx": _rx, "cry": _ry}
 _FIXED_TWO_QUBIT_TARGET = {"cx": _X, "cy": _Y, "cz": _Z}
@@ -115,6 +118,19 @@ def _embed_controlled(matrix, control, target, num_qubits):
     return op0 + op1
 
 
+def _embed_two_qubit(matrix, first, second, num_qubits):
+    """Embed a 2-qubit matrix whose little-endian factors are ``first`` then ``second``."""
+    dim = 2**num_qubits
+    operator = np.zeros((dim, dim), dtype=complex)
+    for basis in range(dim):
+        local_in = ((basis >> first) & 1) | (((basis >> second) & 1) << 1)
+        rest = basis & ~(1 << first) & ~(1 << second)
+        for local_out in range(4):
+            dest = rest | ((local_out & 1) << first) | (((local_out >> 1) & 1) << second)
+            operator[dest, basis] = matrix[local_out, local_in]
+    return operator
+
+
 def unitary_from_unrolled_ast(unrolled_ast, num_qubits):
     """Build the full operator of an unrolled circuit over basis/controlled gates.
 
@@ -142,6 +158,8 @@ def unitary_from_unrolled_ast(unrolled_ast, num_qubits):
             )
         elif name == "ccx":
             gate = mcx_unitary(num_qubits, target=qubits[2], controls=qubits[:2])
+        elif name == "swap":
+            gate = _embed_two_qubit(_SWAP, qubits[0], qubits[1], num_qubits)
         elif name in _PARAM_TWO_QUBIT:
             gate = _embed_controlled(
                 _PARAM_TWO_QUBIT[name](args[0]), qubits[0], qubits[1], num_qubits
