@@ -25,6 +25,15 @@ import pytest
 
 from pyqasm.entrypoint import dumps, loads
 from pyqasm.exceptions import ValidationError
+from pyqasm.maps.gates import (
+    FIVE_QUBIT_OP_MAP,
+    FOUR_QUBIT_OP_MAP,
+    ONE_QUBIT_OP_MAP,
+    ONE_QUBIT_ROTATION_MAP,
+    THREE_QUBIT_OP_MAP,
+    TWO_QUBIT_OP_MAP,
+    map_qasm_op_num_params,
+)
 from tests.qasm3.resources.gates import (
     CUSTOM_GATE_INCORRECT_TESTS,
     PHYSICAL_QUBIT_VALID_TESTS,
@@ -1084,3 +1093,96 @@ def test_csx_and_rccx_decomposition_unitary(body, num_qubits, expected_num_gates
     ]
     assert "h" not in gate_names
     assert len(gate_names) == expected_num_gates
+
+
+# Angles that are not multiples of pi/4, so a sign or ordering error cannot hide behind symmetry.
+_INVERSE_TEST_ANGLES = (0.37, 0.81, 1.29, 1.73)
+
+
+def _standard_gate_statements():
+    """Every standard gate pyqasm unrolls, called once with distinct angles and operands."""
+    op_maps = [
+        (1, ONE_QUBIT_OP_MAP),
+        (1, ONE_QUBIT_ROTATION_MAP),
+        (2, TWO_QUBIT_OP_MAP),
+        (3, THREE_QUBIT_OP_MAP),
+        (4, FOUR_QUBIT_OP_MAP),
+        (5, FIVE_QUBIT_OP_MAP),
+    ]
+    for num_qubits, op_map in op_maps:
+        for name in op_map:
+            if name == "nop":  # a keyword, so `inv @ nop` does not parse
+                continue
+            params = _INVERSE_TEST_ANGLES[: map_qasm_op_num_params(name)]
+            call = f"{name}({', '.join(map(str, params))})" if params else name
+            operands = ", ".join(f"q[{i}]" for i in range(num_qubits))
+            yield pytest.param(f"{call} {operands};", num_qubits, id=call)
+
+
+@pytest.mark.parametrize("statement, num_qubits", _standard_gate_statements())
+def test_inverse_modifier_is_adjoint_of_every_standard_gate(statement, num_qubits):
+    """inv @ g unrolls to the adjoint of g for every standard gate (issues #473, #476)."""
+    forward = _unrolled_unitary(statement, num_qubits)
+    assert_unitary_equal(_unrolled_unitary(f"inv @ {statement}", num_qubits), forward.conj().T)
+
+
+@pytest.mark.parametrize("statement, num_qubits", _standard_gate_statements())
+def test_double_inverse_and_negative_power_of_every_standard_gate(statement, num_qubits):
+    """inv @ inv @ g round-trips to g, and pow(-1) @ g is the adjoint."""
+    forward = _unrolled_unitary(statement, num_qubits)
+    assert_unitary_equal(_unrolled_unitary(f"inv @ inv @ {statement}", num_qubits), forward)
+    assert_unitary_equal(_unrolled_unitary(f"pow(-1) @ {statement}", num_qubits), forward.conj().T)
+
+
+_SXDG = np.array([[1 - 1j, 1 + 1j], [1 + 1j, 1 - 1j]], dtype=complex) / 2
+_CV_INVERSE = np.eye(4, dtype=complex)
+_CV_INVERSE[np.ix_([1, 3], [1, 3])] = _SXDG  # SX^dagger on q[1] where q[0] (the low bit) is 1
+_PSWAP_INVERSE = np.array(
+    [
+        [1, 0, 0, 0],
+        [0, 0, np.exp(-0.5j), 0],
+        [0, np.exp(-0.5j), 0, 0],
+        [0, 0, 0, 1],
+    ],
+    dtype=complex,
+)
+
+
+@pytest.mark.parametrize(
+    "body, num_qubits, expected",
+    [
+        # issue #473 repros that #459 already fixed; they guard that fix
+        ("inv @ cphaseshift(0.5) q[0], q[1];", 2, np.diag([1, 1, 1, np.exp(-0.5j)])),
+        ("inv @ cv q[0], q[1];", 2, _CV_INVERSE),
+        # issue #473: inv @ pswap re-emitted the forward gate
+        ("inv @ pswap(0.5) q[0], q[1];", 2, _PSWAP_INVERSE),
+        # issue #476: inv @ raised on single-qubit gates outside the small inverse tables
+        ("inv @ sx q[0];", 1, _SXDG),
+    ],
+)
+def test_inverse_modifier_issue_repros(body, num_qubits, expected):
+    """The exact programs from issues #473 and #476 unroll to the textbook adjoint."""
+    assert_unitary_equal(_unrolled_unitary(body, num_qubits), expected)
+
+
+def test_inverse_modifier_on_custom_gate_using_decomposed_gates():
+    """inv @ on a custom gate inverts a body that mixes decomposed, basis and nop gates."""
+    definition = "gate mixed(t) a, b { pswap(t) a, b; sx a; rxx(t) a, b; nop b; }\n"
+    forward = _unrolled_unitary(definition + "mixed(0.37) q[0], q[1];", 2)
+    actual = _unrolled_unitary(definition + "inv @ mixed(0.37) q[0], q[1];", 2)
+    assert_unitary_equal(actual, forward.conj().T)
+
+
+def test_inverse_modifier_prints_negated_integer_angles_as_floats():
+    """inv @ u2(1, 2) prints its negated integer angle as rz(-2.0), as before #473."""
+    header = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[1] q;\n'
+    module = loads(header + "inv @ u2(1, 2) q[0];")
+    module.unroll()
+    expected = [
+        "rz(-4.141592653589793) q[0];",
+        "rx(-1.5707963267948966) q[0];",
+        "rz(-4.71238898038469) q[0];",
+        "rx(-1.5707963267948966) q[0];",
+        "rz(-2.0) q[0];",
+    ]
+    check_unrolled_qasm(dumps(module), header + "\n".join(expected))
