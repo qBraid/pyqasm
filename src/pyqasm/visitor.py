@@ -189,7 +189,7 @@ class QasmVisitor:
             class_obj.set_visitor_obj(self)
 
     def _construct_visit_map(self):
-        return {
+        visit_map = {
             qasm3_ast.Include: self._visit_include,  # No operation
             qasm3_ast.QuantumMeasurementStatement: self._visit_measurement,
             qasm3_ast.QuantumReset: self._visit_reset,
@@ -220,6 +220,25 @@ class QasmVisitor:
             qasm3_ast.CalibrationStatement: self._visit_calibration_statement,
             qasm3_ast.CalibrationGrammarDeclaration: self._visit_calibration_grammar_declaration,
         }
+        # openqasm3 1.0.2 parses `nop` as its own statement, older versions as a gate call
+        if hasattr(qasm3_ast, "QuantumNop"):
+            visit_map[qasm3_ast.QuantumNop] = self._visit_nop
+        return visit_map
+
+    def _visit_nop(self, statement: Any) -> list[qasm3_ast.Statement]:
+        """Visit a ``nop`` statement as one ``nop`` gate call per operand.
+
+        Args:
+            statement (QuantumNop): The nop statement to visit.
+
+        Returns:
+            list[Statement]: One ``nop`` gate per operand qubit, or an empty list if
+                self._check_only is True.
+        """
+        result: list[qasm3_ast.Statement] = []
+        for gate in Qasm3Transformer.nop_as_gate_calls(statement):
+            result.extend(self._visit_generic_gate_operation(gate))
+        return result
 
     def _visit_quantum_register(
         self, register: qasm3_ast.QubitDeclaration
@@ -326,7 +345,7 @@ class QasmVisitor:
 
         if isinstance(operation, qasm3_ast.QuantumMeasurementStatement):
             if qubits:
-                bit_list = [operation.measure.qubit]
+                bit_list = [cast(qasm3_ast.QuantumMeasurement, operation.measure).qubit]
             else:
                 assert operation.target is not None
                 bit_list = [operation.target]
@@ -638,7 +657,15 @@ class QasmVisitor:
         """
         logger.debug("Visiting measurement statement '%s'", str(statement))
 
-        source = statement.measure.qubit
+        if not isinstance(statement.measure, qasm3_ast.QuantumMeasurement):
+            # openqasm3 1.0.2 parses calls such as `measure_iq $0` into QuantumCallExpression
+            raise_qasm3_error(
+                "Only 'measure' is supported as a measurement, not a call to a defcal",
+                error_node=statement,
+                span=statement.span,
+            )
+        measurement = cast(qasm3_ast.QuantumMeasurement, statement.measure)
+        source = measurement.qubit
         target = statement.target
         if isinstance(source, qasm3_ast.Identifier):
             is_pulse_gate = False
@@ -647,7 +674,7 @@ class QasmVisitor:
                     # OpenPulse program: rename to the internal virtual register used by the
                     # pulse visitor, and validate the index is in range.
                     is_pulse_gate = True
-                    statement.measure.qubit.name = f"{INTERNAL_QUBIT_REGISTER}[{source.name[1:]}]"
+                    measurement.qubit.name = f"{INTERNAL_QUBIT_REGISTER}[{source.name[1:]}]"
                     if (
                         self._total_pulse_qubits <= 0
                         and sum(self._global_qreg_size_map.values()) == 0
@@ -663,7 +690,7 @@ class QasmVisitor:
                     self._register_physical_qubit(source.name)
             elif is_internal_qubit_register(source.name):
                 is_pulse_gate = True
-                statement.measure.qubit.name = source.name
+                measurement.qubit.name = source.name
                 if self._total_pulse_qubits <= 0 and sum(self._global_qreg_size_map.values()) == 0:
                     raise_qasm3_error(
                         "Invalid no of qubits in pulse level measurement",
@@ -1366,7 +1393,9 @@ class QasmVisitor:
             # gate parameters are angles: an int argument must not divide as an integer
             param_map[formal_arg.name] = float(value) if isinstance(value, int) else value
 
-        gate_definition_ops = copy.deepcopy(gate_definition.body)
+        gate_definition_ops = Qasm3Transformer.expand_nop_statements(
+            copy.deepcopy(gate_definition.body)
+        )
         if inverse:
             gate_definition_ops.reverse()
 
@@ -3349,6 +3378,13 @@ class QasmVisitor:
                 str(err),
             )
             raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
+        except AttributeError as err:
+            # openpulse <= 1.0.1 bundles an older qasm3 grammar than openqasm3 1.0.2 parses with
+            raise ValidationError(
+                "Failed to parse OpenPulse string: openpulse failed inside the openqasm3 parser. "
+                "openpulse 1.0.1 with openqasm3 1.0.2 is a known cause "
+                "(openqasm/openpulse-python#42); install openqasm3 1.0.1 or a fixed openpulse."
+            ) from err
 
         result = []
         if len(self._global_qreg_size_map) > 1:
@@ -3499,6 +3535,13 @@ class QasmVisitor:
                 str(err),
             )
             raise ValidationError(f"Failed to parse OpenPulse string: {_error_line}") from err
+        except AttributeError as err:
+            # openpulse <= 1.0.1 bundles an older qasm3 grammar than openqasm3 1.0.2 parses with
+            raise ValidationError(
+                "Failed to parse OpenPulse string: openpulse failed inside the openqasm3 parser. "
+                "openpulse 1.0.1 with openqasm3 1.0.2 is a known cause "
+                "(openqasm/openpulse-python#42); install openqasm3 1.0.1 or a fixed openpulse."
+            ) from err
 
         result = []
         calibration_stmts: list[qasm3_ast.Statement] = block_body.body

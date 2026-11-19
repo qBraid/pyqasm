@@ -104,7 +104,7 @@ def test_loads_parse_error_names_location(program, reason):
 
 def test_describe_parse_error_without_token():
     """An empty parse error with no ANTLR cause still gets a non-empty reason."""
-    assert describe_parse_error(QASM3ParsingError()) == "invalid OpenQASM syntax"
+    assert describe_parse_error(QASM3ParsingError("")) == "invalid OpenQASM syntax"
 
 
 def test_loads_header_only_module_ok():
