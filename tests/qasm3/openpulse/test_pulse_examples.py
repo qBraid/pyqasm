@@ -18,7 +18,7 @@ Module containing unit tests for the pulse operation.
 """
 
 from pyqasm.entrypoint import dumps, loads
-from tests.utils import check_unrolled_qasm
+from tests.utils import check_unrolled_qasm, xfail_on_cal_assignment_bug
 
 
 def test_qubit_spectroscopy():
@@ -415,6 +415,7 @@ rx(1.5707963267948966) __PYQASM_QUBITS__[1], __PYQASM_QUBITS__[2], __PYQASM_QUBI
     check_unrolled_qasm(dumps(module), expected_qasm)
 
 
+@xfail_on_cal_assignment_bug
 def test_multiplexed_readout_and_capture():
     qasm_str = """
     OPENQASM 3.0;

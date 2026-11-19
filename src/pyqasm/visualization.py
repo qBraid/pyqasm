@@ -22,7 +22,7 @@ Functions for drawing quantum circuits.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from openqasm3 import ast
 
@@ -218,7 +218,7 @@ def _compute_moments(
     for stmt in reversed(statements):
         if not isinstance(stmt, ast.QuantumMeasurementStatement):
             break
-        control_key = _identifier_to_key(stmt.measure.qubit)
+        control_key = _identifier_to_key(cast(ast.QuantumMeasurement, stmt.measure).qubit)
         if control_key not in seen_keys:
             seen_keys.add(control_key)
             final_measurements.append(stmt)
@@ -240,7 +240,7 @@ def _compute_moments(
             for key in target_keys:
                 depths[key] = depth
         elif isinstance(statement, ast.QuantumMeasurementStatement):
-            keys = [_identifier_to_key(statement.measure.qubit)]
+            keys = [_identifier_to_key(cast(ast.QuantumMeasurement, statement.measure).qubit)]
             if statement.target:
                 target_key = _identifier_to_key(statement.target)[0], -1
                 keys.append(target_key)
@@ -486,7 +486,7 @@ def _mpl_draw_statement(
         lines = [line_nums[_identifier_to_key(q)] for q in statement.qubits]
         _mpl_draw_gate(statement, args, lines, ax, x)
     elif isinstance(statement, ast.QuantumMeasurementStatement):
-        qubit_key = _identifier_to_key(statement.measure.qubit)
+        qubit_key = _identifier_to_key(cast(ast.QuantumMeasurement, statement.measure).qubit)
         if statement.target is None:
             _mpl_draw_measurement(line_nums[qubit_key], -1, -1, ax, x)
             return

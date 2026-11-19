@@ -172,3 +172,9 @@ jobs:
           fail_ci_if_error: false
           files: ./build/coverage/coverage.xml
           verbose: true
+
+      # keeps the openqasm3 1.0.1 code paths tested until pyqasm requires 1.0.2
+      - name: Test against openqasm3 1.0.1
+        run: |
+          python -m pip install --require-hashes -r .github/requirements/openqasm3-1.0.1.txt
+          python -m pytest tests/ -q

@@ -19,6 +19,7 @@ Top-level entrypoint functions for pyqasm.
 
 from __future__ import annotations
 
+import inspect
 import os
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,13 @@ from pyqasm.preprocess import (
 
 if TYPE_CHECKING:
     import openqasm3.ast
+
+# openqasm3 1.0.2 parses only OpenQASM 3 unless told otherwise; pyqasm checks the version itself
+_PARSE_KWARGS = (
+    {"ignore_version": True}
+    if "ignore_version" in inspect.signature(openqasm3.parse).parameters
+    else {}
+)
 
 # maps each documented loads() kwarg to the module attribute that stores it
 _LOADS_KWARG_ATTRS = {
@@ -181,7 +189,7 @@ def loads(program: openqasm3.ast.Program | str, **kwargs) -> QasmModule:
         # after include resolution, so an opaque in a vendor include is rewritten too
         program, opaque_gates = rewrite_opaque_declarations(program)
         try:
-            program = openqasm3.parse(program)
+            program = openqasm3.parse(program, **_PARSE_KWARGS)
         except (openqasm3.parser.QASM3ParsingError, AttributeError) as err:
             # openqasm3 can raise AttributeError on empty/whitespace-only input
             raise ValidationError(
