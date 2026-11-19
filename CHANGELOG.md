@@ -15,44 +15,24 @@ Types of changes:
 ## Unreleased
 
 ### Added
-- Added the `Publish qBraid Lab environment` workflow (`publish-lab-env.yml`), run by hand for a released version. It builds an environment with pyqasm and every extra it declares on an Ubuntu 24.04 runner with the system Python 3.12, which matches Lab, and smoke tests it. Then it uploads and approves it on qBraid staging or production, and adds it to the configured group as its latest. A failed run can resume from its slug. Each target reads its API key and URL from the `env-publish-staging` or `env-publish-production` GitHub Environment. The steps live in `bin/publish_lab_env.py` and `bin/lab_env_smoke_test.py` ([#455](https://github.com/qBraid/pyqasm/pull/455)).
 
 ### Improved / Modified
-- Separated OpenQASM 2 printing and conditional-branch normalization into `pyqasm.printer`, leaving the module focused on program handling. Printed output and validation behavior are unchanged ([#454](https://github.com/qBraid/pyqasm/pull/454)).
-- **Breaking:** circuit drawing moved from `pyqasm.printer` to `pyqasm.visualization`. `pyqasm.draw` is unchanged, but code that imports from `pyqasm.printer`, such as `from pyqasm.printer import mpl_draw`, must import from `pyqasm.visualization` instead ([#461](https://github.com/qBraid/pyqasm/pull/461)).
-- `publish-lab-env.yml` sets the pyqasm light and dark logos from qbraid-static-assets as the environment's catalog logo and kernel icon. An optional `QBRAID_ENV_LOGO_URL` variable, the https URL of a PNG, overrides both. It replaces `QBRAID_ENV_LOGO`, since pyqasm is not a qBraid provider ([#456](https://github.com/qBraid/pyqasm/pull/456)).
-- The Lab environment from `publish-lab-env.yml` now installs pyqasm with its user-facing extras and ipykernel only. It leaves out the `test`, `lint` and `docs` extras, which added about 50 developer packages, so the environment has 48 packages instead of 100 ([#456](https://github.com/qBraid/pyqasm/pull/456)).
-- Named the Lab environments that `publish-lab-env.yml` builds `pyqasm (vX.Y.Z)`, with kernel `Python 3 [pyqasm vX.Y.Z]`, to match the existing pyqasm environments. The rule that keeps a backport from becoming the group's latest reads both this and the older `pyqasm X.Y.Z` name ([#456](https://github.com/qBraid/pyqasm/pull/456)).
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Fixed `ctrl @` on standard gates with no dedicated controlled form, which raised `Unsupported controlled QASM operation`. `ctrl(n) @` now works for up to 10 controls on every single-qubit standard gate (including `s`, `sdg`, `t`, `tdg`, `sx`, `sxdg`, `id`, `U`/`u3`, `u2`, `prx`, `gpi`, `gpi2`), on gates that are themselves controlled single-qubit gates or swap (such as `cs`, `csx`, `cu`, `cz`, `cswap`, `c4x`), and on `gphase` with two or more controls. It also fixes `ctrl @ u`, which raised a `TypeError`, and `inv @` over controlled gates, which gave the wrong relative phase for `U`/`u2`/`cu` and left `cs`, `crx`, `cu`, `cphaseshift` and `cv` uninverted. ([#459](https://github.com/qBraid/pyqasm/pull/459), [#252](https://github.com/qBraid/pyqasm/issues/252)).
-- `loads()` works with `openqasm3` 1.0.2 again, and still with 1.0.1. OpenQASM 2 programs load instead of failing with `program reports being unsupported version '2.0'`, syntax errors name the offending token instead of `parse failed`, and `nop` unrolls to one `nop` per operand qubit as before, also inside gate definitions (`nop;` to nothing). A measurement call such as `measure_iq q[0]`, which 1.0.2 parses, raises `ValidationError`. Known issue: openpulse 1.0.1 cannot parse an assignment in a `cal` or `defcal` block with openqasm3 1.0.2, and pyqasm now raises a `ValidationError` that names this cause instead of an `AttributeError`. [#481](https://github.com/qBraid/pyqasm/issues/481) tracks the fix ([#475](https://github.com/qBraid/pyqasm/pull/475), [#472](https://github.com/qBraid/pyqasm/issues/472)).
-- `unroll()` now broadcasts a gate over register operands element by element, as the spec defines. `cx a, b` on two registers now unrolls to `cx a[0], b[0]; cx a[1], b[1];`. Before, it unrolled to `cx a[0], a[1]; cx b[0], b[1];`, and slices, aliases, subroutine register arguments and `ctrl @` did the same. A register beside single-qubit operands (`cx q, r[0]`) now repeats the single qubit instead of raising, and register operands of different lengths raise `ValidationError` ([#462](https://github.com/qBraid/pyqasm/pull/462), [#384](https://github.com/qBraid/pyqasm/issues/384)).
-- Decompose `p`, `phaseshift`, and `u1` (`U1`) gates into a single `rz(theta)` rotation instead of `h; rx(theta); h` ([#470](https://github.com/qBraid/pyqasm/pull/470), [#469](https://github.com/qBraid/pyqasm/issues/469)).
-- Fixed `rebase` failing on `ccx`, `id`, and the `p` gates produced by unrolling `c3x` for the `ROTATIONAL_CX` / `CLIFFORD_T` basis sets ([#468](https://github.com/qBraid/pyqasm/pull/468), [#467](https://github.com/qBraid/pyqasm/issues/467)).
-- `loads()` syntax errors now name the offending token, line and column, e.g. `Failed to parse OpenQASM string: syntax error near ';' at line 3, column 13`. Before, the reason after the colon was empty ([#460](https://github.com/qBraid/pyqasm/pull/460)).
-- Fixed the matplotlib circuit drawer's controlled-gate lookup for `c3x` and `c4x` ([#458](https://github.com/qBraid/pyqasm/pull/458), [#322](https://github.com/qBraid/pyqasm/issues/322)).
-- Fixed `loads("")` / whitespace-only input raising `AttributeError` instead of `ValidationError`. Empty and whitespace programs now raise `ValidationError` like other parse failures ([#451](https://github.com/qBraid/pyqasm/pull/451), [#437](https://github.com/qBraid/pyqasm/issues/437)).
 
 ### Dependencies
-- Bumped `github/codeql-action/upload-sarif` from 3.37.8 to 4.38.1 ([#431](https://github.com/qBraid/pyqasm/pull/431)).
-- Bumped `actions/upload-artifact` from 4.6.2 to 7.0.2 in `scorecard.yml`, and pinned the other workflows to 7.0.2 instead of the `v7` major tag ([#453](https://github.com/qBraid/pyqasm/pull/453)).
-- Bumped `ossf/scorecard-action` from 2.4.4 to 2.5.0 ([#457](https://github.com/qBraid/pyqasm/pull/457)).
 
 ### Other
-- The wheel and sdist build scripts in `bin/` install their tools from hash-locked files in `.github/requirements/`, which pin the versions CI used before. This clears the last six Scorecard Pinned-Dependencies alerts on the scripts ([#466](https://github.com/qBraid/pyqasm/pull/466)).
-- `lab-env-tools.in` sets minimum versions for qbraid-cli and qbraid-core instead of exact ones, so Dependabot's weekly `uv` update can raise them together. Its exact pins made that update fail. `lab-env-tools.txt` still installs qbraid-cli 0.16.10 and qbraid-core 0.6.27 ([#465](https://github.com/qBraid/pyqasm/pull/465)).
-- Hardened the GitHub Actions workflows for the OpenSSF Scorecard and CodeQL alerts. Every action is pinned to a commit SHA. Every workflow declares least-privilege `GITHUB_TOKEN` permissions. Workflow tools install from hash-locked files in `.github/requirements/`. A grouped weekly Dependabot PR updates them. The `pr-compliance.yml` job no longer checks out the repository ([#463](https://github.com/qBraid/pyqasm/pull/463)).
-- Moved the arm64 macOS jobs in CI and in the release workflows from the retired `macos-14` runner to `macos-15` ([#479](https://github.com/qBraid/pyqasm/pull/479)).
 
 ## Past Release Notes
 
 Archive of changelog entries from previous releases:
 
+- [v1.4.0](https://github.com/qBraid/pyqasm/releases/tag/v1.4.0)
 - [v1.3.0](https://github.com/qBraid/pyqasm/releases/tag/v1.3.0)
 - [v1.2.1](https://github.com/qBraid/pyqasm/releases/tag/v1.2.1)
 - [v1.2.0](https://github.com/qBraid/pyqasm/releases/tag/v1.2.0)
