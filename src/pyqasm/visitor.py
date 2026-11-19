@@ -1400,11 +1400,10 @@ class QasmVisitor:
             for formal_arg, actual_arg in zip(gate_definition.arguments, operation.arguments)
         }
 
-        gate_definition_ops = Qasm3Transformer.expand_nop_statements(
-            copy.deepcopy(gate_definition.body)
-        )
+        gate_definition_ops = copy.deepcopy(gate_definition.body)
         if inverse:
             gate_definition_ops.reverse()
+        gate_definition_ops = Qasm3Transformer.expand_nop_statements(gate_definition_ops)
 
         self._scope_manager.push_scope({})
         self._scope_manager.push_context(Context.GATE)

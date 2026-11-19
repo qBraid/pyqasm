@@ -77,10 +77,19 @@ def test_single_qubit_qasm3_gates(circuit_name, request):
         ("nop q[0], q[0];", ["nop q[0];", "nop q[0];"]),
         ("gate g a { nop a; }\ng q[0];", ["nop q[0];"]),
         ("gate g a, b { nop a, b; x b; }\ng q[0], r[0];", ["nop q[0];", "nop r[0];", "x r[0];"]),
+        ("gate g a { nop a; }\ninv @ g q[0];", ["nop q[0];"]),
+        (
+            "gate g a, b { nop a; x b; nop b; }\ninv @ g q[0], r[0];",
+            ["nop r[0];", "x r[0];", "nop q[0];"],
+        ),
+        (
+            "gate g a, b { nop a, b; cx a, b; }\ninv @ g q[0], r[0];",
+            ["cx q[0], r[0];", "nop q[0];", "nop r[0];"],
+        ),
     ],
 )
 def test_nop_unrolls_per_operand(statement, expected):
-    """A nop unrolls to one nop per operand qubit, also inside a gate definition.
+    """A nop unrolls to one nop per operand qubit, also inside a gate definition and its inverse.
 
     openqasm3 1.0.1 parses these as nop gate calls and 1.0.2 as nop statements, and both
     give the same unrolled program.

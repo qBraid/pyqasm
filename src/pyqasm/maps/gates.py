@@ -1204,7 +1204,7 @@ def map_qasm_op_to_callable(op_node: QuantumGate) -> tuple[Callable, int]:  # ty
     )
 
 
-SELF_INVERTING_ONE_QUBIT_OP_SET = {"id", "h", "x", "y", "z"}
+SELF_INVERTING_ONE_QUBIT_OP_SET = {"id", "h", "x", "y", "z", "nop"}
 ST_GATE_INV_MAP = {
     "s": "sdg",
     "t": "tdg",
