@@ -20,10 +20,11 @@ Module mapping supported QASM gates to lower level gate operations.
 """
 
 from copy import deepcopy
-from typing import Callable
+from typing import Callable, TypeVar
 
 import numpy as np
 from openqasm3.ast import (
+    Expression,
     FloatLiteral,
     Identifier,
     IndexedIdentifier,
@@ -32,12 +33,13 @@ from openqasm3.ast import (
     QuantumPhase,
 )
 
-from pyqasm.elements import BasisSet, InversionOp
+from pyqasm.elements import BasisSet
 from pyqasm.exceptions import ValidationError, raise_qasm3_error
 from pyqasm.linalg import kak_decomposition_angles
 from pyqasm.maps.expressions import CONSTANTS_MAP
 
 QubitOperand = IndexedIdentifier | Identifier
+EmittedGate = TypeVar("EmittedGate", bound=QuantumGate | QuantumPhase)
 
 
 def _copy_qubit(qubit: QubitOperand) -> QubitOperand:
@@ -1232,40 +1234,60 @@ MULTI_CONTROLLED_X_INV_MAP = {
 }
 
 
-def map_qasm_inv_op_to_callable(op_name: str):
-    """
-    Map a QASM operation to a callable.
+# Inverses of the gates that decompositions emit. The three sets above also steer
+# ``map_qasm_inv_ctrl_op_to_callable``, so these extend them instead of changing them.
+_SELF_INVERSE_GATE_SET = SELF_INVERTING_ONE_QUBIT_OP_SET | {"nop", "cx", "cz", "swap", "ccx"}
+_DAGGER_GATE_MAP = {**ST_GATE_INV_MAP, "sx": "sxdg", "sxdg": "sx"}
+_NEGATED_ANGLE_GATE_SET = ROTATION_INVERSION_ONE_QUBIT_OP_MAP | {"p"}
+
+
+def _negated(argument: Expression) -> FloatLiteral:
+    if not isinstance(argument, (FloatLiteral, IntegerLiteral)):
+        raise ValidationError(f"Cannot negate non-literal gate argument {argument}")
+    return FloatLiteral(value=float(-argument.value))
+
+
+def inverse_gate_list(gates: list[EmittedGate]) -> list[EmittedGate]:
+    """Invert a decomposition in place: reverse it and replace each gate by its inverse.
 
     Args:
-        op_name (str): The QASM operation name.
+        gates: The gates a decomposition emitted. They are modified and returned.
+
+    Raises:
+        ValidationError: If a gate is not one the decompositions emit.
+    """
+    for gate in gates:
+        if isinstance(gate, QuantumPhase):
+            gate.argument = _negated(gate.argument)
+            continue
+        name = gate.name.name
+        if name in _DAGGER_GATE_MAP:
+            gate.name = Identifier(name=_DAGGER_GATE_MAP[name])
+        elif name in _NEGATED_ANGLE_GATE_SET:
+            gate.arguments = [_negated(argument) for argument in gate.arguments]
+        elif name not in _SELF_INVERSE_GATE_SET:
+            raise ValidationError(f"Cannot invert gate '{name}' in a decomposition")
+    gates.reverse()
+    return gates
+
+
+def map_qasm_inv_op_to_callable(op_node: QuantumGate) -> tuple[Callable, int]:
+    """
+    Map ``inv @`` on a QASM operation to a callable.
+
+    The callable builds the operation's decomposition reversed, with every gate inverted.
+
+    Args:
+        op_node (QuantumGate): The QASM operation.
 
     Returns:
-        tuple: A tuple containing the callable, the number of qubits the operation acts on,
-        and what is to be done with the basic gate which we are trying to invert.
+        tuple: A tuple containing the callable and the number of qubits the operation acts on.
+
+    Raises:
+        ValidationError: If the QASM operation is unsupported or undeclared.
     """
-    if op_name in SELF_INVERTING_ONE_QUBIT_OP_SET or op_name in ST_GATE_INV_MAP:
-        # Self-inverting gates map to themselves; S/T map to their dagger and
-        # vice versa. Either way the result is a single-qubit gate applied as-is.
-        inv_gate_name = ST_GATE_INV_MAP.get(op_name, op_name)
-        return ONE_QUBIT_OP_MAP[inv_gate_name], 1, InversionOp.NO_OP
-    if op_name in TWO_QUBIT_OP_MAP:
-        return TWO_QUBIT_OP_MAP[op_name], 2, InversionOp.NO_OP
-    if op_name in THREE_QUBIT_OP_MAP:
-        return THREE_QUBIT_OP_MAP[op_name], 3, InversionOp.NO_OP
-    if op_name in MULTI_CONTROLLED_X_INV_MAP:
-        inv_func, num_qubits = MULTI_CONTROLLED_X_INV_MAP[op_name]
-        return inv_func, num_qubits, InversionOp.NO_OP
-    if op_name in U_INV_ROTATION_MAP:
-        # Special handling for U gate as it is composed of multiple
-        # basic gates and we need to invert each of them
-        return U_INV_ROTATION_MAP[op_name], 1, InversionOp.NO_OP
-    if op_name in ROTATION_INVERSION_ONE_QUBIT_OP_MAP:
-        return (
-            ONE_QUBIT_ROTATION_MAP[op_name],
-            1,
-            InversionOp.INVERT_ROTATION,
-        )
-    raise ValidationError(f"Unsupported / undeclared QASM operation: {op_name}")
+    forward, num_qubits = map_qasm_op_to_callable(op_node)
+    return (lambda *args: inverse_gate_list(forward(*args))), num_qubits
 
 
 REV_CTRL_GATE_MAP = {

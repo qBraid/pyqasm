@@ -20,6 +20,7 @@ Module containing unit tests for unrolling quantum gates.
 """
 
 import numpy as np
+import openqasm3
 import openqasm3.ast as qasm3_ast
 import pytest
 
@@ -32,6 +33,7 @@ from pyqasm.maps.gates import (
     ONE_QUBIT_ROTATION_MAP,
     THREE_QUBIT_OP_MAP,
     TWO_QUBIT_OP_MAP,
+    inverse_gate_list,
     map_qasm_op_num_params,
 )
 from tests.qasm3.resources.gates import (
@@ -1186,3 +1188,39 @@ def test_inverse_modifier_prints_negated_integer_angles_as_floats():
         "rz(-2.0) q[0];",
     ]
     check_unrolled_qasm(dumps(module), header + "\n".join(expected))
+
+
+def _qubit(index):
+    return qasm3_ast.IndexedIdentifier(
+        name=qasm3_ast.Identifier("q"), indices=[[qasm3_ast.IntegerLiteral(index)]]
+    )
+
+
+def test_inverse_gate_list_reverses_and_inverts_each_gate():
+    """inverse_gate_list reverses the gates, daggers sx, and negates the p and gphase angles."""
+    gates = [
+        qasm3_ast.QuantumPhase(modifiers=[], argument=qasm3_ast.IntegerLiteral(2), qubits=[]),
+        qasm3_ast.QuantumGate(
+            modifiers=[],
+            name=qasm3_ast.Identifier("p"),
+            arguments=[qasm3_ast.FloatLiteral(0.37)],
+            qubits=[_qubit(0)],
+        ),
+        qasm3_ast.QuantumGate(
+            modifiers=[], name=qasm3_ast.Identifier("sx"), arguments=[], qubits=[_qubit(1)]
+        ),
+    ]
+    inverted = [openqasm3.dumps(gate).strip() for gate in inverse_gate_list(gates)]
+    assert inverted == ["sxdg q[1];", "p(-0.37) q[0];", "gphase(-2.0);"]
+
+
+def test_inverse_gate_list_rejects_a_gate_decompositions_do_not_emit():
+    """A gate outside the decomposition basis has no known inverse, so it raises."""
+    gate = qasm3_ast.QuantumGate(
+        modifiers=[],
+        name=qasm3_ast.Identifier("cp"),
+        arguments=[qasm3_ast.FloatLiteral(0.37)],
+        qubits=[_qubit(0), _qubit(1)],
+    )
+    with pytest.raises(ValidationError, match=r"Cannot invert gate 'cp' in a decomposition"):
+        inverse_gate_list([gate])
