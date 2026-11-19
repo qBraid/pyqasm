@@ -318,7 +318,7 @@ def should_set_latest(client: Any, settings: Settings, current: Optional[str], s
 
 
 def publish(settings: Settings, slug: str) -> None:
-    """Approve, then add to the group as its latest. Skips steps already done."""
+    """Request and approve, then add to the group as its latest. Skips steps already done."""
     steps = PUBLISH_STEPS[: PUBLISH_STEPS.index(settings.stop_after) + 1]
     group = settings.group
     if "publish" in steps and not group:
@@ -330,9 +330,11 @@ def publish(settings: Settings, slug: str) -> None:
         if status == "APPROVED":
             print(f"'{slug}' is already approved.")
         else:
-            # Approve works from any status. Skipping the publish request avoids the
-            # per-plan publish quota and the email that a request sends every admin.
-            # Approving is what publishes to the catalog: it makes the environment public.
+            # The server approves only an environment with an open request, so file one
+            # first. A request counts toward the owner's per-plan publish quota and
+            # notifies the platform admins. Approving is what makes the environment public.
+            if status not in ("REQUESTED", "PENDING"):
+                client.request_publish(slug)
             client.approve_publish(slug)
             status = review_status(client, slug)
             if status != "APPROVED":
