@@ -23,8 +23,10 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- `/` between integer operands, meaning integer literals and `int` or `uint` variables, is now integer division, truncated toward zero, as the spec defines (`b / a; // 1`). This also changes angles: `rx(1 / 2)` is now `rx(0)`, was `rx(0.5)`, `rx(3 / 4 * pi)` is now `rx(0.0)`, was `rx(2.356194490192345)`, and with `int[32] a = 2; int[32] b = 3;`, `rx(b / a)` is now `rx(1)`, was `rx(1.5)`. Gate parameters are angles and keep real division (`g(3)` with `rx(t / 2)` in the body is still `rx(1.5)`). OpenQASM 2 has no integer type, so its programs keep real division, also after `to_qasm3()`, which writes `1/2` as `1.0 / 2.0` ([#474](https://github.com/qBraid/pyqasm/pull/474)).
 - `unroll()` accepts `inv @` on a custom gate whose body contains `nop`, and keeps each `nop` in the inverted body. Before, it raised `ValidationError: Unsupported / undeclared QASM operation: nop` ([#485](https://github.com/qBraid/pyqasm/pull/485), [#477](https://github.com/qBraid/pyqasm/issues/477)).
 - `publish-lab-env.yml` files a publish request before it approves the environment. Since qBraid/qbraid-api#1334 the server approves only an environment with an open request, so every run failed at approve with `Environment must have status REQUESTED or PENDING to publish`. The request counts toward the API key owner's publish quota and notifies the platform admins ([#491](https://github.com/qBraid/pyqasm/pull/491), [#490](https://github.com/qBraid/pyqasm/issues/490)).
+
 
 ### Dependencies
 

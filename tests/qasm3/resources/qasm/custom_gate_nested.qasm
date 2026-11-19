@@ -14,4 +14,4 @@ gate custom(a,b,c) p, q{
 }
 
 qubit[2] q;
-custom(2 + 3 - 1/5, 0.1, 0.3) q[0], q[1];
+custom(2 + 3 - 1.0/5, 0.1, 0.3) q[0], q[1];

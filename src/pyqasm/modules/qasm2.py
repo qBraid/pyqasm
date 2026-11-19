@@ -42,6 +42,7 @@ class Qasm2Module(QasmModule):
     def __init__(self, name: str, program: Program) -> None:
         super().__init__(name, program)
         self._unrolled_ast = Program(statements=[], version="2.0")
+        self._real_literal_division = True
         self._whitelist_statements = {
             qasm3_ast.BranchingStatement,
             qasm3_ast.QubitDeclaration,
@@ -172,9 +173,15 @@ class Qasm2Module(QasmModule):
                 break
         qasm_program.version = "3.0"
         if as_str:
-            return dumps(qasm_program, compact_gate_arguments=self._compact_gate_arguments)
+            return dumps(
+                qasm_program,
+                compact_gate_arguments=self._compact_gate_arguments,
+                real_literal_division=True,
+            )
         module = Qasm3Module(self._name, qasm_program)
         module.compact_gate_arguments = self._compact_gate_arguments
+        # the program is still OpenQASM 2 arithmetic under an OpenQASM 3 header
+        module._real_literal_division = True
         return module
 
     def finalize(self, statements: list[qasm3_ast.Statement]) -> list[qasm3_ast.Statement]:
