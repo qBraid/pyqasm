@@ -15,12 +15,14 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added support for Python 3.15. Releases now publish CPython 3.15 wheels for Linux x86_64, macOS x86_64 and arm64, and Windows x86_64 ([#489](https://github.com/qBraid/pyqasm/pull/489), [#488](https://github.com/qBraid/pyqasm/issues/488)).
 
 ### Improved / Modified
 
 ### Deprecated
 
 ### Removed
+- Dropped support for Python 3.10, which reached end of life in October 2026. pyqasm now requires Python 3.11 or later, and releases no longer publish 3.10 wheels. The CI lock files in `.github/requirements/` are recompiled for Python 3.11 with the same pins ([#489](https://github.com/qBraid/pyqasm/pull/489), [#488](https://github.com/qBraid/pyqasm/issues/488)).
 
 ### Fixed
 
