@@ -23,6 +23,7 @@ Types of changes:
 ### Removed
 
 ### Fixed
+- `unroll()` accepts `inv @` on a custom gate whose body contains `nop`, and keeps each `nop` in the inverted body. Before, it raised `ValidationError: Unsupported / undeclared QASM operation: nop` ([#485](https://github.com/qBraid/pyqasm/pull/485), [#477](https://github.com/qBraid/pyqasm/issues/477)).
 - `publish-lab-env.yml` files a publish request before it approves the environment. Since qBraid/qbraid-api#1334 the server approves only an environment with an open request, so every run failed at approve with `Environment must have status REQUESTED or PENDING to publish`. The request counts toward the API key owner's publish quota and notifies the platform admins ([#491](https://github.com/qBraid/pyqasm/pull/491), [#490](https://github.com/qBraid/pyqasm/issues/490)).
 
 ### Dependencies
