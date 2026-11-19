@@ -82,6 +82,10 @@ def test_single_qubit_qasm3_gates(circuit_name, request):
             "gate g a, b { nop a; x b; nop b; }\ninv @ g q[0], r[0];",
             ["nop r[0];", "x r[0];", "nop q[0];"],
         ),
+        (
+            "gate g a, b { nop a, b; cx a, b; }\ninv @ g q[0], r[0];",
+            ["cx q[0], r[0];", "nop q[0];", "nop r[0];"],
+        ),
     ],
 )
 def test_nop_unrolls_per_operand(statement, expected):
