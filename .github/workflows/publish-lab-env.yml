@@ -9,8 +9,9 @@ name: Publish qBraid Lab environment
 #   variable QBRAID_ENV_LOGO_URL  https URL of a PNG logo (optional; overrides the
 #                                 pyqasm light and dark logos in bin/publish_lab_env.py)
 # The steps live in bin/publish_lab_env.py and bin/lab_env_smoke_test.py.
-# The run approves directly, without a publish request. That skips the per-plan
-# publish quota and the email a request sends every platform admin.
+# The run files a publish request and then approves it, because the server
+# approves only an environment with an open request. The request counts toward
+# the key owner's per-plan publish quota and notifies the platform admins.
 
 on:
   workflow_dispatch:
