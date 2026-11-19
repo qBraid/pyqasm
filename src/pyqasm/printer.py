@@ -97,7 +97,9 @@ def _collapse_broadcast_measurement(
     """
     pairs = []
     for statement in body:
-        if not isinstance(statement, qasm3_ast.QuantumMeasurementStatement):
+        if not isinstance(statement, qasm3_ast.QuantumMeasurementStatement) or not isinstance(
+            statement.measure, qasm3_ast.QuantumMeasurement
+        ):
             return None
         qubit = _single_index(statement.measure.qubit)
         target = _single_index(statement.target)

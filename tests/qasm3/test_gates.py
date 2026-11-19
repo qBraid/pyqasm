@@ -68,6 +68,46 @@ def test_single_qubit_qasm3_gates(circuit_name, request):
     check_single_qubit_gate_op(result.unrolled_ast, 5, qubit_list, gate_name)
 
 
+@pytest.mark.parametrize(
+    "statement, expected",
+    [
+        ("nop q[1];", ["nop q[1];"]),
+        ("nop q;", ["nop q[0];", "nop q[1];"]),
+        ("nop q[0], r[0];", ["nop q[0];", "nop r[0];"]),
+        ("nop q[0], q[0];", ["nop q[0];", "nop q[0];"]),
+        ("gate g a { nop a; }\ng q[0];", ["nop q[0];"]),
+        ("gate g a, b { nop a, b; x b; }\ng q[0], r[0];", ["nop q[0];", "nop r[0];", "x r[0];"]),
+    ],
+)
+def test_nop_unrolls_per_operand(statement, expected):
+    """A nop unrolls to one nop per operand qubit, also inside a gate definition.
+
+    openqasm3 1.0.1 parses these as nop gate calls and 1.0.2 as nop statements, and both
+    give the same unrolled program.
+    """
+    header = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\nqubit[1] r;\n'
+    module = loads(header + statement)
+    module.unroll()
+    check_unrolled_qasm(dumps(module), header + "\n".join(expected))
+
+
+@pytest.mark.skipif(
+    not hasattr(qasm3_ast, "QuantumNop"), reason="openqasm3 < 1.0.2 does not parse a bare nop"
+)
+def test_nop_without_operands_unrolls_to_nothing():
+    """A nop with no operands has no effect."""
+    header = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\n'
+    module = loads(header + "nop;")
+    module.unroll()
+    check_unrolled_qasm(dumps(module), header)
+
+
+def test_nop_out_of_range_operand_raises():
+    """A nop operand is validated like a gate operand."""
+    with pytest.raises(ValidationError):
+        loads('OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\nnop q[2];').validate()
+
+
 @pytest.mark.parametrize("circuit_name", double_op_tests)
 def test_two_qubit_qasm3_gates(circuit_name, request):
     qubit_list = [[0, 1], [0, 1]]

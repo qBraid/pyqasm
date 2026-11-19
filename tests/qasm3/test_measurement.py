@@ -17,6 +17,7 @@ Module containing unit tests for loading measurement operations.
 
 """
 
+import openqasm3.ast as qasm3_ast
 import pytest
 
 from pyqasm.entrypoint import dumps, loads
@@ -456,3 +457,15 @@ def test_incorrect_measure(qasm3_code, error_message, line_num, col_num, err_lin
 
     assert f"Error at line {line_num}, column {col_num}" in caplog.text
     assert err_line in caplog.text
+
+
+@pytest.mark.skipif(
+    not hasattr(qasm3_ast, "QuantumCallExpression"),
+    reason="openqasm3 < 1.0.2 does not parse measurement calls",
+)
+@pytest.mark.parametrize("statement", ["c[0] = measure_iq q[0];", "measure_iq q[0] -> c[0];"])
+def test_measurement_call_raises(statement):
+    """A measurement other than `measure`, such as a defcal call, raises a ValidationError."""
+    qasm3_string = f"OPENQASM 3.0;\nqubit[1] q;\nbit[1] c;\n{statement}"
+    with pytest.raises(ValidationError, match="Only 'measure' is supported as a measurement"):
+        loads(qasm3_string).validate()
