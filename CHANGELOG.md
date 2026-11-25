@@ -15,6 +15,7 @@ Types of changes:
 ## Unreleased
 
 ### Added
+- Added `asv` benchmarking support in `pyqasm`. ([#258](https://github.com/qBraid/pyqasm/pull/258))
 
 ### Improved / Modified
 
