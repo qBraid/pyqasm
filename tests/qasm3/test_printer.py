@@ -83,3 +83,15 @@ def test_compact_gate_arguments_qasm2():
     qasm3_header = 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[1] q;\n'
     check_unrolled_qasm(module.to_qasm3(as_str=True), qasm3_header + "rx(pi/2) q[0];")
     assert module.to_qasm3().compact_gate_arguments is True
+
+
+def test_dumps_after_unroll_with_single_statement():
+    qasm = "OPENQASM 3.0;\ngate g a { }\nqubit[1] q;\ng q[0];"
+    expected = "OPENQASM 3.0;\nqubit[1] q;\n"
+
+    module = loads(qasm)
+    module.unroll()
+
+    assert len(module.unrolled_ast.statements) == 1
+    check_unrolled_qasm(dumps(module), expected)
+    check_unrolled_qasm(str(module), expected)
