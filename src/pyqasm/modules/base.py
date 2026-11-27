@@ -406,6 +406,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         curr_module._has_barriers = False
         curr_module._statements = stmts_without_barriers
         curr_module._unrolled_ast.statements = stmts_without_barriers
+        curr_module._is_unrolled = True
 
         return curr_module
 
