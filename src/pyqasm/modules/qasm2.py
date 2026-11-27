@@ -227,4 +227,5 @@ class Qasm2Module(QasmModule):
         unrolled_stmt_list = visitor.visit_basic_block(self._statements)
         final_stmt_list = visitor.finalize(unrolled_stmt_list)
 
-        self.unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]
+        if not visitor._check_only:
+            self.unrolled_ast.statements = self.finalize(final_stmt_list)  # type: ignore[assignment]

@@ -199,6 +199,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         self._has_barriers: Optional[bool] = None
         self._validated_program = False
         self._unrolled_ast = Program(statements=[])
+        self._is_unrolled = False
         self._external_gates: list[str] = []
         # declared `opaque` in the source, so unroll() never flushes these
         self._opaque_gates: set[str] = set()
@@ -405,6 +406,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         curr_module._has_barriers = False
         curr_module._statements = stmts_without_barriers
         curr_module._unrolled_ast.statements = stmts_without_barriers
+        curr_module._is_unrolled = True
 
         return curr_module
 
@@ -754,6 +756,8 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
         if not kwargs:
             kwargs = {}
 
+        self._is_unrolled = False
+
         try:
             self.num_qubits, self.num_clbits = 0, 0
             if ext_gates := kwargs.get("external_gates"):
@@ -764,6 +768,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
                 self._consolidate_qubits = consolidate_qbts
             visitor = QasmVisitor(module=self, scope_manager=ScopeManager(), **kwargs)
             self.accept(visitor)
+            self._is_unrolled = True
         except (ValidationError, UnrollError) as err:
             # reset the unrolled ast and qasm
             self.num_qubits, self.num_clbits = -1, -1
@@ -889,7 +894,7 @@ class QasmModule(ABC):  # pylint: disable=too-many-instance-attributes, too-many
             str: The string representation of the module.
         """
 
-        if len(self._unrolled_ast.statements) > 1:
+        if self._is_unrolled:
             return self._qasm_ast_to_str(self.unrolled_ast)
         return self._qasm_ast_to_str(self.original_program)
 
