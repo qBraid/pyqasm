@@ -794,3 +794,32 @@ def test_extern_function_value_error(qasm_code, error_message, error_span, caplo
     msg = str(first)
     assert error_message in msg
     assert error_span in caplog.text
+
+
+def test_extern_function_call_bare_statement():
+    """Test that bare extern function calls (not assigned) emit a terminating semicolon.
+
+    Regression test for: qBraid/pyqasm#438
+    A bare extern function call like `func1(a, b);` must end with a semicolon
+    to be valid OpenQASM 3.
+    """
+    qasm3_string = """
+    OPENQASM 3.0;
+    include "stdgates.inc";
+    float a = 1.0;
+    int b = 2;
+    extern func1(float, int) -> bit;
+    func1(a, b);
+    """
+
+    extern_functions = {
+        "func1": (["float", "int"], "bit"),
+    }
+
+    result = loads(qasm3_string, extern_functions=extern_functions)
+    result.validate()
+    result.unroll()
+    unrolled_qasm = dumps(result)
+
+    # The bare extern call must end with a semicolon
+    assert "func1(1.0, 2);" in unrolled_qasm
